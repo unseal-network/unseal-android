@@ -48,7 +48,7 @@ Do not create:
 - Create: `features/webhooks/test/build.gradle.kts`
 - Create: `features/webhooks/test/src/main/kotlin/io/element/android/features/webhooks/test/FakeWebhookTriggersEntryPoint.kt`
 
-- [ ] **Step 1: Add Gradle modules**
+- [x] **Step 1: Add Gradle modules**
 
 Create `features/webhooks/api/build.gradle.kts` with `io.element.android-library`, `kotlin-parcelize`, `projects.libraries.architecture`, `projects.libraries.matrix.api`, and `projects.libraries.chatbot.api`.
 
@@ -56,7 +56,7 @@ Create `features/webhooks/impl/build.gradle.kts` using `io.element.android-compo
 
 Create `features/webhooks/test/build.gradle.kts` using `io.element.android-library`, namespace `io.element.android.features.webhooks.test`, `implementation(projects.features.webhooks.api)`, `implementation(projects.libraries.architecture)`, and `implementation(projects.tests.testutils)`.
 
-- [ ] **Step 2: Add public entry point**
+- [x] **Step 2: Add public entry point**
 
 Create `WebhookTriggersEntryPoint`:
 
@@ -91,13 +91,13 @@ sealed interface WebhookTriggerEditMode : Parcelable {
 
 This keeps `WebhookTriggersEntryPoint.InitialTarget.Edit` usable by hosts and avoids any API-to-implementation dependency.
 
-- [ ] **Step 3: Add default and fake entry points**
+- [x] **Step 3: Add default and fake entry points**
 
 Add `DefaultWebhookTriggersEntryPoint` with `@ContributesBinding(AppScope::class)` and `parentNode.createNode<WebhookTriggersFlowNode>(buildContext, plugins = listOf(params, callback))`.
 
 Add `FakeWebhookTriggersEntryPoint` equivalent to `FakeRoomSchedulesEntryPoint`, with a `createNodeResult` lambda defaulting to `lambdaError()`.
 
-- [ ] **Step 4: Add flow node shell**
+- [x] **Step 4: Add flow node shell**
 
 Create `WebhookTriggersFlowNode` as a `BaseFlowNode<NavTarget>` with targets:
 
@@ -112,7 +112,7 @@ Map `InitialTarget.Global` to `List(Global)`, `InitialTarget.Room(roomId, roomNa
 
 For this task, resolve both targets to a temporary `Node` that renders `Text("Webhook Triggers")`, then later tasks replace it with real nodes.
 
-- [ ] **Step 5: Compile module shell**
+- [x] **Step 5: Compile module shell**
 
 Run:
 
@@ -122,7 +122,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 6: Commit shell**
+- [x] **Step 6: Commit shell**
 
 ```bash
 git add features/webhooks docs/superpowers/specs/2026-06-09-webhook-triggers-design.md docs/superpowers/plans/2026-06-09-webhook-triggers.md
