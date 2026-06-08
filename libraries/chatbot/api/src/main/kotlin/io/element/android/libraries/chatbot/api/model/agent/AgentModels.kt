@@ -128,6 +128,10 @@ data class ChatbotProviderModel(
 
 @Serializable
 data class ChatbotAgentProviderInfo(
+    @SerialName("display_name")
+    val displayName: String? = null,
+    @SerialName("supports_base_url")
+    val supportsBaseUrl: Boolean? = null,
     val models: List<ChatbotProviderModel> = emptyList(),
 )
 

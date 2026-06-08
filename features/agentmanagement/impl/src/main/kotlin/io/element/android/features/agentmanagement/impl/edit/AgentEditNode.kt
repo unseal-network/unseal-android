@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import com.bumble.appyx.core.modality.BuildContext
 import com.bumble.appyx.core.node.Node
 import com.bumble.appyx.core.plugin.Plugin
+import com.bumble.appyx.core.plugin.plugins
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
@@ -25,6 +26,7 @@ import kotlinx.parcelize.Parcelize
 class AgentEditNode(
     @Assisted buildContext: BuildContext,
     @Assisted plugins: List<Plugin>,
+    presenterFactory: AgentEditPresenter.Factory,
 ) : Node(buildContext, plugins = plugins) {
     sealed interface Inputs : Plugin, Parcelable {
         @Parcelize
@@ -40,6 +42,25 @@ class AgentEditNode(
         fun onUpdated(botName: String)
     }
 
+    private val inputs = plugins<Inputs>().first()
+    private val callback = plugins<Callback>().first()
+    private val presenter = presenterFactory.create(
+        mode = when (inputs) {
+            Inputs.Create -> AgentEditMode.Create
+            is Inputs.Edit -> AgentEditMode.Edit(inputs.botName)
+        },
+        navigator = object : AgentEditNavigator {
+            override fun onCreated(botName: String, directRoomId: RoomId?) = callback.onCreated(botName, directRoomId)
+            override fun onUpdated(botName: String) = callback.onUpdated(botName)
+        }
+    )
+
     @Composable
-    override fun View(modifier: Modifier) = Unit
+    override fun View(modifier: Modifier) {
+        AgentEditView(
+            state = presenter.present(),
+            onBackClick = callback::onDone,
+            modifier = modifier,
+        )
+    }
 }

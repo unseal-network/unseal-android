@@ -36,3 +36,5 @@ fun selectModelId(provider: ChatbotAgentProvider?, currentModelId: String): Stri
 }
 
 fun needsApiKey(providerId: String?): Boolean = providerId != null && providerId != "unseal"
+
+fun supportsBaseUrl(provider: ChatbotAgentProvider?): Boolean = provider?.info?.supportsBaseUrl == true
