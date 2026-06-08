@@ -28,6 +28,12 @@ interface SkillsEntryPoint : FeatureEntryPoint {
 
         @Parcelize
         data object Create : InitialTarget
+
+        @Parcelize
+        data class AgentSkills(val botName: String) : InitialTarget
+
+        @Parcelize
+        data object ManagementHub : InitialTarget
     }
 
     data class Params(val initialTarget: InitialTarget = InitialTarget.Home) : NodeInputs
@@ -43,5 +49,6 @@ interface SkillsEntryPoint : FeatureEntryPoint {
         fun onDone()
         fun onCreateSkill()
         fun onSkillDeleted(id: String)
+        fun onOpenAgentManagement()
     }
 }

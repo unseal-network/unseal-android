@@ -20,9 +20,11 @@ import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
 import io.element.android.features.skills.api.SkillsEntryPoint
+import io.element.android.features.skills.impl.agentskills.AgentSkillsNode
 import io.element.android.features.skills.impl.detail.SkillDetailNode
 import io.element.android.features.skills.impl.home.SkillsHomeNode
 import io.element.android.features.skills.impl.marketplace.SkillMarketplaceNode
+import io.element.android.features.skills.impl.managementhub.SkillsManagementHubNode
 import io.element.android.libraries.architecture.BackstackView
 import io.element.android.libraries.architecture.BaseFlowNode
 import io.element.android.libraries.architecture.appyx.canPop
@@ -56,6 +58,12 @@ class SkillsFlowNode(
 
         @Parcelize
         data object Create : NavTarget
+
+        @Parcelize
+        data class AgentSkills(val botName: String) : NavTarget
+
+        @Parcelize
+        data object ManagementHub : NavTarget
     }
 
     private val callback: SkillsEntryPoint.Callback = callback()
@@ -81,6 +89,14 @@ class SkillsFlowNode(
                     plugins = listOf(homeCallback),
                 )
             }
+            is NavTarget.AgentSkills -> createNode<AgentSkillsNode>(
+                buildContext = buildContext,
+                plugins = listOf(AgentSkillsNode.Inputs(navTarget.botName), agentSkillsCallback),
+            )
+            NavTarget.ManagementHub -> createNode<SkillsManagementHubNode>(
+                buildContext = buildContext,
+                plugins = listOf(managementHubCallback),
+            )
         }
     }
 
@@ -125,6 +141,18 @@ class SkillsFlowNode(
         override fun onDone() = closeOrPop()
         override fun onDeleted(id: String) = onSkillDeleted(id)
     }
+
+    private val agentSkillsCallback = object : AgentSkillsNode.Callback {
+        override fun onDone() = closeOrPop()
+    }
+
+    private val managementHubCallback = object : SkillsManagementHubNode.Callback {
+        override fun onDone() = closeOrPop()
+        override fun onOpenAgentManagement() = callback.onOpenAgentManagement()
+        override fun onOpenSkillsHome() {
+            backstack.push(NavTarget.Home)
+        }
+    }
 }
 
 private fun SkillsEntryPoint.InitialTarget.toNavTarget(): SkillsFlowNode.NavTarget = when (this) {
@@ -132,4 +160,6 @@ private fun SkillsEntryPoint.InitialTarget.toNavTarget(): SkillsFlowNode.NavTarg
     SkillsEntryPoint.InitialTarget.Marketplace -> SkillsFlowNode.NavTarget.Marketplace
     is SkillsEntryPoint.InitialTarget.Detail -> SkillsFlowNode.NavTarget.Detail(id, isOwner)
     SkillsEntryPoint.InitialTarget.Create -> SkillsFlowNode.NavTarget.Create
+    is SkillsEntryPoint.InitialTarget.AgentSkills -> SkillsFlowNode.NavTarget.AgentSkills(botName)
+    SkillsEntryPoint.InitialTarget.ManagementHub -> SkillsFlowNode.NavTarget.ManagementHub
 }
