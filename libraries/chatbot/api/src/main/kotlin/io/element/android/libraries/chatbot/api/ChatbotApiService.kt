@@ -1,0 +1,96 @@
+/*
+ * Copyright (c) 2026 New Vector Ltd.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
+ * Please see LICENSE files in the repository root for full details.
+ */
+
+package io.element.android.libraries.chatbot.api
+
+import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
+import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentProvider
+import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentRoom
+import io.element.android.libraries.chatbot.api.model.agent.ChatbotCreateAgentRequest
+import io.element.android.libraries.chatbot.api.model.agent.ChatbotUpdateAgentRequest
+import io.element.android.libraries.chatbot.api.model.analytics.AnalyticsTokensResponse
+import io.element.android.libraries.chatbot.api.model.connectors.ChatbotDisconnectAccountResponse
+import io.element.android.libraries.chatbot.api.model.connectors.ChatbotInitiateConnectionResponse
+import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListConnectedAccountsResponse
+import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListToolkitCategoriesResponse
+import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListToolkitsResponse
+import io.element.android.libraries.chatbot.api.model.credits.CreditBalance
+import io.element.android.libraries.chatbot.api.model.credits.CreditDailyUsageResponse
+import io.element.android.libraries.chatbot.api.model.credits.CreditLedgerResponse
+import io.element.android.libraries.chatbot.api.model.credits.CreditPaymentIntentResponse
+import io.element.android.libraries.chatbot.api.model.credits.CreditPaymentIntentStatusResponse
+import io.element.android.libraries.chatbot.api.model.json.ChatbotJsonObject
+import io.element.android.libraries.chatbot.api.model.rooms.ChatbotGetRoomAgentsResponse
+import io.element.android.libraries.chatbot.api.model.schedules.ChatbotCreateScheduleRequest
+import io.element.android.libraries.chatbot.api.model.schedules.ChatbotCreateScheduleResponse
+import io.element.android.libraries.chatbot.api.model.schedules.ChatbotSchedule
+import io.element.android.libraries.chatbot.api.model.schedules.ChatbotUpdateScheduleRequest
+import io.element.android.libraries.chatbot.api.model.storage.ChatbotPresignedUpload
+import io.element.android.libraries.chatbot.api.model.storage.ChatbotStsTokenResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotCreateUserSkillResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotDeleteUserSkillResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotGetUserSkillResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotListPublicSkillsResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotListRoomAgentSkillsResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotUpdateUserSkillResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
+import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotCreateWebhookTriggerRequest
+import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotUpdateWebhookTriggerRequest
+import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookEventCatalogResponse
+import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookTrigger
+import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookTriggerDeleteResponse
+import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookTriggerDraftResponse
+import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookTriggerStatusResponse
+
+interface ChatbotApiService {
+    suspend fun listAgents(): Result<List<ChatbotAgent>>
+    suspend fun getAgent(botName: String): Result<ChatbotAgent>
+    suspend fun createAgent(request: ChatbotCreateAgentRequest): Result<ChatbotAgent>
+    suspend fun updateAgent(botName: String, request: ChatbotUpdateAgentRequest): Result<ChatbotAgent>
+    suspend fun getProviders(): Result<List<ChatbotAgentProvider>>
+    suspend fun listAgentRooms(botName: String): Result<List<ChatbotAgentRoom>>
+    suspend fun agentJoinRoom(botName: String, roomName: String): Result<Unit>
+    suspend fun agentLeaveRoom(botName: String, roomId: String): Result<Unit>
+    suspend fun listAgentSkills(botName: String): Result<List<ChatbotUserSkill>>
+    suspend fun addAgentSkill(botName: String, skillId: String, name: String?): Result<Unit>
+    suspend fun listRoomAgentSkills(roomId: String, agentId: String, runtimeOwnerUserId: String?): Result<ChatbotListRoomAgentSkillsResponse>
+    suspend fun listUserSkills(visibility: ChatbotSkillVisibility?): Result<List<ChatbotUserSkill>>
+    suspend fun listPublicSkills(page: Int, pageSize: Int, search: String?): Result<ChatbotListPublicSkillsResponse>
+    suspend fun getUserSkill(id: String): Result<ChatbotGetUserSkillResponse>
+    suspend fun createUserSkill(body: ChatbotJsonObject): Result<ChatbotCreateUserSkillResponse>
+    suspend fun updateUserSkill(id: String, body: ChatbotJsonObject): Result<ChatbotUpdateUserSkillResponse>
+    suspend fun deleteUserSkill(id: String): Result<ChatbotDeleteUserSkillResponse>
+    suspend fun presignedUploadUrls(body: ChatbotJsonObject): Result<List<ChatbotPresignedUpload>>
+    suspend fun getStsToken(scope: String, durationSeconds: Int): Result<ChatbotStsTokenResponse>
+    suspend fun listSchedules(roomId: String): Result<List<ChatbotSchedule>>
+    suspend fun createSchedule(request: ChatbotCreateScheduleRequest): Result<ChatbotCreateScheduleResponse>
+    suspend fun updateSchedule(scheduleId: String, request: ChatbotUpdateScheduleRequest): Result<ChatbotCreateScheduleResponse>
+    suspend fun updateScheduleStatus(scheduleId: String, status: String): Result<Unit>
+    suspend fun deleteSchedule(scheduleId: String): Result<Unit>
+    suspend fun getRoomWorkingMemory(roomId: String): Result<String>
+    suspend fun updateRoomWorkingMemory(roomId: String, content: String): Result<Unit>
+    suspend fun getRoomAgents(roomId: String): Result<ChatbotGetRoomAgentsResponse>
+    suspend fun listToolkitCategories(cursor: String?, limit: Int?): Result<ChatbotListToolkitCategoriesResponse>
+    suspend fun listToolkits(search: String?, category: String?, cursor: String?, limit: Int?): Result<ChatbotListToolkitsResponse>
+    suspend fun initiateConnection(toolkit: String, redirectUrl: String): Result<ChatbotInitiateConnectionResponse>
+    suspend fun listConnectedAccounts(toolkit: String?, cursor: String?, limit: Int?): Result<ChatbotListConnectedAccountsResponse>
+    suspend fun disconnectAccount(accountId: String): Result<ChatbotDisconnectAccountResponse>
+    suspend fun listWebhookEventTypes(): Result<ChatbotWebhookEventCatalogResponse>
+    suspend fun listWebhookTriggers(agentId: String?, source: String?, roomId: String?, status: String?): Result<List<ChatbotWebhookTrigger>>
+    suspend fun createWebhookTrigger(request: ChatbotCreateWebhookTriggerRequest): Result<ChatbotWebhookTrigger>
+    suspend fun updateWebhookTrigger(triggerId: String, request: ChatbotUpdateWebhookTriggerRequest): Result<ChatbotWebhookTrigger>
+    suspend fun updateWebhookTriggerStatus(triggerId: String, enabled: Boolean): Result<ChatbotWebhookTriggerStatusResponse>
+    suspend fun deleteWebhookTrigger(triggerId: String): Result<ChatbotWebhookTriggerDeleteResponse>
+    suspend fun draftWebhookTrigger(prompt: String): Result<ChatbotWebhookTriggerDraftResponse>
+    suspend fun getBalance(): Result<CreditBalance>
+    suspend fun getLedger(limit: Int, cursor: String?): Result<CreditLedgerResponse>
+    suspend fun getDailyUsage(start: Int, end: Int): Result<CreditDailyUsageResponse>
+    suspend fun createPaymentIntent(amountCents: Int): Result<CreditPaymentIntentResponse>
+    suspend fun getPaymentIntentStatus(paymentIntentId: String): Result<CreditPaymentIntentStatusResponse>
+    suspend fun getAnalyticsTokens(period: String): Result<AnalyticsTokensResponse>
+}
