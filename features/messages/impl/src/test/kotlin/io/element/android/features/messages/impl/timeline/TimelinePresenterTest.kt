@@ -19,6 +19,7 @@ import io.element.android.features.messages.impl.timeline.components.MessageShie
 import io.element.android.features.messages.impl.timeline.components.aCriticalShield
 import io.element.android.features.messages.impl.timeline.model.NewEventState
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
+import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryTimelineRunner
 import io.element.android.features.messages.impl.typing.aTypingNotificationState
 import io.element.android.features.messages.impl.voicemessages.timeline.FakeRedactedVoiceMessageManager
 import io.element.android.features.messages.impl.voicemessages.timeline.RedactedVoiceMessageManager
@@ -34,6 +35,7 @@ import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.ThreadId
 import io.element.android.libraries.matrix.api.core.UniqueId
 import io.element.android.libraries.matrix.api.core.asEventId
+import io.element.android.libraries.matrix.api.encryption.roomkey.MemberAwareRoomKeyForwardingPolicy
 import io.element.android.libraries.matrix.api.room.MessageEventType
 import io.element.android.libraries.matrix.api.room.RoomMembersState
 import io.element.android.libraries.matrix.api.room.tombstone.PredecessorRoom
@@ -59,6 +61,8 @@ import io.element.android.libraries.matrix.test.room.powerlevels.FakeRoomPermiss
 import io.element.android.libraries.matrix.test.timeline.FakeTimeline
 import io.element.android.libraries.matrix.test.timeline.aMessageContent
 import io.element.android.libraries.matrix.test.timeline.anEventTimelineItem
+import io.element.android.libraries.matrix.test.encryption.FakeEncryptionService
+import io.element.android.libraries.matrix.test.verification.FakeSessionVerificationService
 import io.element.android.libraries.matrix.ui.components.aMatrixUserList
 import io.element.android.libraries.preferences.test.InMemorySessionPreferencesStore
 import io.element.android.services.analytics.test.FakeAnalyticsService
@@ -1014,6 +1018,15 @@ class TimelinePresenterTest {
         timelineItemIndexer: TimelineItemIndexer = TimelineItemIndexer(),
         featureFlagService: FakeFeatureFlagService = FakeFeatureFlagService(),
         liveLocationShareManager: FakeActiveLiveLocationShareManager = FakeActiveLiveLocationShareManager(),
+        encryptionService: FakeEncryptionService = FakeEncryptionService(),
+        sessionVerificationService: FakeSessionVerificationService = FakeSessionVerificationService(),
+        roomKeyRecoveryTimelineRunner: RoomKeyRecoveryTimelineRunner = RoomKeyRecoveryTimelineRunner(
+            encryptionService = encryptionService,
+            sessionVerificationService = sessionVerificationService,
+            sessionId = A_USER_ID,
+            forwardingPolicy = MemberAwareRoomKeyForwardingPolicy(),
+            sessionCoroutineScope = this,
+        ),
     ): TimelinePresenter {
         return TimelinePresenter(
             timelineItemsFactoryCreator = aTimelineItemsFactoryCreator(),
@@ -1033,6 +1046,9 @@ class TimelinePresenterTest {
             featureFlagService = featureFlagService,
             analyticsService = FakeAnalyticsService(),
             liveLocationShareManager = liveLocationShareManager,
+            encryptionService = encryptionService,
+            sessionVerificationService = sessionVerificationService,
+            roomKeyRecoveryTimelineRunner = roomKeyRecoveryTimelineRunner,
         )
     }
 }

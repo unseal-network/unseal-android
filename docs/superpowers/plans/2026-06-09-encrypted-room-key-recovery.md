@@ -322,7 +322,7 @@ When no recovery status exists, `TimelineItemEncryptedView` must render the same
 
 Cover timeline recovery display mapping, device-unverified action, failed retry action, active stage display, and count text with unit tests. Preserve fallback through nullable model and unchanged fallback branch; screenshot-level Compose coverage is deferred.
 
-- [ ] **Step 5: Commit Task 5**
+- [x] **Step 5: Commit Task 5**
 
 ```bash
 git add libraries/matrix/api/src/main/kotlin/io/element/android/libraries/matrix/api/timeline/item/event/EventContent.kt features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline features/messages/impl/src/test/kotlin/io/element/android/features/messages/impl/timeline
@@ -341,23 +341,31 @@ git diff --check PASS
 ### Task 6: Session Wiring And Verification
 
 **Files:**
-- Modify session startup / Matrix session wiring where `EncryptionService` is initialized.
-- Modify room/timeline presenter to call coordinator.
-- Add or update integration-style presenter tests.
+- Add: `libraries/matrix/api/src/main/kotlin/io/element/android/libraries/matrix/api/encryption/roomkey/MemberAwareRoomKeyForwardingPolicy.kt`
+- Modify: `libraries/matrix/impl/src/main/kotlin/io/element/android/libraries/matrix/impl/di/SessionMatrixModule.kt`
+- Modify: `appnav/src/main/kotlin/io/element/android/appnav/loggedin/LoggedInPresenter.kt`
+- Add: `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/roomkey/RoomKeyRecoveryTimelineRunner.kt`
+- Modify: `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/roomkey/RoomKeyRecoveryCoordinator.kt`
+- Modify: `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/TimelinePresenter.kt`
+- Modify: `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/factories/TimelineItemsFactory.kt`
+- Modify: `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/factories/event/TimelineItemEventFactory.kt`
+- Modify: `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/factories/event/TimelineItemContentFactory.kt`
+- Modify: `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/factories/event/TimelineItemContentUTDFactory.kt`
+- Modify/add tests in `features/messages/impl/src/test/kotlin/io/element/android/features/messages/impl/timeline`, `features/messages/impl/src/test/kotlin/io/element/android/features/messages/impl/roomkey`, and `appnav/src/test/kotlin/io/element/android/appnav/loggedin`.
 
-- [ ] **Step 1: Configure room-key recovery on session startup**
+- [x] **Step 1: Configure room-key recovery on session startup**
 
-Install member-aware forwarding policy and enable SDK room-key requests/forwarding.
+Add a session-scoped `MemberAwareRoomKeyForwardingPolicy`, install it from `LoggedInPresenter` with `EncryptionService.configureRoomKeyRecovery(policy)`, and keep the policy denied by default until a room publishes active members.
 
-- [ ] **Step 2: Wire timeline retry and verify actions**
+- [x] **Step 2: Wire timeline retry and verify actions**
 
-Retry should call coordinator manual retry. Verify should navigate to existing verify-session flow.
+Parse UTD `originalJson` values into `RoomKeyRecoveryRequest`, run `RoomKeyRecoveryTimelineRunner`, pass `RoomKeyRecoveryStatus` into the encrypted timeline content model, make retry call coordinator manual retry, and make verify call `SessionVerificationService.requestDeviceVerification()`.
 
-- [ ] **Step 3: Ensure member-aware policy has active room members**
+- [x] **Step 3: Ensure member-aware policy has active room members**
 
-Update allowed requester user IDs from room membership data when available.
+On every visible room membership update, publish `activeRoomMembers()` to `MemberAwareRoomKeyForwardingPolicy.updateRoomMembers(roomId, userIds)`. The policy must allow only matching room/requester pairs and deny unknown rooms or inactive users.
 
-- [ ] **Step 4: Run feature verification**
+- [x] **Step 4: Run feature verification**
 
 Run:
 
@@ -372,6 +380,18 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
 ```bash
 git add features/messages libraries/matrix
 git commit -m "feat: wire encrypted room key recovery"
+```
+
+Verification:
+
+```text
+:features:messages:impl:compileDebugKotlin :appnav:compileDebugKotlin PASS
+:features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryTimelineRunnerTest' PASS
+:appnav:testDebugUnitTest --tests 'io.element.android.appnav.loggedin.LoggedInPresenterTest.present - configures room key recovery' PASS
+:features:messages:impl:testDebugUnitTest PASS
+:libraries:matrix:impl:testDebugUnitTest PASS
+:features:messages:impl:assembleDebug PASS
+git diff --check PASS
 ```
 
 ### Task 7: Final Spec Verification

@@ -29,6 +29,7 @@ import io.element.android.features.messages.api.MessagesEntryPoint
 import io.element.android.features.messages.api.pinned.PinnedEventsTimelineProvider
 import io.element.android.features.messages.test.pinned.FakePinnedEventsTimelineProvider
 import io.element.android.features.roomdetails.api.RoomDetailsEntryPoint
+import io.element.android.features.roomschedules.api.RoomSchedulesEntryPoint
 import io.element.android.features.space.api.SpaceEntryPoint
 import io.element.android.libraries.architecture.childNode
 import io.element.android.libraries.matrix.api.room.JoinedRoom
@@ -128,6 +129,7 @@ class JoinedRoomLoadedFlowNodeTest {
         roomDetailsEntryPoint: RoomDetailsEntryPoint = FakeRoomDetailsEntryPoint(),
         spaceEntryPoint: SpaceEntryPoint = FakeSpaceEntryPoint(),
         forwardEntryPoint: ForwardEntryPoint = FakeForwardEntryPoint(),
+        roomSchedulesEntryPoint: RoomSchedulesEntryPoint = FakeRoomSchedulesEntryPoint(),
         activeRoomsHolder: ActiveRoomsHolder = FakeActiveRoomsHolder(),
         matrixClient: FakeMatrixClient = FakeMatrixClient(),
     ) = JoinedRoomLoadedFlowNode(
@@ -137,6 +139,7 @@ class JoinedRoomLoadedFlowNodeTest {
         roomDetailsEntryPoint = roomDetailsEntryPoint,
         spaceEntryPoint = spaceEntryPoint,
         forwardEntryPoint = forwardEntryPoint,
+        roomSchedulesEntryPoint = roomSchedulesEntryPoint,
         appNavigationStateService = FakeAppNavigationStateService(),
         sessionCoroutineScope = backgroundScope,
         roomGraphFactory = FakeRoomGraphFactory(),
@@ -144,6 +147,17 @@ class JoinedRoomLoadedFlowNodeTest {
         activeRoomsHolder = activeRoomsHolder,
         analyticsService = FakeAnalyticsService(),
     )
+
+    private class FakeRoomSchedulesEntryPoint : RoomSchedulesEntryPoint {
+        override fun createNode(
+            parentNode: Node,
+            buildContext: BuildContext,
+            params: RoomSchedulesEntryPoint.Params,
+            callback: RoomSchedulesEntryPoint.Callback,
+        ): Node {
+            return node(buildContext) {}
+        }
+    }
 
     @Test
     fun `given a room flow node when initialized then it loads messages entry point if room is not space`() = runTest {

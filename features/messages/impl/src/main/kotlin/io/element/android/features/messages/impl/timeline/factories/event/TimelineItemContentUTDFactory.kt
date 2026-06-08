@@ -9,13 +9,18 @@
 package io.element.android.features.messages.impl.timeline.factories.event
 
 import dev.zacsweers.metro.Inject
+import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryStatus
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEventContent
+import io.element.android.features.messages.impl.timeline.model.event.toTimelineItemRoomKeyRecovery
 import io.element.android.libraries.matrix.api.timeline.item.event.UnableToDecryptContent
 
 @Inject
 class TimelineItemContentUTDFactory {
-    fun create(content: UnableToDecryptContent): TimelineItemEventContent {
-        return TimelineItemEncryptedContent(content.data)
+    fun create(content: UnableToDecryptContent, roomKeyRecoveryStatus: RoomKeyRecoveryStatus? = null): TimelineItemEventContent {
+        return TimelineItemEncryptedContent(
+            data = content.data,
+            recovery = roomKeyRecoveryStatus?.toTimelineItemRoomKeyRecovery(),
+        )
     }
 }

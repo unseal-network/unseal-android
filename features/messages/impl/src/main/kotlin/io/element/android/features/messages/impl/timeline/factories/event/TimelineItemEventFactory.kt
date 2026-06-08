@@ -21,6 +21,7 @@ import io.element.android.features.messages.impl.timeline.model.TimelineItemGrou
 import io.element.android.features.messages.impl.timeline.model.TimelineItemReactions
 import io.element.android.features.messages.impl.timeline.model.TimelineItemReadReceipts
 import io.element.android.features.messages.impl.timeline.model.TimelineItemThreadInfo
+import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryStatus
 import io.element.android.features.messages.impl.utils.messagesummary.MessageSummaryFormatter
 import io.element.android.libraries.core.bool.orTrue
 import io.element.android.libraries.dateformatter.api.DateFormatter
@@ -57,6 +58,7 @@ class TimelineItemEventFactory(
         index: Int,
         timelineItems: List<MatrixTimelineItem>,
         roomMembers: List<RoomMember>,
+        roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
     ): TimelineItem.Event {
         val currentSender = currentTimelineItem.event.sender
         val groupPosition =
@@ -107,7 +109,7 @@ class TimelineItemEventFactory(
             senderId = currentSender,
             senderProfile = senderProfile,
             senderAvatar = senderAvatarData,
-            content = contentFactory.create(currentTimelineItem.event),
+            content = contentFactory.create(currentTimelineItem.event, roomKeyRecoveryStatuses),
             isMine = currentTimelineItem.event.isOwn,
             isEditable = currentTimelineItem.event.isEditable,
             canBeRepliedTo = currentTimelineItem.event.canBeRepliedTo,
@@ -129,12 +131,14 @@ class TimelineItemEventFactory(
         )
     }
 
-    fun update(
+    suspend fun update(
         timelineItem: TimelineItem.Event,
         receivedMatrixTimelineItem: MatrixTimelineItem.Event,
         roomMembers: List<RoomMember>,
+        roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
     ): TimelineItem.Event {
         return timelineItem.copy(
+            content = contentFactory.create(receivedMatrixTimelineItem.event, roomKeyRecoveryStatuses),
             readReceiptState = receivedMatrixTimelineItem.computeReadReceiptState(roomMembers)
         )
     }

@@ -34,6 +34,7 @@ import io.element.android.features.messages.impl.timeline.factories.TimelineItem
 import io.element.android.features.messages.impl.timeline.model.NewEventState
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.timeline.model.virtual.TimelineItemTypingNotificationModel
+import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryTimelineRunner
 import io.element.android.features.messages.impl.typing.TypingNotificationState
 import io.element.android.features.messages.impl.userEventPermissions
 import io.element.android.features.messages.impl.voicemessages.timeline.RedactedVoiceMessageManager
@@ -48,12 +49,15 @@ import io.element.android.libraries.featureflag.api.FeatureFlags
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.UniqueId
 import io.element.android.libraries.matrix.api.core.asEventId
+import io.element.android.libraries.matrix.api.encryption.EncryptionService
 import io.element.android.libraries.matrix.api.room.JoinedRoom
+import io.element.android.libraries.matrix.api.room.activeRoomMembers
 import io.element.android.libraries.matrix.api.room.powerlevels.permissionsAsState
 import io.element.android.libraries.matrix.api.room.roomMembers
 import io.element.android.libraries.matrix.api.timeline.ReceiptType
 import io.element.android.libraries.matrix.api.timeline.Timeline
 import io.element.android.libraries.matrix.api.timeline.item.event.TimelineItemEventOrigin
+import io.element.android.libraries.matrix.api.verification.SessionVerificationService
 import io.element.android.libraries.preferences.api.store.SessionPreferencesStore
 import io.element.android.services.analytics.api.AnalyticsLongRunningTransaction.DisplayFirstTimelineItems
 import io.element.android.services.analytics.api.AnalyticsLongRunningTransaction.NotificationToMessage
@@ -96,6 +100,9 @@ class TimelinePresenter(
     private val featureFlagService: FeatureFlagService,
     private val analyticsService: AnalyticsService,
     private val liveLocationShareManager: ActiveLiveLocationShareManager,
+    private val encryptionService: EncryptionService,
+    private val sessionVerificationService: SessionVerificationService,
+    private val roomKeyRecoveryTimelineRunner: RoomKeyRecoveryTimelineRunner,
 ) : Presenter<TimelineState> {
     private val tag = "TimelinePresenter"
 
@@ -237,10 +244,10 @@ class TimelinePresenter(
                     )
                 }
                 is TimelineEvent.RetryRoomKeyRecovery -> {
-                    Timber.tag(tag).d("Room key recovery retry requested for ${event.request.identityKey}")
+                    roomKeyRecoveryTimelineRunner.retry(event.request)
                 }
                 TimelineEvent.VerifyDeviceForRoomKeyRecovery -> {
-                    Timber.tag(tag).d("Room key recovery device verification requested")
+                    roomKeyRecoveryTimelineRunner.verifyCurrentSession()
                 }
             }
         }
@@ -258,13 +265,27 @@ class TimelinePresenter(
                 }
                 .launchIn(this)
 
-            combine(timelineController.timelineItems(), room.membersStateFlow) { items, membersState ->
+            combine(
+                timelineController.timelineItems(),
+                room.membersStateFlow,
+                sessionVerificationService.sessionVerifiedStatus,
+                encryptionService.backupStateStateFlow,
+                roomKeyRecoveryTimelineRunner.statuses,
+            ) { items, membersState, sessionVerifiedStatus, backupState, roomKeyRecoveryStatuses ->
                 val parent = analyticsService.getLongRunningTransaction(DisplayFirstTimelineItems)
                 val transaction = parent?.startChild("timelineItemsFactory.replaceWith", "Processing timeline items")
                 transaction?.putExtraData(AnalyticsUserData.TIMELINE_ITEM_COUNT, items.count().toString())
+                val activeRoomMembers = membersState.activeRoomMembers()
+                roomKeyRecoveryTimelineRunner.recoverVisibleItems(
+                    timelineItems = items,
+                    roomMembers = activeRoomMembers,
+                    sessionVerifiedStatus = sessionVerifiedStatus,
+                    backupState = backupState,
+                )
                 timelineItemsFactory.replaceWith(
                     timelineItems = items,
-                    roomMembers = membersState.roomMembers().orEmpty()
+                    roomMembers = membersState.roomMembers().orEmpty(),
+                    roomKeyRecoveryStatuses = roomKeyRecoveryStatuses,
                 )
                 transaction?.finish()
                 items

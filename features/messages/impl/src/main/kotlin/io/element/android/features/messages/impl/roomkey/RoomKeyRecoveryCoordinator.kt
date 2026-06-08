@@ -85,6 +85,7 @@ class RoomKeyRecoveryCoordinator(
         scope: RoomKeyRecoveryScope,
     ) -> Result<RoomKeyRecoveryProgress>,
     private val waitForDecryption: suspend (RoomKeyRecoveryRequest, Duration) -> Boolean,
+    private val onStatusChanged: suspend (RoomKeyRecoveryStatus) -> Unit = {},
 ) {
     suspend fun recover(input: RoomKeyRecoveryCoordinatorInput): RoomKeyRecoveryCoordinatorResult {
         return recover(input, forceIdentityKeys = emptySet())
@@ -171,6 +172,15 @@ class RoomKeyRecoveryCoordinator(
 
         for (stage in plan.stages) {
             progressStore.startStage(stage, request, plan.stages, stageWaitDuration)
+            onStatusChanged(
+                RoomKeyRecoveryStatus.Active(
+                    request = request,
+                    eventCount = eventCount,
+                    currentStage = stage,
+                    planStages = plan.stages,
+                    remaining = progressStore.remainingInterval(request),
+                )
+            )
             val requestResult = requestStage(stage, request, input)
             if (requestResult.isFailure) {
                 progressStore.markFailed(request, plan.stages)

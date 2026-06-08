@@ -16,6 +16,8 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRtcNotificationContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemUnknownContent
+import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryRequestParser
+import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryStatus
 import io.element.android.libraries.dateformatter.api.DateFormatter
 import io.element.android.libraries.dateformatter.api.DateFormatterMode
 import io.element.android.libraries.matrix.api.core.EventId
@@ -58,13 +60,19 @@ class TimelineItemContentFactory(
     private val dateFormatter: DateFormatter,
     private val stringProvider: StringProvider,
 ) {
-    suspend fun create(eventTimelineItem: EventTimelineItem): TimelineItemEventContent {
+    private val roomKeyRecoveryRequestParser = RoomKeyRecoveryRequestParser()
+
+    suspend fun create(
+        eventTimelineItem: EventTimelineItem,
+        roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus> = emptyMap(),
+    ): TimelineItemEventContent {
         return create(
             itemContent = eventTimelineItem.content,
             eventId = eventTimelineItem.eventId,
             isEditable = eventTimelineItem.isEditable,
             sender = eventTimelineItem.sender,
             senderProfile = eventTimelineItem.senderProfile,
+            roomKeyRecoveryStatus = eventTimelineItem.roomKeyRecoveryStatus(roomKeyRecoveryStatuses),
         )
     }
 
@@ -74,6 +82,7 @@ class TimelineItemContentFactory(
         isEditable: Boolean,
         sender: UserId,
         senderProfile: ProfileDetails,
+        roomKeyRecoveryStatus: RoomKeyRecoveryStatus? = null,
     ): TimelineItemEventContent {
         val isOutgoing = sessionId == sender
         return when (itemContent) {
@@ -103,7 +112,7 @@ class TimelineItemContentFactory(
             }
             is StickerContent -> stickerFactory.create(itemContent)
             is PollContent -> pollFactory.create(eventId, isEditable, isOutgoing, itemContent)
-            is UnableToDecryptContent -> utdFactory.create(itemContent)
+            is UnableToDecryptContent -> utdFactory.create(itemContent, roomKeyRecoveryStatus)
             is CallNotifyContent -> TimelineItemRtcNotificationContent(
                 callIntent = itemContent.callIntent,
                 state = if (itemContent.declinedBy.isEmpty()) {
@@ -138,5 +147,13 @@ class TimelineItemContentFactory(
                 )
             }
         }
+    }
+
+    private fun EventTimelineItem.roomKeyRecoveryStatus(
+        roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
+    ): RoomKeyRecoveryStatus? {
+        if (content !is UnableToDecryptContent) return null
+        val request = roomKeyRecoveryRequestParser.parse(timelineItemDebugInfoProvider().originalJson) ?: return null
+        return roomKeyRecoveryStatuses[request.identityKey]
     }
 }
