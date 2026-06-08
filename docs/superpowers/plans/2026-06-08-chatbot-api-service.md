@@ -103,7 +103,7 @@ Documentation:
 - Create: `libraries/chatbot/impl/build.gradle.kts`
 - Create: `libraries/chatbot/test/build.gradle.kts`
 
-- [ ] **Step 1: Create the API module build file**
+- [x] **Step 1: Create the API module build file**
 
 Create `libraries/chatbot/api/build.gradle.kts`:
 
@@ -130,7 +130,7 @@ dependencies {
 }
 ```
 
-- [ ] **Step 2: Create the impl module build file**
+- [x] **Step 2: Create the impl module build file**
 
 Create `libraries/chatbot/impl/build.gradle.kts`:
 
@@ -176,7 +176,7 @@ dependencies {
 }
 ```
 
-- [ ] **Step 3: Create the test helper module build file**
+- [x] **Step 3: Create the test helper module build file**
 
 Create `libraries/chatbot/test/build.gradle.kts`:
 
@@ -204,7 +204,7 @@ dependencies {
 }
 ```
 
-- [ ] **Step 4: Verify Gradle sees the modules**
+- [x] **Step 4: Verify Gradle sees the modules**
 
 Run:
 
@@ -229,7 +229,7 @@ Expected: PASS and Gradle lists tasks for all three modules.
 - Create: `libraries/chatbot/api/src/main/kotlin/io/element/android/libraries/chatbot/api/ChatbotApiService.kt`
 - Create model files under `libraries/chatbot/api/src/main/kotlin/io/element/android/libraries/chatbot/api/model/...`
 
-- [ ] **Step 1: Add the error and config contracts**
+- [x] **Step 1: Add the error and config contracts**
 
 Create `ChatbotApiError.kt`:
 
@@ -258,7 +258,7 @@ object ChatbotConfig {
 }
 ```
 
-- [ ] **Step 2: Add resolver and factory contracts**
+- [x] **Step 2: Add resolver and factory contracts**
 
 Create `ChatbotBaseUrlResolver.kt`:
 
@@ -284,11 +284,11 @@ interface ChatbotApiServiceFactory {
 }
 ```
 
-- [ ] **Step 3: Add the service facade**
+- [x] **Step 3: Add the service facade**
 
 Create `ChatbotApiService.kt` with the method signatures from `docs/superpowers/specs/2026-06-08-chatbot-api-service-design.md` under `### API Facade`. Return `Result<T>` for every method and use `ChatbotJsonObject` for flexible request bodies. The implementation in Task 6 must fail to compile if any method is missing, because `DefaultChatbotApiService` and `FakeChatbotApiService` both implement this interface.
 
-- [ ] **Step 4: Add model files**
+- [x] **Step 4: Add model files**
 
 Create the model files listed in the File Structure section. Use `@Serializable` and explicit `@SerialName` for every JSON name that differs from Kotlin property casing. Preserve iOS names and fields from:
 
@@ -315,7 +315,7 @@ sealed interface ChatbotJsonValue
 
 If sealed arbitrary JSON values are needed during implementation, represent request bodies as `JsonObject` and model flexible response metadata as `Map<String, kotlinx.serialization.json.JsonElement>`.
 
-- [ ] **Step 5: Verify API module compiles**
+- [x] **Step 5: Verify API module compiles**
 
 Run:
 
@@ -338,7 +338,7 @@ Expected: PASS.
 - Test: `libraries/chatbot/impl/src/test/kotlin/io/element/android/libraries/chatbot/impl/ChatbotRedactorTest.kt`
 - Test: `libraries/chatbot/impl/src/test/kotlin/io/element/android/libraries/chatbot/impl/ChatbotUrlBuilderTest.kt`
 
-- [ ] **Step 1: Write token provider tests**
+- [x] **Step 1: Write token provider tests**
 
 Create tests asserting:
 
@@ -353,11 +353,11 @@ fun `accessToken returns null when session is missing`() = runTest { /* store em
 fun `accessToken returns null when token is blank`() = runTest { /* matching session has blank token */ }
 ```
 
-- [ ] **Step 2: Implement token provider**
+- [x] **Step 2: Implement token provider**
 
 Implement `ChatbotAccessTokenProvider` and `DefaultChatbotAccessTokenProvider` using `SessionStore.getSession(matrixClient.sessionId.value)`.
 
-- [ ] **Step 3: Write redaction tests**
+- [x] **Step 3: Write redaction tests**
 
 Create tests asserting that `ChatbotRedactor.redact(...)` redacts:
 
@@ -367,11 +367,11 @@ Create tests asserting that `ChatbotRedactor.redact(...)` redacts:
 
 Expected output contains `[REDACTED]` and does not contain `Bearer secret`.
 
-- [ ] **Step 4: Implement redaction**
+- [x] **Step 4: Implement redaction**
 
 Implement regex-based redaction for the keys in the spec. Keep it package-internal.
 
-- [ ] **Step 5: Write URL helper tests**
+- [x] **Step 5: Write URL helper tests**
 
 Create tests for:
 
@@ -383,11 +383,11 @@ assertThat(ChatbotUrlBuilder.query(mapOf("cursor" to "a/b+c", "empty" to "")))
     .isEqualTo("?cursor=a%2Fb%2Bc&empty=")
 ```
 
-- [ ] **Step 6: Implement URL helpers**
+- [x] **Step 6: Implement URL helpers**
 
 Use OkHttp `HttpUrl.Builder` or `String.canonicalize` behavior through `toHttpUrl` builders. Do not hand-concatenate unencoded user input.
 
-- [ ] **Step 7: Verify helper tests**
+- [x] **Step 7: Verify helper tests**
 
 Run:
 
@@ -410,7 +410,7 @@ Expected: PASS.
 - Create: `libraries/chatbot/impl/src/main/kotlin/io/element/android/libraries/chatbot/impl/DefaultChatbotBaseUrlResolver.kt`
 - Test: `libraries/chatbot/impl/src/test/kotlin/io/element/android/libraries/chatbot/impl/DefaultChatbotBaseUrlResolverTest.kt`
 
-- [ ] **Step 1: Write resolver tests**
+- [x] **Step 1: Write resolver tests**
 
 Use a fake fetch lambda or `FakeMatrixClient.getUrl` to assert:
 
@@ -420,7 +420,7 @@ Use a fake fetch lambda or `FakeMatrixClient.getUrl` to assert:
 - `{"org.unseal.api":{"base_url":"https://agent.example"}}` returns `https://agent.example`.
 - Two calls for the same server hit fetch once and return the cached value.
 
-- [ ] **Step 2: Implement resolver**
+- [x] **Step 2: Implement resolver**
 
 Implementation requirements:
 
@@ -430,7 +430,7 @@ Implementation requirements:
 - Parse `org.unseal.api.base_url`.
 - Return fallback on every failure.
 
-- [ ] **Step 3: Verify resolver tests**
+- [x] **Step 3: Verify resolver tests**
 
 Run:
 
@@ -452,7 +452,7 @@ Expected: PASS.
 - Create: `libraries/chatbot/impl/src/main/kotlin/io/element/android/libraries/chatbot/impl/ChatbotHttpClient.kt`
 - Test: `libraries/chatbot/impl/src/test/kotlin/io/element/android/libraries/chatbot/impl/ChatbotHttpClientTest.kt`
 
-- [ ] **Step 1: Write HTTP client tests**
+- [x] **Step 1: Write HTTP client tests**
 
 Using `MockWebServer`, create one test function for each of these assertions:
 
@@ -463,7 +463,7 @@ Using `MockWebServer`, create one test function for each of these assertions:
 - Invalid JSON when decoding returns `ChatbotApiError.DecodingError` with redacted body snippet.
 - Network failure maps to `ChatbotApiError.NetworkError`.
 
-- [ ] **Step 2: Implement JSON helpers**
+- [x] **Step 2: Implement JSON helpers**
 
 `ChatbotJson` should expose:
 
@@ -482,7 +482,7 @@ internal inline fun <reified T> decode(data: String): T = json.decodeFromString(
 internal inline fun <reified T> encode(value: T): String = json.encodeToString(value)
 ```
 
-- [ ] **Step 3: Implement HTTP client**
+- [x] **Step 3: Implement HTTP client**
 
 `ChatbotHttpClient` constructor dependencies:
 
@@ -507,7 +507,7 @@ Behavior:
 - Run OkHttp calls through the normal synchronous `Call.execute()` path and preserve `CancellationException` when mapping failures.
 - Map failures to `ChatbotApiError`.
 
-- [ ] **Step 4: Verify HTTP tests**
+- [x] **Step 4: Verify HTTP tests**
 
 Run:
 
@@ -529,7 +529,7 @@ Expected: PASS.
 - Create: `libraries/chatbot/impl/src/main/kotlin/io/element/android/libraries/chatbot/impl/di/ChatbotModule.kt`
 - Test: `libraries/chatbot/impl/src/test/kotlin/io/element/android/libraries/chatbot/impl/DefaultChatbotApiServiceTest.kt`
 
-- [ ] **Step 1: Write endpoint behavior tests**
+- [x] **Step 1: Write endpoint behavior tests**
 
 Use `MockWebServer` and `DefaultChatbotApiService` to create one test function for each of these assertions:
 
@@ -543,7 +543,7 @@ Use `MockWebServer` and `DefaultChatbotApiService` to create one test function f
 - `updateWebhookTriggerStatus(triggerId, true)` calls `/api/webhook-triggers/{id}/enable`.
 - `updateWebhookTriggerStatus(triggerId, false)` calls `/api/webhook-triggers/{id}/disable`.
 
-- [ ] **Step 2: Implement factory**
+- [x] **Step 2: Implement factory**
 
 Factory behavior:
 
@@ -553,7 +553,7 @@ Factory behavior:
 
 Use injected `OkHttpClient`, `ChatbotAccessTokenProvider`, and `ChatbotBaseUrlResolver`.
 
-- [ ] **Step 3: Implement facade methods**
+- [x] **Step 3: Implement facade methods**
 
 Implement every method in `ChatbotApiService` with iOS-equivalent paths. For request bodies:
 
@@ -563,14 +563,14 @@ Implement every method in `ChatbotApiService` with iOS-equivalent paths. For req
 - Query endpoints use `ChatbotUrlBuilder.query`.
 - Flexible decode endpoints use raw response and decode fallback shapes in the same order as iOS.
 
-- [ ] **Step 4: Add Metro bindings**
+- [x] **Step 4: Add Metro bindings**
 
 Add `ChatbotModule.kt` with these bindings:
 
 - `DefaultChatbotApiServiceFactory` to `ChatbotApiServiceFactory`.
 - `DefaultChatbotBaseUrlResolver` to `ChatbotBaseUrlResolver`.
 
-- [ ] **Step 5: Verify endpoint tests**
+- [x] **Step 5: Verify endpoint tests**
 
 Run:
 
@@ -592,7 +592,7 @@ Expected: PASS.
 - Create: `libraries/chatbot/test/src/main/kotlin/io/element/android/libraries/chatbot/test/FakeChatbotBaseUrlResolver.kt`
 - Create: `libraries/chatbot/test/src/main/kotlin/io/element/android/libraries/chatbot/test/ChatbotFixtures.kt`
 
-- [ ] **Step 1: Implement fake service**
+- [x] **Step 1: Implement fake service**
 
 `FakeChatbotApiService` must implement every `ChatbotApiService` method and expose mutable result lambdas, for example:
 
@@ -605,7 +605,7 @@ class FakeChatbotApiService : ChatbotApiService {
 
 Implement one mutable result lambda for every method in `ChatbotApiService`, with default success values for list/unit methods and minimal fixture values for required object methods, so later feature tests can configure success/failure behavior independently.
 
-- [ ] **Step 2: Implement fake factory and resolver**
+- [x] **Step 2: Implement fake factory and resolver**
 
 `FakeChatbotApiServiceFactory` should return a supplied fake service for all factory methods and record explicit base URLs.
 
@@ -616,7 +616,7 @@ var resolveResult: (String?) -> String = { ChatbotConfig.UNSEAL_API_FALLBACK_BAS
 val seenServerNames = mutableListOf<String?>()
 ```
 
-- [ ] **Step 3: Add fixtures**
+- [x] **Step 3: Add fixtures**
 
 Add small fixtures:
 
@@ -629,7 +629,7 @@ Add small fixtures:
 
 Each fixture should fill only required fields and accept optional overrides for commonly asserted fields.
 
-- [ ] **Step 4: Verify test module compiles**
+- [x] **Step 4: Verify test module compiles**
 
 Run:
 
@@ -646,7 +646,7 @@ Expected: PASS.
 **Files:**
 - All files from previous tasks.
 
-- [ ] **Step 1: Run the feature verification command**
+- [x] **Step 1: Run the feature verification command**
 
 Run:
 
@@ -661,7 +661,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
 
 Expected: PASS.
 
-- [ ] **Step 2: Run compile against likely consumers**
+- [x] **Step 2: Run compile against likely consumers**
 
 Run:
 
@@ -675,7 +675,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
 
 Expected: PASS.
 
-- [ ] **Step 3: Self-review against the spec**
+- [x] **Step 3: Self-review against the spec**
 
 Review `docs/superpowers/specs/2026-06-08-chatbot-api-service-design.md` and verify:
 
@@ -686,7 +686,7 @@ Review `docs/superpowers/specs/2026-06-08-chatbot-api-service-design.md` and ver
 - Every in-scope service method exists on `ChatbotApiService`.
 - Base URL resolution, token lookup, redaction, flexible decode behavior, and fakes are covered by tests.
 
-- [ ] **Step 4: Check git status**
+- [x] **Step 4: Check git status**
 
 Run:
 
