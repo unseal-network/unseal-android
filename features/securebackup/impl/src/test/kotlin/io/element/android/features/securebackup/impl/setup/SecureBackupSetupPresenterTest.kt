@@ -16,6 +16,7 @@ import io.element.android.features.securebackup.impl.setup.views.RecoveryKeyUser
 import io.element.android.features.securebackup.impl.setup.views.RecoveryKeyViewState
 import io.element.android.libraries.matrix.api.encryption.EnableRecoveryProgress
 import io.element.android.libraries.matrix.api.encryption.EncryptionService
+import io.element.android.libraries.matrix.api.encryption.RecoveryException
 import io.element.android.libraries.matrix.test.A_RECOVERY_KEY
 import io.element.android.libraries.matrix.test.encryption.FakeEncryptionService
 import io.element.android.tests.testutils.WarmUpRule
@@ -143,6 +144,47 @@ class SecureBackupSetupPresenterTest {
     }
 
     @Test
+    fun `present - room key upload error fails recovery setup`() = runTest {
+        val encryptionService = FakeEncryptionService(
+            enableRecoveryLambda = { Result.success(Unit) },
+        )
+        val presenter = createSecureBackupSetupPresenter(
+            encryptionService = encryptionService
+        )
+        moleculeFlow(RecompositionMode.Immediate) {
+            presenter.present()
+        }.test {
+            val initialState = awaitItem()
+            initialState.eventSink.invoke(SecureBackupSetupEvents.CreateRecoveryKey)
+            val creatingState = awaitItem()
+            assertThat(creatingState.setupState).isEqualTo(SetupState.Creating)
+            encryptionService.emitEnableRecoveryProgress(EnableRecoveryProgress.RoomKeyUploadError)
+            val failedState = awaitItem()
+            assertThat(failedState.setupState).isInstanceOf(SetupState.Error::class.java)
+        }
+    }
+
+    @Test
+    fun `present - backup exists on server remains distinguishable while setting up recovery`() = runTest {
+        val encryptionService = FakeEncryptionService(
+            enableRecoveryLambda = { Result.failure(RecoveryException.BackupExistsOnServer) }
+        )
+        val presenter = createSecureBackupSetupPresenter(
+            isChangeRecoveryKeyUserStory = false,
+            encryptionService = encryptionService
+        )
+        moleculeFlow(RecompositionMode.Immediate) {
+            presenter.present()
+        }.test {
+            val initialState = awaitItem()
+            initialState.eventSink(SecureBackupSetupEvents.CreateRecoveryKey)
+            assertThat(awaitItem().setupState).isEqualTo(SetupState.Creating)
+            val failedState = awaitItem()
+            assertThat((failedState.setupState as SetupState.Error).exception).isEqualTo(RecoveryException.BackupExistsOnServer)
+        }
+    }
+
+    @Test
     fun `present - change recovery key and save it`() = runTest {
         val encryptionService = FakeEncryptionService()
         val presenter = createSecureBackupSetupPresenter(
@@ -183,6 +225,28 @@ class SecureBackupSetupPresenterTest {
             doneState.eventSink.invoke(SecureBackupSetupEvents.DismissDialog)
             val doneStateCancelled = awaitItem()
             assertThat(doneStateCancelled.showSaveConfirmationDialog).isFalse()
+        }
+    }
+
+    @Test
+    fun `present - change recovery key failure returns to initial after dismiss`() = runTest {
+        val encryptionService = FakeEncryptionService().apply {
+            givenResetRecoveryKeyFailure(IllegalStateException("Reset failed"))
+        }
+        val presenter = createSecureBackupSetupPresenter(
+            isChangeRecoveryKeyUserStory = true,
+            encryptionService = encryptionService
+        )
+        moleculeFlow(RecompositionMode.Immediate) {
+            presenter.present()
+        }.test {
+            val initialState = awaitItem()
+            initialState.eventSink.invoke(SecureBackupSetupEvents.CreateRecoveryKey)
+            assertThat(awaitItem().setupState).isEqualTo(SetupState.Creating)
+            val failedState = awaitItem()
+            assertThat(failedState.setupState).isInstanceOf(SetupState.Error::class.java)
+            failedState.eventSink.invoke(SecureBackupSetupEvents.DismissDialog)
+            assertThat(awaitItem().setupState).isEqualTo(SetupState.Init)
         }
     }
 

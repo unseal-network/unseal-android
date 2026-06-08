@@ -29,6 +29,7 @@ import io.element.android.libraries.designsystem.utils.snackbar.SnackbarDispatch
 import io.element.android.libraries.designsystem.utils.snackbar.collectSnackbarMessageAsState
 import io.element.android.libraries.matrix.api.encryption.BackupState
 import io.element.android.libraries.matrix.api.encryption.EncryptionService
+import io.element.android.libraries.matrix.api.encryption.RecoveryException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -92,7 +93,16 @@ class SecureBackupRootPresenter(
     private fun CoroutineScope.enableBackup(action: MutableState<AsyncAction<Unit>>) = launch {
         suspend {
             Timber.tag(loggerTagDisable.value).d("Calling encryptionService.enableBackups()")
-            encryptionService.enableBackups().getOrThrow()
+            encryptionService.enableBackups()
+                .recoverCatching { exception ->
+                    if (exception is RecoveryException.BackupExistsOnServer) {
+                        Timber.tag(loggerTagDisable.value).i("Backup already exists on server; treating key storage as enabled.")
+                        Unit
+                    } else {
+                        throw exception
+                    }
+                }
+                .getOrThrow()
         }.runCatchingUpdatingState(action)
     }
 }
