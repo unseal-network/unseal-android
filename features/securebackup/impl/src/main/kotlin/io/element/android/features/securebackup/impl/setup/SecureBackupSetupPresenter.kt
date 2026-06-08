@@ -134,8 +134,13 @@ class SecureBackupSetupPresenter(
                 is EnableRecoveryProgress.Starting,
                 is EnableRecoveryProgress.CreatingBackup,
                 is EnableRecoveryProgress.CreatingRecoveryKey,
-                is EnableRecoveryProgress.BackingUp,
-                is EnableRecoveryProgress.RoomKeyUploadError -> Unit
+                is EnableRecoveryProgress.BackingUp -> Unit
+                is EnableRecoveryProgress.RoomKeyUploadError ->
+                    stateAndDispatch.dispatchAction(
+                        SecureBackupSetupStateMachine.Event.SdkError(
+                            IllegalStateException("Room key upload failed while enabling recovery")
+                        )
+                    )
                 is EnableRecoveryProgress.Done ->
                     stateAndDispatch.dispatchAction(SecureBackupSetupStateMachine.Event.SdkHasCreatedKey(enableRecoveryProgress.recoveryKey))
             }
