@@ -8,22 +8,31 @@
 package io.element.android.features.webhooks.impl
 
 import android.os.Parcelable
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.bumble.appyx.core.modality.BuildContext
 import com.bumble.appyx.core.node.Node
 import com.bumble.appyx.core.plugin.Plugin
 import com.bumble.appyx.navmodel.backstack.BackStack
+import com.bumble.appyx.navmodel.backstack.operation.pop
+import com.bumble.appyx.navmodel.backstack.operation.push
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
 import io.element.android.features.webhooks.api.WebhookTriggerEditMode
 import io.element.android.features.webhooks.api.WebhookTriggersEntryPoint
+import io.element.android.features.webhooks.impl.edit.WebhookTriggerEditNode
 import io.element.android.features.webhooks.impl.list.WebhookTriggerListMode
+import io.element.android.features.webhooks.impl.list.WebhookTriggerListNode
 import io.element.android.libraries.architecture.BackstackView
 import io.element.android.libraries.architecture.BaseFlowNode
+import io.element.android.libraries.architecture.appyx.canPop
+import io.element.android.libraries.architecture.callback
+import io.element.android.libraries.architecture.createNode
+import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookTrigger
 import io.element.android.libraries.di.SessionScope
+import io.element.android.libraries.matrix.api.core.RoomId
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.parcelize.Parcelize
 
 @ContributesNode(SessionScope::class)
@@ -47,13 +56,72 @@ class WebhookTriggersFlowNode(
         data class Edit(val mode: WebhookTriggerEditMode) : NavTarget
     }
 
+    private val callback: WebhookTriggersEntryPoint.Callback = callback()
+    private val reloadRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
     override fun resolve(navTarget: NavTarget, buildContext: BuildContext): Node {
-        return TemporaryWebhookTriggersNode(buildContext)
+        return when (navTarget) {
+            is NavTarget.List -> createNode<WebhookTriggerListNode>(
+                buildContext = buildContext,
+                plugins = listOf(
+                    WebhookTriggerListNode.Inputs(
+                        mode = navTarget.mode,
+                        reloadRequests = reloadRequests,
+                    ),
+                    listCallback,
+                ),
+            )
+            is NavTarget.Edit -> createNode<WebhookTriggerEditNode>(
+                buildContext = buildContext,
+                plugins = listOf(
+                    WebhookTriggerEditNode.Inputs(mode = navTarget.mode),
+                    editCallback,
+                ),
+            )
+        }
     }
 
     @Composable
     override fun View(modifier: Modifier) {
         BackstackView(modifier)
+    }
+
+    private fun closeOrPop() {
+        if (backstack.canPop()) {
+            backstack.pop()
+        } else {
+            callback.onDone()
+        }
+    }
+
+    private fun notifyTriggersChanged() {
+        callback.onTriggersChanged()
+        reloadRequests.tryEmit(Unit)
+    }
+
+    private val listCallback = object : WebhookTriggerListNode.Callback {
+        override fun onDone() = closeOrPop()
+
+        override fun onCreateTrigger(prefilledRoomId: RoomId?) {
+            backstack.push(NavTarget.Edit(WebhookTriggerEditMode.Create(prefilledRoomId)))
+        }
+
+        override fun onEditTrigger(trigger: ChatbotWebhookTrigger) {
+            backstack.push(NavTarget.Edit(WebhookTriggerEditMode.Edit(trigger)))
+        }
+
+        override fun onTriggersChanged() = notifyTriggersChanged()
+    }
+
+    private val editCallback = object : WebhookTriggerEditNode.Callback {
+        override fun onSaved(trigger: ChatbotWebhookTrigger) {
+            notifyTriggersChanged()
+            closeOrPop()
+        }
+
+        override fun onCancelled() = closeOrPop()
+
+        override fun onOpenConnectUrl(url: String) = callback.onOpenConnectUrl(url)
     }
 }
 
@@ -63,13 +131,4 @@ private fun WebhookTriggersEntryPoint.InitialTarget.toNavTarget(): WebhookTrigge
         WebhookTriggerListMode.Room(roomId, roomName)
     )
     is WebhookTriggersEntryPoint.InitialTarget.Edit -> WebhookTriggersFlowNode.NavTarget.Edit(mode)
-}
-
-private class TemporaryWebhookTriggersNode(
-    buildContext: BuildContext,
-) : Node(buildContext, plugins = emptyList()) {
-    @Composable
-    override fun View(modifier: Modifier) {
-        Text("Webhook Triggers")
-    }
 }

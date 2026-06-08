@@ -289,13 +289,13 @@ git commit -m "feat: add webhook trigger edit presenter"
 - Create: `features/webhooks/impl/src/main/kotlin/io/element/android/features/webhooks/impl/edit/WebhookTriggerEditView.kt`
 - Modify: `features/webhooks/impl/src/main/kotlin/io/element/android/features/webhooks/impl/WebhookTriggersFlowNode.kt`
 
-- [ ] **Step 1: Wire flow to real nodes**
+- [x] **Step 1: Wire flow to real nodes**
 
 Resolve list targets to `WebhookTriggerListNode` and edit targets to `WebhookTriggerEditNode`.
 
 List `CreateTrigger` pushes `Edit(Create(prefilledRoomId))`, where room mode passes its fixed room id and global mode passes null. List `EditTrigger` pushes `Edit(Edit(trigger))`. Edit saved calls `callback.onTriggersChanged()`, emits reload to list, and pops.
 
-- [ ] **Step 2: Add Compose views**
+- [x] **Step 2: Add Compose views**
 
 List UI: Back, title, Create, Refresh, search, room filter in global mode, agent filter in room mode, rows with name/source/events/agent/room/status, enable/disable button, edit button, delete confirmation controls, and loading/error text.
 
@@ -303,7 +303,7 @@ Edit UI: Back/Cancel, title, draft prompt/generate, name, description, source pi
 
 Use simple Material3 controls and existing project design dependencies. Do not add WebView, connector management, vault, voice, sandbox, or MiniApp UI.
 
-- [ ] **Step 3: Run feature tests and compiles**
+- [x] **Step 3: Run feature tests and compiles**
 
 ```bash
 env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy JAVA_HOME=/usr/local/opt/openjdk@21 ANDROID_HOME=/usr/local/share/android-commandlinetools ./gradlew --no-daemon --no-configuration-cache :features:webhooks:impl:testDebugUnitTest :features:webhooks:impl:compileDebugKotlin :features:webhooks:impl:compileDebugUnitTestKotlin
@@ -311,7 +311,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 4: Run regression and scans**
+- [x] **Step 4: Run regression and scans**
 
 ```bash
 env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy JAVA_HOME=/usr/local/opt/openjdk@21 ANDROID_HOME=/usr/local/share/android-commandlinetools ./gradlew --no-daemon --no-configuration-cache :libraries:chatbot:impl:testDebugUnitTest
@@ -321,7 +321,7 @@ rg -n "TODO|FIXME|TBD|implement later|fill in details|Not implemented|error\\(" 
 
 Expected: Gradle passes; both `rg` scans produce no production-source output.
 
-- [ ] **Step 5: Commit UI and verification**
+- [x] **Step 5: Commit UI and verification**
 
 ```bash
 git add features/webhooks docs/superpowers/plans/2026-06-09-webhook-triggers.md
