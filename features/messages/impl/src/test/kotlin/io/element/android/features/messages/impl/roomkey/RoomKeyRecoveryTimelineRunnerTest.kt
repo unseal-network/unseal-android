@@ -9,6 +9,11 @@ package io.element.android.features.messages.impl.roomkey
 
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
+import io.element.android.libraries.chatbot.api.model.rooms.ChatbotGetRoomAgentsResponse
+import io.element.android.libraries.chatbot.api.model.rooms.ChatbotRoomAgent
+import io.element.android.libraries.chatbot.test.FakeChatbotApiService
+import io.element.android.libraries.chatbot.test.FakeChatbotApiServiceFactory
+import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.encryption.BackupState
 import io.element.android.libraries.matrix.api.encryption.roomkey.MemberAwareRoomKeyForwardingPolicy
 import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyForwardingAuthorization
@@ -26,6 +31,7 @@ import io.element.android.libraries.matrix.test.A_ROOM_ID
 import io.element.android.libraries.matrix.test.A_SESSION_ID
 import io.element.android.libraries.matrix.test.A_UNIQUE_ID
 import io.element.android.libraries.matrix.test.A_USER_ID
+import io.element.android.libraries.matrix.test.FakeMatrixClient
 import io.element.android.libraries.matrix.test.encryption.FakeEncryptionService
 import io.element.android.libraries.matrix.test.room.aRoomMember
 import io.element.android.libraries.matrix.test.timeline.aTimelineItemDebugInfo
@@ -130,16 +136,65 @@ class RoomKeyRecoveryTimelineRunnerTest {
             )
     }
 
+    @Test
+    fun `recoverVisibleItems - excludes room agents from ordinary room member targets`() = runTest {
+        val requestRoomKeyRecovery = lambdaRecorder<RoomKeyRecoveryRequest, List<RoomKeyRecoveryTarget>, RoomKeyRecoveryScope, Result<RoomKeyRecoveryProgress>> { request, targets, _ ->
+            Result.success(
+                RoomKeyRecoveryProgress(
+                    roomId = request.roomId,
+                    sessionId = request.sessionId,
+                    senderKey = request.senderKey,
+                    stage = RoomKeyRecoveryStage.SenderRequested,
+                    message = null,
+                    targetCount = targets.size.toUInt(),
+                    manualRetryAvailable = true,
+                )
+            )
+        }
+        val service = FakeChatbotApiService().apply {
+            getRoomAgentsResult = {
+                Result.success(
+                    ChatbotGetRoomAgentsResponse(
+                        agents = listOf(ChatbotRoomAgent(agentId = "agent", mxid = AGENT_ID.value))
+                    )
+                )
+            }
+        }
+        val runner = createRunner(
+            encryptionService = FakeEncryptionService(
+                requestRoomKeyRecoveryResult = requestRoomKeyRecovery,
+            ),
+            roomAgentResolver = RoomAgentResolver(FakeMatrixClient(), FakeChatbotApiServiceFactory(service)),
+        )
+
+        runner.recoverVisibleItems(
+            timelineItems = listOf(aUtdTimelineItem()),
+            roomMembers = listOf(
+                aRoomMember(userId = A_USER_ID, membership = RoomMembershipState.JOIN),
+                aRoomMember(userId = AGENT_ID, membership = RoomMembershipState.JOIN),
+            ),
+            sessionVerifiedStatus = SessionVerifiedStatus.Verified,
+            backupState = BackupState.ENABLED,
+        )
+        advanceUntilIdle()
+
+        requestRoomKeyRecovery.assertions()
+            .isCalledOnce()
+            .with(value(ROOM_KEY_REQUEST), value(listOf(RoomKeyRecoveryTarget(A_USER_ID, deviceId = null))), value(RoomKeyRecoveryScope.OwnDevices))
+    }
+
     private fun TestScope.createRunner(
         encryptionService: FakeEncryptionService = FakeEncryptionService(),
         sessionVerificationService: FakeSessionVerificationService = FakeSessionVerificationService(),
         policy: MemberAwareRoomKeyForwardingPolicy = MemberAwareRoomKeyForwardingPolicy(),
+        roomAgentResolver: RoomAgentResolver = RoomAgentResolver(FakeMatrixClient(), FakeChatbotApiServiceFactory()),
     ): RoomKeyRecoveryTimelineRunner {
         return RoomKeyRecoveryTimelineRunner(
             encryptionService = encryptionService,
             sessionVerificationService = sessionVerificationService,
             sessionId = A_SESSION_ID,
             forwardingPolicy = policy,
+            roomAgentResolver = roomAgentResolver,
             sessionCoroutineScope = this,
         )
     }
@@ -164,6 +219,7 @@ class RoomKeyRecoveryTimelineRunnerTest {
     private companion object {
         const val SESSION_ID = "SESSION"
         const val SENDER_KEY = "SENDER_KEY"
+        val AGENT_ID = UserId("@agent:example.org")
         val ROOM_KEY_REQUEST = RoomKeyRecoveryRequest(
             roomId = A_ROOM_ID,
             senderUserId = A_USER_ID,

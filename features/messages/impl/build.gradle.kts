@@ -56,6 +56,7 @@ dependencies {
     implementation(projects.libraries.roomselect.api)
     implementation(projects.libraries.slashcommands.api)
     implementation(projects.libraries.audio.api)
+    implementation(projects.libraries.chatbot.api)
     implementation(projects.libraries.voiceplayer.api)
     implementation(projects.libraries.voicerecorder.api)
     implementation(projects.libraries.mediaplayer.api)
@@ -84,6 +85,7 @@ dependencies {
 
     testCommonDependencies(libs, true)
     testImplementation(projects.libraries.matrix.test)
+    testImplementation(projects.libraries.chatbot.test)
     testImplementation(projects.libraries.dateformatter.test)
     testImplementation(projects.libraries.push.test)
     testImplementation(projects.features.call.test)

@@ -362,7 +362,7 @@ git diff --check PASS
 - Modify: `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/roomkey/RoomKeyRecoveryTimelineRunner.kt`
 - Modify: `features/messages/impl/src/test/kotlin/io/element/android/features/messages/impl/roomkey/RoomKeyRecoveryTimelineRunnerTest.kt`
 
-- [ ] **Step 1: Add failing resolver tests**
+- [x] **Step 1: Add failing resolver tests**
 
 Cover:
 
@@ -372,7 +372,7 @@ Cover:
 - Same active member signature uses cached result.
 - Changed active member signature refreshes API call.
 
-- [ ] **Step 2: Implement resolver**
+- [x] **Step 2: Implement resolver**
 
 Create `RoomAgentResolver`:
 
@@ -401,7 +401,7 @@ class RoomAgentResolver(
 }
 ```
 
-- [ ] **Step 3: Filter ordinary room member targets**
+- [x] **Step 3: Filter ordinary room member targets**
 
 In `RoomKeyRecoveryTimelineRunner.recoverVisibleItems`, compute room agents and filter ordinary member targets:
 
@@ -417,7 +417,7 @@ val ordinaryMemberTargets = roomMembers
 
 Keep behavior unchanged when resolver returns empty set.
 
-- [ ] **Step 4: Run and pass resolver/filter tests**
+- [x] **Step 4: Run and pass resolver/filter tests**
 
 Run:
 
@@ -428,11 +428,18 @@ git diff --check
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 5: Commit Task 3**
 
 ```bash
 git add features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/roomkey features/messages/impl/src/test/kotlin/io/element/android/features/messages/impl/roomkey
 git commit -m "feat: filter room agents from member key recovery"
+```
+
+Verification:
+
+```text
+:features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.roomkey.RoomAgentResolverTest' --tests 'io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryTimelineRunnerTest' PASS
+git diff --check PASS
 ```
 
 ### Task 4: Timeline Direct Agent Recovery Integration

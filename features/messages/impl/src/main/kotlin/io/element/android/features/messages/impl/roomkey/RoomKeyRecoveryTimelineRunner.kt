@@ -36,6 +36,7 @@ class RoomKeyRecoveryTimelineRunner(
     private val sessionVerificationService: SessionVerificationService,
     private val sessionId: SessionId,
     private val forwardingPolicy: MemberAwareRoomKeyForwardingPolicy,
+    private val roomAgentResolver: RoomAgentResolver,
     @SessionCoroutineScope private val sessionCoroutineScope: CoroutineScope,
 ) {
     private val parser = RoomKeyRecoveryRequestParser()
@@ -71,20 +72,6 @@ class RoomKeyRecoveryTimelineRunner(
             forwardingPolicy.updateRoomMembers(roomId, activeMemberIds)
         }
 
-        val input = RoomKeyRecoveryCoordinatorInput(
-            requests = requests,
-            ownUserId = sessionId,
-            verificationState = sessionVerifiedStatus.toRecoveryVerificationState(),
-            canUseKeyBackup = backupState == BackupState.ENABLED,
-            roomMemberTargets = roomMembers
-                .filter { it.userId != sessionId }
-                .map { RoomKeyRecoveryTarget(userId = it.userId, deviceId = null) },
-            latestSenderDeviceIds = requests
-                .groupBy { it.senderUserId }
-                .mapValues { (_, senderRequests) -> senderRequests.mapNotNullTo(mutableSetOf()) { it.senderDeviceId } },
-        )
-        lastInput = input
-
         val inputKey = RoomKeyRecoveryInputKey(
             identityKeys = requests.map { it.identityKey },
             activeMemberIds = activeMemberIds.map { it.value }.sorted(),
@@ -102,6 +89,26 @@ class RoomKeyRecoveryTimelineRunner(
 
         recoveryJob?.cancel()
         recoveryJob = sessionCoroutineScope.launch {
+            val roomAgentUserIds = roomIds.flatMapTo(mutableSetOf()) { roomId ->
+                roomAgentResolver.roomAgentUserIds(roomId, activeMemberIds)
+            }
+            val senderUserIds = requests.mapTo(mutableSetOf()) { it.senderUserId }
+            val input = RoomKeyRecoveryCoordinatorInput(
+                requests = requests,
+                ownUserId = sessionId,
+                verificationState = sessionVerifiedStatus.toRecoveryVerificationState(),
+                canUseKeyBackup = backupState == BackupState.ENABLED,
+                roomMemberTargets = roomMembers
+                    .filter { it.userId != sessionId }
+                    .filter { roomMember ->
+                        roomMember.userId !in roomAgentUserIds || roomMember.userId in senderUserIds
+                    }
+                    .map { RoomKeyRecoveryTarget(userId = it.userId, deviceId = null) },
+                latestSenderDeviceIds = requests
+                    .groupBy { it.senderUserId }
+                    .mapValues { (_, senderRequests) -> senderRequests.mapNotNullTo(mutableSetOf()) { it.senderDeviceId } },
+            )
+            lastInput = input
             _statuses.value = coordinator.recover(input).statuses
         }
     }
