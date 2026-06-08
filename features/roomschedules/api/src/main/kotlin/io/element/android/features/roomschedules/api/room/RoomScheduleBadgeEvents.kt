@@ -5,7 +5,7 @@
  * Please see LICENSE files in the repository root for full details.
  */
 
-package io.element.android.features.roomschedules.impl.room
+package io.element.android.features.roomschedules.api.room
 
 sealed interface RoomScheduleBadgeEvents {
     data object OnAppear : RoomScheduleBadgeEvents

@@ -9,6 +9,8 @@ package io.element.android.features.roomschedules.impl.room
 
 import app.cash.turbine.TurbineTestContext
 import com.google.common.truth.Truth.assertThat
+import io.element.android.features.roomschedules.api.room.RoomScheduleBadgeEvents
+import io.element.android.features.roomschedules.api.room.RoomScheduleBadgeState
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 import io.element.android.libraries.chatbot.test.FakeChatbotApiService
 import io.element.android.libraries.chatbot.test.FakeChatbotApiServiceFactory
@@ -53,6 +55,28 @@ class RoomScheduleBadgePresenterTest {
             val loaded = awaitStateWhere { !it.isLoading && it.isVisible }
             assertThat(loaded.activeScheduleCount).isEqualTo(1)
             assertThat(loaded.error).isNull()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - updates members before deciding agent visibility`() = runTest {
+        val room = FakeJoinedRoom().apply {
+            givenRoomMembersState(RoomMembersState.Unknown)
+            baseRoom.givenUpdateMembersResult {
+                givenRoomMembersState(RoomMembersState.Ready(listOf(joinedMember("@agent:example.com")).toImmutableList()))
+            }
+        }
+        val service = FakeChatbotApiService().apply {
+            listSchedulesResult = { Result.success(listOf(aChatbotSchedule(scheduleId = "enabled").copy(status = "enabled"))) }
+            listAgentsResult = { Result.success(listOf(ChatbotAgent(botName = "bot", localpart = "agent", serverName = "example.com"))) }
+        }
+        val presenter = createPresenter(service = service, room = room)
+
+        presenter.test {
+            awaitItem().eventSink(RoomScheduleBadgeEvents.OnAppear)
+            val loaded = awaitStateWhere { !it.isLoading && it.isVisible }
+            assertThat(loaded.activeScheduleCount).isEqualTo(1)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -124,8 +148,8 @@ class RoomScheduleBadgePresenterTest {
     private fun createPresenter(
         service: FakeChatbotApiService,
         room: FakeJoinedRoom,
-    ): RoomScheduleBadgePresenter {
-        return RoomScheduleBadgePresenter(
+    ): DefaultRoomScheduleBadgePresenter {
+        return DefaultRoomScheduleBadgePresenter(
             roomId = A_ROOM_ID,
             joinedRoom = room,
             matrixClient = FakeMatrixClient(),

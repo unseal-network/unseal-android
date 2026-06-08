@@ -16,26 +16,32 @@ import androidx.compose.runtime.setValue
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import dev.zacsweers.metro.ContributesBinding
+import io.element.android.features.roomschedules.api.room.RoomScheduleBadgeEvents
+import io.element.android.features.roomschedules.api.room.RoomScheduleBadgePresenter
+import io.element.android.features.roomschedules.api.room.RoomScheduleBadgeState
 import io.element.android.features.roomschedules.impl.model.isEnabled
 import io.element.android.features.roomschedules.impl.model.matrixUserId
-import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
+import io.element.android.libraries.di.SessionScope
 import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.room.JoinedRoom
 import io.element.android.libraries.matrix.api.room.joinedRoomMembers
+import io.element.android.libraries.matrix.api.room.roomMembers
 import kotlinx.coroutines.launch
 
 @AssistedInject
-class RoomScheduleBadgePresenter(
+class DefaultRoomScheduleBadgePresenter(
     @Assisted private val roomId: RoomId,
     @Assisted private val joinedRoom: JoinedRoom,
     private val matrixClient: MatrixClient,
     private val chatbotApiServiceFactory: ChatbotApiServiceFactory,
-) : Presenter<RoomScheduleBadgeState> {
+) : RoomScheduleBadgePresenter {
     @AssistedFactory
-    interface Factory {
-        fun create(roomId: RoomId, joinedRoom: JoinedRoom): RoomScheduleBadgePresenter
+    @ContributesBinding(SessionScope::class)
+    interface Factory : RoomScheduleBadgePresenter.Factory {
+        override fun create(roomId: RoomId, joinedRoom: JoinedRoom): DefaultRoomScheduleBadgePresenter
     }
 
     @Composable
@@ -67,6 +73,9 @@ class RoomScheduleBadgePresenter(
                     return@launch
                 }
 
+                if (joinedRoom.membersStateFlow.value.roomMembers().isNullOrEmpty()) {
+                    joinedRoom.updateMembers()
+                }
                 val joinedMemberIds = joinedRoom.membersStateFlow.value
                     .joinedRoomMembers()
                     .map { it.userId.value }
