@@ -79,14 +79,12 @@ class IncomingVerificationStateMachine(
                 }
                 on<Event.DidCancel> { _, state: MachineState<State> ->
                     when (state.snapshot) {
-                        is State.RejectingChallenge -> {
-                            state.override { State.Failure.andLogStateChange() }
-                        }
                         is State.Initial -> state.mutate { State.Initial(isCancelled = true).andLogStateChange() }
                         State.AcceptingIncomingVerification,
                         State.RejectingIncomingVerification,
                         is State.ChallengeReceived,
                         is State.AcceptingChallenge,
+                        is State.RejectingChallenge,
                         State.Canceling -> state.override { State.Canceled.andLogStateChange() }
                         State.Canceled,
                         State.Completed,
@@ -94,7 +92,25 @@ class IncomingVerificationStateMachine(
                     }
                 }
                 on<Event.DidFail> { _, state: MachineState<State> ->
-                    state.override { State.Failure.andLogStateChange() }
+                    when (val snapshot = state.snapshot) {
+                        State.AcceptingIncomingVerification -> {
+                            sessionVerificationService.reset(cancelAnyPendingVerificationAttempt = false)
+                            state.override { State.Initial(isCancelled = false).andLogStateChange() }
+                        }
+                        is State.AcceptingChallenge -> {
+                            state.override { State.ChallengeReceived(snapshot.data).andLogStateChange() }
+                        }
+                        is State.RejectingChallenge -> {
+                            state.override { State.ChallengeReceived(snapshot.data).andLogStateChange() }
+                        }
+                        is State.Initial,
+                        State.RejectingIncomingVerification,
+                        is State.ChallengeReceived,
+                        State.Canceling -> state.override { State.Failure.andLogStateChange() }
+                        State.Canceled,
+                        State.Completed,
+                        State.Failure -> state.noChange()
+                    }
                 }
             }
         }

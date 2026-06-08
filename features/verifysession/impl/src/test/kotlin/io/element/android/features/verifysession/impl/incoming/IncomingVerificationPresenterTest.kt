@@ -8,6 +8,7 @@
 
 package io.element.android.features.verifysession.impl.incoming
 
+import app.cash.turbine.ReceiveTurbine
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.verifysession.impl.ui.aEmojisSessionVerificationData
 import io.element.android.libraries.dateformatter.api.DateFormatter
@@ -111,7 +112,7 @@ class IncomingVerificationPresenterTest {
     }
 
     @Test
-    fun `present - emoji not matching case - incoming verification failure`() = runTest {
+    fun `present - emoji not matching case - incoming verification canceled`() = runTest {
         val acknowledgeVerificationRequestLambda = lambdaRecorder<VerificationRequest.Incoming, Unit> { _ -> }
         val acceptVerificationRequestLambda = lambdaRecorder<Unit> { }
         val declineVerificationLambda = lambdaRecorder<Unit> { }
@@ -164,12 +165,12 @@ class IncomingVerificationPresenterTest {
             assertThat((emojiWaitingItem.step as IncomingVerificationState.Step.Verifying).isWaiting).isTrue()
             advanceUntilIdle()
             declineVerificationLambda.assertions().isCalledOnce()
-            // Remote confirm that there is a failure
+            // Remote confirms the decline.
             fakeSessionVerificationService.emitVerificationFlowState(
-                VerificationFlowState.DidFail
+                VerificationFlowState.DidCancel
             )
             val finalItem = awaitItem()
-            assertThat(finalItem.step).isEqualTo(IncomingVerificationState.Step.Failure)
+            assertThat(finalItem.step).isEqualTo(IncomingVerificationState.Step.Canceled)
         }
     }
 
@@ -211,7 +212,7 @@ class IncomingVerificationPresenterTest {
     }
 
     @Test
-    fun `present - user goes back when comparing emoji - incoming verification failure`() = runTest {
+    fun `present - user goes back when comparing emoji - incoming verification canceled`() = runTest {
         val acknowledgeVerificationRequestLambda = lambdaRecorder<VerificationRequest.Incoming, Unit> { _ -> }
         val acceptVerificationRequestLambda = lambdaRecorder<Unit> { }
         val declineVerificationLambda = lambdaRecorder<Unit> { }
@@ -264,12 +265,12 @@ class IncomingVerificationPresenterTest {
             assertThat((emojiWaitingItem.step as IncomingVerificationState.Step.Verifying).isWaiting).isTrue()
             advanceUntilIdle()
             declineVerificationLambda.assertions().isCalledOnce()
-            // Remote confirm that there is a failure
+            // Remote confirms the decline.
             fakeSessionVerificationService.emitVerificationFlowState(
-                VerificationFlowState.DidFail
+                VerificationFlowState.DidCancel
             )
             val finalItem = awaitItem()
-            assertThat(finalItem.step).isEqualTo(IncomingVerificationState.Step.Failure)
+            assertThat(finalItem.step).isEqualTo(IncomingVerificationState.Step.Canceled)
         }
     }
 
@@ -277,10 +278,12 @@ class IncomingVerificationPresenterTest {
     fun `present - user ignores incoming request`() = runTest {
         val acknowledgeVerificationRequestLambda = lambdaRecorder<VerificationRequest.Incoming, Unit> { _ -> }
         val acceptVerificationRequestLambda = lambdaRecorder<Unit> { }
+        val cancelVerificationLambda = lambdaRecorder<Unit> { }
         val resetLambda = lambdaRecorder<Boolean, Unit> { }
         val fakeSessionVerificationService = FakeSessionVerificationService(
             acknowledgeVerificationRequestLambda = acknowledgeVerificationRequestLambda,
             acceptVerificationRequestLambda = acceptVerificationRequestLambda,
+            cancelVerificationLambda = cancelVerificationLambda,
             resetLambda = resetLambda,
         )
         val navigatorLambda = lambdaRecorder<Unit> { }
@@ -292,6 +295,112 @@ class IncomingVerificationPresenterTest {
             initialState.eventSink(IncomingVerificationViewEvents.IgnoreVerification)
             skipItems(1)
             navigatorLambda.assertions().isCalledOnce()
+            cancelVerificationLambda.assertions().isNeverCalled()
+            acceptVerificationRequestLambda.assertions().isNeverCalled()
+        }
+    }
+
+    @Test
+    fun `present - accept failure returns to initial state`() = runTest {
+        val acknowledgeVerificationRequestLambda = lambdaRecorder<VerificationRequest.Incoming, Unit> { _ -> }
+        val acceptVerificationRequestLambda = lambdaRecorder<Unit> { }
+        val resetLambda = lambdaRecorder<Boolean, Unit> { }
+        val fakeSessionVerificationService = FakeSessionVerificationService(
+            acknowledgeVerificationRequestLambda = acknowledgeVerificationRequestLambda,
+            acceptVerificationRequestLambda = acceptVerificationRequestLambda,
+            resetLambda = resetLambda,
+        )
+        createPresenter(service = fakeSessionVerificationService).test {
+            val initialState = awaitItem()
+            initialState.eventSink(IncomingVerificationViewEvents.StartVerification)
+            skipItems(1)
+            val waitingState = awaitItem()
+            assertThat((waitingState.step as IncomingVerificationState.Step.Initial).isWaiting).isTrue()
+
+            fakeSessionVerificationService.emitVerificationFlowState(VerificationFlowState.DidFail)
+
+            val retryState = awaitItem()
+            assertThat(retryState.step).isEqualTo(
+                IncomingVerificationState.Step.Initial(
+                    deviceDisplayName = "a device name",
+                    deviceId = A_DEVICE_ID,
+                    formattedSignInTime = "567 TimeOrDate false",
+                    isWaiting = false,
+                )
+            )
+        }
+    }
+
+    @Test
+    fun `present - declined challenge success results in canceled state`() = runTest {
+        val declineVerificationLambda = lambdaRecorder<Unit> { }
+        val fakeSessionVerificationService = FakeSessionVerificationService(
+            acknowledgeVerificationRequestLambda = { },
+            acceptVerificationRequestLambda = { },
+            declineVerificationLambda = declineVerificationLambda,
+            resetLambda = { },
+        )
+        createPresenter(service = fakeSessionVerificationService).test {
+            val emojiState = acceptIncomingRequestAndAwaitEmojiState(fakeSessionVerificationService)
+            emojiState.eventSink(IncomingVerificationViewEvents.DeclineVerification)
+            val waitingItem = awaitItem()
+            assertThat((waitingItem.step as IncomingVerificationState.Step.Verifying).isWaiting).isTrue()
+            advanceUntilIdle()
+            declineVerificationLambda.assertions().isCalledOnce()
+
+            fakeSessionVerificationService.emitVerificationFlowState(VerificationFlowState.DidCancel)
+
+            assertThat(awaitItem().step).isEqualTo(IncomingVerificationState.Step.Canceled)
+        }
+    }
+
+    @Test
+    fun `present - approve failure keeps challenge visible`() = runTest {
+        val fakeSessionVerificationService = FakeSessionVerificationService(
+            acknowledgeVerificationRequestLambda = { },
+            acceptVerificationRequestLambda = { },
+            approveVerificationLambda = { },
+            resetLambda = { },
+        )
+        createPresenter(service = fakeSessionVerificationService).test {
+            val emojiState = acceptIncomingRequestAndAwaitEmojiState(fakeSessionVerificationService)
+            emojiState.eventSink(IncomingVerificationViewEvents.ConfirmVerification)
+            val waitingItem = awaitItem()
+            assertThat((waitingItem.step as IncomingVerificationState.Step.Verifying).isWaiting).isTrue()
+
+            fakeSessionVerificationService.emitVerificationFlowState(VerificationFlowState.DidFail)
+
+            assertThat(awaitItem().step).isEqualTo(
+                IncomingVerificationState.Step.Verifying(
+                    data = aEmojisSessionVerificationData(),
+                    isWaiting = false,
+                )
+            )
+        }
+    }
+
+    @Test
+    fun `present - decline failure keeps challenge visible`() = runTest {
+        val fakeSessionVerificationService = FakeSessionVerificationService(
+            acknowledgeVerificationRequestLambda = { },
+            acceptVerificationRequestLambda = { },
+            declineVerificationLambda = { },
+            resetLambda = { },
+        )
+        createPresenter(service = fakeSessionVerificationService).test {
+            val emojiState = acceptIncomingRequestAndAwaitEmojiState(fakeSessionVerificationService)
+            emojiState.eventSink(IncomingVerificationViewEvents.DeclineVerification)
+            val waitingItem = awaitItem()
+            assertThat((waitingItem.step as IncomingVerificationState.Step.Verifying).isWaiting).isTrue()
+
+            fakeSessionVerificationService.emitVerificationFlowState(VerificationFlowState.DidFail)
+
+            assertThat(awaitItem().step).isEqualTo(
+                IncomingVerificationState.Step.Verifying(
+                    data = aEmojisSessionVerificationData(),
+                    isWaiting = false,
+                )
+            )
         }
     }
 }
@@ -309,6 +418,33 @@ private val anIncomingSessionVerificationRequest = VerificationRequest.Incoming.
         firstSeenTimestamp = A_TIMESTAMP,
     )
 )
+
+@OptIn(ExperimentalCoroutinesApi::class)
+context(testScope: TestScope)
+private suspend fun ReceiveTurbine<IncomingVerificationState>.acceptIncomingRequestAndAwaitEmojiState(
+    fakeSessionVerificationService: FakeSessionVerificationService,
+): IncomingVerificationState {
+    val initialState = awaitItem()
+    initialState.eventSink(IncomingVerificationViewEvents.StartVerification)
+    skipItems(1)
+    assertThat((awaitItem().step as IncomingVerificationState.Step.Initial).isWaiting).isTrue()
+    testScope.advanceUntilIdle()
+    fakeSessionVerificationService.emitVerificationFlowState(VerificationFlowState.DidAcceptVerificationRequest)
+    fakeSessionVerificationService.emitVerificationFlowState(VerificationFlowState.DidStartSasVerification)
+    fakeSessionVerificationService.emitVerificationFlowState(
+        VerificationFlowState.DidReceiveVerificationData(
+            data = aEmojisSessionVerificationData()
+        )
+    )
+    val emojiState = awaitItem()
+    assertThat(emojiState.step).isEqualTo(
+        IncomingVerificationState.Step.Verifying(
+            data = aEmojisSessionVerificationData(),
+            isWaiting = false,
+        )
+    )
+    return emojiState
+}
 
 internal fun TestScope.createPresenter(
     verificationRequest: VerificationRequest.Incoming = anIncomingSessionVerificationRequest,
