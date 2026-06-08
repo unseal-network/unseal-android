@@ -30,7 +30,7 @@ No production files outside `features/verifysession/impl` should change unless a
 **Files:**
 - Modify: `features/verifysession/impl/src/test/kotlin/io/element/android/features/verifysession/impl/outgoing/OutgoingVerificationPresenterTest.kt`
 
-- [ ] **Step 1: Replace the request-failure expectation with the iOS retry behavior**
+- [x] **Step 1: Replace the request-failure expectation with the iOS retry behavior**
 
 In `OutgoingVerificationPresenterTest`, replace the existing test named:
 
@@ -56,7 +56,7 @@ fun `present - A fail when requesting verification resets the state to initial`(
 }
 ```
 
-- [ ] **Step 2: Add approve-failure retry coverage**
+- [x] **Step 2: Add approve-failure retry coverage**
 
 Add this test after `present - A failure when verifying cancels it`:
 
@@ -93,7 +93,7 @@ fun `present - A fail when approving verification keeps the challenge visible`()
 }
 ```
 
-- [ ] **Step 3: Add decline-failure retry coverage**
+- [x] **Step 3: Add decline-failure retry coverage**
 
 Add this test after the approve-failure test:
 
@@ -130,7 +130,7 @@ fun `present - A fail when declining verification keeps the challenge visible`()
 }
 ```
 
-- [ ] **Step 4: Add start-SAS failure retry coverage**
+- [x] **Step 4: Add start-SAS failure retry coverage**
 
 Add this test after the request-failure test:
 
@@ -161,7 +161,7 @@ fun `present - A fail when starting SAS returns to ready state`() = runTest {
 }
 ```
 
-- [ ] **Step 5: Run the outgoing presenter test and verify the new tests fail**
+- [x] **Step 5: Run the outgoing presenter test and verify the new tests fail**
 
 Run:
 
@@ -179,7 +179,7 @@ Expected: FAIL. The failing assertions should show the current Android behavior 
 **Files:**
 - Modify: `features/verifysession/impl/src/main/kotlin/io/element/android/features/verifysession/impl/outgoing/OutgoingVerificationStateMachine.kt`
 
-- [ ] **Step 1: Replace generic `DidFail` handling**
+- [x] **Step 1: Replace generic `DidFail` handling**
 
 In the generic `inState` block, replace:
 
@@ -217,7 +217,7 @@ on<Event.DidFail> { _, state: MachineState<State> ->
 }
 ```
 
-- [ ] **Step 2: Run outgoing presenter tests**
+- [x] **Step 2: Run outgoing presenter tests**
 
 Run:
 
@@ -230,7 +230,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
 
 Expected: PASS.
 
-- [ ] **Step 3: Commit outgoing alignment**
+- [x] **Step 3: Commit outgoing alignment**
 
 Run:
 
@@ -247,7 +247,7 @@ Expected: one commit containing only the outgoing test and state-machine files.
 **Files:**
 - Modify: `features/verifysession/impl/src/test/kotlin/io/element/android/features/verifysession/impl/incoming/IncomingVerificationPresenterTest.kt`
 
-- [ ] **Step 1: Strengthen ignore-before-accept coverage**
+- [x] **Step 1: Strengthen ignore-before-accept coverage**
 
 In `present - user ignores incoming request`, add a cancel recorder and assert it is never called:
 
@@ -268,7 +268,7 @@ cancelVerificationLambda.assertions().isNeverCalled()
 acceptVerificationRequestLambda.assertions().isNeverCalled()
 ```
 
-- [ ] **Step 2: Add accept-failure retry coverage**
+- [x] **Step 2: Add accept-failure retry coverage**
 
 Add this test after the ignore test:
 
@@ -305,7 +305,7 @@ fun `present - accept failure returns to initial state`() = runTest {
 }
 ```
 
-- [ ] **Step 3: Add decline-success cancellation coverage**
+- [x] **Step 3: Add decline-success cancellation coverage**
 
 Add this test after the existing emoji-not-matching test:
 
@@ -334,7 +334,7 @@ fun `present - declined challenge success results in canceled state`() = runTest
 }
 ```
 
-- [ ] **Step 4: Add approve/decline failure challenge-preservation coverage**
+- [x] **Step 4: Add approve/decline failure challenge-preservation coverage**
 
 Add these two tests after the decline-success test:
 
@@ -390,7 +390,7 @@ fun `present - decline failure keeps challenge visible`() = runTest {
 }
 ```
 
-- [ ] **Step 5: Add a helper for accepting incoming requests**
+- [x] **Step 5: Add a helper for accepting incoming requests**
 
 Add this helper above `createPresenter`:
 
@@ -428,7 +428,7 @@ Also add this import at the top:
 import app.cash.turbine.ReceiveTurbine
 ```
 
-- [ ] **Step 6: Run incoming presenter tests and verify failures**
+- [x] **Step 6: Run incoming presenter tests and verify failures**
 
 Run:
 
@@ -446,7 +446,7 @@ Expected: FAIL. The failing assertions should show accept failure, decline succe
 **Files:**
 - Modify: `features/verifysession/impl/src/main/kotlin/io/element/android/features/verifysession/impl/incoming/IncomingVerificationStateMachine.kt`
 
-- [ ] **Step 1: Replace `DidCancel` handling for rejecting challenge**
+- [x] **Step 1: Replace `DidCancel` handling for rejecting challenge**
 
 In the generic `inState` block, replace the `DidCancel` branch that maps `State.RejectingChallenge` to `State.Failure` with:
 
@@ -467,7 +467,7 @@ on<Event.DidCancel> { _, state: MachineState<State> ->
 }
 ```
 
-- [ ] **Step 2: Replace generic `DidFail` handling**
+- [x] **Step 2: Replace generic `DidFail` handling**
 
 Replace:
 
@@ -503,7 +503,7 @@ on<Event.DidFail> { _, state: MachineState<State> ->
 }
 ```
 
-- [ ] **Step 3: Run incoming presenter tests**
+- [x] **Step 3: Run incoming presenter tests**
 
 Run:
 
@@ -516,7 +516,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
 
 Expected: PASS.
 
-- [ ] **Step 4: Commit incoming alignment**
+- [x] **Step 4: Commit incoming alignment**
 
 Run:
 
@@ -533,7 +533,7 @@ Expected: one commit containing only incoming verification files.
 **Files:**
 - Modify: `features/ftue/impl/src/test/kotlin/io/element/android/features/ftue/impl/DefaultFtueServiceTest.kt`
 
-- [ ] **Step 1: Add explicit success-acknowledgement gate test**
+- [x] **Step 1: Add explicit success-acknowledgement gate test**
 
 Add this test after `traverse flow`:
 
@@ -569,7 +569,7 @@ fun `session verification success waits for user acknowledgement before advancin
 }
 ```
 
-- [ ] **Step 2: Add skip preference coverage**
+- [x] **Step 2: Add skip preference coverage**
 
 Add this test after the acknowledgement test:
 
@@ -593,7 +593,7 @@ fun `skipped session verification advances when session is not verified`() = run
 }
 ```
 
-- [ ] **Step 3: Run FTUE tests**
+- [x] **Step 3: Run FTUE tests**
 
 Run:
 
@@ -613,7 +613,7 @@ expectNoEvents()
 
 and keep the user-acknowledgement assertion.
 
-- [ ] **Step 4: Commit FTUE tests**
+- [x] **Step 4: Commit FTUE tests**
 
 Run:
 
@@ -629,7 +629,7 @@ Expected: one commit containing only the FTUE test file.
 **Files:**
 - No file changes expected.
 
-- [ ] **Step 1: Run all session verification implementation tests**
+- [x] **Step 1: Run all session verification implementation tests**
 
 Run:
 
@@ -641,7 +641,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
 
 Expected: PASS.
 
-- [ ] **Step 2: Run FTUE unit tests**
+- [x] **Step 2: Run FTUE unit tests**
 
 Run:
 
@@ -653,7 +653,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
 
 Expected: PASS.
 
-- [ ] **Step 3: Run Matrix implementation tests**
+- [x] **Step 3: Run Matrix implementation tests**
 
 Run:
 
@@ -665,7 +665,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
 
 Expected: PASS. This proves the Matrix Rust SDK service adapter still compiles and existing Matrix verification-related tests remain green.
 
-- [ ] **Step 4: Run session verification assemble**
+- [x] **Step 4: Run session verification assemble**
 
 Run:
 
@@ -677,7 +677,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
 
 Expected: PASS.
 
-- [ ] **Step 5: Run diff and status checks**
+- [x] **Step 5: Run diff and status checks**
 
 Run:
 
