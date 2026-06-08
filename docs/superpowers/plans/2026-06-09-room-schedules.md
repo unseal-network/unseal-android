@@ -74,7 +74,7 @@ Do not modify:
 - Create: `features/roomschedules/impl/src/main/kotlin/io/element/android/features/roomschedules/impl/DefaultRoomSchedulesEntryPoint.kt`
 - Create: `features/roomschedules/impl/src/main/kotlin/io/element/android/features/roomschedules/impl/RoomSchedulesFlowNode.kt`
 
-- [ ] **Step 1: Write entry-point API**
+- [x] **Step 1: Write entry-point API**
 
 Create `RoomSchedulesEntryPoint.kt`:
 
@@ -118,7 +118,7 @@ interface RoomSchedulesEntryPoint : FeatureEntryPoint {
 }
 ```
 
-- [ ] **Step 2: Add Gradle files**
+- [x] **Step 2: Add Gradle files**
 
 Create `features/roomschedules/api/build.gradle.kts`:
 
@@ -201,7 +201,7 @@ dependencies {
 }
 ```
 
-- [ ] **Step 3: Add fake entry point**
+- [x] **Step 3: Add fake entry point**
 
 Create `FakeRoomSchedulesEntryPoint.kt`:
 
@@ -227,7 +227,7 @@ class FakeRoomSchedulesEntryPoint(
 }
 ```
 
-- [ ] **Step 4: Add implementation entry point and temporary flow node**
+- [x] **Step 4: Add implementation entry point and temporary flow node**
 
 Create `DefaultRoomSchedulesEntryPoint.kt`:
 
@@ -290,7 +290,7 @@ class RoomSchedulesFlowNode(
 }
 ```
 
-- [ ] **Step 5: Run compile to verify module inclusion**
+- [x] **Step 5: Run compile to verify module inclusion**
 
 Run:
 
@@ -300,7 +300,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: PASS. The settings script auto-includes the new feature modules because their build files exist.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```sh
 git add features/roomschedules
@@ -317,7 +317,7 @@ git commit -m "feat: add room schedules feature shell"
 - Create: `features/roomschedules/impl/src/main/kotlin/io/element/android/features/roomschedules/impl/model/ScheduleFormatters.kt`
 - Create: `features/roomschedules/impl/src/test/kotlin/io/element/android/features/roomschedules/impl/model/ScheduleFormattersTest.kt`
 
-- [ ] **Step 1: Write failing cron parser tests**
+- [x] **Step 1: Write failing cron parser tests**
 
 Create `CronParserTest.kt`:
 
@@ -364,7 +364,7 @@ class CronParserTest {
 }
 ```
 
-- [ ] **Step 2: Run cron tests to verify failure**
+- [x] **Step 2: Run cron tests to verify failure**
 
 Run:
 
@@ -374,7 +374,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: FAIL because `CronParser`, `CronPickerMode`, and `CronPickerModel` are not defined.
 
-- [ ] **Step 3: Implement cron parser**
+- [x] **Step 3: Implement cron parser**
 
 Create `CronParser.kt`:
 
@@ -493,7 +493,7 @@ private fun Int?.orZero() = this ?: 0
 private fun Int.zeroPadded(): String = toString().padStart(2, '0')
 ```
 
-- [ ] **Step 4: Write failing schedule helper tests**
+- [x] **Step 4: Write failing schedule helper tests**
 
 Create `ScheduleFormattersTest.kt`:
 
@@ -528,7 +528,7 @@ class ScheduleFormattersTest {
 }
 ```
 
-- [ ] **Step 5: Implement schedule helpers**
+- [x] **Step 5: Implement schedule helpers**
 
 Create `ScheduleFormatters.kt`:
 
@@ -563,7 +563,7 @@ fun ChatbotAgent.matrixUserId(): String {
 }
 ```
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 Run:
 
@@ -573,7 +573,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```sh
 git add features/roomschedules/impl/src/main/kotlin/io/element/android/features/roomschedules/impl/cron features/roomschedules/impl/src/test/kotlin/io/element/android/features/roomschedules/impl/cron features/roomschedules/impl/src/main/kotlin/io/element/android/features/roomschedules/impl/model features/roomschedules/impl/src/test/kotlin/io/element/android/features/roomschedules/impl/model
@@ -591,7 +591,7 @@ git commit -m "feat: add room schedule cron helpers"
 - Create: `features/roomschedules/impl/src/main/kotlin/io/element/android/features/roomschedules/impl/config/RoomSchedulesPresenter.kt`
 - Create: `features/roomschedules/impl/src/test/kotlin/io/element/android/features/roomschedules/impl/config/RoomSchedulesPresenterTest.kt`
 
-- [ ] **Step 1: Write failing presenter tests**
+- [x] **Step 1: Write failing presenter tests**
 
 Create `RoomSchedulesPresenterTest.kt` with these test names and assertions:
 
@@ -790,7 +790,7 @@ private class FakeRoomSchedulesNavigator : RoomSchedulesNavigator {
 }
 ```
 
-- [ ] **Step 2: Run presenter tests to verify failure**
+- [x] **Step 2: Run presenter tests to verify failure**
 
 Run:
 
@@ -800,7 +800,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: FAIL because config presenter types do not exist.
 
-- [ ] **Step 3: Implement config state and events**
+- [x] **Step 3: Implement config state and events**
 
 Create `RoomSchedulesEvents.kt`:
 
@@ -889,7 +889,7 @@ data class RoomSchedulesState(
 }
 ```
 
-- [ ] **Step 4: Implement presenter**
+- [x] **Step 4: Implement presenter**
 
 Create `RoomSchedulesPresenter.kt`:
 
@@ -1092,7 +1092,7 @@ class RoomSchedulesPresenter @AssistedInject constructor(
 }
 ```
 
-- [ ] **Step 5: Run config tests**
+- [x] **Step 5: Run config tests**
 
 Run:
 
@@ -1102,7 +1102,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```sh
 git add features/roomschedules/impl/src/main/kotlin/io/element/android/features/roomschedules/impl/config features/roomschedules/impl/src/test/kotlin/io/element/android/features/roomschedules/impl/config
@@ -1121,7 +1121,7 @@ git commit -m "feat: add room schedules presenter"
 - Create: `features/roomschedules/impl/src/main/kotlin/io/element/android/features/roomschedules/impl/edit/ScheduleEditPresenter.kt`
 - Create: `features/roomschedules/impl/src/test/kotlin/io/element/android/features/roomschedules/impl/edit/ScheduleEditPresenterTest.kt`
 
-- [ ] **Step 1: Write failing edit presenter tests**
+- [x] **Step 1: Write failing edit presenter tests**
 
 Create `ScheduleEditPresenterTest.kt` with these required test names:
 
@@ -1291,7 +1291,7 @@ private class FakeScheduleEditNavigator : ScheduleEditNavigator {
 }
 ```
 
-- [ ] **Step 2: Run edit presenter tests to verify failure**
+- [x] **Step 2: Run edit presenter tests to verify failure**
 
 Run:
 
@@ -1301,7 +1301,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: FAIL because edit presenter types do not exist.
 
-- [ ] **Step 3: Implement edit mode, events, state, and navigator**
+- [x] **Step 3: Implement edit mode, events, state, and navigator**
 
 Create the edit files with these public signatures:
 
@@ -1351,7 +1351,7 @@ data class ScheduleEditState(
 }
 ```
 
-- [ ] **Step 4: Implement edit presenter**
+- [x] **Step 4: Implement edit presenter**
 
 Create `ScheduleEditPresenter.kt` with:
 
@@ -1379,7 +1379,7 @@ Implementation requirements:
 - On save success call `navigator.onSaved()`.
 - On cancel call `navigator.onCancelled()`.
 
-- [ ] **Step 5: Run edit tests**
+- [x] **Step 5: Run edit tests**
 
 Run:
 
@@ -1389,7 +1389,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```sh
 git add features/roomschedules/impl/src/main/kotlin/io/element/android/features/roomschedules/impl/edit features/roomschedules/impl/src/test/kotlin/io/element/android/features/roomschedules/impl/edit
@@ -1407,7 +1407,7 @@ git commit -m "feat: add schedule edit presenter"
 - Create: `features/roomschedules/impl/src/main/kotlin/io/element/android/features/roomschedules/impl/edit/ScheduleEditNode.kt`
 - Create: `features/roomschedules/impl/src/main/kotlin/io/element/android/features/roomschedules/impl/edit/ScheduleEditView.kt`
 
-- [ ] **Step 1: Replace temporary flow node with backstack flow**
+- [x] **Step 1: Replace temporary flow node with backstack flow**
 
 Implement `RoomSchedulesFlowNode` following `SkillsFlowNode`:
 
@@ -1418,7 +1418,7 @@ Implement `RoomSchedulesFlowNode` following `SkillsFlowNode`:
 - Close calls `RoomSchedulesEntryPoint.Callback.onDone()`.
 - Schedule changes call `RoomSchedulesEntryPoint.Callback.onSchedulesChanged()`.
 
-- [ ] **Step 2: Add config node**
+- [x] **Step 2: Add config node**
 
 Create `RoomSchedulesNode.kt`:
 
@@ -1442,7 +1442,7 @@ class RoomSchedulesNode(
 
 The node creates `RoomSchedulesNavigator` and renders `RoomSchedulesView(state = presenter.present())`.
 
-- [ ] **Step 3: Add edit node**
+- [x] **Step 3: Add edit node**
 
 Create `ScheduleEditNode.kt`:
 
@@ -1464,7 +1464,7 @@ class ScheduleEditNode(
 
 The node creates `ScheduleEditNavigator` and renders `ScheduleEditView(state = presenter.present())`.
 
-- [ ] **Step 4: Add config Compose view**
+- [x] **Step 4: Add config Compose view**
 
 Create `RoomSchedulesView.kt` with:
 
@@ -1485,7 +1485,7 @@ Create `RoomSchedulesView.kt` with:
   - Add/Edit, Cancel, Save, Refresh buttons.
 - Delete confirmation can be rendered as inline confirmation controls to avoid introducing a dialog API in the first pass.
 
-- [ ] **Step 5: Add edit Compose view**
+- [x] **Step 5: Add edit Compose view**
 
 Create `ScheduleEditView.kt` with:
 
@@ -1505,7 +1505,7 @@ Create `ScheduleEditView.kt` with:
 - Preview text from `CronParser.toReadable(CronParser.toCron(state.cronModel))`.
 - Submit button with loading text.
 
-- [ ] **Step 6: Compile feature**
+- [x] **Step 6: Compile feature**
 
 Run:
 
@@ -1515,7 +1515,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: PASS.
 
-- [ ] **Step 7: Run all roomschedules unit tests**
+- [x] **Step 7: Run all roomschedules unit tests**
 
 Run:
 
@@ -1525,7 +1525,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```sh
 git add features/roomschedules/impl/src/main/kotlin/io/element/android/features/roomschedules/impl
@@ -1547,7 +1547,7 @@ git commit -m "feat: add room schedules screens"
 - Modify: `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/MessagesView.kt`
 - Modify: app navigation entry-point wiring files if compile errors show the callback must be routed there.
 
-- [ ] **Step 1: Write failing badge presenter tests**
+- [x] **Step 1: Write failing badge presenter tests**
 
 Create `RoomScheduleBadgePresenterTest.kt`:
 
@@ -1698,7 +1698,7 @@ class RoomScheduleBadgePresenterTest {
 
 Use `FakeChatbotApiService`, `FakeJoinedRoom`, and the same Agent Matrix ID helper from Task 2.
 
-- [ ] **Step 2: Implement badge presenter**
+- [x] **Step 2: Implement badge presenter**
 
 Create:
 
@@ -1727,7 +1727,7 @@ data class RoomScheduleBadgeState(
 - `activeScheduleCount = schedules.count { it.isEnabled() }` only when visible; otherwise zero.
 - On failure, `isVisible = false`, `activeScheduleCount = 0`, and `error` stores message.
 
-- [ ] **Step 3: Add messages callback**
+- [x] **Step 3: Add messages callback**
 
 Modify `MessagesEntryPoint.Callback`:
 
@@ -1737,7 +1737,7 @@ fun navigateToRoomSchedules(roomId: RoomId, roomName: String, joinedRoom: Joined
 
 Update all fake/test callback implementations to add a no-op or lambda-error implementation.
 
-- [ ] **Step 4: Wire Messages implementation**
+- [x] **Step 4: Wire Messages implementation**
 
 In `features/messages/impl/build.gradle.kts`, add:
 
@@ -1754,7 +1754,7 @@ In the central Messages presenter/view:
 
 If the actual room action UI lives in a subcomponent instead of `MessagesView.kt`, modify the file that owns the existing room action cluster. Use `rg -n "navigateToRoomDetails|developer|RoomCall|Pinned|composer|toolbar" features/messages/impl/src/main/kotlin -S` to locate the exact host before editing.
 
-- [ ] **Step 5: Wire app navigation**
+- [x] **Step 5: Wire app navigation**
 
 Modify `appnav/src/main/kotlin/io/element/android/appnav/room/joined/JoinedRoomLoadedFlowNode.kt`:
 
@@ -1818,7 +1818,7 @@ override fun navigateToRoomSchedules(roomId: RoomId, roomName: String, joinedRoo
 
 The parameters are intentionally accepted by the callback to keep `MessagesEntryPoint` independent; `JoinedRoomLoadedFlowNode` uses `inputs.room` as the authoritative joined room instance.
 
-- [ ] **Step 6: Run integration compiles**
+- [x] **Step 6: Run integration compiles**
 
 Run:
 
@@ -1828,7 +1828,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```sh
 git add features/roomschedules/impl/src/main/kotlin/io/element/android/features/roomschedules/impl/room features/roomschedules/impl/src/test/kotlin/io/element/android/features/roomschedules/impl/room features/messages appnav
@@ -1842,7 +1842,7 @@ git commit -m "feat: wire room schedules entry point"
 **Files:**
 - Modify files touched by Tasks 1-6 when a verification command identifies a concrete compile, test, or dependency-scan failure.
 
-- [ ] **Step 1: Run full Room Schedules tests**
+- [x] **Step 1: Run full Room Schedules tests**
 
 ```sh
 env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy JAVA_HOME=/usr/local/opt/openjdk@21 ANDROID_HOME=/usr/local/share/android-commandlinetools ./gradlew --no-daemon --no-configuration-cache :features:roomschedules:impl:testDebugUnitTest
@@ -1850,7 +1850,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: PASS.
 
-- [ ] **Step 2: Run feature compiles**
+- [x] **Step 2: Run feature compiles**
 
 ```sh
 env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy JAVA_HOME=/usr/local/opt/openjdk@21 ANDROID_HOME=/usr/local/share/android-commandlinetools ./gradlew --no-daemon --no-configuration-cache :features:roomschedules:impl:compileDebugKotlin :features:messages:impl:compileDebugKotlin
@@ -1858,7 +1858,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: PASS.
 
-- [ ] **Step 3: Run Chatbot API regression tests**
+- [x] **Step 3: Run Chatbot API regression tests**
 
 ```sh
 env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy JAVA_HOME=/usr/local/opt/openjdk@21 ANDROID_HOME=/usr/local/share/android-commandlinetools ./gradlew --no-daemon --no-configuration-cache :libraries:chatbot:impl:testDebugUnitTest
@@ -1866,7 +1866,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: PASS.
 
-- [ ] **Step 4: Run forbidden dependency scan**
+- [x] **Step 4: Run forbidden dependency scan**
 
 ```sh
 rg -n "rustsdk|org\\.matrix\\.rust|voiceplayer|voicerecorder|vault|Vault|sandbox|Sandbox|UnsealUI|UnsealAgent|UnsealMiniApp|miniapp|MiniApp" features/roomschedules features/messages -S
@@ -1877,7 +1877,7 @@ Expected:
 - no output from `features/roomschedules`;
 - no new schedules-related output from `features/messages`.
 
-- [ ] **Step 5: Check worktree and recent commits**
+- [x] **Step 5: Check worktree and recent commits**
 
 ```sh
 git status --short --branch
@@ -1889,7 +1889,7 @@ Expected:
 - `git status` shows branch `feature/agent-management` with no modified or untracked files;
 - recent commits include room schedules shell, cron helpers, presenters, screens, and messages wiring.
 
-- [ ] **Step 6: Commit fixes if verification required changes**
+- [x] **Step 6: Commit fixes if verification required changes**
 
 If Steps 1-4 required fixes, inspect the changed files and commit them:
 
