@@ -526,7 +526,7 @@ git diff --check PASS
 
 ### Task 5: Final Verification And Runnable Build
 
-- [ ] **Step 1: Run feature acceptance commands**
+- [x] **Step 1: Run feature acceptance commands**
 
 Run:
 
@@ -536,7 +536,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
 
 Expected: PASS.
 
-- [ ] **Step 2: Run full runnable APK build**
+- [x] **Step 2: Run full runnable APK build**
 
 Run:
 
@@ -546,7 +546,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
 
 Expected: PASS and APKs under `app/build/outputs/apk/fdroid/debug/`.
 
-- [ ] **Step 3: Record APK checksum**
+- [x] **Step 3: Record APK checksum**
 
 Run:
 
@@ -555,7 +555,7 @@ shasum -a 256 app/build/outputs/apk/fdroid/debug/app-fdroid-universal-debug.apk
 ls -lh app/build/outputs/apk/fdroid/debug/app-fdroid-universal-debug.apk
 ```
 
-- [ ] **Step 4: Check diff**
+- [x] **Step 4: Check diff**
 
 Run:
 
@@ -564,13 +564,30 @@ git diff --check
 git status --short
 ```
 
-- [ ] **Step 5: Mark plan complete and commit verification**
+- [x] **Step 5: Mark plan complete and commit verification**
 
 Update this plan with verification evidence and the APK checksum, then commit:
 
 ```bash
 git add docs/superpowers/plans/2026-06-09-agent-room-key-recovery.md
 git commit -m "docs: verify agent room key recovery"
+```
+
+Verification:
+
+```text
+:libraries:matrix:impl:testDebugUnitTest :features:messages:impl:testDebugUnitTest :features:messages:impl:assembleDebug PASS
+:app:assembleFdroidDebug PASS
+git diff --check PASS
+git status --short clean before verification doc update
+
+app/build/outputs/apk/fdroid/debug/app-fdroid-universal-debug.apk
+size: 488056754 bytes
+sha256: a56e6af19002668a5df0fc38ee797d9fbf6d46c1b9de09a0793d909a082a2068
+
+app/build/outputs/apk/fdroid/debug/app-fdroid-arm64-v8a-debug.apk
+size: 217735778 bytes
+sha256: a31e130f0cb7a09316cf6e62b735fda3711f8c13d4063eecba84bb40a340bbf4
 ```
 
 ## Self-Review
