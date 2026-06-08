@@ -20,10 +20,10 @@ import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
 import io.element.android.features.webhooks.api.WebhookTriggerEditMode
 import io.element.android.features.webhooks.api.WebhookTriggersEntryPoint
+import io.element.android.features.webhooks.impl.list.WebhookTriggerListMode
 import io.element.android.libraries.architecture.BackstackView
 import io.element.android.libraries.architecture.BaseFlowNode
 import io.element.android.libraries.di.SessionScope
-import io.element.android.libraries.matrix.api.core.RoomId
 import kotlinx.parcelize.Parcelize
 
 @ContributesNode(SessionScope::class)
@@ -47,14 +47,6 @@ class WebhookTriggersFlowNode(
         data class Edit(val mode: WebhookTriggerEditMode) : NavTarget
     }
 
-    sealed interface WebhookTriggerListMode : Parcelable {
-        @Parcelize
-        data object Global : WebhookTriggerListMode
-
-        @Parcelize
-        data class Room(val roomId: RoomId, val roomName: String) : WebhookTriggerListMode
-    }
-
     override fun resolve(navTarget: NavTarget, buildContext: BuildContext): Node {
         return TemporaryWebhookTriggersNode(buildContext)
     }
@@ -66,9 +58,9 @@ class WebhookTriggersFlowNode(
 }
 
 private fun WebhookTriggersEntryPoint.InitialTarget.toNavTarget(): WebhookTriggersFlowNode.NavTarget = when (this) {
-    WebhookTriggersEntryPoint.InitialTarget.Global -> WebhookTriggersFlowNode.NavTarget.List(WebhookTriggersFlowNode.WebhookTriggerListMode.Global)
+    WebhookTriggersEntryPoint.InitialTarget.Global -> WebhookTriggersFlowNode.NavTarget.List(WebhookTriggerListMode.Global)
     is WebhookTriggersEntryPoint.InitialTarget.Room -> WebhookTriggersFlowNode.NavTarget.List(
-        WebhookTriggersFlowNode.WebhookTriggerListMode.Room(roomId, roomName)
+        WebhookTriggerListMode.Room(roomId, roomName)
     )
     is WebhookTriggersEntryPoint.InitialTarget.Edit -> WebhookTriggersFlowNode.NavTarget.Edit(mode)
 }

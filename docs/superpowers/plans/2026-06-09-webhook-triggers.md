@@ -142,7 +142,7 @@ git commit -m "feat: add webhook triggers feature shell"
 - Create: `features/webhooks/impl/src/main/kotlin/io/element/android/features/webhooks/impl/list/WebhookTriggerListPresenter.kt`
 - Create: `features/webhooks/impl/src/test/kotlin/io/element/android/features/webhooks/impl/list/WebhookTriggerListPresenterTest.kt`
 
-- [ ] **Step 1: Write presenter tests**
+- [x] **Step 1: Write presenter tests**
 
 Cover these tests:
 
@@ -159,7 +159,7 @@ Cover these tests:
 
 Use `FakeChatbotApiService`, `FakeChatbotApiServiceFactory`, `FakeMatrixClient`, `FakeDynamicRoomList`, `aRoomSummary`, `aChatbotWebhookTrigger`, `WarmUpRule`, and `Presenter.test`.
 
-- [ ] **Step 2: Implement shared helpers**
+- [x] **Step 2: Implement shared helpers**
 
 Create helpers:
 
@@ -173,7 +173,7 @@ fun ChatbotWebhookTrigger.displaySource(fallback: String? = null): String
 
 `matchesWebhookQuery` must trim query and match name, source, joined event types, agent id, action prompt, and room id case-insensitively, exactly like iOS.
 
-- [ ] **Step 3: Implement list state/events/navigator**
+- [x] **Step 3: Implement list state/events/navigator**
 
 Create `WebhookTriggerListMode.Global` and `WebhookTriggerListMode.Room(roomId: RoomId, roomName: String)`.
 
@@ -181,7 +181,7 @@ Create events matching iOS: `OnAppear`, `Refresh`, `SearchChanged`, `SelectRoomF
 
 State must contain mode, triggers, filteredTriggers, eventSources, availableRooms, selectedRoomId, availableAgents, selectedAgentId, searchQuery, isLoading, error, togglingTriggerId, deletingTriggerId, deleteConfirmationTriggerId, and eventSink.
 
-- [ ] **Step 4: Implement list presenter**
+- [x] **Step 4: Implement list presenter**
 
 Use `@AssistedInject`, assisted `mode`, assisted `navigator`, injected `MatrixClient`, and injected `ChatbotApiServiceFactory`.
 
@@ -197,7 +197,7 @@ Rules:
 - Delete requires `RequestDelete` then `ConfirmDelete`, calls `deleteWebhookTrigger`, then reloads.
 - Failures preserve old data and expose an error string.
 
-- [ ] **Step 5: Run focused list tests**
+- [x] **Step 5: Run focused list tests**
 
 ```bash
 env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy JAVA_HOME=/usr/local/opt/openjdk@21 ANDROID_HOME=/usr/local/share/android-commandlinetools ./gradlew --no-daemon --no-configuration-cache :features:webhooks:impl:testDebugUnitTest --tests '*WebhookTriggerListPresenterTest'
@@ -205,7 +205,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 6: Commit list presenter**
+- [x] **Step 6: Commit list presenter**
 
 ```bash
 git add features/webhooks/impl/src/main/kotlin/io/element/android/features/webhooks/impl/shared features/webhooks/impl/src/main/kotlin/io/element/android/features/webhooks/impl/list features/webhooks/impl/src/test/kotlin/io/element/android/features/webhooks/impl/list
