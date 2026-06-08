@@ -68,7 +68,7 @@ Do not create:
 - Create: `features/skills/test/build.gradle.kts`
 - Create: `features/skills/test/src/main/kotlin/io/element/android/features/skills/test/FakeSkillsEntryPoint.kt`
 
-- [ ] **Step 1: Add the API module**
+- [x] **Step 1: Add the API module**
 
 Create `features/skills/api/build.gradle.kts` matching the Agent Management API module:
 
@@ -87,7 +87,7 @@ dependencies {
 }
 ```
 
-- [ ] **Step 2: Add the public entry point**
+- [x] **Step 2: Add the public entry point**
 
 Create `SkillsEntryPoint` with these exact public types:
 
@@ -114,7 +114,7 @@ interface SkillsEntryPoint : FeatureEntryPoint {
 
 Include imports for `Parcelable`, Appyx `BuildContext`, `Node`, `Plugin`, `FeatureEntryPoint`, `NodeInputs`, and `kotlinx.parcelize.Parcelize`.
 
-- [ ] **Step 3: Add implementation and test build files**
+- [x] **Step 3: Add implementation and test build files**
 
 Create `features/skills/impl/build.gradle.kts` with the same plugin/dependency shape as `features/agentmanagement/impl/build.gradle.kts`, replacing the API dependency with `api(projects.features.skills.api)` and test fake dependency with `testImplementation(projects.features.skills.test)`.
 
@@ -136,17 +136,17 @@ dependencies {
 }
 ```
 
-- [ ] **Step 4: Add entry point binding and flow shell**
+- [x] **Step 4: Add entry point binding and flow shell**
 
 Create `DefaultSkillsEntryPoint` using `@ContributesBinding(AppScope::class)` and `parentNode.createNode<SkillsFlowNode>(buildContext, plugins = listOf(params, callback))`.
 
 Create `SkillsFlowNode` with nav targets `Home`, `Marketplace`, `Detail(id, isOwner)`, and `Create`. `Create` must call `callback.onCreateSkill()` and return to the previous node if possible. Home must push detail for selected skills and call the create seam. Detail deletion must call `callback.onSkillDeleted(id)` and pop. Marketplace-only selection must push non-owner detail.
 
-- [ ] **Step 5: Add fake entry point**
+- [x] **Step 5: Add fake entry point**
 
 Create `FakeSkillsEntryPoint` that implements `SkillsEntryPoint` and returns a lightweight `Node` whose `View` is empty. Store the last `Params` and `Callback` in mutable properties so host tests can inspect them later.
 
-- [ ] **Step 6: Verify module shell compiles**
+- [x] **Step 6: Verify module shell compiles**
 
 Run:
 
@@ -156,7 +156,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: build reaches compile and either succeeds after placeholder nodes are added or fails only because screen node classes from later tasks are still missing. If it fails because Gradle does not discover the new modules, add the `features/skills/*` includes using the same convention as existing feature modules, then rerun.
 
-- [ ] **Step 7: Commit module shell**
+- [x] **Step 7: Commit module shell**
 
 ```bash
 git add features/skills docs/superpowers/specs/2026-06-08-skills-marketplace-design.md docs/superpowers/plans/2026-06-08-skills-marketplace.md
@@ -171,7 +171,7 @@ git commit -m "feat: add skills feature shell"
 - Create: `features/skills/impl/src/main/kotlin/io/element/android/features/skills/impl/shared/SkillFormatters.kt`
 - Test through presenter tests in Tasks 3-5.
 
-- [ ] **Step 1: Implement shared helpers**
+- [x] **Step 1: Implement shared helpers**
 
 Create helpers with these signatures:
 
@@ -191,7 +191,7 @@ Required behavior:
 - `createdDateLabel` supports ISO-8601 strings and numeric Unix timestamp strings; return `null` if parsing fails.
 - `sortedBySkillName` sorts by `name`.
 
-- [ ] **Step 2: Commit helpers with first presenter task or shell**
+- [x] **Step 2: Commit helpers with first presenter task or shell**
 
 Do not make a separate commit unless no presenter work is ready; otherwise stage this with Task 3.
 
@@ -206,7 +206,7 @@ Do not make a separate commit unless no presenter work is ready; otherwise stage
 - Create: `features/skills/impl/src/main/kotlin/io/element/android/features/skills/impl/home/SkillsHomePresenter.kt`
 - Create: `features/skills/impl/src/test/kotlin/io/element/android/features/skills/impl/home/SkillsHomePresenterTest.kt`
 
-- [ ] **Step 1: Write failing presenter tests**
+- [x] **Step 1: Write failing presenter tests**
 
 Cover these test names:
 
@@ -222,7 +222,7 @@ Cover these test names:
 
 Use `FakeChatbotApiService`, `FakeChatbotApiServiceFactory`, `FakeMatrixClient`, `WarmUpRule`, and the `Presenter.test` Turbine helper exactly like `AgentListPresenterTest`.
 
-- [ ] **Step 2: Implement state/events/navigator**
+- [x] **Step 2: Implement state/events/navigator**
 
 Required public names:
 
@@ -249,7 +249,7 @@ interface SkillsHomeNavigator {
 
 `SkillsHomeState` must expose user skills, filtered user skills, selected tab, marketplace skills, marketplace total/page/page size, loading flags, search query, error, `marketplaceHasMore`, and event sink.
 
-- [ ] **Step 3: Implement presenter**
+- [x] **Step 3: Implement presenter**
 
 Use `@AssistedInject`, assisted `SkillsHomeNavigator`, injected `MatrixClient`, and `ChatbotApiServiceFactory`.
 
@@ -265,7 +265,7 @@ Behavior:
 - `SelectMarketplaceSkill` opens owner detail when the selected ID exists in current user skills.
 - Failures preserve previous data and set `error`.
 
-- [ ] **Step 4: Run focused home tests**
+- [x] **Step 4: Run focused home tests**
 
 ```bash
 env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy JAVA_HOME=/usr/local/opt/openjdk@21 ANDROID_HOME=/usr/local/share/android-commandlinetools ./gradlew --no-daemon --no-configuration-cache :features:skills:impl:testDebugUnitTest --tests '*SkillsHomePresenterTest'
@@ -273,7 +273,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: all `SkillsHomePresenterTest` tests pass.
 
-- [ ] **Step 5: Commit home presenter**
+- [x] **Step 5: Commit home presenter**
 
 ```bash
 git add features/skills/impl/src/main/kotlin/io/element/android/features/skills/impl/shared features/skills/impl/src/main/kotlin/io/element/android/features/skills/impl/home features/skills/impl/src/test/kotlin/io/element/android/features/skills/impl/home
@@ -291,7 +291,7 @@ git commit -m "feat: add skills home flow"
 - Create: `features/skills/impl/src/main/kotlin/io/element/android/features/skills/impl/detail/SkillDetailPresenter.kt`
 - Create: `features/skills/impl/src/test/kotlin/io/element/android/features/skills/impl/detail/SkillDetailPresenterTest.kt`
 
-- [ ] **Step 1: Write failing presenter tests**
+- [x] **Step 1: Write failing presenter tests**
 
 Cover these test names:
 
@@ -305,7 +305,7 @@ Cover these test names:
 `event - delete failure preserves state and exposes error`
 ```
 
-- [ ] **Step 2: Implement detail state/events/navigator**
+- [x] **Step 2: Implement detail state/events/navigator**
 
 Required public names:
 
@@ -330,7 +330,7 @@ interface SkillDetailNavigator {
 
 `SkillDetailState` must include id, isOwner, response, isLoading, isSaving, isEditing, edit fields, error, derived skill/title/canEdit.
 
-- [ ] **Step 3: Implement detail presenter**
+- [x] **Step 3: Implement detail presenter**
 
 Use the same DI shape as home. Build update body with:
 
@@ -353,7 +353,7 @@ Behavior:
 - Delete does nothing when not owner; successful delete calls `navigator.onDeleted(id)`.
 - Failures preserve existing response and set error.
 
-- [ ] **Step 4: Run focused detail tests**
+- [x] **Step 4: Run focused detail tests**
 
 ```bash
 env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy JAVA_HOME=/usr/local/opt/openjdk@21 ANDROID_HOME=/usr/local/share/android-commandlinetools ./gradlew --no-daemon --no-configuration-cache :features:skills:impl:testDebugUnitTest --tests '*SkillDetailPresenterTest'
@@ -361,7 +361,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: all detail tests pass.
 
-- [ ] **Step 5: Commit detail presenter**
+- [x] **Step 5: Commit detail presenter**
 
 ```bash
 git add features/skills/impl/src/main/kotlin/io/element/android/features/skills/impl/detail features/skills/impl/src/test/kotlin/io/element/android/features/skills/impl/detail
@@ -379,7 +379,7 @@ git commit -m "feat: add skill detail flow"
 - Create: `features/skills/impl/src/main/kotlin/io/element/android/features/skills/impl/marketplace/SkillMarketplacePresenter.kt`
 - Create: `features/skills/impl/src/test/kotlin/io/element/android/features/skills/impl/marketplace/SkillMarketplacePresenterTest.kt`
 
-- [ ] **Step 1: Write failing presenter tests**
+- [x] **Step 1: Write failing presenter tests**
 
 Cover:
 
@@ -392,7 +392,7 @@ Cover:
 `present - failure preserves existing skills and exposes error`
 ```
 
-- [ ] **Step 2: Implement marketplace presenter**
+- [x] **Step 2: Implement marketplace presenter**
 
 Mirror iOS `SkillMarketplaceScreenViewModel`:
 
@@ -402,7 +402,7 @@ Mirror iOS `SkillMarketplaceScreenViewModel`:
 - `hasMore` uses `total` when present, otherwise `skills.size >= pageSize`;
 - load next page is ignored while loading next page or when no more pages.
 
-- [ ] **Step 3: Run focused marketplace tests**
+- [x] **Step 3: Run focused marketplace tests**
 
 ```bash
 env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy JAVA_HOME=/usr/local/opt/openjdk@21 ANDROID_HOME=/usr/local/share/android-commandlinetools ./gradlew --no-daemon --no-configuration-cache :features:skills:impl:testDebugUnitTest --tests '*SkillMarketplacePresenterTest'
@@ -410,7 +410,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: all marketplace tests pass.
 
-- [ ] **Step 4: Commit marketplace presenter**
+- [x] **Step 4: Commit marketplace presenter**
 
 ```bash
 git add features/skills/impl/src/main/kotlin/io/element/android/features/skills/impl/marketplace features/skills/impl/src/test/kotlin/io/element/android/features/skills/impl/marketplace
@@ -430,11 +430,11 @@ git commit -m "feat: add skill marketplace flow"
 - Create: `features/skills/impl/src/main/kotlin/io/element/android/features/skills/impl/marketplace/SkillMarketplaceView.kt`
 - Modify: `features/skills/impl/src/main/kotlin/io/element/android/features/skills/impl/SkillsFlowNode.kt`
 
-- [ ] **Step 1: Wire nodes to presenters**
+- [x] **Step 1: Wire nodes to presenters**
 
 Each node must use the same pattern as `AgentListNode`, `AgentDetailNode`, and `AgentEditNode`: assisted `BuildContext`, assisted plugins, injected presenter factory, local callback/navigator adapter, and a `View` method that calls the Compose view with `presenter.present()`.
 
-- [ ] **Step 2: Add Compose UI**
+- [x] **Step 2: Add Compose UI**
 
 Use simple Material3 Compose controls:
 
@@ -444,7 +444,7 @@ Use simple Material3 Compose controls:
 
 Do not add file picker, upload, file viewer, agent attach, voice, vault, sandbox, or MiniApp UI.
 
-- [ ] **Step 3: Run full skills impl tests and compile**
+- [x] **Step 3: Run full skills impl tests and compile**
 
 ```bash
 env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy JAVA_HOME=/usr/local/opt/openjdk@21 ANDROID_HOME=/usr/local/share/android-commandlinetools ./gradlew --no-daemon --no-configuration-cache :features:skills:impl:testDebugUnitTest
@@ -453,7 +453,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: both commands pass.
 
-- [ ] **Step 4: Run dependency scan**
+- [x] **Step 4: Run dependency scan**
 
 ```bash
 rg "rustsdk|org\\.matrix\\.rust|voiceplayer|voicerecorder|vault|UnsealUI|UnsealAgent|UnsealMiniApp" features/skills -n
@@ -461,7 +461,7 @@ rg "rustsdk|org\\.matrix\\.rust|voiceplayer|voicerecorder|vault|UnsealUI|UnsealA
 
 Expected: no output.
 
-- [ ] **Step 5: Commit UI and node wiring**
+- [x] **Step 5: Commit UI and node wiring**
 
 ```bash
 git add features/skills
@@ -475,7 +475,7 @@ git commit -m "feat: add skills ui wiring"
 **Files:**
 - No code changes expected.
 
-- [ ] **Step 1: Run chatbot regression tests**
+- [x] **Step 1: Run chatbot regression tests**
 
 ```bash
 env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy JAVA_HOME=/usr/local/opt/openjdk@21 ANDROID_HOME=/usr/local/share/android-commandlinetools ./gradlew --no-daemon --no-configuration-cache :libraries:chatbot:impl:testDebugUnitTest
@@ -483,7 +483,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: pass.
 
-- [ ] **Step 2: Check final git state**
+- [x] **Step 2: Check final git state**
 
 ```bash
 git status --short --branch
@@ -492,7 +492,7 @@ git log --oneline -8
 
 Expected: worktree clean after all commits; recent commits include the Skills feature chunks.
 
-- [ ] **Step 3: Document any deferred integration**
+- [x] **Step 3: Document any deferred integration**
 
 If the host app is not wired to `SkillsEntryPoint`, leave it as an explicit follow-up in the final response. Do not add settings/start-chat integration in this spec unless required by compile.
 
