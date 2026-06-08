@@ -396,7 +396,7 @@ git diff --check PASS
 
 ### Task 7: Final Spec Verification
 
-- [ ] **Step 1: Run acceptance commands**
+- [x] **Step 1: Run acceptance commands**
 
 Run:
 
@@ -404,7 +404,7 @@ Run:
 env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u no_proxy JAVA_HOME=/usr/local/opt/openjdk@21 ANDROID_HOME=/usr/local/share/android-commandlinetools ./gradlew --no-daemon --no-configuration-cache :features:messages:impl:testDebugUnitTest :libraries:matrix:impl:testDebugUnitTest :features:messages:impl:assembleDebug
 ```
 
-- [ ] **Step 2: Check diff**
+- [x] **Step 2: Check diff**
 
 Run:
 
@@ -413,9 +413,26 @@ git diff --check
 git status --short
 ```
 
-- [ ] **Step 3: Mark plan complete**
+- [x] **Step 3: Mark plan complete**
 
 Update this plan's checkboxes and verification evidence after the commands pass.
+
+Verification:
+
+```text
+:features:messages:impl:testDebugUnitTest :libraries:matrix:impl:testDebugUnitTest :features:messages:impl:assembleDebug PASS
+:app:assembleFdroidDebug PASS
+git diff --check PASS
+git status --short CLEAN
+```
+
+Runnable APK:
+
+```text
+app/build/outputs/apk/fdroid/debug/app-fdroid-universal-debug.apk
+sha256: 791a0aff5009211e22113c62872269a697d8ab4917be668427e71e03a7965f90
+size: 465M
+```
 
 ## Self-Review
 
