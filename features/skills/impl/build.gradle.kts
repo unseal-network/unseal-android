@@ -39,6 +39,7 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coroutines.core)
     implementation(libs.kotlinx.collections.immutable)
+    implementation(libs.serialization.json)
     api(projects.features.skills.api)
 
     testCommonDependencies(libs, true)
