@@ -146,8 +146,9 @@ git diff --check PASS
 - Add: `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/roomkey/RoomKeyRecoveryPlanner.kt`
 - Add: `features/messages/impl/src/test/kotlin/io/element/android/features/messages/impl/roomkey/RoomKeyRecoveryRequestParserTest.kt`
 - Add: `features/messages/impl/src/test/kotlin/io/element/android/features/messages/impl/roomkey/RoomKeyRecoveryPlannerTest.kt`
+- Modify: `features/messages/impl/build.gradle.kts`
 
-- [ ] **Step 1: Implement request parser**
+- [x] **Step 1: Implement request parser**
 
 Parse original event JSON for:
 
@@ -161,7 +162,7 @@ Parse original event JSON for:
 
 Return `null` when required fields are missing or algorithm is not Megolm.
 
-- [ ] **Step 2: Implement sender target rules**
+- [x] **Step 2: Implement sender target rules**
 
 Match iOS:
 
@@ -169,19 +170,26 @@ Match iOS:
 - If latest sender devices are known and do not contain original sender device ID, drop sender device ID.
 - Otherwise keep original sender device ID.
 
-- [ ] **Step 3: Implement plan builder**
+- [x] **Step 3: Implement plan builder**
 
 Mirror iOS `RoomKeyRecoveryPlan.build`.
 
-- [ ] **Step 4: Test parser and planner**
+- [x] **Step 4: Test parser and planner**
 
 Cover full JSON, missing JSON, missing required fields, wrong algorithm, same/different homeserver sender target, stale sender device, own-message plan, other-user plan with backup, and member fallback.
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2**
 
 ```bash
 git add features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/roomkey features/messages/impl/src/test/kotlin/io/element/android/features/messages/impl/roomkey
 git commit -m "feat: add room key recovery parser and planner"
+```
+
+Verification:
+
+```text
+:features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.roomkey.*' PASS
+git diff --check PASS
 ```
 
 ### Task 3: Pending And Progress Stores

@@ -695,6 +695,7 @@ private fun AndroidComposeUiTest<ComponentActivity>.setMessagesView(
     onJoinCallClick: (Boolean) -> Unit = EnsureNeverCalledWithParam(),
     onViewAllPinnedMessagesClick: () -> Unit = EnsureNeverCalled(),
     onThreadsListClicked: () -> Unit = EnsureNeverCalled(),
+    onRoomSchedulesClick: () -> Unit = EnsureNeverCalled(),
 ) {
     setSafeContent {
         // Cannot use the RichTextEditor, so simulate a LocalInspectionMode
@@ -710,6 +711,7 @@ private fun AndroidComposeUiTest<ComponentActivity>.setMessagesView(
                 onCreatePollClick = onCreatePollClick,
                 onJoinCallClick = onJoinCallClick,
                 onViewAllPinnedMessagesClick = onViewAllPinnedMessagesClick,
+                onRoomSchedulesClick = onRoomSchedulesClick,
                 knockRequestsBannerView = {},
                 onThreadsListClick = onThreadsListClicked,
             )

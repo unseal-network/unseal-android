@@ -44,6 +44,7 @@ import io.element.android.features.messages.test.timeline.FakeHtmlConverterProvi
 import io.element.android.features.messages.test.timeline.voicemessages.composer.FakeDefaultVoiceMessageComposerPresenterFactory
 import io.element.android.features.roomcall.api.aStandByCallState
 import io.element.android.features.roommembermoderation.api.RoomMemberModerationState
+import io.element.android.features.roomschedules.api.room.RoomScheduleBadgePresenter
 import io.element.android.libraries.androidutils.clipboard.FakeClipboardHelper
 import io.element.android.libraries.architecture.AsyncData
 import io.element.android.libraries.architecture.Presenter
@@ -63,6 +64,7 @@ import io.element.android.libraries.matrix.api.encryption.identity.IdentityState
 import io.element.android.libraries.matrix.api.media.MediaSource
 import io.element.android.libraries.matrix.api.permalink.PermalinkParser
 import io.element.android.libraries.matrix.api.room.MessageEventType
+import io.element.android.libraries.matrix.api.room.JoinedRoom
 import io.element.android.libraries.matrix.api.room.RoomMembersState
 import io.element.android.libraries.matrix.api.room.RoomMembershipState
 import io.element.android.libraries.matrix.api.room.StateEventType
@@ -1399,6 +1401,7 @@ class MessagesPresenterTest {
             readReceiptBottomSheetPresenter = { aReadReceiptBottomSheetState() },
             pinnedMessagesBannerPresenter = { aLoadedPinnedMessagesBannerState() },
             roomCallStatePresenter = { aStandByCallState() },
+            roomScheduleBadgePresenterFactory = FakeRoomScheduleBadgePresenterFactory(),
             roomMemberModerationPresenter = roomMemberModerationPresenter,
             snackbarDispatcher = SnackbarDispatcher(),
             dispatchers = coroutineDispatchers,
@@ -1415,5 +1418,14 @@ class MessagesPresenterTest {
             liveLocationShareManager = liveLocationShareManager,
             sessionCoroutineScope = backgroundScope,
         )
+    }
+}
+
+private class FakeRoomScheduleBadgePresenterFactory : RoomScheduleBadgePresenter.Factory {
+    override fun create(roomId: RoomId, joinedRoom: JoinedRoom): RoomScheduleBadgePresenter {
+        return object : RoomScheduleBadgePresenter {
+            @androidx.compose.runtime.Composable
+            override fun present() = aRoomScheduleBadgeState()
+        }
     }
 }
