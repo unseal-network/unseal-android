@@ -241,20 +241,20 @@ git diff --check PASS
 
 **Files:**
 - Add: `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/roomkey/RoomKeyRecoveryCoordinator.kt`
-- Modify timeline presenter/factory files where UTD timeline items are built.
-- Add coordinator tests.
+- Add: `features/messages/impl/src/test/kotlin/io/element/android/features/messages/impl/roomkey/RoomKeyRecoveryCoordinatorTest.kt`
+- Timeline model/UI wiring remains in Task 5 and session wiring remains in Task 6.
 
-- [ ] **Step 1: Define coordinator inputs and outputs**
+- [x] **Step 1: Define coordinator inputs and outputs**
 
 Inputs should include visible UTD items, own user ID, room ID, verification state, backup usability, member targets, latest sender device IDs, and decryption retry/check callback.
 
 Outputs should include recovery status by identity key, coalesced counts, and effects for sending SDK requests.
 
-- [ ] **Step 2: Implement verification gating**
+- [x] **Step 2: Implement verification gating**
 
 Unknown -> checking status. Unverified -> device-unverified status and no request. Verified -> proceed.
 
-- [ ] **Step 3: Implement stage execution**
+- [x] **Step 3: Implement stage execution**
 
 Run stages in plan order:
 
@@ -265,19 +265,26 @@ Run stages in plan order:
 
 Mark resolved/failed and update stores.
 
-- [ ] **Step 4: Implement manual retry**
+- [x] **Step 4: Implement manual retry**
 
 Manual retry clears pending/progress, forces pending mark, sets checking status, and restarts.
 
-- [ ] **Step 5: Test coordinator**
+- [x] **Step 5: Test coordinator**
 
 Cover verified/unverified/unknown, active-task suppression, pending suppression, stage fallthrough, resolved cleanup, failed status, manual retry, and coalesced counts.
 
-- [ ] **Step 6: Commit Task 4**
+- [x] **Step 6: Commit Task 4**
 
 ```bash
 git add features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/roomkey features/messages/impl/src/test/kotlin/io/element/android/features/messages/impl/roomkey
 git commit -m "feat: coordinate encrypted room key recovery"
+```
+
+Verification:
+
+```text
+:features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.roomkey.*' PASS
+git diff --check PASS
 ```
 
 ### Task 5: Timeline Model And UI Card
