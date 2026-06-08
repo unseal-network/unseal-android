@@ -28,6 +28,7 @@ import io.element.android.libraries.matrix.api.core.RoomIdOrAlias
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.createroom.CreateRoomParameters
 import io.element.android.libraries.matrix.api.createroom.RoomPreset
+import io.element.android.libraries.matrix.api.encryption.roomkey.AgentRoomKeyRecoveryRequest
 import io.element.android.libraries.matrix.api.linknewdevice.LinkDesktopHandler
 import io.element.android.libraries.matrix.api.linknewdevice.LinkMobileHandler
 import io.element.android.libraries.matrix.api.media.MatrixMediaLoader
@@ -309,6 +310,20 @@ class RustMatrixClient(
             }
             .getOrNull()
             ?: sessionId.value.substringAfter(":")
+    }
+
+    override suspend fun requestAgentRoomKeyRecovery(request: AgentRoomKeyRecoveryRequest): Result<Unit> = withContext(sessionDispatcher) {
+        runCatchingExceptions {
+            val result = innerClient.sendToDeviceEvent(
+                eventType = AgentRoomKeyRecoveryRequest.EVENT_TYPE,
+                userId = request.target.userId.value,
+                deviceId = request.target.deviceId,
+                content = request.encodedRoomKeyRequestContent(requestingDeviceId = deviceId.value),
+            )
+            check(result.failures.isEmpty()) {
+                "Failed to send agent room key request: ${result.failures}"
+            }
+        }.mapFailure { it.mapClientException() }
     }
 
     override suspend fun getUrl(url: String): Result<ByteArray> = withContext(sessionDispatcher) {

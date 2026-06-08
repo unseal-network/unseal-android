@@ -19,6 +19,7 @@ import io.element.android.libraries.matrix.api.core.RoomIdOrAlias
 import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.createroom.CreateRoomParameters
+import io.element.android.libraries.matrix.api.encryption.roomkey.AgentRoomKeyRecoveryRequest
 import io.element.android.libraries.matrix.api.encryption.EncryptionService
 import io.element.android.libraries.matrix.api.linknewdevice.LinkDesktopHandler
 import io.element.android.libraries.matrix.api.linknewdevice.LinkMobileHandler
@@ -107,6 +108,7 @@ interface MatrixClient {
     suspend fun getUserProfile(): Result<MatrixUser>
     suspend fun getAccountManagementUrl(action: AccountManagementAction?): Result<String?>
     suspend fun uploadMedia(mimeType: String, data: ByteArray): Result<String>
+    suspend fun requestAgentRoomKeyRecovery(request: AgentRoomKeyRecoveryRequest): Result<Unit>
 
     /**
      * Get a room info flow for a given room ID.

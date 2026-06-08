@@ -33,6 +33,7 @@ import org.matrix.rustcomponents.sdk.StoreSizes
 import org.matrix.rustcomponents.sdk.SyncService
 import org.matrix.rustcomponents.sdk.SyncServiceBuilder
 import org.matrix.rustcomponents.sdk.TaskHandle
+import org.matrix.rustcomponents.sdk.ToDeviceSendResult
 import org.matrix.rustcomponents.sdk.UnableToDecryptDelegate
 import org.matrix.rustcomponents.sdk.UserProfile
 import uniffi.matrix_sdk_base.MediaRetentionPolicy
@@ -50,8 +51,12 @@ class FakeFfiClient(
     private val homeserverLoginDetailsResult: () -> HomeserverLoginDetails = { lambdaError() },
     private val getStoreSizesResult: () -> StoreSizes = { lambdaError() },
     private val createRoomResult: (CreateRoomParameters) -> String = { lambdaError() },
+    private val sendToDeviceEventResult: () -> ToDeviceSendResult = { ToDeviceSendResult(emptyList()) },
     private val closeResult: () -> Unit = {},
 ) : Client(NoHandle) {
+    var sendToDeviceEventCall: SendToDeviceEventCall? = null
+        private set
+
     override fun userId(): String = userId
     override fun deviceId(): String = deviceId
     override suspend fun notificationClient(processSetup: NotificationProcessSetup) = notificationClient
@@ -103,5 +108,27 @@ class FakeFfiClient(
         return createRoomResult(request)
     }
 
+    override suspend fun sendToDeviceEvent(
+        eventType: String,
+        userId: String,
+        deviceId: String,
+        content: String,
+    ): ToDeviceSendResult {
+        sendToDeviceEventCall = SendToDeviceEventCall(
+            eventType = eventType,
+            userId = userId,
+            deviceId = deviceId,
+            content = content,
+        )
+        return sendToDeviceEventResult()
+    }
+
     override fun close() = closeResult()
+
+    data class SendToDeviceEventCall(
+        val eventType: String,
+        val userId: String,
+        val deviceId: String,
+        val content: String,
+    )
 }

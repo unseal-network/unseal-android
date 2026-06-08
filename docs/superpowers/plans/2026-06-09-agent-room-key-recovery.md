@@ -65,7 +65,7 @@ Required iOS behaviors:
 - Add: `libraries/matrix/impl/src/test/kotlin/io/element/android/libraries/matrix/impl/encryption/RustAgentRoomKeyRecoveryTest.kt`
 - Modify: `libraries/matrix/test/src/main/kotlin/io/element/android/libraries/matrix/test/FakeMatrixClient.kt`
 
-- [ ] **Step 1: Add failing Matrix wrapper test**
+- [x] **Step 1: Add failing Matrix wrapper test**
 
 Add `RustAgentRoomKeyRecoveryTest` with tests equivalent to:
 
@@ -98,7 +98,7 @@ fun `requestAgentRoomKeyRecovery - sends to-device room key request to agent dev
 
 Also add a failure test where `FakeFfiClient` returns `ToDeviceSendResult(failures = listOf(...))` or throws, and assert the result is failure.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -108,7 +108,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
 
 Expected: FAIL because `AgentRoomKeyRecoveryRequest` and `MatrixClient.requestAgentRoomKeyRecovery` do not exist.
 
-- [ ] **Step 3: Add API model and JSON encoder**
+- [x] **Step 3: Add API model and JSON encoder**
 
 Create `AgentRoomKeyRecovery.kt` with:
 
@@ -151,7 +151,7 @@ data class AgentRoomKeyRecoveryRequest(
 
 Use `kotlinx.serialization.json.buildJsonObject` and `putJsonObject`.
 
-- [ ] **Step 4: Add MatrixClient API and Rust implementation**
+- [x] **Step 4: Add MatrixClient API and Rust implementation**
 
 Add to `MatrixClient`:
 
@@ -175,7 +175,7 @@ override suspend fun requestAgentRoomKeyRecovery(request: AgentRoomKeyRecoveryRe
 }
 ```
 
-- [ ] **Step 5: Extend fakes**
+- [x] **Step 5: Extend fakes**
 
 In `FakeFfiClient`, add:
 
@@ -205,7 +205,7 @@ override suspend fun requestAgentRoomKeyRecovery(request: AgentRoomKeyRecoveryRe
     simulateLongTask { requestAgentRoomKeyRecoveryLambda(request) }
 ```
 
-- [ ] **Step 6: Run and pass Matrix tests**
+- [x] **Step 6: Run and pass Matrix tests**
 
 Run:
 
@@ -221,6 +221,13 @@ Expected: PASS.
 ```bash
 git add libraries/matrix/api libraries/matrix/impl/src/main/kotlin/io/element/android/libraries/matrix/impl/RustMatrixClient.kt libraries/matrix/impl/src/test/kotlin/io/element/android/libraries/matrix/impl libraries/matrix/test/src/main/kotlin/io/element/android/libraries/matrix/test/FakeMatrixClient.kt
 git commit -m "feat: add agent room key recovery matrix request"
+```
+
+Verification:
+
+```text
+:libraries:matrix:impl:testDebugUnitTest --tests 'io.element.android.libraries.matrix.impl.encryption.RustAgentRoomKeyRecoveryTest' PASS
+git diff --check PASS
 ```
 
 ### Task 2: Agent Parser And Pending Store

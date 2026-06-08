@@ -20,6 +20,7 @@ import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.createroom.CreateRoomParameters
 import io.element.android.libraries.matrix.api.encryption.EncryptionService
+import io.element.android.libraries.matrix.api.encryption.roomkey.AgentRoomKeyRecoveryRequest
 import io.element.android.libraries.matrix.api.linknewdevice.LinkDesktopHandler
 import io.element.android.libraries.matrix.api.linknewdevice.LinkMobileHandler
 import io.element.android.libraries.matrix.api.media.MatrixMediaLoader
@@ -118,6 +119,7 @@ class FakeMatrixClient(
     private val getMapStyleUrlResult: () -> Result<String?> = { lambdaError() },
     private val getDatabaseSizesLambda: () -> Result<SdkStoreSizes> = { lambdaError() },
     private val resetWellKnownConfigLambda: () -> Result<Unit> = { lambdaError() },
+    private val requestAgentRoomKeyRecoveryLambda: (AgentRoomKeyRecoveryRequest) -> Result<Unit> = { lambdaError() },
 ) : MatrixClient {
     var setDisplayNameCalled: Boolean = false
         private set
@@ -230,6 +232,10 @@ class FakeMatrixClient(
         data: ByteArray,
     ): Result<String> {
         return uploadMediaResult
+    }
+
+    override suspend fun requestAgentRoomKeyRecovery(request: AgentRoomKeyRecoveryRequest): Result<Unit> = simulateLongTask {
+        requestAgentRoomKeyRecoveryLambda(request)
     }
 
     override suspend fun setDisplayName(displayName: String): Result<Unit> = simulateLongTask {
