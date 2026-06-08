@@ -25,6 +25,7 @@ import kotlinx.parcelize.Parcelize
 class AgentSkillsNode(
     @Assisted buildContext: BuildContext,
     @Assisted plugins: List<Plugin>,
+    presenterFactory: AgentSkillsPresenter.Factory,
 ) : Node(buildContext, plugins = plugins) {
     @Parcelize
     data class Inputs(val botName: String) : Plugin, Parcelable
@@ -35,11 +36,17 @@ class AgentSkillsNode(
 
     private val inputs = plugins<Inputs>().first()
     private val callback = plugins<Callback>().first()
+    private val presenter = presenterFactory.create(
+        botName = inputs.botName,
+        navigator = object : AgentSkillsNavigator {
+            override fun onSaved() = callback.onDone()
+        },
+    )
 
     @Composable
     override fun View(modifier: Modifier) {
         AgentSkillsView(
-            botName = inputs.botName,
+            state = presenter.present(),
             onBackClick = callback::onDone,
             modifier = modifier,
         )
