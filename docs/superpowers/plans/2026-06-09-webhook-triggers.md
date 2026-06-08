@@ -223,7 +223,7 @@ git commit -m "feat: add webhook trigger list presenter"
 - Create: `features/webhooks/impl/src/main/kotlin/io/element/android/features/webhooks/impl/edit/WebhookTriggerEditPresenter.kt`
 - Create: `features/webhooks/impl/src/test/kotlin/io/element/android/features/webhooks/impl/edit/WebhookTriggerEditPresenterTest.kt`
 
-- [ ] **Step 1: Write edit presenter tests**
+- [x] **Step 1: Write edit presenter tests**
 
 Cover:
 
@@ -240,7 +240,7 @@ Cover:
 `present - failure preserves editable state and exposes error`
 ```
 
-- [ ] **Step 2: Implement edit state/events/navigator**
+- [x] **Step 2: Implement edit state/events/navigator**
 
 Use the API module `WebhookTriggerEditMode.Create(prefilledRoomId: RoomId?)` and `WebhookTriggerEditMode.Edit(trigger: ChatbotWebhookTrigger)` in the edit presenter and flow.
 
@@ -248,7 +248,7 @@ State must mirror iOS: mode, eventSources, selectedSource, selectedEventTypes, c
 
 Navigator must expose `onSaved(trigger)`, `onCancelled()`, and `onOpenConnectUrl(url)`.
 
-- [ ] **Step 3: Implement edit presenter**
+- [x] **Step 3: Implement edit presenter**
 
 Rules:
 
@@ -263,7 +263,7 @@ Rules:
 - Create request trims name/action, uses null description when blank, selected account id as `connectionId`, selected event types as a sorted list, selected room id, and selected agent id.
 - Update request sends name, description, action prompt, and room id only.
 
-- [ ] **Step 4: Run focused edit tests**
+- [x] **Step 4: Run focused edit tests**
 
 ```bash
 env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy JAVA_HOME=/usr/local/opt/openjdk@21 ANDROID_HOME=/usr/local/share/android-commandlinetools ./gradlew --no-daemon --no-configuration-cache :features:webhooks:impl:testDebugUnitTest --tests '*WebhookTriggerEditPresenterTest'
@@ -271,7 +271,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 5: Commit edit presenter**
+- [x] **Step 5: Commit edit presenter**
 
 ```bash
 git add features/webhooks/impl/src/main/kotlin/io/element/android/features/webhooks/impl/edit features/webhooks/impl/src/test/kotlin/io/element/android/features/webhooks/impl/edit
