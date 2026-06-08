@@ -20,6 +20,9 @@ import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
 import io.element.android.features.skills.api.SkillsEntryPoint
+import io.element.android.features.skills.impl.detail.SkillDetailNode
+import io.element.android.features.skills.impl.home.SkillsHomeNode
+import io.element.android.features.skills.impl.marketplace.SkillMarketplaceNode
 import io.element.android.libraries.architecture.BackstackView
 import io.element.android.libraries.architecture.BaseFlowNode
 import io.element.android.libraries.architecture.appyx.canPop
@@ -59,23 +62,23 @@ class SkillsFlowNode(
 
     override fun resolve(navTarget: NavTarget, buildContext: BuildContext): Node {
         return when (navTarget) {
-            NavTarget.Home -> createNode<PlaceholderSkillsNode>(
+            NavTarget.Home -> createNode<SkillsHomeNode>(
                 buildContext = buildContext,
-                plugins = listOf(PlaceholderSkillsNode.Inputs("Skills")),
+                plugins = listOf(homeCallback),
             )
-            NavTarget.Marketplace -> createNode<PlaceholderSkillsNode>(
+            NavTarget.Marketplace -> createNode<SkillMarketplaceNode>(
                 buildContext = buildContext,
-                plugins = listOf(PlaceholderSkillsNode.Inputs("Skill Marketplace")),
+                plugins = listOf(marketplaceCallback),
             )
-            is NavTarget.Detail -> createNode<PlaceholderSkillsNode>(
+            is NavTarget.Detail -> createNode<SkillDetailNode>(
                 buildContext = buildContext,
-                plugins = listOf(PlaceholderSkillsNode.Inputs("Skill")),
+                plugins = listOf(SkillDetailNode.Inputs(navTarget.id, navTarget.isOwner), detailCallback),
             )
             NavTarget.Create -> {
                 callback.onCreateSkill()
-                createNode<PlaceholderSkillsNode>(
+                createNode<SkillsHomeNode>(
                     buildContext = buildContext,
-                    plugins = listOf(PlaceholderSkillsNode.Inputs("Create Skill")),
+                    plugins = listOf(homeCallback),
                 )
             }
         }
@@ -105,6 +108,22 @@ class SkillsFlowNode(
         } else {
             callback.onDone()
         }
+    }
+
+    private val homeCallback = object : SkillsHomeNode.Callback {
+        override fun onDone() = closeOrPop()
+        override fun onCreateSkill() = openCreateSkill()
+        override fun onOpenSkill(id: String, isOwner: Boolean) = openDetail(id, isOwner)
+    }
+
+    private val marketplaceCallback = object : SkillMarketplaceNode.Callback {
+        override fun onDone() = closeOrPop()
+        override fun onOpenSkill(id: String) = openDetail(id, isOwner = false)
+    }
+
+    private val detailCallback = object : SkillDetailNode.Callback {
+        override fun onDone() = closeOrPop()
+        override fun onDeleted(id: String) = onSkillDeleted(id)
     }
 }
 

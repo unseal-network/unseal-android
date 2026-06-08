@@ -5,10 +5,8 @@
  * Please see LICENSE files in the repository root for full details.
  */
 
-package io.element.android.features.skills.impl
+package io.element.android.features.skills.impl.home
 
-import android.os.Parcelable
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.bumble.appyx.core.modality.BuildContext
@@ -19,21 +17,34 @@ import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
 import io.element.android.libraries.di.SessionScope
-import kotlinx.parcelize.Parcelize
 
 @ContributesNode(SessionScope::class)
 @AssistedInject
-class PlaceholderSkillsNode(
+class SkillsHomeNode(
     @Assisted buildContext: BuildContext,
     @Assisted plugins: List<Plugin>,
+    presenterFactory: SkillsHomePresenter.Factory,
 ) : Node(buildContext, plugins = plugins) {
-    @Parcelize
-    data class Inputs(val title: String) : Plugin, Parcelable
+    interface Callback : Plugin {
+        fun onDone()
+        fun onCreateSkill()
+        fun onOpenSkill(id: String, isOwner: Boolean)
+    }
 
-    private val inputs = plugins<Inputs>().first()
+    private val callback = plugins<Callback>().first()
+    private val presenter = presenterFactory.create(
+        object : SkillsHomeNavigator {
+            override fun onCreateSkill() = callback.onCreateSkill()
+            override fun onOpenSkill(id: String, isOwner: Boolean) = callback.onOpenSkill(id, isOwner)
+        }
+    )
 
     @Composable
     override fun View(modifier: Modifier) {
-        Text(text = inputs.title, modifier = modifier)
+        SkillsHomeView(
+            state = presenter.present(),
+            onBackClick = callback::onDone,
+            modifier = modifier,
+        )
     }
 }
