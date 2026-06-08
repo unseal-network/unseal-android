@@ -123,8 +123,28 @@ class OutgoingVerificationStateMachine(
                 on<Event.DidCancel> { event, state: MachineState<State> ->
                     state.override { State.Canceled.andLogStateChange() }
                 }
-                on<Event.DidFail> { event, state: MachineState<State> ->
-                    state.override { State.Canceled.andLogStateChange() }
+                on<Event.DidFail> { _, state: MachineState<State> ->
+                    when (val snapshot = state.snapshot) {
+                        is State.RequestingVerification -> {
+                            sessionVerificationService.reset(cancelAnyPendingVerificationAttempt = false)
+                            state.override { State.Initial.andLogStateChange() }
+                        }
+                        State.StartingSasVerification -> {
+                            state.override { State.VerificationRequestAccepted.andLogStateChange() }
+                        }
+                        is State.Verifying.Replying -> {
+                            state.override { State.Verifying.ChallengeReceived(snapshot.data).andLogStateChange() }
+                        }
+                        State.Completed,
+                        State.Exit,
+                        is State.Canceled -> state.noChange()
+                        State.Initial,
+                        State.VerificationRequestAccepted,
+                        State.SasVerificationStarted,
+                        is State.Verifying.ChallengeReceived -> {
+                            state.override { State.Canceled.andLogStateChange() }
+                        }
+                    }
                 }
             }
         }

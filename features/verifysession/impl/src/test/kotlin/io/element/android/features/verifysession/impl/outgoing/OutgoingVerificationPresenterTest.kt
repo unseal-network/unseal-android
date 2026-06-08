@@ -108,7 +108,7 @@ class OutgoingVerificationPresenterTest {
     }
 
     @Test
-    fun `present - A failure when verifying cancels it`() = runTest {
+    fun `present - A failure when verifying keeps the challenge visible`() = runTest {
         val service = unverifiedSessionService(
             requestDeviceVerificationLambda = { },
             startSasVerificationLambda = { },
@@ -118,16 +118,76 @@ class OutgoingVerificationPresenterTest {
         presenter.test {
             val state = requestVerificationAndAwaitVerifyingState(service)
             state.eventSink(OutgoingVerificationViewEvents.ConfirmVerification)
-            // Cancelling
             assertThat(awaitItem().step).isInstanceOf(Step.Verifying::class.java)
             service.emitVerificationFlowState(VerificationFlowState.DidFail)
-            // Cancelled
-            assertThat(awaitItem().step).isEqualTo(Step.Canceled)
+            assertThat(awaitItem().step).isInstanceOf(Step.Verifying::class.java)
         }
     }
 
     @Test
-    fun `present - A fail when requesting verification resets the state to the canceled one`() = runTest {
+    fun `present - A fail when approving verification keeps the challenge visible`() = runTest {
+        val emojis = listOf(VerificationEmoji(number = 30))
+        val service = unverifiedSessionService(
+            requestDeviceVerificationLambda = { },
+            startSasVerificationLambda = { },
+            approveVerificationLambda = { },
+        )
+        val presenter = createOutgoingVerificationPresenter(service)
+        presenter.test {
+            val state = requestVerificationAndAwaitVerifyingState(
+                fakeService = service,
+                sessionVerificationData = SessionVerificationData.Emojis(emojis),
+            )
+            state.eventSink(OutgoingVerificationViewEvents.ConfirmVerification)
+            assertThat(awaitItem().step).isEqualTo(
+                Step.Verifying(
+                    data = SessionVerificationData.Emojis(emojis),
+                    state = AsyncData.Loading(),
+                )
+            )
+            service.emitVerificationFlowState(VerificationFlowState.DidFail)
+            assertThat(awaitItem().step).isEqualTo(
+                Step.Verifying(
+                    data = SessionVerificationData.Emojis(emojis),
+                    state = AsyncData.Uninitialized,
+                )
+            )
+        }
+    }
+
+    @Test
+    fun `present - A fail when declining verification keeps the challenge visible`() = runTest {
+        val decimals = SessionVerificationData.Decimals(listOf(1234, 5678, 9012))
+        val service = unverifiedSessionService(
+            requestDeviceVerificationLambda = { },
+            startSasVerificationLambda = { },
+            declineVerificationLambda = { },
+        )
+        val presenter = createOutgoingVerificationPresenter(service)
+        presenter.test {
+            val state = requestVerificationAndAwaitVerifyingState(
+                fakeService = service,
+                sessionVerificationData = decimals,
+            )
+            state.eventSink(OutgoingVerificationViewEvents.DeclineVerification)
+            assertThat(awaitItem().step).isEqualTo(
+                Step.Verifying(
+                    data = decimals,
+                    state = AsyncData.Loading(),
+                )
+            )
+            service.emitVerificationFlowState(VerificationFlowState.DidFail)
+            assertThat(awaitItem().step).isEqualTo(
+                Step.Verifying(
+                    data = decimals,
+                    state = AsyncData.Uninitialized,
+                )
+            )
+        }
+    }
+
+    @Test
+    fun `present - A fail when requesting verification resets the state to initial`() = runTest {
         val service = unverifiedSessionService(
             requestDeviceVerificationLambda = { },
         )
@@ -136,7 +196,32 @@ class OutgoingVerificationPresenterTest {
             awaitItem().eventSink(OutgoingVerificationViewEvents.RequestVerification)
             service.emitVerificationFlowState(VerificationFlowState.DidFail)
             assertThat(awaitItem().step).isInstanceOf(Step.AwaitingOtherDeviceResponse::class.java)
-            assertThat(awaitItem().step).isEqualTo(Step.Canceled)
+            assertThat(awaitItem().step).isEqualTo(Step.Initial)
+        }
+    }
+
+    @Test
+    fun `present - A fail when starting SAS returns to ready state`() = runTest {
+        val service = unverifiedSessionService(
+            requestDeviceVerificationLambda = { },
+            startSasVerificationLambda = { },
+        )
+        val presenter = createOutgoingVerificationPresenter(service)
+        presenter.test {
+            var state = awaitItem()
+            assertThat(state.step).isEqualTo(Step.Initial)
+            state.eventSink(OutgoingVerificationViewEvents.RequestVerification)
+            advanceUntilIdle()
+            service.emitVerificationFlowState(VerificationFlowState.DidAcceptVerificationRequest)
+            assertThat(awaitItem().step).isEqualTo(Step.AwaitingOtherDeviceResponse)
+            state = awaitItem()
+            assertThat(state.step).isEqualTo(Step.Ready)
+
+            state.eventSink(OutgoingVerificationViewEvents.StartSasVerification)
+            service.emitVerificationFlowState(VerificationFlowState.DidFail)
+
+            assertThat(awaitItem().step).isEqualTo(Step.AwaitingOtherDeviceResponse)
+            assertThat(awaitItem().step).isEqualTo(Step.Ready)
         }
     }
 
