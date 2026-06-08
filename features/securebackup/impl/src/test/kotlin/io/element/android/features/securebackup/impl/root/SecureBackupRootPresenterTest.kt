@@ -18,6 +18,7 @@ import io.element.android.libraries.designsystem.utils.snackbar.SnackbarDispatch
 import io.element.android.libraries.matrix.api.encryption.BackupState
 import io.element.android.libraries.matrix.api.encryption.EncryptionService
 import io.element.android.libraries.matrix.api.encryption.RecoveryState
+import io.element.android.libraries.matrix.api.encryption.RecoveryException
 import io.element.android.libraries.matrix.test.AN_EXCEPTION
 import io.element.android.libraries.matrix.test.core.aBuildMeta
 import io.element.android.libraries.matrix.test.encryption.FakeEncryptionService
@@ -100,6 +101,44 @@ class SecureBackupRootPresenterTest {
             initialState.eventSink(SecureBackupRootEvents.EnableKeyStorage)
             assertThat(awaitItem().enableAction.isLoading()).isTrue()
             assertThat(awaitItem().enableAction.isSuccess()).isTrue()
+        }
+    }
+
+    @Test
+    fun `present - enable key storage treats backup exists on server as success`() = runTest {
+        val encryptionService = FakeEncryptionService().apply {
+            givenEnableBackupsFailure(RecoveryException.BackupExistsOnServer)
+        }
+        val presenter = createSecureBackupRootPresenter(
+            encryptionService = encryptionService,
+        )
+        moleculeFlow(RecompositionMode.Immediate) {
+            presenter.present()
+        }.test {
+            skipItems(2)
+            val initialState = awaitItem()
+            initialState.eventSink(SecureBackupRootEvents.EnableKeyStorage)
+            assertThat(awaitItem().enableAction.isLoading()).isTrue()
+            assertThat(awaitItem().enableAction.isSuccess()).isTrue()
+        }
+    }
+
+    @Test
+    fun `present - enable key storage keeps generic failures visible`() = runTest {
+        val encryptionService = FakeEncryptionService().apply {
+            givenEnableBackupsFailure(AN_EXCEPTION)
+        }
+        val presenter = createSecureBackupRootPresenter(
+            encryptionService = encryptionService,
+        )
+        moleculeFlow(RecompositionMode.Immediate) {
+            presenter.present()
+        }.test {
+            skipItems(2)
+            val initialState = awaitItem()
+            initialState.eventSink(SecureBackupRootEvents.EnableKeyStorage)
+            assertThat(awaitItem().enableAction.isLoading()).isTrue()
+            assertThat(awaitItem().enableAction).isEqualTo(AsyncAction.Failure(AN_EXCEPTION))
         }
     }
 
