@@ -290,17 +290,20 @@ git diff --check PASS
 ### Task 5: Timeline Model And UI Card
 
 **Files:**
-- Modify: `libraries/matrix/api/src/main/kotlin/io/element/android/libraries/matrix/api/timeline/item/event/EventContent.kt`
+- Deferred to Task 6 if needed: `libraries/matrix/api/src/main/kotlin/io/element/android/libraries/matrix/api/timeline/item/event/EventContent.kt`
 - Modify: `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/model/event/TimelineItemEncryptedContent.kt`
 - Modify: `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/model/event/TimelineItemEncryptedContentProvider.kt`
 - Modify: `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/components/event/TimelineItemEncryptedView.kt`
+- Modify: `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/TimelineEvent.kt`
+- Modify: `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/TimelinePresenter.kt`
+- Modify: `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/components/event/TimelineItemEventContentView.kt`
 - Modify/add relevant UI tests/previews.
 
-- [ ] **Step 1: Add timeline-facing recovery model**
+- [x] **Step 1: Add timeline-facing recovery model**
 
 Add status, request, event count, wait timing, and plan stages to encrypted content model. Keep nullable so current static fallback remains unchanged.
 
-- [ ] **Step 2: Render recovery card**
+- [x] **Step 2: Render recovery card**
 
 Match iOS behavior:
 
@@ -311,19 +314,28 @@ Match iOS behavior:
 - Verify-device action for `deviceUnverified`.
 - Retry action for `failed`.
 
-- [ ] **Step 3: Preserve static fallback**
+- [x] **Step 3: Preserve static fallback**
 
 When no recovery status exists, `TimelineItemEncryptedView` must render the same text/icon mapping as today.
 
-- [ ] **Step 4: Test UI states**
+- [x] **Step 4: Test UI states**
 
-Cover fallback, device-unverified action, failed retry action, active stage display, resolved display, and count text.
+Cover timeline recovery display mapping, device-unverified action, failed retry action, active stage display, and count text with unit tests. Preserve fallback through nullable model and unchanged fallback branch; screenshot-level Compose coverage is deferred.
 
 - [ ] **Step 5: Commit Task 5**
 
 ```bash
 git add libraries/matrix/api/src/main/kotlin/io/element/android/libraries/matrix/api/timeline/item/event/EventContent.kt features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline features/messages/impl/src/test/kotlin/io/element/android/features/messages/impl/timeline
 git commit -m "feat: render room key recovery timeline card"
+```
+
+Verification:
+
+```text
+:features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.timeline.components.event.TimelineItemRoomKeyRecoveryDisplayTest' PASS
+:features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.roomkey.*' PASS
+:app:assembleFdroidDebug PASS
+git diff --check PASS
 ```
 
 ### Task 6: Session Wiring And Verification

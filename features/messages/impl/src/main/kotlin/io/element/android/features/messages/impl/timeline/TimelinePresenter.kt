@@ -236,6 +236,12 @@ class TimelinePresenter(
                         focusedEventId = event.focusedEvent,
                     )
                 }
+                is TimelineEvent.RetryRoomKeyRecovery -> {
+                    Timber.tag(tag).d("Room key recovery retry requested for ${event.request.identityKey}")
+                }
+                TimelineEvent.VerifyDeviceForRoomKeyRecovery -> {
+                    Timber.tag(tag).d("Room key recovery device verification requested")
+                }
             }
         }
 

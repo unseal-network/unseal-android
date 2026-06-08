@@ -53,6 +53,8 @@ fun TimelineItemEventContentView(
         is TimelineItemEncryptedContent -> TimelineItemEncryptedView(
             content = content,
             onContentLayoutChange = onContentLayoutChange,
+            onVerifyDeviceClick = { eventSink(TimelineEvent.VerifyDeviceForRoomKeyRecovery) },
+            onRetryClick = { recoveryRequest -> eventSink(TimelineEvent.RetryRoomKeyRecovery(recoveryRequest)) },
             modifier = modifier
         )
         is TimelineItemRedactedContent -> TimelineItemRedactedView(

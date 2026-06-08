@@ -13,6 +13,7 @@ import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.ThreadId
+import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryRequest
 import io.element.android.libraries.matrix.api.timeline.Timeline
 import kotlin.time.Duration
 
@@ -34,6 +35,8 @@ sealed interface TimelineEvent {
     data class ShowShieldDialog(val messageShieldData: MessageShieldData) : TimelineItemEvent
     data class LoadMore(val direction: Timeline.PaginationDirection) : TimelineItemEvent
     data class OpenThread(val threadRootEventId: ThreadId, val focusedEvent: EventId?) : TimelineItemEvent
+    data class RetryRoomKeyRecovery(val request: RoomKeyRecoveryRequest) : TimelineItemEvent
+    data object VerifyDeviceForRoomKeyRecovery : TimelineItemEvent
 
     /**
      * Navigate to the predecessor or successor room of the current room.
