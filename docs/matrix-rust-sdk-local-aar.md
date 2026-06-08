@@ -10,6 +10,23 @@ org.matrix.rustcomponents:sdk-android:26.06.3
 
 Use the local AAR path when validating Matrix Rust SDK changes that have not been published to Maven yet.
 
+## Android Build Prerequisites
+
+The Android project currently compiles with Java 21, Android SDK 36, and Android build tools 36.0.0.
+
+Install the command line tools and SDK packages before running `assembleDebug` or `assembleRelease`:
+
+```bash
+export JAVA_HOME=/usr/local/opt/openjdk@21
+export ANDROID_HOME=/usr/local/share/android-commandlinetools
+export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+
+yes | sdkmanager --licenses
+sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+```
+
+If `assembleDebug` fails with `SDK location not found`, the Matrix SDK dependency selection can still be checked with the dependency commands below, but a full Android build requires the SDK packages above.
+
 ## Build The SDK AAR
 
 Install Android Rust targets and `cargo-ndk`:
@@ -74,6 +91,18 @@ Omit `unseal.useLocalRustSdk` to use the Maven SDK.
 cd /Users/Ruihan/go/src/unseal-android
 ./gradlew :libraries:matrix:impl:assembleDebug
 ./gradlew :libraries:matrix:impl:assembleRelease
+```
+
+To verify dependency resolution without requiring a complete Android SDK install, inspect the runtime classpaths:
+
+```bash
+./gradlew :libraries:matrix:impl:dependencyInsight \
+  --configuration debugRuntimeClasspath \
+  --dependency org.matrix.rustcomponents:sdk-android
+
+./gradlew :libraries:matrix:impl:dependencyInsight \
+  --configuration releaseRuntimeClasspath \
+  --dependency org.matrix.rustcomponents:sdk-android
 ```
 
 ## Dependency Selection
