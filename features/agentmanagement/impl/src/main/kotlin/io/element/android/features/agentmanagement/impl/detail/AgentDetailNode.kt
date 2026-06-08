@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import com.bumble.appyx.core.modality.BuildContext
 import com.bumble.appyx.core.node.Node
 import com.bumble.appyx.core.plugin.Plugin
+import com.bumble.appyx.core.plugin.plugins
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
@@ -25,6 +26,7 @@ import kotlinx.parcelize.Parcelize
 class AgentDetailNode(
     @Assisted buildContext: BuildContext,
     @Assisted plugins: List<Plugin>,
+    presenterFactory: AgentDetailPresenter.Factory,
 ) : Node(buildContext, plugins = plugins) {
     @Parcelize
     data class Inputs(val botName: String) : Plugin, Parcelable
@@ -36,6 +38,23 @@ class AgentDetailNode(
         fun onOpenSkills(botName: String)
     }
 
+    private val inputs = plugins<Inputs>().first()
+    private val callback = plugins<Callback>().first()
+    private val presenter = presenterFactory.create(
+        botName = inputs.botName,
+        navigator = object : AgentDetailNavigator {
+            override fun onEdit(botName: String) = callback.onEdit(botName)
+            override fun onOpenRoom(roomIdOrAlias: RoomIdOrAlias) = callback.onOpenRoom(roomIdOrAlias)
+            override fun onOpenSkills(botName: String) = callback.onOpenSkills(botName)
+        }
+    )
+
     @Composable
-    override fun View(modifier: Modifier) = Unit
+    override fun View(modifier: Modifier) {
+        AgentDetailView(
+            state = presenter.present(),
+            onBackClick = callback::onDone,
+            modifier = modifier,
+        )
+    }
 }

@@ -1,0 +1,157 @@
+/*
+ * Copyright (c) 2026 New Vector Ltd.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
+ * Please see LICENSE files in the repository root for full details.
+ */
+
+package io.element.android.features.agentmanagement.impl.detail
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import dev.zacsweers.metro.Assisted
+import dev.zacsweers.metro.AssistedFactory
+import dev.zacsweers.metro.AssistedInject
+import io.element.android.features.agentmanagement.impl.shared.AgentDirectChatService
+import io.element.android.features.agentmanagement.impl.shared.agentMatrixUserId
+import io.element.android.features.agentmanagement.impl.shared.copyableAgentId
+import io.element.android.libraries.androidutils.clipboard.ClipboardHelper
+import io.element.android.libraries.architecture.Presenter
+import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
+import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
+import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentRoom
+import io.element.android.libraries.matrix.api.MatrixClient
+import io.element.android.libraries.matrix.api.core.RoomIdOrAlias
+import io.element.android.libraries.matrix.api.core.toRoomIdOrAlias
+import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.launch
+
+@AssistedInject
+class AgentDetailPresenter(
+    @Assisted private val botName: String,
+    @Assisted private val navigator: AgentDetailNavigator,
+    private val matrixClient: MatrixClient,
+    private val chatbotApiServiceFactory: ChatbotApiServiceFactory,
+    private val directChatService: AgentDirectChatService,
+    private val clipboardHelper: ClipboardHelper,
+) : Presenter<AgentDetailState> {
+    @AssistedFactory
+    interface Factory {
+        fun create(botName: String, navigator: AgentDetailNavigator): AgentDetailPresenter
+    }
+
+    @Composable
+    override fun present(): AgentDetailState {
+        val coroutineScope = rememberCoroutineScope()
+        var agent by remember { mutableStateOf<ChatbotAgent?>(null) }
+        var rooms by remember { mutableStateOf(emptyList<ChatbotAgentRoom>()) }
+        var isLoading by remember { mutableStateOf(false) }
+        var isStartingChat by remember { mutableStateOf(false) }
+        var isSoulExpanded by remember { mutableStateOf(false) }
+        var error by remember { mutableStateOf<String?>(null) }
+        var copiedAgentId by remember { mutableStateOf<String?>(null) }
+        var hasLoadedOnce by remember { mutableStateOf(false) }
+
+        fun loadExtras(isInitial: Boolean) {
+            if (isInitial && hasLoadedOnce) return
+            coroutineScope.launch {
+                isLoading = true
+                val api = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
+                val previousAgent = agent
+                api.getAgent(botName)
+                    .onSuccess { freshAgent ->
+                        agent = freshAgent
+                        error = null
+                    }
+                    .onFailure {
+                        if (previousAgent == null) {
+                            error = it.message ?: it::class.simpleName ?: "Failed to load agent"
+                        }
+                    }
+                api.listAgentRooms(botName)
+                    .onSuccess { freshRooms ->
+                        rooms = freshRooms
+                    }
+                isLoading = false
+                hasLoadedOnce = true
+            }
+        }
+
+        fun startChat() {
+            val userId = agent?.agentMatrixUserId()
+            if (userId == null) {
+                error = "Agent has no Matrix user ID"
+                return
+            }
+            coroutineScope.launch {
+                isStartingChat = true
+                directChatService.findExistingDirectRoom(userId)
+                    .fold(
+                        onSuccess = { existingRoomId ->
+                            if (existingRoomId != null) {
+                                navigator.onOpenRoom(existingRoomId.toRoomIdOrAlias())
+                            } else {
+                                directChatService.createDirectRoom(userId)
+                                    .onSuccess { navigator.onOpenRoom(it.toRoomIdOrAlias()) }
+                                    .onFailure { error = it.message ?: it::class.simpleName ?: "Failed to start chat" }
+                            }
+                        },
+                        onFailure = {
+                            directChatService.createDirectRoom(userId)
+                                .onSuccess { navigator.onOpenRoom(it.toRoomIdOrAlias()) }
+                                .onFailure { createError -> error = createError.message ?: createError::class.simpleName ?: "Failed to start chat" }
+                        }
+                    )
+                isStartingChat = false
+            }
+        }
+
+        fun leaveRoom(roomId: String) {
+            coroutineScope.launch {
+                isLoading = true
+                chatbotApiServiceFactory.createForUnsealApi(matrixClient)
+                    .agentLeaveRoom(botName, roomId)
+                    .onSuccess { loadExtras(isInitial = false) }
+                    .onFailure { error = it.message ?: it::class.simpleName ?: "Failed to leave room" }
+                isLoading = false
+            }
+        }
+
+        fun handleEvent(event: AgentDetailEvents) {
+            when (event) {
+                AgentDetailEvents.OnAppear -> loadExtras(isInitial = true)
+                AgentDetailEvents.Refresh -> loadExtras(isInitial = false)
+                AgentDetailEvents.Edit -> navigator.onEdit(agent?.botName ?: botName)
+                AgentDetailEvents.CopyAgentId -> {
+                    val idToCopy = agent?.copyableAgentId() ?: botName
+                    clipboardHelper.copyPlainText(idToCopy)
+                    copiedAgentId = idToCopy
+                }
+                AgentDetailEvents.ToggleSoulExpanded -> isSoulExpanded = !isSoulExpanded
+                AgentDetailEvents.ManageSkills -> navigator.onOpenSkills(botName)
+                AgentDetailEvents.StartChat -> startChat()
+                is AgentDetailEvents.OpenRoom -> RoomIdOrAlias.from(event.roomId)
+                    ?.let(navigator::onOpenRoom)
+                    ?: run { error = "Invalid room id" }
+                is AgentDetailEvents.LeaveRoom -> leaveRoom(event.roomId)
+                AgentDetailEvents.ClearError -> error = null
+            }
+        }
+
+        return AgentDetailState(
+            botName = botName,
+            agent = agent,
+            rooms = rooms.toImmutableList(),
+            isLoading = isLoading,
+            isStartingChat = isStartingChat,
+            isSoulExpanded = isSoulExpanded,
+            error = error,
+            copiedAgentId = copiedAgentId,
+            eventSink = ::handleEvent,
+        )
+    }
+}
