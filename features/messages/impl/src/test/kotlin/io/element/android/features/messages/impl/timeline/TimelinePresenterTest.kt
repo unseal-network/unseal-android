@@ -1023,12 +1023,14 @@ class TimelinePresenterTest {
         liveLocationShareManager: FakeActiveLiveLocationShareManager = FakeActiveLiveLocationShareManager(),
         encryptionService: FakeEncryptionService = FakeEncryptionService(),
         sessionVerificationService: FakeSessionVerificationService = FakeSessionVerificationService(),
+        matrixClient: FakeMatrixClient = FakeMatrixClient(),
         roomKeyRecoveryTimelineRunner: RoomKeyRecoveryTimelineRunner = RoomKeyRecoveryTimelineRunner(
+            matrixClient = matrixClient,
             encryptionService = encryptionService,
             sessionVerificationService = sessionVerificationService,
             sessionId = A_USER_ID,
             forwardingPolicy = MemberAwareRoomKeyForwardingPolicy(),
-            roomAgentResolver = RoomAgentResolver(FakeMatrixClient(), FakeChatbotApiServiceFactory()),
+            roomAgentResolver = RoomAgentResolver(matrixClient, FakeChatbotApiServiceFactory()),
             sessionCoroutineScope = this,
         ),
     ): TimelinePresenter {

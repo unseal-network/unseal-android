@@ -450,7 +450,7 @@ git diff --check PASS
 - Modify: `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/TimelinePresenter.kt`
 - Modify affected factory or DI construction only if required by constructor changes.
 
-- [ ] **Step 1: Add failing timeline runner tests**
+- [x] **Step 1: Add failing timeline runner tests**
 
 Add tests:
 
@@ -460,7 +460,7 @@ Add tests:
 - `retry(roomKeyRequest)` clears matching agent pending and sends direct request again.
 - Non-agent UTD still uses ordinary `EncryptionService.requestRoomKeyRecovery`.
 
-- [ ] **Step 2: Extend runner constructor**
+- [x] **Step 2: Extend runner constructor**
 
 Add dependencies:
 
@@ -471,7 +471,7 @@ private val roomAgentResolver: RoomAgentResolver,
 
 Keep `EncryptionService` for ordinary recovery. Use `matrixClient.requestAgentRoomKeyRecovery(agentRequest)` for direct agent recovery.
 
-- [ ] **Step 3: Parse agent requests from timeline items**
+- [x] **Step 3: Parse agent requests from timeline items**
 
 Inside `MatrixTimelineItem.roomKeyRecoveryRequest`, also build an agent request from:
 
@@ -482,7 +482,7 @@ Inside `MatrixTimelineItem.roomKeyRecoveryRequest`, also build an agent request 
 
 The agent parser should return null for non-agent events.
 
-- [ ] **Step 4: Send direct agent requests when verified**
+- [x] **Step 4: Send direct agent requests when verified**
 
 In `recoverVisibleItems`:
 
@@ -491,7 +491,7 @@ In `recoverVisibleItems`:
 - For each visible agent request where `markPendingIfNeeded` returns true, call `matrixClient.requestAgentRoomKeyRecovery`.
 - If direct send fails, keep ordinary recovery status failed/retry semantics by allowing the existing ordinary status map to show failed after recovery plan exhaustion.
 
-- [ ] **Step 5: Clear agent pending on manual retry**
+- [x] **Step 5: Clear agent pending on manual retry**
 
 In `retry(request)`:
 
@@ -499,7 +499,7 @@ In `retry(request)`:
 - Remove it from `AgentRoomKeyRecoveryPendingStore`.
 - Call direct agent request again after ordinary retry is scheduled.
 
-- [ ] **Step 6: Run and pass timeline integration tests**
+- [x] **Step 6: Run and pass timeline integration tests**
 
 Run:
 
@@ -510,11 +510,18 @@ git diff --check
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit Task 4**
+- [x] **Step 7: Commit Task 4**
 
 ```bash
 git add features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/roomkey features/messages/impl/src/test/kotlin/io/element/android/features/messages/impl/roomkey features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline
 git commit -m "feat: request agent room keys from timeline"
+```
+
+Verification:
+
+```text
+:features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryTimelineRunnerTest' PASS
+git diff --check PASS
 ```
 
 ### Task 5: Final Verification And Runnable Build

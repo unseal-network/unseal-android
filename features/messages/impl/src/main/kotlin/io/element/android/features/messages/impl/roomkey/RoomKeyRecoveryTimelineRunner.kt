@@ -11,9 +11,12 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import io.element.android.libraries.di.RoomScope
 import io.element.android.libraries.di.annotations.SessionCoroutineScope
+import io.element.android.libraries.matrix.api.MatrixClient
+import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.libraries.matrix.api.encryption.BackupState
 import io.element.android.libraries.matrix.api.encryption.EncryptionService
+import io.element.android.libraries.matrix.api.encryption.roomkey.AgentRoomKeyRecoveryRequest
 import io.element.android.libraries.matrix.api.encryption.roomkey.MemberAwareRoomKeyForwardingPolicy
 import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryRequest
 import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryTarget
@@ -32,6 +35,7 @@ import kotlinx.coroutines.launch
 @SingleIn(RoomScope::class)
 @Inject
 class RoomKeyRecoveryTimelineRunner(
+    private val matrixClient: MatrixClient,
     private val encryptionService: EncryptionService,
     private val sessionVerificationService: SessionVerificationService,
     private val sessionId: SessionId,
@@ -40,7 +44,9 @@ class RoomKeyRecoveryTimelineRunner(
     @SessionCoroutineScope private val sessionCoroutineScope: CoroutineScope,
 ) {
     private val parser = RoomKeyRecoveryRequestParser()
+    private val agentParser = AgentRoomKeyRecoveryRequestParser()
     private val pendingStore = RoomKeyRecoveryPendingStore()
+    private val agentPendingStore = AgentRoomKeyRecoveryPendingStore()
     private val progressStore = RoomKeyRecoveryProgressStore()
     private val coordinator = RoomKeyRecoveryCoordinator(
         pendingStore = pendingStore,
@@ -54,18 +60,23 @@ class RoomKeyRecoveryTimelineRunner(
     )
     private val _statuses = MutableStateFlow<Map<String, RoomKeyRecoveryStatus>>(emptyMap())
     private var lastInput: RoomKeyRecoveryCoordinatorInput? = null
+    private var lastAgentRequests: List<AgentRoomKeyRecoveryRequest> = emptyList()
     private var lastInputKey: RoomKeyRecoveryInputKey? = null
     private var recoveryJob: Job? = null
 
     val statuses: StateFlow<Map<String, RoomKeyRecoveryStatus>> = _statuses
 
     fun recoverVisibleItems(
+        roomId: RoomId,
         timelineItems: List<MatrixTimelineItem>,
         roomMembers: List<RoomMember>,
         sessionVerifiedStatus: SessionVerifiedStatus,
         backupState: BackupState,
     ) {
         val requests = timelineItems.mapNotNull { it.roomKeyRecoveryRequest() }
+        val agentRequests = timelineItems.mapNotNull { it.agentRoomKeyRecoveryRequest(roomId) }
+        agentPendingStore.retainOnly(agentRequests)
+        lastAgentRequests = agentRequests
         val roomIds = requests.mapTo(mutableSetOf()) { it.roomId }
         val activeMemberIds = roomMembers.mapTo(mutableSetOf()) { it.userId }
         roomIds.forEach { roomId ->
@@ -74,6 +85,7 @@ class RoomKeyRecoveryTimelineRunner(
 
         val inputKey = RoomKeyRecoveryInputKey(
             identityKeys = requests.map { it.identityKey },
+            agentIdentityKeys = agentRequests.map { it.identityKey },
             activeMemberIds = activeMemberIds.map { it.value }.sorted(),
             sessionVerifiedStatus = sessionVerifiedStatus,
             backupState = backupState,
@@ -81,7 +93,7 @@ class RoomKeyRecoveryTimelineRunner(
         if (inputKey == lastInputKey) return
         lastInputKey = inputKey
 
-        if (requests.isEmpty()) {
+        if (requests.isEmpty() && agentRequests.isEmpty()) {
             recoveryJob?.cancel()
             _statuses.value = emptyMap()
             return
@@ -89,6 +101,15 @@ class RoomKeyRecoveryTimelineRunner(
 
         recoveryJob?.cancel()
         recoveryJob = sessionCoroutineScope.launch {
+            if (sessionVerifiedStatus == SessionVerifiedStatus.Verified) {
+                agentRequests
+                    .filter { agentPendingStore.markPendingIfNeeded(it) }
+                    .forEach { matrixClient.requestAgentRoomKeyRecovery(it) }
+            }
+            if (requests.isEmpty()) {
+                _statuses.value = emptyMap()
+                return@launch
+            }
             val roomAgentUserIds = roomIds.flatMapTo(mutableSetOf()) { roomId ->
                 roomAgentResolver.roomAgentUserIds(roomId, activeMemberIds)
             }
@@ -114,10 +135,18 @@ class RoomKeyRecoveryTimelineRunner(
     }
 
     fun retry(request: RoomKeyRecoveryRequest) {
-        val input = lastInput ?: return
+        val agentRequest = lastAgentRequests.firstOrNull { it.matches(request) }
+        agentRequest?.let(agentPendingStore::removePending)
+        val input = lastInput
+        if (agentRequest == null && input == null) return
         recoveryJob?.cancel()
         recoveryJob = sessionCoroutineScope.launch {
-            _statuses.value = coordinator.manualRetry(input, request.identityKey).statuses
+            agentRequest
+                ?.takeIf { agentPendingStore.markPendingIfNeeded(it) }
+                ?.let { matrixClient.requestAgentRoomKeyRecovery(it) }
+            input?.let {
+                _statuses.value = coordinator.manualRetry(it, request.identityKey).statuses
+            }
         }
     }
 
@@ -131,6 +160,26 @@ class RoomKeyRecoveryTimelineRunner(
         val event = (this as? MatrixTimelineItem.Event)?.event ?: return null
         if (event.content !is UnableToDecryptContent) return null
         return parser.parse(event.timelineItemDebugInfoProvider().originalJson)
+    }
+
+    private fun MatrixTimelineItem.agentRoomKeyRecoveryRequest(fallbackRoomId: RoomId): AgentRoomKeyRecoveryRequest? {
+        val event = (this as? MatrixTimelineItem.Event)?.event ?: return null
+        val content = event.content as? UnableToDecryptContent ?: return null
+        val data = content.data as? UnableToDecryptContent.Data.MegolmV1AesSha2 ?: return null
+        return agentParser.parse(
+            originalJson = event.timelineItemDebugInfoProvider().originalJson,
+            fallbackRoomId = fallbackRoomId,
+            fallbackSenderId = event.sender,
+            fallbackSessionId = data.sessionId,
+        )
+    }
+
+    private fun AgentRoomKeyRecoveryRequest.matches(request: RoomKeyRecoveryRequest): Boolean {
+        return roomId == request.roomId &&
+            senderUserId == request.senderUserId &&
+            senderDeviceId == request.senderDeviceId &&
+            senderKey == request.senderKey &&
+            sessionId == request.sessionId
     }
 
     private fun SessionVerifiedStatus.toRecoveryVerificationState(): RoomKeyRecoveryVerificationState {
@@ -147,6 +196,7 @@ class RoomKeyRecoveryTimelineRunner(
 
     private data class RoomKeyRecoveryInputKey(
         val identityKeys: List<String>,
+        val agentIdentityKeys: List<String>,
         val activeMemberIds: List<String>,
         val sessionVerifiedStatus: SessionVerifiedStatus,
         val backupState: BackupState,

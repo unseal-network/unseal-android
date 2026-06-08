@@ -277,6 +277,7 @@ class TimelinePresenter(
                 transaction?.putExtraData(AnalyticsUserData.TIMELINE_ITEM_COUNT, items.count().toString())
                 val activeRoomMembers = membersState.activeRoomMembers()
                 roomKeyRecoveryTimelineRunner.recoverVisibleItems(
+                    roomId = room.roomId,
                     timelineItems = items,
                     roomMembers = activeRoomMembers,
                     sessionVerifiedStatus = sessionVerifiedStatus,
