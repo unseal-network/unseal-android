@@ -49,7 +49,7 @@ Do not create or modify:
 - Create placeholder: `features/skills/impl/src/main/kotlin/io/element/android/features/skills/impl/agentskills/AgentSkillsNode.kt`
 - Create placeholder: `features/skills/impl/src/main/kotlin/io/element/android/features/skills/impl/agentskills/AgentSkillsView.kt`
 
-- [ ] **Step 1: Extend the public entry point**
+- [x] **Step 1: Extend the public entry point**
 
 Add two initial targets to `SkillsEntryPoint.InitialTarget`:
 
@@ -67,7 +67,7 @@ Add a callback method:
 fun onOpenAgentManagement()
 ```
 
-- [ ] **Step 2: Add flow nav targets**
+- [x] **Step 2: Add flow nav targets**
 
 In `SkillsFlowNode.NavTarget`, add:
 
@@ -86,7 +86,7 @@ is SkillsEntryPoint.InitialTarget.AgentSkills -> SkillsFlowNode.NavTarget.AgentS
 SkillsEntryPoint.InitialTarget.ManagementHub -> SkillsFlowNode.NavTarget.ManagementHub
 ```
 
-- [ ] **Step 3: Wire the hub target**
+- [x] **Step 3: Wire the hub target**
 
 Create `SkillsManagementHubNode` with callback:
 
@@ -104,7 +104,7 @@ Create `SkillsManagementHubView` with title `Agent & Skills`, a Back button, and
 
 In `SkillsFlowNode.resolve`, map `ManagementHub` to the node. Hub `onOpenAgentManagement()` calls `callback.onOpenAgentManagement()`. Hub `onOpenSkillsHome()` pushes `NavTarget.Home`.
 
-- [ ] **Step 4: Add temporary Agent Skills node shell**
+- [x] **Step 4: Add temporary Agent Skills node shell**
 
 Create `AgentSkillsNode` with:
 
@@ -132,15 +132,15 @@ fun AgentSkillsView(botName: String, onBackClick: () -> Unit, modifier: Modifier
 }
 ```
 
-- [ ] **Step 5: Wire Agent Skills target**
+- [x] **Step 5: Wire Agent Skills target**
 
 In `SkillsFlowNode.resolve`, map `NavTarget.AgentSkills(botName)` to `AgentSkillsNode` with `AgentSkillsNode.Inputs(botName)` and a callback whose `onDone()` calls `closeOrPop()`.
 
-- [ ] **Step 6: Update fake entry point**
+- [x] **Step 6: Update fake entry point**
 
 If compile requires it, add an empty `override fun onOpenAgentManagement() = Unit` to any callback fake or test callback affected by the `SkillsEntryPoint.Callback` change.
 
-- [ ] **Step 7: Verify flow compiles**
+- [x] **Step 7: Verify flow compiles**
 
 Run:
 
@@ -150,7 +150,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 8: Commit flow shell**
+- [x] **Step 8: Commit flow shell**
 
 ```bash
 git add features/skills docs/superpowers/specs/2026-06-09-agent-skills-management-design.md docs/superpowers/plans/2026-06-09-agent-skills-management.md
@@ -168,7 +168,7 @@ git commit -m "feat: add agent skills entry points"
 - Create: `features/skills/impl/src/main/kotlin/io/element/android/features/skills/impl/agentskills/AgentSkillsPresenter.kt`
 - Create: `features/skills/impl/src/test/kotlin/io/element/android/features/skills/impl/agentskills/AgentSkillsPresenterTest.kt`
 
-- [ ] **Step 1: Write presenter tests first**
+- [x] **Step 1: Write presenter tests first**
 
 Create tests covering these names:
 
@@ -186,7 +186,7 @@ Create tests covering these names:
 
 Use `FakeChatbotApiService`, `FakeChatbotApiServiceFactory`, `FakeMatrixClient`, `WarmUpRule`, and the existing `Presenter.test` helper in the same style as `SkillsHomePresenterTest`.
 
-- [ ] **Step 2: Add state and events**
+- [x] **Step 2: Add state and events**
 
 Create:
 
@@ -252,7 +252,7 @@ val newSelectedSkillIds = selectedSkillIds - originalSkillIds
 val deselectedOriginalCount = originalSkillIds.count { it !in selectedSkillIds }
 ```
 
-- [ ] **Step 3: Implement presenter load behavior**
+- [x] **Step 3: Implement presenter load behavior**
 
 `AgentSkillsPresenter` must use `@AssistedInject`, assisted `botName`, assisted `AgentSkillsNavigator`, injected `MatrixClient`, and injected `ChatbotApiServiceFactory`.
 
@@ -266,7 +266,7 @@ Load rules:
 - Later refreshes should update `attachedSkills` and merge attached ids into `originalSkillIds` without clearing newly selected ids.
 - Failures set `error = message ?: simpleName ?: "Failed to load agent skills"` and preserve existing lists.
 
-- [ ] **Step 4: Implement tab/search/pagination**
+- [x] **Step 4: Implement tab/search/pagination**
 
 Rules:
 
@@ -277,7 +277,7 @@ Rules:
 - Public page size is `20`.
 - Public load calls `listPublicSkills(page, 20, search)`, replaces on page 1, appends otherwise, and sets page to `response.page ?: requestedPage`.
 
-- [ ] **Step 5: Implement selection and save**
+- [x] **Step 5: Implement selection and save**
 
 Rules:
 
@@ -291,7 +291,7 @@ Rules:
 - If all new ids succeed, call `navigator.onSaved()`.
 - If any fail, stay on screen with `isSaving = false` and an error like `Failed to add 1 skill`.
 
-- [ ] **Step 6: Run focused tests**
+- [x] **Step 6: Run focused tests**
 
 Run:
 
@@ -301,7 +301,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: all `AgentSkillsPresenterTest` tests pass.
 
-- [ ] **Step 7: Commit presenter**
+- [x] **Step 7: Commit presenter**
 
 ```bash
 git add features/skills/impl/src/main/kotlin/io/element/android/features/skills/impl/agentskills features/skills/impl/src/test/kotlin/io/element/android/features/skills/impl/agentskills
@@ -316,7 +316,7 @@ git commit -m "feat: add agent skills presenter"
 - Modify: `features/skills/impl/src/main/kotlin/io/element/android/features/skills/impl/agentskills/AgentSkillsNode.kt`
 - Modify: `features/skills/impl/src/main/kotlin/io/element/android/features/skills/impl/agentskills/AgentSkillsView.kt`
 
-- [ ] **Step 1: Wire node to presenter**
+- [x] **Step 1: Wire node to presenter**
 
 Update `AgentSkillsNode` to create `AgentSkillsPresenter(botName = inputs.botName, navigator = object : AgentSkillsNavigator { override fun onSaved() = callback.onDone() })`.
 
@@ -330,7 +330,7 @@ AgentSkillsView(
 )
 ```
 
-- [ ] **Step 2: Replace temporary view with full UI**
+- [x] **Step 2: Replace temporary view with full UI**
 
 `AgentSkillsView` must:
 
@@ -347,7 +347,7 @@ AgentSkillsView(
 - show `Load more` button when `state.publicHasMore`;
 - render rows with `SkillListRow`, selection indicator text `Selected`, and toggle through `AgentSkillsEvents.ToggleSkill(skill)`.
 
-- [ ] **Step 3: Verify compile and full skills tests**
+- [x] **Step 3: Verify compile and full skills tests**
 
 Run:
 
@@ -357,7 +357,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 4: Commit UI**
+- [x] **Step 4: Commit UI**
 
 ```bash
 git add features/skills/impl/src/main/kotlin/io/element/android/features/skills/impl/agentskills
@@ -371,7 +371,7 @@ git commit -m "feat: add agent skills screen"
 **Files:**
 - No source changes expected.
 
-- [ ] **Step 1: Run feature tests**
+- [x] **Step 1: Run feature tests**
 
 ```bash
 env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy JAVA_HOME=/usr/local/opt/openjdk@21 ANDROID_HOME=/usr/local/share/android-commandlinetools ./gradlew --no-daemon --no-configuration-cache :features:skills:impl:testDebugUnitTest
@@ -379,7 +379,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 2: Run feature compile**
+- [x] **Step 2: Run feature compile**
 
 ```bash
 env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy JAVA_HOME=/usr/local/opt/openjdk@21 ANDROID_HOME=/usr/local/share/android-commandlinetools ./gradlew --no-daemon --no-configuration-cache :features:skills:impl:compileDebugKotlin
@@ -387,7 +387,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 3: Run chatbot implementation tests**
+- [x] **Step 3: Run chatbot implementation tests**
 
 ```bash
 env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy JAVA_HOME=/usr/local/opt/openjdk@21 ANDROID_HOME=/usr/local/share/android-commandlinetools ./gradlew --no-daemon --no-configuration-cache :libraries:chatbot:impl:testDebugUnitTest
@@ -395,7 +395,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 4: Scan dependencies**
+- [x] **Step 4: Scan dependencies**
 
 ```bash
 rg -n "rustsdk|org\\.matrix\\.rust|voiceplayer|voicerecorder|vault|Vault|sandbox|Sandbox|UnsealUI|UnsealAgent|UnsealMiniApp|removeAgentSkill|deleteAgentSkill|detachAgentSkill" features/skills -S
@@ -403,7 +403,7 @@ rg -n "rustsdk|org\\.matrix\\.rust|voiceplayer|voicerecorder|vault|Vault|sandbox
 
 Expected: no output for forbidden dependencies or fake detach APIs. Existing spec/plan matches are acceptable only under `docs/`, not `features/skills`.
 
-- [ ] **Step 5: Inspect status**
+- [x] **Step 5: Inspect status**
 
 ```bash
 git status --short --branch
