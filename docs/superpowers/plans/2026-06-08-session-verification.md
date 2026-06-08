@@ -79,14 +79,14 @@ fun `present - A fail when approving verification keeps the challenge visible`()
         assertThat(awaitItem().step).isEqualTo(
             Step.Verifying(
                 data = SessionVerificationData.Emojis(emojis),
-                submitAction = AsyncData.Loading(),
+                state = AsyncData.Loading(),
             )
         )
         service.emitVerificationFlowState(VerificationFlowState.DidFail)
         assertThat(awaitItem().step).isEqualTo(
             Step.Verifying(
                 data = SessionVerificationData.Emojis(emojis),
-                submitAction = AsyncData.Uninitialized,
+                state = AsyncData.Uninitialized,
             )
         )
     }
@@ -116,14 +116,14 @@ fun `present - A fail when declining verification keeps the challenge visible`()
         assertThat(awaitItem().step).isEqualTo(
             Step.Verifying(
                 data = decimals,
-                submitAction = AsyncData.Loading(),
+                state = AsyncData.Loading(),
             )
         )
         service.emitVerificationFlowState(VerificationFlowState.DidFail)
         assertThat(awaitItem().step).isEqualTo(
             Step.Verifying(
                 data = decimals,
-                submitAction = AsyncData.Uninitialized,
+                state = AsyncData.Uninitialized,
             )
         )
     }
