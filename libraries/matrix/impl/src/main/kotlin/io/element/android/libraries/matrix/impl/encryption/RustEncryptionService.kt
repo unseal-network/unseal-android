@@ -22,6 +22,14 @@ import io.element.android.libraries.matrix.api.encryption.EncryptionService
 import io.element.android.libraries.matrix.api.encryption.IdentityResetHandle
 import io.element.android.libraries.matrix.api.encryption.RecoveryState
 import io.element.android.libraries.matrix.api.encryption.identity.IdentityState
+import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyForwardingAuthorization
+import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyForwardingDecision
+import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyForwardingPolicy
+import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryProgress
+import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryRequest
+import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryScope
+import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryStage
+import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryTarget
 import io.element.android.libraries.matrix.api.sync.SyncState
 import io.element.android.libraries.matrix.impl.exception.mapClientException
 import io.element.android.libraries.matrix.impl.sync.RustSyncService
@@ -48,6 +56,13 @@ import timber.log.Timber
 import org.matrix.rustcomponents.sdk.BackupUploadState as RustBackupUploadState
 import org.matrix.rustcomponents.sdk.EnableRecoveryProgress as RustEnableRecoveryProgress
 import org.matrix.rustcomponents.sdk.RecoveryException as RustRecoveryException
+import org.matrix.rustcomponents.sdk.RoomKeyForwardingAuthorization as RustRoomKeyForwardingAuthorization
+import org.matrix.rustcomponents.sdk.RoomKeyForwardingDecision as RustRoomKeyForwardingDecision
+import org.matrix.rustcomponents.sdk.RoomKeyForwardingPolicy as RustRoomKeyForwardingPolicy
+import org.matrix.rustcomponents.sdk.RoomKeyRecoveryProgress as RustRoomKeyRecoveryProgress
+import org.matrix.rustcomponents.sdk.RoomKeyRecoveryScope as RustRoomKeyRecoveryScope
+import org.matrix.rustcomponents.sdk.RoomKeyRecoveryStage as RustRoomKeyRecoveryStage
+import org.matrix.rustcomponents.sdk.RoomKeyRecoveryTarget as RustRoomKeyRecoveryTarget
 import org.matrix.rustcomponents.sdk.SteadyStateException as RustSteadyStateException
 
 class RustEncryptionService(
@@ -224,6 +239,35 @@ class RustEncryptionService(
         }
     }
 
+    override suspend fun configureRoomKeyRecovery(policy: RoomKeyForwardingPolicy): Result<Unit> = withContext(dispatchers.io) {
+        runCatchingExceptions {
+            service.setRoomKeyRequestsEnabled(enable = true)
+            service.setRoomKeyForwardingEnabled(enable = true)
+            service.setRoomKeyForwardingPolicy(policy.toRustPolicy())
+        }.mapFailure {
+            it.mapClientException()
+        }
+    }
+
+    override suspend fun requestRoomKeyRecovery(
+        request: RoomKeyRecoveryRequest,
+        targets: List<RoomKeyRecoveryTarget>,
+        scope: RoomKeyRecoveryScope,
+    ): Result<RoomKeyRecoveryProgress> = withContext(dispatchers.io) {
+        runCatchingExceptions {
+            service.requestRoomKeyRecovery(
+                roomId = request.roomId.value,
+                sessionId = request.sessionId,
+                senderKey = request.senderKey,
+                targets = targets.map { it.toRustTarget() },
+                scope = scope.toRustScope(),
+                ciphertext = request.ciphertext,
+            ).map()
+        }.mapFailure {
+            it.mapClientException()
+        }
+    }
+
     override suspend fun deviceCurve25519(): String? {
         return runCatchingExceptions { service.curve25519Key() }.getOrNull()
     }
@@ -268,5 +312,70 @@ class RustEncryptionService(
 
     fun close() {
         service.close()
+    }
+
+    private fun RoomKeyRecoveryTarget.toRustTarget(): RustRoomKeyRecoveryTarget {
+        return RustRoomKeyRecoveryTarget(
+            userId = userId.value,
+            deviceId = deviceId,
+        )
+    }
+
+    private fun RoomKeyRecoveryScope.toRustScope(): RustRoomKeyRecoveryScope = when (this) {
+        RoomKeyRecoveryScope.OwnDevices -> RustRoomKeyRecoveryScope.OWN_DEVICES
+        RoomKeyRecoveryScope.Sender -> RustRoomKeyRecoveryScope.SENDER
+        RoomKeyRecoveryScope.RoomMember -> RustRoomKeyRecoveryScope.ROOM_MEMBER
+    }
+
+    private fun RustRoomKeyRecoveryProgress.map(): RoomKeyRecoveryProgress {
+        return RoomKeyRecoveryProgress(
+            roomId = io.element.android.libraries.matrix.api.core.RoomId(roomId),
+            sessionId = sessionId,
+            senderKey = senderKey,
+            stage = stage.map(),
+            message = message,
+            targetCount = targetCount,
+            manualRetryAvailable = manualRetryAvailable,
+        )
+    }
+
+    private fun RustRoomKeyRecoveryStage.map(): RoomKeyRecoveryStage = when (this) {
+        RustRoomKeyRecoveryStage.BACKUP_REQUESTED -> RoomKeyRecoveryStage.BackupRequested
+        RustRoomKeyRecoveryStage.BACKUP_MISSED -> RoomKeyRecoveryStage.BackupMissed
+        RustRoomKeyRecoveryStage.SENDER_REQUESTED -> RoomKeyRecoveryStage.SenderRequested
+        RustRoomKeyRecoveryStage.SENDER_TIMED_OUT -> RoomKeyRecoveryStage.SenderTimedOut
+        RustRoomKeyRecoveryStage.MEMBERS_REQUESTED -> RoomKeyRecoveryStage.MembersRequested
+        RustRoomKeyRecoveryStage.MEMBERS_UNAVAILABLE -> RoomKeyRecoveryStage.MembersUnavailable
+        RustRoomKeyRecoveryStage.RESOLVED -> RoomKeyRecoveryStage.Resolved
+        RustRoomKeyRecoveryStage.FAILED -> RoomKeyRecoveryStage.Failed
+    }
+
+    private fun RoomKeyForwardingPolicy.toRustPolicy(): RustRoomKeyForwardingPolicy {
+        return object : RustRoomKeyForwardingPolicy {
+            override fun allowForwarding(authorization: RustRoomKeyForwardingAuthorization): RustRoomKeyForwardingDecision {
+                return this@toRustPolicy.allowForwarding(authorization.map()).map()
+            }
+        }
+    }
+
+    private fun RustRoomKeyForwardingAuthorization.map(): RoomKeyForwardingAuthorization {
+        return RoomKeyForwardingAuthorization(
+            roomId = io.element.android.libraries.matrix.api.core.RoomId(roomId),
+            sessionId = sessionId,
+            senderKey = senderKey,
+            requesterUserId = UserId(requesterUserId),
+            requesterDeviceId = requesterDeviceId,
+            requestId = requestId,
+            requestedMessageIndex = requestedMessageIndex,
+            responderFirstKnownIndex = responderFirstKnownIndex,
+        )
+    }
+
+    private fun RoomKeyForwardingDecision.map(): RustRoomKeyForwardingDecision {
+        return RustRoomKeyForwardingDecision(
+            allow = allow,
+            exportIndex = exportIndex,
+            reason = reason,
+        )
     }
 }

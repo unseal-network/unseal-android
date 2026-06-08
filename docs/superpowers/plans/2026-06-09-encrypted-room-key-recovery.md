@@ -65,7 +65,7 @@ Required iOS behaviors:
 - Add: `libraries/matrix/impl/src/test/kotlin/io/element/android/libraries/matrix/impl/encryption/RustRoomKeyRecoveryTest.kt`
 - Modify: `libraries/matrix/test/src/main/kotlin/io/element/android/libraries/matrix/test/encryption/FakeEncryptionService.kt`
 
-- [ ] **Step 1: Add API models**
+- [x] **Step 1: Add API models**
 
 Add Kotlin data classes/enums:
 
@@ -82,7 +82,7 @@ fun interface RoomKeyForwardingPolicy { fun allowForwarding(...): RoomKeyForward
 
 Use Android API `RoomId`/`UserId` value classes where practical, but keep sender key/session IDs as strings.
 
-- [ ] **Step 2: Extend EncryptionService**
+- [x] **Step 2: Extend EncryptionService**
 
 Add methods:
 
@@ -95,7 +95,7 @@ suspend fun requestRoomKeyRecovery(
 ): Result<RoomKeyRecoveryProgress>
 ```
 
-- [ ] **Step 3: Implement Rust mapping**
+- [x] **Step 3: Implement Rust mapping**
 
 In `RustEncryptionService`, call:
 
@@ -108,7 +108,7 @@ inner.requestRoomKeyRecovery(roomId, sessionId, senderKey, targets, scope, ciphe
 
 Map SDK stages into API stages.
 
-- [ ] **Step 4: Test SDK mapping and forwarding policy bridge**
+- [x] **Step 4: Test SDK mapping and forwarding policy bridge**
 
 Use `FakeFfiEncryption` recorders to assert:
 
@@ -117,7 +117,7 @@ Use `FakeFfiEncryption` recorders to assert:
 - SDK progress maps back into API progress.
 - Policy returns allow/refuse decisions with reason.
 
-- [ ] **Step 5: Verify Matrix API layer**
+- [x] **Step 5: Verify Matrix API layer**
 
 Run:
 
@@ -125,11 +125,18 @@ Run:
 env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u no_proxy JAVA_HOME=/usr/local/opt/openjdk@21 ANDROID_HOME=/usr/local/share/android-commandlinetools ./gradlew --no-daemon --no-configuration-cache :libraries:matrix:impl:testDebugUnitTest --tests 'io.element.android.libraries.matrix.impl.encryption.*RoomKeyRecovery*'
 ```
 
-- [ ] **Step 6: Commit Task 1**
+- [x] **Step 6: Commit Task 1**
 
 ```bash
 git add libraries/matrix/api libraries/matrix/impl/src/main/kotlin/io/element/android/libraries/matrix/impl/encryption libraries/matrix/impl/src/test/kotlin/io/element/android/libraries/matrix/impl libraries/matrix/test/src/main/kotlin/io/element/android/libraries/matrix/test/encryption
 git commit -m "feat: expose room key recovery sdk wrapper"
+```
+
+Verification:
+
+```text
+:libraries:matrix:impl:testDebugUnitTest --tests 'io.element.android.libraries.matrix.impl.encryption.*RoomKeyRecovery*' PASS
+git diff --check PASS
 ```
 
 ### Task 2: Recovery Request Parsing And Planner

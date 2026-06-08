@@ -11,6 +11,11 @@ package io.element.android.libraries.matrix.api.encryption
 import io.element.android.libraries.architecture.AsyncData
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.encryption.identity.IdentityState
+import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyForwardingPolicy
+import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryProgress
+import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryRequest
+import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryScope
+import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryTarget
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -41,6 +46,14 @@ interface EncryptionService {
      * Note: accept both recoveryKey and passphrase.
      */
     suspend fun recover(recoveryKey: String): Result<Unit>
+
+    suspend fun configureRoomKeyRecovery(policy: RoomKeyForwardingPolicy): Result<Unit>
+
+    suspend fun requestRoomKeyRecovery(
+        request: RoomKeyRecoveryRequest,
+        targets: List<RoomKeyRecoveryTarget>,
+        scope: RoomKeyRecoveryScope,
+    ): Result<RoomKeyRecoveryProgress>
 
     /**
      * Wait for backup upload steady state.
