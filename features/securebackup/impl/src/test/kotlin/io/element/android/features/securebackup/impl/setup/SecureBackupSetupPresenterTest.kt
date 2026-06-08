@@ -228,6 +228,28 @@ class SecureBackupSetupPresenterTest {
         }
     }
 
+    @Test
+    fun `present - change recovery key failure returns to initial after dismiss`() = runTest {
+        val encryptionService = FakeEncryptionService().apply {
+            givenResetRecoveryKeyFailure(IllegalStateException("Reset failed"))
+        }
+        val presenter = createSecureBackupSetupPresenter(
+            isChangeRecoveryKeyUserStory = true,
+            encryptionService = encryptionService
+        )
+        moleculeFlow(RecompositionMode.Immediate) {
+            presenter.present()
+        }.test {
+            val initialState = awaitItem()
+            initialState.eventSink.invoke(SecureBackupSetupEvents.CreateRecoveryKey)
+            assertThat(awaitItem().setupState).isEqualTo(SetupState.Creating)
+            val failedState = awaitItem()
+            assertThat(failedState.setupState).isInstanceOf(SetupState.Error::class.java)
+            failedState.eventSink.invoke(SecureBackupSetupEvents.DismissDialog)
+            assertThat(awaitItem().setupState).isEqualTo(SetupState.Init)
+        }
+    }
+
     private fun createSecureBackupSetupPresenter(
         isChangeRecoveryKeyUserStory: Boolean = false,
         encryptionService: EncryptionService = FakeEncryptionService(
