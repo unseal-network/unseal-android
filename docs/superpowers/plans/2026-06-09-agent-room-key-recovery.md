@@ -216,7 +216,7 @@ git diff --check
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit Task 1**
+- [x] **Step 7: Commit Task 1**
 
 ```bash
 git add libraries/matrix/api libraries/matrix/impl/src/main/kotlin/io/element/android/libraries/matrix/impl/RustMatrixClient.kt libraries/matrix/impl/src/test/kotlin/io/element/android/libraries/matrix/impl libraries/matrix/test/src/main/kotlin/io/element/android/libraries/matrix/test/FakeMatrixClient.kt
@@ -238,7 +238,7 @@ git diff --check PASS
 - Add: `features/messages/impl/src/test/kotlin/io/element/android/features/messages/impl/roomkey/AgentRoomKeyRecoveryRequestParserTest.kt`
 - Add: `features/messages/impl/src/test/kotlin/io/element/android/features/messages/impl/roomkey/AgentRoomKeyRecoveryPendingStoreTest.kt`
 
-- [ ] **Step 1: Add failing parser tests**
+- [x] **Step 1: Add failing parser tests**
 
 Test cases:
 
@@ -270,7 +270,7 @@ parser.parse(
 )
 ```
 
-- [ ] **Step 2: Add failing pending store tests**
+- [x] **Step 2: Add failing pending store tests**
 
 Use a fake clock and verify:
 
@@ -280,7 +280,7 @@ Use a fake clock and verify:
 - `removePending(request)` allows immediate retry.
 - `retainOnly(listOf(request))` removes unrelated request keys.
 
-- [ ] **Step 3: Run tests to verify failure**
+- [x] **Step 3: Run tests to verify failure**
 
 Run:
 
@@ -290,7 +290,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
 
 Expected: FAIL because parser and store do not exist.
 
-- [ ] **Step 4: Implement parser**
+- [x] **Step 4: Implement parser**
 
 Implement `AgentRoomKeyRecoveryRequestParser` with:
 
@@ -310,7 +310,7 @@ Rules:
 - `sessionId = content["session_id"] ?: fallbackSessionId`.
 - `isAgentSender(userId, deviceId)` must exactly match iOS localpart/device rules.
 
-- [ ] **Step 5: Implement pending store**
+- [x] **Step 5: Implement pending store**
 
 Implement `AgentRoomKeyRecoveryPendingStore`:
 
@@ -329,7 +329,7 @@ class AgentRoomKeyRecoveryPendingStore(
 
 Use `request.identityKey` as the key.
 
-- [ ] **Step 6: Run and pass parser/store tests**
+- [x] **Step 6: Run and pass parser/store tests**
 
 Run:
 
@@ -340,11 +340,18 @@ git diff --check
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit Task 2**
+- [x] **Step 7: Commit Task 2**
 
 ```bash
 git add features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/roomkey features/messages/impl/src/test/kotlin/io/element/android/features/messages/impl/roomkey
 git commit -m "feat: parse agent room key recovery requests"
+```
+
+Verification:
+
+```text
+:features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.roomkey.AgentRoomKeyRecovery*Test' PASS
+git diff --check PASS
 ```
 
 ### Task 3: Room Agent Resolver And Ordinary Member Filtering
