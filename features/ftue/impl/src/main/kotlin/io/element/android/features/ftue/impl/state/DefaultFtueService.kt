@@ -62,7 +62,7 @@ class DefaultFtueService(
             sessionVerificationService.sessionVerifiedStatus.onEach { sessionVerifiedStatus ->
                 if (sessionVerifiedStatus == SessionVerifiedStatus.NotVerified) {
                     // Ensure we wait for the user to confirm the session verified screen before going further
-                    userNeedsToConfirmSessionVerificationSuccess.value = true
+                    userNeedsToConfirmSessionVerificationSuccess.value = !canSkipVerification()
                 }
             },
             userNeedsToConfirmSessionVerificationSuccess,
@@ -88,7 +88,7 @@ class DefaultFtueService(
             } else {
                 getNextStep(FtueStep.WaitingForInitialState)
             }
-            FtueStep.WaitingForInitialState -> if (isSessionNotVerified() || userNeedsToConfirmSessionVerificationSuccess.value) {
+            FtueStep.WaitingForInitialState -> if (isSessionNotVerified() || (userNeedsToConfirmSessionVerificationSuccess.value && !canSkipVerification())) {
                 FtueStep.SessionVerification
             } else {
                 getNextStep(FtueStep.SessionVerification)

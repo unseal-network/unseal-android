@@ -28,7 +28,9 @@ import io.element.android.services.analytics.api.AnalyticsService
 import io.element.android.services.analytics.noop.NoopAnalyticsService
 import io.element.android.services.analytics.test.FakeAnalyticsService
 import io.element.android.services.toolbox.test.sdk.FakeBuildVersionSdkIntProvider
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -136,6 +138,55 @@ class DefaultFtueServiceTest {
             analyticsService.setDidAskUserConsent()
             // Final step
             assertThat(awaitItem()).isEqualTo(InternalFtueState.Complete)
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `session verification success waits for user acknowledgement before advancing`() = runTest {
+        val sessionVerificationService = FakeSessionVerificationService().apply {
+            emitVerifiedStatus(SessionVerifiedStatus.NotVerified)
+        }
+        val analyticsService = FakeAnalyticsService()
+        val permissionStateProvider = FakePermissionStateProvider(permissionGranted = false)
+        val lockScreenService = FakeLockScreenService()
+        val service = createDefaultFtueService(
+            sessionVerificationService = sessionVerificationService,
+            analyticsService = analyticsService,
+            permissionStateProvider = permissionStateProvider,
+            lockScreenService = lockScreenService,
+        )
+
+        service.ftueStepStateFlow.test {
+            assertThat(awaitItem()).isEqualTo(InternalFtueState.Unknown)
+            assertThat(awaitItem()).isEqualTo(InternalFtueState.Incomplete(FtueStep.SessionVerification))
+
+            sessionVerificationService.emitVerifiedStatus(SessionVerifiedStatus.Verified)
+            service.updateFtueStep()
+            advanceUntilIdle()
+
+            expectNoEvents()
+
+            service.onUserCompletedSessionVerification()
+
+            assertThat(awaitItem()).isEqualTo(InternalFtueState.Incomplete(FtueStep.NotificationsOptIn))
+        }
+    }
+
+    @Test
+    fun `skipped session verification advances when session is not verified`() = runTest {
+        val sessionVerificationService = FakeSessionVerificationService().apply {
+            emitVerifiedStatus(SessionVerifiedStatus.NotVerified)
+        }
+        val sessionPreferencesStore = InMemorySessionPreferencesStore(isSessionVerificationSkipped = true)
+        val service = createDefaultFtueService(
+            sessionVerificationService = sessionVerificationService,
+            sessionPreferencesStore = sessionPreferencesStore,
+        )
+
+        service.ftueStepStateFlow.test {
+            assertThat(awaitItem()).isEqualTo(InternalFtueState.Unknown)
+            assertThat(awaitItem()).isEqualTo(InternalFtueState.Incomplete(FtueStep.NotificationsOptIn))
         }
     }
 
