@@ -20,8 +20,9 @@ import io.element.android.features.roomschedules.impl.model.isEnabled
 import io.element.android.features.roomschedules.impl.model.stableId
 import io.element.android.features.roomschedules.impl.model.withEnabledStatus
 import io.element.android.libraries.architecture.Presenter
-import io.element.android.libraries.chatbot.api.ChatbotApiService
+import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotSchedule
+import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.room.JoinedRoom
 import io.element.android.libraries.matrix.api.room.powerlevels.canEditRolesAndPermissions
@@ -34,8 +35,9 @@ class RoomSchedulesPresenter(
     @Assisted private val roomId: RoomId,
     @Assisted private val roomName: String,
     @Assisted private val joinedRoom: JoinedRoom,
-    @Assisted private val chatbotApiService: ChatbotApiService,
     @Assisted private val navigator: RoomSchedulesNavigator,
+    private val matrixClient: MatrixClient,
+    private val chatbotApiServiceFactory: ChatbotApiServiceFactory,
 ) : Presenter<RoomSchedulesState> {
     @AssistedFactory
     interface Factory {
@@ -43,7 +45,6 @@ class RoomSchedulesPresenter(
             roomId: RoomId,
             roomName: String,
             joinedRoom: JoinedRoom,
-            chatbotApiService: ChatbotApiService,
             navigator: RoomSchedulesNavigator,
         ): RoomSchedulesPresenter
     }
@@ -70,9 +71,11 @@ class RoomSchedulesPresenter(
             return throwable.message ?: throwable::class.simpleName ?: throwable.toString()
         }
 
+        suspend fun api() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
+
         fun loadSchedules() = coroutineScope.launch {
             isLoadingSchedules = true
-            chatbotApiService.listSchedules(roomId.value)
+            api().listSchedules(roomId.value)
                 .onSuccess {
                     schedules = it
                     scheduleError = null
@@ -85,7 +88,7 @@ class RoomSchedulesPresenter(
 
         fun loadMemory() = coroutineScope.launch {
             isLoadingMemory = true
-            chatbotApiService.getRoomWorkingMemory(roomId.value)
+            api().getRoomWorkingMemory(roomId.value)
                 .onSuccess {
                     workingMemory = it
                     memoryError = null
@@ -106,21 +109,22 @@ class RoomSchedulesPresenter(
             val id = schedule.stableId()
             val newEnabled = !schedule.isEnabled()
             schedules = schedules.map { if (it.stableId() == id) it.withEnabledStatus(newEnabled) else it }
-            chatbotApiService.updateScheduleStatus(id, if (newEnabled) "enabled" else "disabled")
+            val service = api()
+            service.updateScheduleStatus(id, if (newEnabled) "enabled" else "disabled")
                 .onSuccess {
                     scheduleError = null
                     navigator.onSchedulesChanged()
                 }
                 .onFailure {
                     scheduleError = errorMessage(it)
-                    chatbotApiService.listSchedules(roomId.value)
+                    service.listSchedules(roomId.value)
                         .onSuccess { reloaded -> schedules = reloaded }
                 }
         }
 
         fun deleteConfirmed() = coroutineScope.launch {
             val id = deleteConfirmationScheduleId ?: return@launch
-            chatbotApiService.deleteSchedule(id)
+            api().deleteSchedule(id)
                 .onSuccess {
                     schedules = schedules.filterNot { it.stableId() == id }
                     deleteConfirmationScheduleId = null
@@ -134,7 +138,7 @@ class RoomSchedulesPresenter(
 
         fun saveMemory() = coroutineScope.launch {
             isSavingMemory = true
-            chatbotApiService.updateRoomWorkingMemory(roomId.value, editingMemoryText)
+            api().updateRoomWorkingMemory(roomId.value, editingMemoryText)
                 .onSuccess {
                     workingMemory = editingMemoryText
                     editingMemoryText = ""
@@ -165,7 +169,7 @@ class RoomSchedulesPresenter(
                 is RoomSchedulesEvents.SelectTab -> selectedTab = event.tab
                 is RoomSchedulesEvents.ShowOnlyMineChanged -> showOnlyMine = event.showOnlyMine
                 RoomSchedulesEvents.CreateSchedule -> navigator.onCreateSchedule()
-                is RoomSchedulesEvents.EditSchedule -> navigator.onEditSchedule(event.schedule.stableId())
+                is RoomSchedulesEvents.EditSchedule -> navigator.onEditSchedule(event.schedule)
                 is RoomSchedulesEvents.ToggleSchedule -> toggle(event.schedule)
                 is RoomSchedulesEvents.RequestDeleteSchedule -> deleteConfirmationScheduleId = event.schedule.stableId()
                 RoomSchedulesEvents.ConfirmDeleteSchedule -> deleteConfirmed()

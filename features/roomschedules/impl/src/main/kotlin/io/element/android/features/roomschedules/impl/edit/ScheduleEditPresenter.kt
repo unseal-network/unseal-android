@@ -21,10 +21,11 @@ import io.element.android.features.roomschedules.impl.cron.CronPickerModel
 import io.element.android.features.roomschedules.impl.model.matrixUserId
 import io.element.android.features.roomschedules.impl.model.stableId
 import io.element.android.libraries.architecture.Presenter
-import io.element.android.libraries.chatbot.api.ChatbotApiService
+import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotCreateScheduleRequest
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotUpdateScheduleRequest
+import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.room.JoinedRoom
 import io.element.android.libraries.matrix.api.room.RoomMembershipState
@@ -38,8 +39,9 @@ class ScheduleEditPresenter(
     @Assisted private val mode: ScheduleEditMode,
     @Assisted private val roomId: RoomId,
     @Assisted private val joinedRoom: JoinedRoom,
-    @Assisted private val chatbotApiService: ChatbotApiService,
     @Assisted private val navigator: ScheduleEditNavigator,
+    private val matrixClient: MatrixClient,
+    private val chatbotApiServiceFactory: ChatbotApiServiceFactory,
 ) : Presenter<ScheduleEditState> {
     @AssistedFactory
     interface Factory {
@@ -47,7 +49,6 @@ class ScheduleEditPresenter(
             mode: ScheduleEditMode,
             roomId: RoomId,
             joinedRoom: JoinedRoom,
-            chatbotApiService: ChatbotApiService,
             navigator: ScheduleEditNavigator,
         ): ScheduleEditPresenter
     }
@@ -70,6 +71,8 @@ class ScheduleEditPresenter(
             return throwable.message ?: throwable::class.simpleName ?: throwable.toString()
         }
 
+        suspend fun api() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
+
         fun selectedAgentIsInRoom(): Boolean {
             if (selectedAgentBotName.isBlank() || joinedMemberIds.isEmpty()) return true
             return agents.firstOrNull { it.botName == selectedAgentBotName }
@@ -78,7 +81,7 @@ class ScheduleEditPresenter(
         }
 
         fun loadInitialData() = coroutineScope.launch {
-            chatbotApiService.listAgents()
+            api().listAgents()
                 .onSuccess { loadedAgents ->
                     agents = loadedAgents
                     if (mode is ScheduleEditMode.Create && selectedAgentBotName.isBlank()) {
@@ -113,10 +116,11 @@ class ScheduleEditPresenter(
             isSubmitting = true
             val timezone = TimeZone.getDefault().id
             val cron = CronParser.toCron(cronModel)
+            val service = api()
             val result = when (val currentMode = mode) {
                 ScheduleEditMode.Create -> {
                     val agentId = agents.firstOrNull { it.botName == selectedAgentBotName }?.matrixUserId() ?: selectedAgentBotName
-                    chatbotApiService.createSchedule(
+                    service.createSchedule(
                         ChatbotCreateScheduleRequest(
                             agentId = agentId,
                             name = name.trim(),
@@ -128,7 +132,7 @@ class ScheduleEditPresenter(
                     ).map { Unit }
                 }
                 is ScheduleEditMode.Edit -> {
-                    chatbotApiService.updateSchedule(
+                    service.updateSchedule(
                         scheduleId = currentMode.schedule.stableId(),
                         request = ChatbotUpdateScheduleRequest(
                             cron = cron,

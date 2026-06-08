@@ -12,9 +12,12 @@ import com.google.common.truth.Truth.assertThat
 import io.element.android.features.roomschedules.impl.model.isEnabled
 import io.element.android.features.roomschedules.impl.model.stableId
 import io.element.android.libraries.chatbot.test.FakeChatbotApiService
+import io.element.android.libraries.chatbot.test.FakeChatbotApiServiceFactory
 import io.element.android.libraries.chatbot.test.aChatbotSchedule
+import io.element.android.libraries.chatbot.api.model.schedules.ChatbotSchedule
 import io.element.android.libraries.matrix.test.A_ROOM_ID
 import io.element.android.libraries.matrix.test.A_SESSION_ID
+import io.element.android.libraries.matrix.test.FakeMatrixClient
 import io.element.android.libraries.matrix.test.room.FakeJoinedRoom
 import io.element.android.tests.testutils.WarmUpRule
 import io.element.android.tests.testutils.test
@@ -171,15 +174,16 @@ class RoomSchedulesPresenterTest {
             roomId = A_ROOM_ID,
             roomName = "Room",
             joinedRoom = room,
-            chatbotApiService = service,
             navigator = navigator,
+            matrixClient = FakeMatrixClient(),
+            chatbotApiServiceFactory = FakeChatbotApiServiceFactory(service),
         )
     }
 }
 
 private class FakeRoomSchedulesNavigator : RoomSchedulesNavigator {
     val created = mutableListOf<Unit>()
-    val edited = mutableListOf<String>()
+    val edited = mutableListOf<ChatbotSchedule>()
     var doneCalls = 0
     var changedCalls = 0
 
@@ -187,8 +191,8 @@ private class FakeRoomSchedulesNavigator : RoomSchedulesNavigator {
         created += Unit
     }
 
-    override fun onEditSchedule(scheduleId: String) {
-        edited += scheduleId
+    override fun onEditSchedule(schedule: ChatbotSchedule) {
+        edited += schedule
     }
 
     override fun onDone() {

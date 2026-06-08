@@ -13,11 +13,13 @@ import io.element.android.features.roomschedules.impl.cron.CronPickerMode
 import io.element.android.features.roomschedules.impl.cron.CronPickerModel
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 import io.element.android.libraries.chatbot.test.FakeChatbotApiService
+import io.element.android.libraries.chatbot.test.FakeChatbotApiServiceFactory
 import io.element.android.libraries.chatbot.test.aChatbotSchedule
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.room.RoomMember
 import io.element.android.libraries.matrix.api.room.RoomMembershipState
 import io.element.android.libraries.matrix.test.A_ROOM_ID
+import io.element.android.libraries.matrix.test.FakeMatrixClient
 import io.element.android.libraries.matrix.test.room.FakeBaseRoom
 import io.element.android.libraries.matrix.test.room.FakeJoinedRoom
 import io.element.android.tests.testutils.WarmUpRule
@@ -161,8 +163,9 @@ class ScheduleEditPresenterTest {
             mode = mode,
             roomId = A_ROOM_ID,
             joinedRoom = room,
-            chatbotApiService = service,
             navigator = navigator,
+            matrixClient = FakeMatrixClient(),
+            chatbotApiServiceFactory = FakeChatbotApiServiceFactory(service),
         )
     }
 

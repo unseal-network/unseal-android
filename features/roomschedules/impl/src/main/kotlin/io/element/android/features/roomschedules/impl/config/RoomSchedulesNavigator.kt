@@ -7,9 +7,11 @@
 
 package io.element.android.features.roomschedules.impl.config
 
+import io.element.android.libraries.chatbot.api.model.schedules.ChatbotSchedule
+
 interface RoomSchedulesNavigator {
     fun onCreateSchedule()
-    fun onEditSchedule(scheduleId: String)
+    fun onEditSchedule(schedule: ChatbotSchedule)
     fun onDone()
     fun onSchedulesChanged()
 }
