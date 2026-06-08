@@ -19,6 +19,7 @@ import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.ThreadId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.permalink.PermalinkData
+import io.element.android.libraries.matrix.api.room.JoinedRoom
 import kotlinx.parcelize.Parcelize
 
 interface MessagesEntryPoint : FeatureEntryPoint {
@@ -39,6 +40,7 @@ interface MessagesEntryPoint : FeatureEntryPoint {
         fun forwardEvent(eventId: EventId, fromPinnedEvents: Boolean)
         fun navigateToRoom(roomId: RoomId)
         fun navigateToDeveloperSettings()
+        fun navigateToRoomSchedules(roomId: RoomId, roomName: String, joinedRoom: JoinedRoom)
     }
 
     data class Params(val initialTarget: InitialTarget) : NodeInputs

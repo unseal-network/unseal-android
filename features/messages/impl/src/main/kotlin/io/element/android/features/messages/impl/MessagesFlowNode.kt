@@ -79,6 +79,7 @@ import io.element.android.libraries.matrix.api.core.toRoomIdOrAlias
 import io.element.android.libraries.matrix.api.media.MediaSource
 import io.element.android.libraries.matrix.api.permalink.PermalinkData
 import io.element.android.libraries.matrix.api.room.BaseRoom
+import io.element.android.libraries.matrix.api.room.JoinedRoom
 import io.element.android.libraries.matrix.api.room.alias.matches
 import io.element.android.libraries.matrix.api.room.joinedRoomMembers
 import io.element.android.libraries.matrix.api.roomlist.RoomListService
@@ -310,6 +311,10 @@ class MessagesFlowNode(
 
                     override fun navigateToPinnedMessagesList() {
                         backstack.push(NavTarget.PinnedMessagesList)
+                    }
+
+                    override fun navigateToRoomSchedules(roomId: RoomId, roomName: String, joinedRoom: JoinedRoom) {
+                        callback.navigateToRoomSchedules(roomId, roomName, joinedRoom)
                     }
 
                     override fun navigateToKnockRequestsList() {

@@ -29,6 +29,7 @@ import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.permalink.PermalinkData
+import io.element.android.libraries.matrix.api.room.JoinedRoom
 import io.element.android.libraries.matrix.test.AN_EVENT_ID
 import io.element.android.libraries.matrix.test.A_SESSION_ID
 import io.element.android.libraries.matrix.test.A_USER_ID
@@ -97,6 +98,7 @@ class DefaultMessagesEntryPointTest {
             override fun forwardEvent(eventId: EventId, fromPinnedEvents: Boolean) = lambdaError()
             override fun navigateToRoom(roomId: RoomId) = lambdaError()
             override fun navigateToDeveloperSettings() = lambdaError()
+            override fun navigateToRoomSchedules(roomId: RoomId, roomName: String, joinedRoom: JoinedRoom) = lambdaError()
         }
         val initialTarget = MessagesEntryPoint.InitialTarget.Messages(focusedEventId = AN_EVENT_ID)
         val params = MessagesEntryPoint.Params(initialTarget)

@@ -32,6 +32,7 @@ import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.messages.impl.MessagesMenuActions
 import io.element.android.features.messages.impl.SharedHistoryIcon
+import io.element.android.features.messages.impl.aRoomScheduleBadgeState
 import io.element.android.features.roomcall.api.RoomCallState
 import io.element.android.features.roomcall.api.aStandByCallState
 import io.element.android.features.roomcall.api.anOngoingCallState
@@ -197,8 +198,10 @@ internal fun MessagesViewTopBarPreview() = ElementPreview {
         menuActions = {
             MessagesMenuActions(
                 roomCallState = roomCallState,
+                roomScheduleBadgeState = aRoomScheduleBadgeState(),
                 displayThreads = displayThreads,
                 onJoinCallClick = {},
+                onRoomSchedulesClick = {},
                 onThreadsListClick = {},
             )
         }

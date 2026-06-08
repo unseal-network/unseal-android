@@ -56,6 +56,8 @@ import io.element.android.features.messages.impl.voicemessages.composer.DefaultV
 import io.element.android.features.roomcall.api.RoomCallState
 import io.element.android.features.roommembermoderation.api.RoomMemberModerationEvents
 import io.element.android.features.roommembermoderation.api.RoomMemberModerationState
+import io.element.android.features.roomschedules.impl.room.RoomScheduleBadgeEvents
+import io.element.android.features.roomschedules.impl.room.RoomScheduleBadgePresenter
 import io.element.android.libraries.androidutils.clipboard.ClipboardHelper
 import io.element.android.libraries.architecture.AsyncData
 import io.element.android.libraries.architecture.Presenter
@@ -114,6 +116,7 @@ class MessagesPresenter(
     private val reactionSummaryPresenter: Presenter<ReactionSummaryState>,
     private val readReceiptBottomSheetPresenter: Presenter<ReadReceiptBottomSheetState>,
     private val pinnedMessagesBannerPresenter: Presenter<PinnedMessagesBannerState>,
+    roomScheduleBadgePresenterFactory: RoomScheduleBadgePresenter.Factory,
     private val roomCallStatePresenter: Presenter<RoomCallState>,
     private val roomMemberModerationPresenter: Presenter<RoomMemberModerationState>,
     private val snackbarDispatcher: SnackbarDispatcher,
@@ -145,6 +148,10 @@ class MessagesPresenter(
     private val voiceMessageComposerPresenter = voiceMessageComposerPresenterFactory.create(
         timelineMode = timelineController.mainTimelineMode()
     )
+    private val roomScheduleBadgePresenter = roomScheduleBadgePresenterFactory.create(
+        roomId = room.roomId,
+        joinedRoom = room,
+    )
 
     private val markingAsReadAndExiting = AtomicBoolean(false)
 
@@ -166,6 +173,7 @@ class MessagesPresenter(
         val reactionSummaryState = reactionSummaryPresenter.present()
         val readReceiptBottomSheetState = readReceiptBottomSheetPresenter.present()
         val pinnedMessagesBannerState = pinnedMessagesBannerPresenter.present()
+        val roomScheduleBadgeState = roomScheduleBadgePresenter.present()
         val roomCallState = roomCallStatePresenter.present()
         val roomMemberModerationState = roomMemberModerationPresenter.present()
         val threadsList by produceState(persistentListOf()) {
@@ -192,6 +200,7 @@ class MessagesPresenter(
             mutableStateOf(false)
         }
         LaunchedEffect(Unit) {
+            roomScheduleBadgeState.eventSink(RoomScheduleBadgeEvents.OnAppear)
             // Remove the unread flag on entering but don't send read receipts
             // as those will be handled by the timeline.
             withContext(dispatchers.io) {
@@ -202,6 +211,10 @@ class MessagesPresenter(
                     room.getUpdatedIsEncrypted()
                 }
             }
+        }
+        LifecycleResumeEffect(Unit) {
+            roomScheduleBadgeState.eventSink(RoomScheduleBadgeEvents.Refresh)
+            onPauseOrDispose {}
         }
 
         val inviteProgress = remember { mutableStateOf<AsyncData<Unit>>(AsyncData.Uninitialized) }
@@ -316,6 +329,7 @@ class MessagesPresenter(
             showReinvitePrompt = showReinvitePrompt,
             enableTextFormatting = MessageComposerConfig.ENABLE_RICH_TEXT_EDITING,
             roomCallState = roomCallState,
+            roomScheduleBadgeState = roomScheduleBadgeState,
             appName = buildMeta.applicationName,
             pinnedMessagesBannerState = pinnedMessagesBannerState,
             dmUserVerificationState = dmUserVerificationState,

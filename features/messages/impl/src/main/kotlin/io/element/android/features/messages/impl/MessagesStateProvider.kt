@@ -41,6 +41,7 @@ import io.element.android.features.roomcall.api.aStandByCallState
 import io.element.android.features.roommembermoderation.api.RoomMemberModerationEvents
 import io.element.android.features.roommembermoderation.api.RoomMemberModerationPermissions
 import io.element.android.features.roommembermoderation.api.RoomMemberModerationState
+import io.element.android.features.roomschedules.impl.room.RoomScheduleBadgeState
 import io.element.android.libraries.architecture.AsyncData
 import io.element.android.libraries.designsystem.components.avatar.AvatarData
 import io.element.android.libraries.designsystem.components.avatar.AvatarSize
@@ -119,6 +120,7 @@ fun aMessagesState(
     reactionSummaryState: ReactionSummaryState = aReactionSummaryState(),
     showReinvitePrompt: Boolean = false,
     roomCallState: RoomCallState = aStandByCallState(),
+    roomScheduleBadgeState: RoomScheduleBadgeState = aRoomScheduleBadgeState(),
     pinnedMessagesBannerState: PinnedMessagesBannerState = aLoadedPinnedMessagesBannerState(),
     dmUserVerificationState: IdentityState? = null,
     roomMemberModerationState: RoomMemberModerationState = aRoomMemberModerationState(),
@@ -151,6 +153,7 @@ fun aMessagesState(
     showReinvitePrompt = showReinvitePrompt,
     enableTextFormatting = true,
     roomCallState = roomCallState,
+    roomScheduleBadgeState = roomScheduleBadgeState,
     appName = "Element",
     pinnedMessagesBannerState = pinnedMessagesBannerState,
     dmUserVerificationState = dmUserVerificationState,
@@ -160,6 +163,15 @@ fun aMessagesState(
     threads = threads,
     showLiveLocationShareBanner = isCurrentlySharingLiveLocationInRoom,
     eventSink = eventSink,
+)
+
+fun aRoomScheduleBadgeState(
+    isVisible: Boolean = false,
+    activeScheduleCount: Int = 0,
+) = RoomScheduleBadgeState(
+    isVisible = isVisible,
+    activeScheduleCount = activeScheduleCount,
+    eventSink = {},
 )
 
 fun aRoomMemberModerationState(

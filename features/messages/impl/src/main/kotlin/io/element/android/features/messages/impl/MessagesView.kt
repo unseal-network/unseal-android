@@ -30,6 +30,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -96,6 +98,7 @@ import io.element.android.features.messages.impl.topbars.ThreadTopBar
 import io.element.android.features.messages.impl.voicemessages.composer.VoiceMessagePermissionRationaleDialog
 import io.element.android.features.messages.impl.voicemessages.composer.VoiceMessageSendingFailedDialog
 import io.element.android.features.roomcall.api.RoomCallState
+import io.element.android.features.roomschedules.impl.room.RoomScheduleBadgeState
 import io.element.android.libraries.androidutils.ui.hideKeyboard
 import io.element.android.libraries.designsystem.atomic.molecules.ComposerAlertMolecule
 import io.element.android.libraries.designsystem.components.ExpandableBottomSheetLayout
@@ -141,6 +144,7 @@ fun MessagesView(
     onSendLocationClick: () -> Unit,
     onCreatePollClick: () -> Unit,
     onJoinCallClick: (isAudioCall: Boolean) -> Unit,
+    onRoomSchedulesClick: () -> Unit,
     onViewAllPinnedMessagesClick: () -> Unit,
     onThreadsListClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -242,7 +246,9 @@ fun MessagesView(
                                 MessagesMenuActions(
                                     displayThreads = state.timelineState.timelineMode !is Timeline.Mode.Thread && state.threads.hasThreads,
                                     roomCallState = state.roomCallState,
+                                    roomScheduleBadgeState = state.roomScheduleBadgeState,
                                     onJoinCallClick = onJoinCallClick,
+                                    onRoomSchedulesClick = onRoomSchedulesClick,
                                     onThreadsListClick = onThreadsListClick
                                 )
                             }
@@ -416,7 +422,9 @@ fun MessagesView(
 internal fun RowScope.MessagesMenuActions(
     displayThreads: Boolean,
     roomCallState: RoomCallState,
+    roomScheduleBadgeState: RoomScheduleBadgeState,
     onJoinCallClick: (isAudioCall: Boolean) -> Unit,
+    onRoomSchedulesClick: () -> Unit,
     onThreadsListClick: () -> Unit,
 ) {
     if (displayThreads) {
@@ -425,6 +433,24 @@ internal fun RowScope.MessagesMenuActions(
             imageVector = CompoundIcons.ThreadsSolid(),
             contentDescription = stringResource(CommonStrings.common_threads),
         )
+        Spacer(Modifier.width(8.dp))
+    }
+    if (roomScheduleBadgeState.isVisible) {
+        BadgedBox(
+            badge = {
+                if (roomScheduleBadgeState.activeScheduleCount > 0) {
+                    Badge {
+                        Text(roomScheduleBadgeState.activeScheduleCount.toString())
+                    }
+                }
+            }
+        ) {
+            Icon(
+                modifier = Modifier.clickable(enabled = true, onClick = onRoomSchedulesClick),
+                imageVector = CompoundIcons.Calendar(),
+                contentDescription = "Room AI Config",
+            )
+        }
         Spacer(Modifier.width(8.dp))
     }
     CallMenuItem(
@@ -642,6 +668,7 @@ internal fun MessagesViewPreview(@PreviewParameter(MessagesStateProvider::class)
         onSendLocationClick = {},
         onCreatePollClick = {},
         onJoinCallClick = {},
+        onRoomSchedulesClick = {},
         onViewAllPinnedMessagesClick = { },
         forceJumpToBottomVisibility = true,
         knockRequestsBannerView = {},
@@ -697,6 +724,7 @@ internal fun MessagesViewA11yPreview() = ElementPreview {
         onSendLocationClick = {},
         onCreatePollClick = {},
         onJoinCallClick = {},
+        onRoomSchedulesClick = {},
         onViewAllPinnedMessagesClick = {},
         onThreadsListClick = {},
         forceJumpToBottomVisibility = true,

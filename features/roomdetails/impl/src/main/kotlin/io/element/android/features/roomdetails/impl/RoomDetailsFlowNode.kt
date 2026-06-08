@@ -409,6 +409,8 @@ class RoomDetailsFlowNode(
                     override fun navigateToDeveloperSettings() {
                         callback.navigateToDeveloperSettings()
                     }
+
+                    override fun navigateToRoomSchedules(roomId: RoomId, roomName: String, joinedRoom: JoinedRoom) = Unit
                 }
                 return messagesEntryPoint.createNode(
                     parentNode = this,

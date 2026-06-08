@@ -30,6 +30,7 @@ import io.element.android.appnav.room.RoomNavigationTarget
 import io.element.android.features.forward.api.ForwardEntryPoint
 import io.element.android.features.messages.api.MessagesEntryPoint
 import io.element.android.features.roomdetails.api.RoomDetailsEntryPoint
+import io.element.android.features.roomschedules.api.RoomSchedulesEntryPoint
 import io.element.android.features.space.api.SpaceEntryPoint
 import io.element.android.libraries.architecture.BackstackView
 import io.element.android.libraries.architecture.BaseFlowNode
@@ -63,6 +64,7 @@ class JoinedRoomLoadedFlowNode(
     @Assisted buildContext: BuildContext,
     @Assisted plugins: List<Plugin>,
     private val messagesEntryPoint: MessagesEntryPoint,
+    private val roomSchedulesEntryPoint: RoomSchedulesEntryPoint,
     private val roomDetailsEntryPoint: RoomDetailsEntryPoint,
     private val spaceEntryPoint: SpaceEntryPoint,
     private val forwardEntryPoint: ForwardEntryPoint,
@@ -183,6 +185,9 @@ class JoinedRoomLoadedFlowNode(
             NavTarget.RoomDetails -> {
                 createRoomDetailsNode(buildContext, RoomDetailsEntryPoint.InitialTarget.RoomDetails)
             }
+            is NavTarget.RoomSchedules -> {
+                createRoomSchedulesNode(buildContext, navTarget.roomName)
+            }
             is NavTarget.RoomMemberDetails -> {
                 createRoomDetailsNode(buildContext, RoomDetailsEntryPoint.InitialTarget.RoomMemberDetails(navTarget.userId))
             }
@@ -238,6 +243,26 @@ class JoinedRoomLoadedFlowNode(
         )
     }
 
+    private fun createRoomSchedulesNode(buildContext: BuildContext, roomName: String): Node {
+        val callback = object : RoomSchedulesEntryPoint.Callback {
+            override fun onDone() {
+                backstack.pop()
+            }
+
+            override fun onSchedulesChanged() = Unit
+        }
+        return roomSchedulesEntryPoint.createNode(
+            parentNode = this,
+            buildContext = buildContext,
+            params = RoomSchedulesEntryPoint.Params(
+                roomId = inputs.room.roomId,
+                roomName = roomName,
+                joinedRoom = inputs.room,
+            ),
+            callback = callback,
+        )
+    }
+
     private fun createMessagesNode(
         buildContext: BuildContext,
         navTarget: NavTarget.Messages,
@@ -266,6 +291,10 @@ class JoinedRoomLoadedFlowNode(
             override fun navigateToDeveloperSettings() {
                 callback.navigateToDeveloperSettings()
             }
+
+            override fun navigateToRoomSchedules(roomId: RoomId, roomName: String, joinedRoom: JoinedRoom) {
+                backstack.push(NavTarget.RoomSchedules(roomName))
+            }
         }
         val params = MessagesEntryPoint.Params(
             MessagesEntryPoint.InitialTarget.Messages(navTarget.focusedEventId)
@@ -289,6 +318,11 @@ class JoinedRoomLoadedFlowNode(
 
         @Parcelize
         data object RoomDetails : NavTarget
+
+        @Parcelize
+        data class RoomSchedules(
+            val roomName: String,
+        ) : NavTarget
 
         @Parcelize
         data object RoomMemberList : NavTarget

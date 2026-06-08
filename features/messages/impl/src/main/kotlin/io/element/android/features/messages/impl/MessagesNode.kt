@@ -132,6 +132,7 @@ class MessagesNode(
         fun navigateToThread(threadRootId: ThreadId, focusedEventId: EventId?)
         fun navigateToRoomDetails()
         fun navigateToPinnedMessagesList()
+        fun navigateToRoomSchedules(roomId: RoomId, roomName: String, joinedRoom: JoinedRoom)
         fun navigateToKnockRequestsList()
         fun navigateToDeveloperSettings()
 
@@ -300,6 +301,13 @@ class MessagesNode(
                 onCreatePollClick = callback::navigateToCreatePoll,
                 onJoinCallClick = { isAudioCall ->
                     callback.navigateToRoomCall(room.roomId, isAudioCall)
+                },
+                onRoomSchedulesClick = {
+                    callback.navigateToRoomSchedules(
+                        roomId = room.roomId,
+                        roomName = state.roomName ?: room.roomId.value,
+                        joinedRoom = room,
+                    )
                 },
                 onViewAllPinnedMessagesClick = callback::navigateToPinnedMessagesList,
                 modifier = modifier,
