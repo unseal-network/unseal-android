@@ -50,7 +50,7 @@ Do not create:
 - Create: `features/agentmanagement/test/build.gradle.kts`
 - Create: `features/agentmanagement/test/src/main/kotlin/io/element/android/features/agentmanagement/test/FakeAgentManagementEntryPoint.kt`
 
-- [ ] **Step 1: Write API module build file**
+- [x] **Step 1: Write API module build file**
 
 Create `features/agentmanagement/api/build.gradle.kts`:
 
@@ -77,7 +77,7 @@ dependencies {
 }
 ```
 
-- [ ] **Step 2: Write API entry point**
+- [x] **Step 2: Write API entry point**
 
 Create `features/agentmanagement/api/src/main/kotlin/io/element/android/features/agentmanagement/api/AgentManagementEntryPoint.kt`:
 
@@ -134,7 +134,7 @@ interface AgentManagementEntryPoint : FeatureEntryPoint {
 }
 ```
 
-- [ ] **Step 3: Write implementation module build file**
+- [x] **Step 3: Write implementation module build file**
 
 Create `features/agentmanagement/impl/build.gradle.kts`:
 
@@ -189,7 +189,7 @@ dependencies {
 }
 ```
 
-- [ ] **Step 4: Write test module build file**
+- [x] **Step 4: Write test module build file**
 
 Create `features/agentmanagement/test/build.gradle.kts`:
 
@@ -216,7 +216,7 @@ dependencies {
 }
 ```
 
-- [ ] **Step 5: Write default entry point binding**
+- [x] **Step 5: Write default entry point binding**
 
 Create `features/agentmanagement/impl/src/main/kotlin/io/element/android/features/agentmanagement/impl/DefaultAgentManagementEntryPoint.kt`:
 
@@ -253,7 +253,7 @@ class DefaultAgentManagementEntryPoint : AgentManagementEntryPoint {
 }
 ```
 
-- [ ] **Step 6: Write flow node skeleton**
+- [x] **Step 6: Write flow node skeleton**
 
 Create `features/agentmanagement/impl/src/main/kotlin/io/element/android/features/agentmanagement/impl/AgentManagementFlowNode.kt`:
 
@@ -406,7 +406,7 @@ private fun AgentManagementEntryPoint.InitialTarget.toNavTarget(): AgentManageme
 }
 ```
 
-- [ ] **Step 7: Write fake test entry point**
+- [x] **Step 7: Write fake test entry point**
 
 Create `features/agentmanagement/test/src/main/kotlin/io/element/android/features/agentmanagement/test/FakeAgentManagementEntryPoint.kt`:
 
@@ -444,7 +444,7 @@ class FakeAgentManagementEntryPoint : AgentManagementEntryPoint {
 }
 ```
 
-- [ ] **Step 8: Run module skeleton compile**
+- [x] **Step 8: Run module skeleton compile**
 
 Run:
 
@@ -454,7 +454,7 @@ Run:
 
 Expected: build succeeds. If Gradle says the project path is unknown, add the three new modules to the repository module include mechanism or `settings.gradle.kts`, then rerun the same command.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add features/agentmanagement docs/superpowers/specs/2026-06-08-agent-management-design.md docs/superpowers/plans/2026-06-08-agent-management.md
@@ -472,7 +472,7 @@ git commit -m "feat: add agent management feature shell"
 - Test: `features/agentmanagement/impl/src/test/kotlin/io/element/android/features/agentmanagement/impl/shared/AgentFormatterTest.kt`
 - Test: `features/agentmanagement/impl/src/test/kotlin/io/element/android/features/agentmanagement/impl/shared/AgentProviderFormTest.kt`
 
-- [ ] **Step 1: Write formatter tests**
+- [x] **Step 1: Write formatter tests**
 
 Create `features/agentmanagement/impl/src/test/kotlin/io/element/android/features/agentmanagement/impl/shared/AgentFormatterTest.kt`:
 
@@ -518,7 +518,7 @@ class AgentFormatterTest {
 }
 ```
 
-- [ ] **Step 2: Implement formatter**
+- [x] **Step 2: Implement formatter**
 
 Create `features/agentmanagement/impl/src/main/kotlin/io/element/android/features/agentmanagement/impl/shared/AgentFormatter.kt`:
 
@@ -551,7 +551,7 @@ fun ChatbotAgent.agentMatrixUserId(): String? {
 fun ChatbotAgent.copyableAgentId(): String = agentMatrixUserId() ?: matrixId() ?: botName
 ```
 
-- [ ] **Step 3: Write provider form tests**
+- [x] **Step 3: Write provider form tests**
 
 Create `features/agentmanagement/impl/src/test/kotlin/io/element/android/features/agentmanagement/impl/shared/AgentProviderFormTest.kt`:
 
@@ -599,7 +599,7 @@ class AgentProviderFormTest {
 }
 ```
 
-- [ ] **Step 4: Implement provider helpers**
+- [x] **Step 4: Implement provider helpers**
 
 Create `features/agentmanagement/impl/src/main/kotlin/io/element/android/features/agentmanagement/impl/shared/AgentProviderForm.kt`:
 
@@ -635,7 +635,7 @@ fun selectModelId(provider: ChatbotAgentProvider?, currentModelId: String): Stri
 fun needsApiKey(providerId: String?): Boolean = providerId != null && providerId != "unseal"
 ```
 
-- [ ] **Step 5: Implement direct chat seam**
+- [x] **Step 5: Implement direct chat seam**
 
 Create `features/agentmanagement/impl/src/main/kotlin/io/element/android/features/agentmanagement/impl/shared/AgentDirectChatService.kt`:
 
@@ -671,7 +671,7 @@ class DefaultAgentDirectChatService(
 
 If `MatrixClient` uses different method names, adapt this file only to the actual Matrix API. Keep the interface unchanged for presenter tests.
 
-- [ ] **Step 6: Run shared tests**
+- [x] **Step 6: Run shared tests**
 
 Run:
 
@@ -681,7 +681,7 @@ Run:
 
 Expected: tests pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add features/agentmanagement/impl/src/main/kotlin/io/element/android/features/agentmanagement/impl/shared features/agentmanagement/impl/src/test/kotlin/io/element/android/features/agentmanagement/impl/shared
@@ -700,7 +700,7 @@ git commit -m "feat: add agent management shared helpers"
 - Create: `features/agentmanagement/impl/src/main/kotlin/io/element/android/features/agentmanagement/impl/list/AgentListView.kt`
 - Test: `features/agentmanagement/impl/src/test/kotlin/io/element/android/features/agentmanagement/impl/list/AgentListPresenterTest.kt`
 
-- [ ] **Step 1: Write presenter tests**
+- [x] **Step 1: Write presenter tests**
 
 Create `AgentListPresenterTest.kt` with tests for load-once, refresh, sorting, search, and failure. Use `FakeChatbotApiService` from `libraries/chatbot/test` and assert state through Compose presenter test helpers used elsewhere in the repo.
 
@@ -713,7 +713,7 @@ Minimum test cases:
 @Test fun `present - load failure keeps previous data and exposes error`()
 ```
 
-- [ ] **Step 2: Implement state/events**
+- [x] **Step 2: Implement state/events**
 
 State must include:
 
@@ -742,7 +742,7 @@ sealed interface AgentListEvents {
 }
 ```
 
-- [ ] **Step 3: Implement presenter**
+- [x] **Step 3: Implement presenter**
 
 Presenter behavior:
 
@@ -753,7 +753,7 @@ Presenter behavior:
 - filter by trimmed query over `botName`, `displayName`, `description`, ignoring case;
 - call node callback through a navigator interface for create/detail/skills.
 
-- [ ] **Step 4: Implement node and view**
+- [x] **Step 4: Implement node and view**
 
 Node:
 
@@ -771,7 +771,7 @@ View:
 - show empty state;
 - show list rows with display title, provider/model, description, public/private badge.
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 ```bash
 ./gradlew --no-daemon --no-configuration-cache :features:agentmanagement:impl:testDebugUnitTest --tests '*AgentListPresenterTest'
@@ -779,7 +779,7 @@ View:
 
 Expected: tests pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add features/agentmanagement/impl/src/main/kotlin/io/element/android/features/agentmanagement/impl/list features/agentmanagement/impl/src/test/kotlin/io/element/android/features/agentmanagement/impl/list
@@ -798,7 +798,7 @@ git commit -m "feat: add agent list flow"
 - Create: `features/agentmanagement/impl/src/main/kotlin/io/element/android/features/agentmanagement/impl/detail/AgentDetailView.kt`
 - Test: `features/agentmanagement/impl/src/test/kotlin/io/element/android/features/agentmanagement/impl/detail/AgentDetailPresenterTest.kt`
 
-- [ ] **Step 1: Write presenter tests**
+- [x] **Step 1: Write presenter tests**
 
 Minimum test cases:
 
@@ -812,7 +812,7 @@ Minimum test cases:
 @Test fun `event - leave room calls api and reloads rooms`()
 ```
 
-- [ ] **Step 2: Implement state/events**
+- [x] **Step 2: Implement state/events**
 
 State must include:
 
@@ -834,7 +834,7 @@ data class AgentDetailState(
 
 Events must include `OnAppear`, `Refresh`, `Edit`, `CopyAgentId`, `ToggleSoulExpanded`, `ManageSkills`, `StartChat`, `OpenRoom(roomId)`, `LeaveRoom(roomId)`, and `ClearError`.
 
-- [ ] **Step 3: Implement presenter**
+- [x] **Step 3: Implement presenter**
 
 Presenter behavior:
 
@@ -846,7 +846,7 @@ Presenter behavior:
 - after creating direct room, call `ChatbotApiService.agentJoinRoom(botName, roomId.value)` best effort;
 - call navigator for edit, skills, and open room.
 
-- [ ] **Step 4: Implement node and view**
+- [x] **Step 4: Implement node and view**
 
 View sections:
 
@@ -857,7 +857,7 @@ View sections:
 - skills seam row/button that calls `ManageSkills`;
 - rooms list with empty state and rows.
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 ```bash
 ./gradlew --no-daemon --no-configuration-cache :features:agentmanagement:impl:testDebugUnitTest --tests '*AgentDetailPresenterTest'
@@ -865,7 +865,7 @@ View sections:
 
 Expected: tests pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add features/agentmanagement/impl/src/main/kotlin/io/element/android/features/agentmanagement/impl/detail features/agentmanagement/impl/src/test/kotlin/io/element/android/features/agentmanagement/impl/detail
@@ -884,7 +884,7 @@ git commit -m "feat: add agent detail flow"
 - Create: `features/agentmanagement/impl/src/main/kotlin/io/element/android/features/agentmanagement/impl/edit/AgentEditView.kt`
 - Test: `features/agentmanagement/impl/src/test/kotlin/io/element/android/features/agentmanagement/impl/edit/AgentEditPresenterTest.kt`
 
-- [ ] **Step 1: Write presenter tests**
+- [x] **Step 1: Write presenter tests**
 
 Minimum test cases:
 
@@ -899,7 +899,7 @@ Minimum test cases:
 @Test fun `event - submit edit maps update request and emits updated action`()
 ```
 
-- [ ] **Step 2: Implement state/events**
+- [x] **Step 2: Implement state/events**
 
 State must represent:
 
@@ -911,7 +911,7 @@ State must represent:
 
 Events must include `OnAppear`, `RefreshProviders`, field change events, `BotNameChanged`, `ProviderChanged`, `Submit`, `GoToChat`, `CreateAnother`, and `ClearError`.
 
-- [ ] **Step 3: Implement presenter**
+- [x] **Step 3: Implement presenter**
 
 Presenter behavior:
 
@@ -936,7 +936,7 @@ Presenter behavior:
   - emit updated callback.
 - Do not call voice, vault, sandbox, or skills APIs.
 
-- [ ] **Step 4: Implement node and view**
+- [x] **Step 4: Implement node and view**
 
 View:
 
@@ -948,7 +948,7 @@ View:
 - submit section;
 - success phase with created agent summary and actions for go to chat/create another/done.
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 ```bash
 ./gradlew --no-daemon --no-configuration-cache :features:agentmanagement:impl:testDebugUnitTest --tests '*AgentEditPresenterTest'
@@ -956,7 +956,7 @@ View:
 
 Expected: tests pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add features/agentmanagement/impl/src/main/kotlin/io/element/android/features/agentmanagement/impl/edit features/agentmanagement/impl/src/test/kotlin/io/element/android/features/agentmanagement/impl/edit
@@ -970,7 +970,7 @@ git commit -m "feat: add agent create edit flow"
 **Files:**
 - Modify tests only if verification exposes gaps.
 
-- [ ] **Step 1: Run feature tests**
+- [x] **Step 1: Run feature tests**
 
 ```bash
 ./gradlew --no-daemon --no-configuration-cache :features:agentmanagement:impl:testDebugUnitTest
@@ -978,7 +978,7 @@ git commit -m "feat: add agent create edit flow"
 
 Expected: all agent management tests pass.
 
-- [ ] **Step 2: Run compile checks**
+- [x] **Step 2: Run compile checks**
 
 ```bash
 ./gradlew --no-daemon --no-configuration-cache :features:agentmanagement:impl:compileDebugKotlin :features:agentmanagement:impl:compileDebugUnitTestKotlin
@@ -986,7 +986,7 @@ Expected: all agent management tests pass.
 
 Expected: compile succeeds.
 
-- [ ] **Step 3: Re-run chatbot foundation tests**
+- [x] **Step 3: Re-run chatbot foundation tests**
 
 ```bash
 ./gradlew --no-daemon --no-configuration-cache :libraries:chatbot:api:testDebugUnitTest :libraries:chatbot:impl:testDebugUnitTest :libraries:chatbot:test:testDebugUnitTest
@@ -994,7 +994,7 @@ Expected: compile succeeds.
 
 Expected: tests pass or no-source where appropriate.
 
-- [ ] **Step 4: Run forbidden dependency scan**
+- [x] **Step 4: Run forbidden dependency scan**
 
 ```bash
 rg -n "rustsdk|org\\.matrix\\.rust|voiceplayer|voicerecorder|UnsealUI|UnsealAgent|UnsealMiniApp|Vault|vault|sandbox|Sandbox" features/agentmanagement -g '!**/build/**'
@@ -1002,7 +1002,7 @@ rg -n "rustsdk|org\\.matrix\\.rust|voiceplayer|voicerecorder|UnsealUI|UnsealAgen
 
 Expected: no output except allowed text in spec/plan. If code output appears, remove the dependency or move that work to its later feature spec.
 
-- [ ] **Step 5: Run unfinished-work scan**
+- [x] **Step 5: Run unfinished-work scan**
 
 ```bash
 rg -n "TODO|FIXME|TBD|implement later|fill in details|Not implemented|error\\(" features/agentmanagement -g '!**/build/**'
@@ -1010,7 +1010,7 @@ rg -n "TODO|FIXME|TBD|implement later|fill in details|Not implemented|error\\(" 
 
 Expected: no output in production source. Test sentinels are acceptable only when they fail on unexpected calls with a clear message.
 
-- [ ] **Step 6: Inspect final status**
+- [x] **Step 6: Inspect final status**
 
 ```bash
 git status --short --branch
@@ -1018,7 +1018,7 @@ git status --short --branch
 
 Expected: clean working tree after commits, or only intentional uncommitted review fixes.
 
-- [ ] **Step 7: Commit final review fixes if any**
+- [x] **Step 7: Commit final review fixes if any**
 
 ```bash
 git add features/agentmanagement docs/superpowers/specs/2026-06-08-agent-management-design.md docs/superpowers/plans/2026-06-08-agent-management.md
