@@ -199,7 +199,7 @@ git diff --check PASS
 - Add: `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/roomkey/RoomKeyRecoveryProgressStore.kt`
 - Add tests for both stores.
 
-- [ ] **Step 1: Implement pending store**
+- [x] **Step 1: Implement pending store**
 
 Persist 30-minute retry deadlines per recovery identity key. Provide:
 
@@ -209,7 +209,7 @@ Persist 30-minute retry deadlines per recovery identity key. Provide:
 - `retainOnly(requests)`
 - `pruneExpired()`
 
-- [ ] **Step 2: Implement progress store**
+- [x] **Step 2: Implement progress store**
 
 Persist current stage, plan stages, start time, deadline, and failed timestamp. Provide:
 
@@ -219,15 +219,22 @@ Persist current stage, plan stages, start time, deadline, and failed timestamp. 
 - `remove(request)`
 - `retainOnly(requests)`
 
-- [ ] **Step 3: Test persistence semantics**
+- [x] **Step 3: Test persistence semantics**
 
 Use fake clock/storage. Cover retry suppression, forced retry, pruning, failed record display, active record remaining time, and retain-only behavior.
 
-- [ ] **Step 4: Commit Task 3**
+- [x] **Step 4: Commit Task 3**
 
 ```bash
 git add features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/roomkey features/messages/impl/src/test/kotlin/io/element/android/features/messages/impl/roomkey
 git commit -m "feat: persist room key recovery progress"
+```
+
+Verification:
+
+```text
+:features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.roomkey.*' PASS
+git diff --check PASS
 ```
 
 ### Task 4: Timeline Recovery Coordinator
