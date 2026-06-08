@@ -10,14 +10,11 @@ package io.element.android.libraries.matrix.impl.tracing
 
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
-import io.element.android.libraries.core.data.ByteUnit
-import io.element.android.libraries.core.data.megaBytes
 import io.element.android.libraries.core.meta.BuildMeta
 import io.element.android.libraries.matrix.api.tracing.LogLevel
 import io.element.android.libraries.matrix.api.tracing.TracingConfiguration
 import io.element.android.libraries.matrix.api.tracing.TracingService
 import io.element.android.libraries.matrix.api.tracing.WriteToFilesConfiguration
-import org.matrix.rustcomponents.sdk.SentryConfig
 import org.matrix.rustcomponents.sdk.TracingFileConfiguration
 import org.matrix.rustcomponents.sdk.reloadTracingFileWriter
 import timber.log.Timber
@@ -52,10 +49,7 @@ private fun WriteToFilesConfiguration.toTracingFileConfiguration(): TracingFileC
             path = directory,
             filePrefix = filenamePrefix,
             fileSuffix = filenameSuffix,
-            // Have at max 100MB of logs in disk
-            maxTotalSizeBytes = 100.megaBytes.into(ByteUnit.BYTES).toULong(),
-            // Store up to 7 days of logs
-            maxAgeSeconds = (7 * 24 * 60 * 60).toULong(),
+            maxFiles = 10uL,
         )
     }
 }
@@ -66,11 +60,5 @@ fun TracingConfiguration.map(buildMeta: BuildMeta): org.matrix.rustcomponents.sd
     extraTargets = extraTargets,
     traceLogPacks = traceLogPacks.map(),
     writeToFiles = writesToFilesConfiguration.toTracingFileConfiguration(),
-    sentryConfig = sdkSentryDsn?.let {
-        SentryConfig(
-            dsn = it,
-            appVersion = buildMeta.versionName,
-            appPlatform = "Android",
-        )
-    }
+    sentryDsn = sdkSentryDsn,
 )

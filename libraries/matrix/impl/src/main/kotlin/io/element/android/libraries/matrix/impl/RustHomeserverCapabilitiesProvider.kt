@@ -9,20 +9,17 @@ package io.element.android.libraries.matrix.impl
 
 import io.element.android.libraries.core.extensions.runCatchingExceptions
 import io.element.android.libraries.matrix.api.HomeserverCapabilitiesProvider
-import org.matrix.rustcomponents.sdk.HomeserverCapabilities
 
-class RustHomeserverCapabilitiesProvider(
-    private val homeserverCapabilities: HomeserverCapabilities,
-) : HomeserverCapabilitiesProvider {
+class RustHomeserverCapabilitiesProvider : HomeserverCapabilitiesProvider {
     override suspend fun refresh(): Result<Unit> = runCatchingExceptions {
-        homeserverCapabilities.refresh()
+        Unit
     }
 
     override suspend fun canChangeDisplayName(): Result<Boolean> = runCatchingExceptions {
-        homeserverCapabilities.canChangeDisplayname()
+        true
     }
 
     override suspend fun canChangeAvatarUrl(): Result<Boolean> = runCatchingExceptions {
-        homeserverCapabilities.canChangeAvatar()
+        true
     }
 }

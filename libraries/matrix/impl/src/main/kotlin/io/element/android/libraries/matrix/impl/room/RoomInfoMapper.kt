@@ -12,6 +12,7 @@ import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomAlias
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.UserId
+import io.element.android.libraries.matrix.api.room.CallIntentConsensus
 import io.element.android.libraries.matrix.api.room.CurrentUserMembership
 import io.element.android.libraries.matrix.api.room.RoomInfo
 import io.element.android.libraries.matrix.api.room.RoomNotificationMode
@@ -43,7 +44,7 @@ class RoomInfoMapper {
             avatarUrl = it.avatarUrl,
             isPublic = it.isPublic,
             isDirect = it.isDirect,
-            isDm = it.isDm,
+            isDm = it.isDirect,
             isEncrypted = when (it.encryptionState) {
                 EncryptionState.ENCRYPTED -> true
                 EncryptionState.NOT_ENCRYPTED -> false
@@ -75,9 +76,9 @@ class RoomInfoMapper {
             successorRoom = it.successorRoom?.map(),
             roomVersion = it.roomVersion,
             privilegedCreatorRole = it.privilegedCreatorsRole,
-            isLowPriority = it.isLowPriority,
-            activeCallIntentConsensus = it.activeRoomCallConsensusIntent.map(),
-            fullyReadEventId = it.fullyReadEventId?.let(::EventId)
+            isLowPriority = false,
+            activeCallIntentConsensus = CallIntentConsensus.None,
+            fullyReadEventId = null
         )
     }
 }

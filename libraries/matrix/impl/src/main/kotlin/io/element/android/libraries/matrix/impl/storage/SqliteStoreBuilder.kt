@@ -43,7 +43,7 @@ class RustSqliteStoreBuilder(
             is ClientSecret.Passphrase -> inner = inner.passphrase(clientSecret.value)
             is ClientSecret.RawKey -> {
                 // Ensure the key is 32 bytes long, as required by the SDK
-                inner = inner.key(clientSecret.keyOfSize(32))
+                inner = inner.passphrase(clientSecret.keyOfSize(32).toHexString())
             }
         }
         return this
@@ -64,4 +64,8 @@ private fun ClientSecret.RawKey.keyOfSize(size: Int): ByteArray {
         // Otherwise, take the first 32 bytes of the key
         bytes.copyOfRange(0, 32)
     }
+}
+
+private fun ByteArray.toHexString(): String = joinToString(separator = "") { byte ->
+    "%02x".format(byte)
 }

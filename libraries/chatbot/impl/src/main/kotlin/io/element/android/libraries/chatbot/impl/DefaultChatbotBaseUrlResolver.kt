@@ -9,6 +9,7 @@ package io.element.android.libraries.chatbot.impl
 
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
+import dev.zacsweers.metro.binding
 import io.element.android.libraries.chatbot.api.ChatbotBaseUrlResolver
 import io.element.android.libraries.chatbot.api.ChatbotConfig
 import io.element.android.libraries.chatbot.impl.model.InternalUnsealWellKnown
@@ -16,8 +17,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
 
-@ContributesBinding(AppScope::class)
-internal class DefaultChatbotBaseUrlResolver(
+@ContributesBinding(AppScope::class, binding = binding<ChatbotBaseUrlResolver>())
+class DefaultChatbotBaseUrlResolver(
     private val wellKnownFetcher: ChatbotWellKnownFetcher,
 ) : ChatbotBaseUrlResolver {
     private val mutex = Mutex()

@@ -54,7 +54,6 @@ import org.matrix.rustcomponents.sdk.QrCodeData
 import org.matrix.rustcomponents.sdk.QrCodeDecodeException
 import org.matrix.rustcomponents.sdk.QrLoginProgress
 import org.matrix.rustcomponents.sdk.QrLoginProgressListener
-import org.matrix.rustcomponents.sdk.SecretsBundleWithUserId
 import timber.log.Timber
 import uniffi.matrix_sdk.OAuthAuthorizationData
 import kotlin.time.Duration.Companion.seconds
@@ -181,24 +180,7 @@ class RustMatrixAuthenticationService(
                 it.userId.value == client.userId()
             }
             ?.let {
-                val secrets = it.secrets
-                val roomKeysVersion = it.roomKeysVersion
-                if (secrets == null || roomKeysVersion == null) {
-                    Timber.d("No secrets or roomKeysVersion found for Element Classic session ${it.userId}, skipping import")
-                } else {
-                    Timber.d("Trying to import secrets for Element Classic session ${it.userId}")
-                    runCatchingExceptions {
-                        SecretsBundleWithUserId.fromStr(
-                            userId = it.userId.value,
-                            bundle = secrets,
-                            backupInfo = roomKeysVersion,
-                        ).use { secretsBundle ->
-                            client.encryption().importSecretsBundle(secretsBundle)
-                        }
-                    }.onFailure { failure ->
-                        Timber.e(failure, "Failed to import secrets for Element Classic session ${it.userId}")
-                    }
-                }
+                Timber.d("Element Classic secret import is not available with Matrix Rust SDK 26.06.5, skipping import for ${it.userId}")
             }
     }
 
@@ -207,18 +189,8 @@ class RustMatrixAuthenticationService(
         secrets: String,
         backupInfo: String,
     ): Boolean {
-        return try {
-            SecretsBundleWithUserId.fromStr(
-                userId = userId.value,
-                bundle = secrets,
-                backupInfo = backupInfo,
-            ).use { secretsBundle ->
-                secretsBundle.containsBackupKey()
-            }
-        } catch (failure: Exception) {
-            Timber.e(failure, "Failed to parse secrets for Element Classic session $userId")
-            false
-        }
+        Timber.d("Element Classic secret parsing is not available with Matrix Rust SDK 26.06.5, skipping check for $userId")
+        return false
     }
 
     override suspend fun importCreatedSession(externalSession: ExternalSession): Result<SessionId> =
@@ -260,13 +232,13 @@ class RustMatrixAuthenticationService(
         return withContext(coroutineDispatchers.io) {
             runCatchingExceptions {
                 val client = currentClient ?: error("You need to call `setHomeserver()` first")
-                val oAuthAuthorizationData = client.urlForOauth(
-                    oauthConfiguration = oAuthConfigurationProvider.get(),
-                    prompt = prompt.toRustPrompt(),
-                    loginHint = loginHint,
+                val oAuthAuthorizationData = client.urlForOidc(
+                    oAuthConfigurationProvider.get(),
+                    prompt.toRustPrompt(),
+                    loginHint,
                     // If we want to restore a previous session for which we have encryption keys, we can pass the deviceId here. At the moment, we don't
-                    deviceId = null,
-                    additionalScopes = emptyList(),
+                    null,
+                    emptyList(),
                 )
                 val url = oAuthAuthorizationData.loginUrl()
                     .let {
@@ -288,7 +260,7 @@ class RustMatrixAuthenticationService(
         return withContext(coroutineDispatchers.io) {
             runCatchingExceptions {
                 pendingOAuthAuthorizationData?.use {
-                    currentClient?.abortOauthAuth(it)
+                    currentClient?.abortOidcAuth(it)
                 }
                 pendingOAuthAuthorizationData = null
             }.mapFailure { failure ->
@@ -310,7 +282,7 @@ class RustMatrixAuthenticationService(
             runCatchingExceptions {
                 val client = currentClient ?: error("You need to call `setHomeserver()` first")
                 val currentSessionPaths = sessionPaths ?: error("You need to call `setHomeserver()` first")
-                client.loginWithOauthCallback(
+                client.loginWithOidcCallback(
                     callbackUrl = callbackUrl,
                 )
                 // Free the pending data since we won't use it to abort the flow anymore
@@ -374,7 +346,7 @@ class RustMatrixAuthenticationService(
                     qrCodeData = sdkQrCodeLoginData,
                 )
                 client.newLoginWithQrCodeHandler(
-                    oauthConfiguration = oAuthConfiguration,
+                    oidcConfiguration = oAuthConfiguration,
                 ).use {
                     it.scan(
                         qrCodeData = qrCodeData.rustQrCodeData,
@@ -432,10 +404,7 @@ class RustMatrixAuthenticationService(
         qrCodeData: QrCodeData,
     ): Client {
         Timber.d("Creating client for QR Code login with simplified sliding sync")
-        // The 2025 version of MSC4108 provides baseUrl; the 2024 version has null baseUrl and uses
-        // serverName instead, which can be null or malformed. We only enforce presence/non-blankness
-        // here and rely on serverNameOrHomeserverUrl()/the Rust builder layer to validate structure.
-        val baseUrlOrServerName = qrCodeData.baseUrl() ?: qrCodeData.serverName()
+        val baseUrlOrServerName = qrCodeData.serverName()
 
         if (baseUrlOrServerName == null) {
             // With the 2024 version of MSC4108 we treat the absence of serverName as meaning that

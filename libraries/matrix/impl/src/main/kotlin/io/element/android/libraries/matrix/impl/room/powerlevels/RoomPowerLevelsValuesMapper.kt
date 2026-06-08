@@ -26,8 +26,8 @@ object RoomPowerLevelsValuesMapper {
             roomAvatar = values.roomAvatar,
             roomTopic = values.roomTopic,
             spaceChild = values.spaceChild,
-            beacon = values.beacon,
-            beaconInfo = values.beaconInfo,
+            beacon = 0,
+            beaconInfo = 0,
         )
     }
 }

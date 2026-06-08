@@ -9,10 +9,11 @@ package io.element.android.libraries.chatbot.impl
 
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
+import dev.zacsweers.metro.binding
 import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.sessionstorage.api.SessionStore
 
-@ContributesBinding(AppScope::class)
+@ContributesBinding(AppScope::class, binding = binding<ChatbotAccessTokenProvider>())
 class DefaultChatbotAccessTokenProvider(
     private val sessionStore: SessionStore,
 ) : ChatbotAccessTokenProvider {

@@ -42,6 +42,7 @@ import io.element.android.libraries.matrix.api.room.RoomMembershipObserver
 import io.element.android.libraries.matrix.api.room.alias.ResolvedRoomAlias
 import io.element.android.libraries.matrix.api.room.history.RoomHistoryVisibility
 import io.element.android.libraries.matrix.api.room.join.JoinRule
+import io.element.android.libraries.matrix.api.room.location.BeaconInfoUpdate
 import io.element.android.libraries.matrix.api.roomdirectory.RoomVisibility
 import io.element.android.libraries.matrix.api.roomlist.RoomListService
 import io.element.android.libraries.matrix.api.spaces.SpaceService
@@ -70,7 +71,6 @@ import io.element.android.libraries.matrix.impl.room.RustRoomFactory
 import io.element.android.libraries.matrix.impl.room.TimelineEventFilterFactory
 import io.element.android.libraries.matrix.impl.room.history.map
 import io.element.android.libraries.matrix.impl.room.join.map
-import io.element.android.libraries.matrix.impl.room.location.map
 import io.element.android.libraries.matrix.impl.room.preview.RoomPreviewInfoMapper
 import io.element.android.libraries.matrix.impl.roomdirectory.RustRoomDirectoryService
 import io.element.android.libraries.matrix.impl.roomdirectory.map
@@ -104,6 +104,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
@@ -114,8 +115,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.matrix.rustcomponents.sdk.AuthData
 import org.matrix.rustcomponents.sdk.AuthDataPasswordDetails
-import org.matrix.rustcomponents.sdk.BeaconInfoListener
-import org.matrix.rustcomponents.sdk.BeaconInfoUpdate
 import org.matrix.rustcomponents.sdk.Client
 import org.matrix.rustcomponents.sdk.ClientException
 import org.matrix.rustcomponents.sdk.IgnoredUsersListener
@@ -210,14 +209,7 @@ class RustMatrixClient(
         analyticsService = analyticsService,
     )
 
-    override val ownBeaconInfoUpdates = mxCallbackFlow {
-        val listener = object : BeaconInfoListener {
-            override fun onUpdate(update: BeaconInfoUpdate) {
-                trySend(update.map())
-            }
-        }
-        innerClient.subscribeToOwnBeaconInfoUpdates(listener)
-    }
+    override val ownBeaconInfoUpdates: Flow<BeaconInfoUpdate> = emptyFlow()
 
     override val sessionVerificationService = RustSessionVerificationService(
         client = innerClient,
@@ -810,7 +802,7 @@ class RustMatrixClient(
 
     override suspend fun getMapStyleUrl(): Result<String?> = withContext(sessionDispatcher) {
         runCatchingExceptions {
-            innerClient.tileServer()?.mapStyleUrl
+            null
         }
     }
 
@@ -856,7 +848,7 @@ class RustMatrixClient(
     }
 
     override fun homeserverCapabilities(): HomeserverCapabilitiesProvider {
-        return RustHomeserverCapabilitiesProvider(innerClient.homeserverCapabilities())
+        return RustHomeserverCapabilitiesProvider()
     }
 }
 

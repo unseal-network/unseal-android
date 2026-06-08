@@ -35,14 +35,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.withContext
 import org.matrix.rustcomponents.sdk.Client
 import org.matrix.rustcomponents.sdk.ClientBuilder
-import org.matrix.rustcomponents.sdk.CrossProcessLockConfig
 import org.matrix.rustcomponents.sdk.RequestConfig
 import org.matrix.rustcomponents.sdk.Session
 import org.matrix.rustcomponents.sdk.SlidingSyncVersion
 import org.matrix.rustcomponents.sdk.SlidingSyncVersionBuilder
 import org.matrix.rustcomponents.sdk.use
 import timber.log.Timber
-import uniffi.matrix_sdk_base.DmRoomDefinition
 import uniffi.matrix_sdk_base.MediaRetentionPolicy
 import uniffi.matrix_sdk_crypto.CollectStrategy
 import uniffi.matrix_sdk_crypto.DecryptionSettings
@@ -72,7 +70,6 @@ class RustMatrixClientFactory(
     private val sessionDelegate = RustClientSessionDelegate(
         sessionStore = sessionStore,
         appCoroutineScope = appCoroutineScope,
-        analyticsService = analyticsService,
     )
 
     suspend fun create(sessionData: SessionData): RustMatrixClient = withContext(coroutineDispatchers.io) {
@@ -107,11 +104,6 @@ class RustMatrixClientFactory(
 
     suspend fun create(client: Client): RustMatrixClient {
         val (anonymizedAccessToken, anonymizedRefreshToken) = client.session().anonymizedTokens()
-
-        // Must be called before creating the sync service, timelines etc.
-        if (featureFlagService.isFeatureEnabled(FeatureFlags.AutomaticBackPagination)) {
-            client.enableAutomaticBackpagination()
-        }
 
         client.setUtdDelegate(UtdTracker(analyticsService))
 
@@ -172,7 +164,6 @@ class RustMatrixClientFactory(
             )
             .enableShareHistoryOnInvite(true)
             .threadsEnabled(featureFlagService.isFeatureEnabled(FeatureFlags.Threads), threadSubscriptions = false)
-            .dmRoomDefinition(DmRoomDefinition.TWO_MEMBERS)
             .requestConfig(
                 RequestConfig(
                     timeout = 30_000uL,
@@ -184,7 +175,7 @@ class RustMatrixClientFactory(
                 )
             )
             // Make sure all built clients use the single process cross-process lock config
-            .crossProcessLockConfig(CrossProcessLockConfig.SingleProcess)
+            .crossProcessStoreLocksHolderName("unseal-android")
             .run {
                 // Apply sliding sync version settings
                 when (slidingSyncType) {
@@ -218,5 +209,5 @@ fun SessionData.toSession() = Session(
     deviceId = deviceId,
     homeserverUrl = homeserverUrl,
     slidingSyncVersion = SlidingSyncVersion.NATIVE,
-    oauthData = oAuthData,
+    oidcData = oAuthData,
 )

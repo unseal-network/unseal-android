@@ -9,12 +9,12 @@
 package io.element.android.libraries.matrix.impl.auth
 
 import io.element.android.libraries.matrix.api.auth.OAuthPrompt
-import org.matrix.rustcomponents.sdk.OAuthPrompt as RustOAuthPrompt
+import org.matrix.rustcomponents.sdk.OidcPrompt as RustOidcPrompt
 
-internal fun OAuthPrompt.toRustPrompt(): RustOAuthPrompt {
+internal fun OAuthPrompt.toRustPrompt(): RustOidcPrompt {
     return when (this) {
-        OAuthPrompt.Login -> RustOAuthPrompt.Unknown("consent")
-        OAuthPrompt.Create -> RustOAuthPrompt.Create
-        is OAuthPrompt.Unknown -> RustOAuthPrompt.Unknown(value)
+        OAuthPrompt.Login -> RustOidcPrompt.Unknown("consent")
+        OAuthPrompt.Create -> RustOidcPrompt.Create
+        is OAuthPrompt.Unknown -> RustOidcPrompt.Unknown(value)
     }
 }

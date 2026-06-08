@@ -21,7 +21,6 @@ import org.matrix.rustcomponents.sdk.StateEventContent
 import org.matrix.rustcomponents.sdk.TimelineEvent
 import org.matrix.rustcomponents.sdk.TimelineEventContent
 import org.matrix.rustcomponents.sdk.use
-import org.matrix.rustcomponents.sdk.RtcCallIntent as SdkRtcCallIntent
 import org.matrix.rustcomponents.sdk.RtcNotificationType as SdkRtcNotificationType
 
 class TimelineEventToNotificationContentMapper {
@@ -49,6 +48,7 @@ private fun StateEventContent.toContent(): NotificationContent.StateEvent {
         StateEventContent.PolicyRuleRoom -> NotificationContent.StateEvent.PolicyRuleRoom
         StateEventContent.PolicyRuleServer -> NotificationContent.StateEvent.PolicyRuleServer
         StateEventContent.PolicyRuleUser -> NotificationContent.StateEvent.PolicyRuleUser
+        StateEventContent.RoomAliases -> NotificationContent.StateEvent.RoomCanonicalAlias
         StateEventContent.RoomAvatar -> NotificationContent.StateEvent.RoomAvatar
         StateEventContent.RoomCanonicalAlias -> NotificationContent.StateEvent.RoomCanonicalAlias
         StateEventContent.RoomCreate -> NotificationContent.StateEvent.RoomCreate
@@ -84,7 +84,7 @@ private fun MessageLikeEventContent.toContent(senderId: UserId): NotificationCon
             is MessageLikeEventContent.RtcNotification -> NotificationContent.MessageLike.RtcNotification(
                 senderId = senderId,
                 type = notificationType.map(),
-                callIntent = callIntent.map(),
+                callIntent = CallIntent.VIDEO,
                 expirationTimestampMillis = expirationTs.toLong()
             )
             MessageLikeEventContent.KeyVerificationAccept -> NotificationContent.MessageLike.KeyVerificationAccept
@@ -112,9 +112,4 @@ private fun MessageLikeEventContent.toContent(senderId: UserId): NotificationCon
 private fun SdkRtcNotificationType.map(): RtcNotificationType = when (this) {
     SdkRtcNotificationType.NOTIFICATION -> RtcNotificationType.NOTIFY
     SdkRtcNotificationType.RING -> RtcNotificationType.RING
-}
-
-private fun SdkRtcCallIntent?.map(): CallIntent = when (this) {
-    SdkRtcCallIntent.AUDIO -> CallIntent.AUDIO
-    else -> CallIntent.VIDEO
 }

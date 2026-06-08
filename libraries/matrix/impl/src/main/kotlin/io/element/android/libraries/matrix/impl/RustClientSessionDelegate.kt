@@ -10,24 +10,19 @@ package io.element.android.libraries.matrix.impl
 
 import io.element.android.libraries.core.extensions.runCatchingExceptions
 import io.element.android.libraries.core.log.logger.LoggerTag
-import io.element.android.libraries.matrix.impl.core.SdkBackgroundTaskError
 import io.element.android.libraries.matrix.impl.mapper.toSessionData
 import io.element.android.libraries.matrix.impl.paths.getSessionPaths
 import io.element.android.libraries.matrix.impl.util.anonymizedTokens
 import io.element.android.libraries.sessionstorage.api.SessionStore
-import io.element.android.services.analytics.api.AnalyticsService
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.matrix.rustcomponents.sdk.ClientDelegate
 import org.matrix.rustcomponents.sdk.ClientSessionDelegate
 import org.matrix.rustcomponents.sdk.Session
 import timber.log.Timber
-import uniffi.matrix_sdk_common.BackgroundTaskFailureReason
 import java.lang.ref.WeakReference
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.time.Duration.Companion.milliseconds
 
 private val loggerTag = LoggerTag("RustClientSessionDelegate")
 
@@ -41,7 +36,6 @@ private val loggerTag = LoggerTag("RustClientSessionDelegate")
 class RustClientSessionDelegate(
     private val sessionStore: SessionStore,
     private val appCoroutineScope: CoroutineScope,
-    private val analyticsService: AnalyticsService,
 ) : ClientSessionDelegate, ClientDelegate {
     // Used to ensure several calls to `didReceiveAuthError` don't trigger multiple logouts
     private val isLoggingOut = AtomicBoolean(false)
@@ -130,21 +124,6 @@ class RustClientSessionDelegate(
             }
         }.onFailure {
             Timber.tag(loggerTag.value).e(it, "Failed to remove session data.")
-        }
-    }
-
-    override fun onBackgroundTaskErrorReport(taskName: String, error: BackgroundTaskFailureReason) {
-        val backgroundTaskError = SdkBackgroundTaskError(taskName, error)
-        Timber.e(backgroundTaskError, "SDK background task failed")
-        analyticsService.trackError(backgroundTaskError)
-
-        if (error is BackgroundTaskFailureReason.Panic) {
-            appCoroutineScope.launch {
-                // The SDK failed in an unrecoverable way, so it will have indeterminate behaviour now.
-                // Crash the app instead after a small delay to send the error.
-                delay(500.milliseconds)
-                throw backgroundTaskError
-            }
         }
     }
 

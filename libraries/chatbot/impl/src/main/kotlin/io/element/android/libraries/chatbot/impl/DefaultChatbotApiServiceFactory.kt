@@ -9,6 +9,7 @@ package io.element.android.libraries.chatbot.impl
 
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
+import dev.zacsweers.metro.binding
 import io.element.android.libraries.chatbot.api.ChatbotApiService
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
 import io.element.android.libraries.chatbot.api.ChatbotBaseUrlResolver
@@ -16,7 +17,7 @@ import io.element.android.libraries.chatbot.api.ChatbotConfig
 import io.element.android.libraries.matrix.api.MatrixClient
 import okhttp3.OkHttpClient
 
-@ContributesBinding(AppScope::class)
+@ContributesBinding(AppScope::class, binding = binding<ChatbotApiServiceFactory>())
 class DefaultChatbotApiServiceFactory(
     private val okHttpClient: () -> OkHttpClient,
     private val tokenProvider: ChatbotAccessTokenProvider,

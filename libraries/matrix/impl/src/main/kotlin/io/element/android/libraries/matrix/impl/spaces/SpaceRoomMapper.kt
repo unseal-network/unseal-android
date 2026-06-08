@@ -36,7 +36,7 @@ class SpaceRoomMapper {
             worldReadable = spaceRoom.worldReadable.orFalse(),
             via = spaceRoom.via.toImmutableList(),
             isDirect = spaceRoom.isDirect,
-            isDm = spaceRoom.isDm,
+            isDm = spaceRoom.isDirect,
         )
     }
 }

@@ -9,15 +9,16 @@ package io.element.android.libraries.chatbot.impl
 
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
+import dev.zacsweers.metro.binding
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
-internal fun interface ChatbotWellKnownFetcher {
+fun interface ChatbotWellKnownFetcher {
     suspend fun fetch(serverName: String): String?
 }
 
-@ContributesBinding(AppScope::class)
-internal class DefaultChatbotWellKnownFetcher(
+@ContributesBinding(AppScope::class, binding = binding<ChatbotWellKnownFetcher>())
+class DefaultChatbotWellKnownFetcher(
     private val okHttpClient: () -> OkHttpClient,
 ) : ChatbotWellKnownFetcher {
     override suspend fun fetch(serverName: String): String? {

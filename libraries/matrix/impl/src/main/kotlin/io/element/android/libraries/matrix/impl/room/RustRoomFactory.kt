@@ -131,7 +131,7 @@ class RustRoomFactory(
                         sdkRoom.timelineWithConfiguration(
                             TimelineConfiguration(
                                 focus = TimelineFocus.Live(hideThreadedEvents = hideThreadedEvents),
-                                filter = eventFilters?.let(TimelineFilter::EventFilter) ?: TimelineFilter.All,
+                                filter = eventFilters ?: TimelineFilter.All,
                                 internalIdPrefix = "live",
                                 dateDividerMode = DateDividerMode.DAILY,
                                 trackReadReceipts = TimelineReadReceiptTracking.ALL_EVENTS,

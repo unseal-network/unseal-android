@@ -12,19 +12,22 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import io.element.android.libraries.matrix.api.room.StateEventType
 import org.matrix.rustcomponents.sdk.FilterTimelineEventType
-import org.matrix.rustcomponents.sdk.TimelineEventFilter
+import org.matrix.rustcomponents.sdk.TimelineEventTypeFilter
+import org.matrix.rustcomponents.sdk.TimelineFilter
 
 interface TimelineEventFilterFactory {
-    fun create(listStateEventType: List<StateEventType>): TimelineEventFilter
+    fun create(listStateEventType: List<StateEventType>): TimelineFilter
 }
 
 @ContributesBinding(AppScope::class)
 class RustTimelineEventFilterFactory : TimelineEventFilterFactory {
-    override fun create(listStateEventType: List<StateEventType>): TimelineEventFilter {
-        return TimelineEventFilter.excludeEventTypes(
-            listStateEventType.map { stateEventType ->
-                FilterTimelineEventType.State(stateEventType.map())
-            }
+    override fun create(listStateEventType: List<StateEventType>): TimelineFilter {
+        return TimelineFilter.EventTypeFilter(
+            TimelineEventTypeFilter.exclude(
+                listStateEventType.map { stateEventType ->
+                    FilterTimelineEventType.State(stateEventType.map())
+                }
+            )
         )
     }
 }
