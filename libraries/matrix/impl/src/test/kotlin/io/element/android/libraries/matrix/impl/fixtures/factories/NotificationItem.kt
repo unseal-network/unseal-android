@@ -9,7 +9,6 @@
 package io.element.android.libraries.matrix.impl.fixtures.factories
 
 import io.element.android.libraries.matrix.api.core.ThreadId
-import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.impl.fixtures.fakes.FakeFfiTimelineEvent
 import io.element.android.libraries.matrix.test.A_ROOM_NAME
 import io.element.android.libraries.matrix.test.A_USER_NAME
@@ -31,7 +30,6 @@ internal fun aRustNotificationItem(
     hasMention: Boolean? = false,
     threadId: ThreadId? = null,
     actions: List<Action>? = null,
-    rawEvent: String = "",
 ) = NotificationItem(
     event = event,
     senderInfo = senderInfo,
@@ -40,7 +38,6 @@ internal fun aRustNotificationItem(
     hasMention = hasMention,
     threadId = threadId?.value,
     actions = actions,
-    rawEvent = rawEvent,
 )
 
 internal fun aRustBatchNotificationResultOk(
@@ -70,7 +67,7 @@ internal fun aRustNotificationRoomInfo(
     isDm: Boolean = false,
     joinRule: JoinRule? = null,
     isSpace: Boolean = false,
-    serviceMembers: List<UserId> = emptyList(),
+    serviceMembers: List<io.element.android.libraries.matrix.api.core.UserId> = emptyList(),
     activeServiceMemberCount: Int = 0,
 ) = NotificationRoomInfo(
     displayName = displayName,
@@ -80,11 +77,8 @@ internal fun aRustNotificationRoomInfo(
     joinedMembersCount = joinedMembersCount,
     isEncrypted = isEncrypted,
     isDirect = isDirect,
-    isDm = isDm,
     joinRule = joinRule,
     isSpace = isSpace,
-    serviceMembers = serviceMembers.map { it.value },
-    activeServiceMembersCount = activeServiceMemberCount.toULong(),
 )
 
 internal fun aRustNotificationEventTimeline(

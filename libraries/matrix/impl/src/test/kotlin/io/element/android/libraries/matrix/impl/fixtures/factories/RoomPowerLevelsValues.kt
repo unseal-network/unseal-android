@@ -22,8 +22,8 @@ internal fun aRustRoomPowerLevelsValues(
     roomAvatar: Long,
     roomTopic: Long,
     spaceChild: Long,
-    beacon: Long,
-    beaconInfo: Long,
+    beacon: Long = 0,
+    beaconInfo: Long = 0,
 ) = RoomPowerLevelsValues(
     ban = ban,
     invite = invite,
@@ -36,6 +36,4 @@ internal fun aRustRoomPowerLevelsValues(
     roomAvatar = roomAvatar,
     roomTopic = roomTopic,
     spaceChild = spaceChild,
-    beacon = beacon,
-    beaconInfo = beaconInfo,
 )

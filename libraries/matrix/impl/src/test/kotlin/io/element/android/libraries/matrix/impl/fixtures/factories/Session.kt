@@ -24,6 +24,6 @@ internal fun aRustSession(
     userId = A_USER_ID.value,
     deviceId = A_DEVICE_ID.value,
     homeserverUrl = A_HOMESERVER_URL,
-    oauthData = null,
+    oidcData = null,
     slidingSyncVersion = proxy,
 )

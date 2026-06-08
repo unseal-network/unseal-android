@@ -36,7 +36,6 @@ internal fun aRustSpaceRoom(
 ) = SpaceRoom(
     roomId = roomId.value,
     isDirect = isDirect,
-    isDm = isDm,
     canonicalAlias = canonicalAlias,
     rawName = rawName,
     displayName = displayName,

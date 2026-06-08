@@ -19,7 +19,6 @@ import org.matrix.rustcomponents.sdk.RoomInfo
 import org.matrix.rustcomponents.sdk.RoomMember
 import org.matrix.rustcomponents.sdk.RoomNotificationMode
 import org.matrix.rustcomponents.sdk.RoomPowerLevels
-import org.matrix.rustcomponents.sdk.RtcCallIntentConsensus
 import org.matrix.rustcomponents.sdk.SuccessorRoom
 import uniffi.matrix_sdk_base.EncryptionState
 
@@ -34,6 +33,7 @@ internal fun aRustRoomInfo(
     isPublic: Boolean = false,
     isSpace: Boolean = false,
     isFavourite: Boolean = false,
+    isPinned: Boolean = false,
     canonicalAlias: String? = null,
     alternativeAliases: List<String> = listOf(),
     membership: Membership = Membership.JOINED,
@@ -59,10 +59,8 @@ internal fun aRustRoomInfo(
     successorRoom: SuccessorRoom? = null,
     roomVersion: String? = "11",
     privilegedCreatorsRole: Boolean = false,
-    serviceMembers: List<String> = emptyList(),
     isLowPriority: Boolean = false,
-    activeRoomCallConsensusIntent: RtcCallIntentConsensus = RtcCallIntentConsensus.None,
-    activeServiceMembersCount: Int = 0,
+    activeRoomCallConsensusIntent: Any? = null,
     isDm: Boolean = false,
     fullyReadEventId: String? = null,
 ) = RoomInfo(
@@ -76,6 +74,7 @@ internal fun aRustRoomInfo(
     isPublic = isPublic,
     isSpace = isSpace,
     isFavourite = isFavourite,
+    isPinned = isPinned,
     canonicalAlias = canonicalAlias,
     alternativeAliases = alternativeAliases,
     membership = membership,
@@ -101,10 +100,4 @@ internal fun aRustRoomInfo(
     successorRoom = successorRoom,
     roomVersion = roomVersion,
     privilegedCreatorsRole = privilegedCreatorsRole,
-    serviceMembers = serviceMembers,
-    isLowPriority = isLowPriority,
-    activeRoomCallConsensusIntent = activeRoomCallConsensusIntent,
-    activeServiceMembersCount = activeServiceMembersCount.toULong(),
-    isDm = isDm,
-    fullyReadEventId = fullyReadEventId,
 )

@@ -46,8 +46,8 @@ class RoomPowerLevelsValuesMapperTest {
                 roomAvatar = 9,
                 roomTopic = 10,
                 spaceChild = 11,
-                beacon = 12,
-                beaconInfo = 13,
+                beacon = 0,
+                beaconInfo = 0,
             )
         )
     }

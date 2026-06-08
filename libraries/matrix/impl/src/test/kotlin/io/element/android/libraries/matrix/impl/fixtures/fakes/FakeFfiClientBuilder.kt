@@ -11,13 +11,11 @@ package io.element.android.libraries.matrix.impl.fixtures.fakes
 import org.matrix.rustcomponents.sdk.Client
 import org.matrix.rustcomponents.sdk.ClientBuilder
 import org.matrix.rustcomponents.sdk.ClientSessionDelegate
-import org.matrix.rustcomponents.sdk.CrossProcessLockConfig
 import org.matrix.rustcomponents.sdk.NoHandle
 import org.matrix.rustcomponents.sdk.RequestConfig
 import org.matrix.rustcomponents.sdk.SlidingSyncVersionBuilder
 import org.matrix.rustcomponents.sdk.SqliteStoreBuilder
 import uniffi.matrix_sdk.BackupDownloadStrategy
-import uniffi.matrix_sdk_base.DmRoomDefinition
 import uniffi.matrix_sdk_crypto.CollectStrategy
 import uniffi.matrix_sdk_crypto.DecryptionSettings
 
@@ -47,7 +45,8 @@ class FakeFfiClientBuilder(
     override fun threadsEnabled(enabled: Boolean, threadSubscriptions: Boolean): ClientBuilder = this
     override fun sqliteStore(config: SqliteStoreBuilder): ClientBuilder = this
     override fun inMemoryStore(): ClientBuilder = this
-    override fun crossProcessLockConfig(crossProcessLockConfig: CrossProcessLockConfig): ClientBuilder = this
-    override fun dmRoomDefinition(dmRoomDefinition: DmRoomDefinition): ClientBuilder = this
+    override fun crossProcessStoreLocksHolderName(holderName: String): ClientBuilder = this
+    override fun enableOidcRefreshLock(): ClientBuilder = this
+    override fun systemIsMemoryConstrained(): ClientBuilder = this
     override suspend fun build() = buildResult()
 }
