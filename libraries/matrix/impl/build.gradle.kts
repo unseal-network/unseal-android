@@ -21,12 +21,30 @@ android {
 setupDependencyInjection()
 
 dependencies {
-    releaseImplementation(libs.matrix.sdk)
-    if (file("${rootDir.path}/libraries/rustsdk/matrix-rust-sdk.aar").exists()) {
-        println("\nNote: Using local binary of the Rust SDK.\n")
-        debugImplementation(projects.libraries.rustsdk)
+    val localRustSdkAar = rootProject.layout.projectDirectory.file("libraries/rustsdk/matrix-rust-sdk.aar")
+    val useLocalRustSdk = providers.gradleProperty("unseal.useLocalRustSdk")
+        .map { rawValue ->
+            rawValue.toBooleanStrictOrNull()
+                ?: error("Gradle property unseal.useLocalRustSdk must be either 'true' or 'false'.")
+        }
+        .orElse(false)
+        .get()
+
+    if (useLocalRustSdk) {
+        check(localRustSdkAar.asFile.exists()) {
+            "Local Matrix Rust SDK AAR is required because -Punseal.useLocalRustSdk=true was set. " +
+                "Build and copy it to ${localRustSdkAar.asFile.absolutePath}."
+        }
+        println("\nNote: Using explicit local binary of the Rust SDK for all variants.\n")
+        implementation(projects.libraries.rustsdk)
     } else {
-        debugImplementation(libs.matrix.sdk)
+        releaseImplementation(libs.matrix.sdk)
+        if (localRustSdkAar.asFile.exists()) {
+            println("\nNote: Using local binary of the Rust SDK for debug builds.\n")
+            debugImplementation(projects.libraries.rustsdk)
+        } else {
+            debugImplementation(libs.matrix.sdk)
+        }
     }
     implementation(projects.libraries.rustlsTls)
 
