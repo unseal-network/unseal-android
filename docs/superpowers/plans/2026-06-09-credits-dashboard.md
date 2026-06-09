@@ -622,7 +622,7 @@ git commit -m "feat: add credits formatters"
 - Modify: `features/credits/impl/src/main/kotlin/io/element/android/features/credits/impl/CreditsPresenter.kt`
 - Create: `features/credits/impl/src/test/kotlin/io/element/android/features/credits/impl/CreditsPresenterTest.kt`
 
-- [ ] **Step 1: Write presenter tests**
+- [x] **Step 1: Write presenter tests**
 
 Cover these test names:
 
@@ -635,7 +635,7 @@ Cover these test names:
 - `event - api failures preserve existing loaded content`
 - `event - top up passes current balance to navigator`
 
-- [ ] **Step 2: Run presenter tests and confirm failure**
+- [x] **Step 2: Run presenter tests and confirm failure**
 
 Run:
 
@@ -645,7 +645,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: fails because full presenter state/events are not implemented.
 
-- [ ] **Step 3: Implement presenter state and loading**
+- [x] **Step 3: Implement presenter state and loading**
 
 Use these state fields:
 
@@ -691,11 +691,11 @@ Presenter rules:
 - Store failure message in `error`.
 - `RequestTopUp` calls navigator with current `balance`.
 
-- [ ] **Step 4: Run presenter tests**
+- [x] **Step 4: Run presenter tests**
 
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 5: Commit presenter**
+- [x] **Step 5: Commit presenter**
 
 ```bash
 git add features/credits/impl/src/main/kotlin/io/element/android/features/credits/impl features/credits/impl/src/test/kotlin/io/element/android/features/credits/impl

@@ -8,10 +8,18 @@
 package io.element.android.features.credits.impl
 
 import io.element.android.features.credits.api.CreditsEntryPoint
+import io.element.android.features.credits.impl.model.CreditsPeriod
+import io.element.android.features.credits.impl.model.DailyUsageRange
+import io.element.android.features.credits.impl.model.UsageRankingTab
 
 sealed interface CreditsEvents {
     data object OnAppear : CreditsEvents
     data class SelectTab(val tab: CreditsEntryPoint.CreditsTab) : CreditsEvents
+    data class SelectDailyUsageRange(val range: DailyUsageRange) : CreditsEvents
+    data class SelectUsageRankingTab(val tab: UsageRankingTab) : CreditsEvents
+    data class SelectAnalyticsPeriod(val period: CreditsPeriod) : CreditsEvents
+    data object LoadMoreTransactions : CreditsEvents
+    data object ClearError : CreditsEvents
     data object Dismiss : CreditsEvents
     data object RequestTopUp : CreditsEvents
 }

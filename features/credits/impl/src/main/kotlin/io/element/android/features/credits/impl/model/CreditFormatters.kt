@@ -25,6 +25,11 @@ enum class CreditsPeriod(val apiValue: String) {
     All("all"),
 }
 
+enum class UsageRankingTab {
+    Agent,
+    Model,
+}
+
 data class DayRangeEpochSeconds(
     val start: Int,
     val end: Int,
