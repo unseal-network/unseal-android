@@ -553,7 +553,7 @@ git commit -m "feat: add credits feature shell"
 - Create: `features/credits/impl/src/main/kotlin/io/element/android/features/credits/impl/model/CreditFormatters.kt`
 - Create: `features/credits/impl/src/test/kotlin/io/element/android/features/credits/impl/model/CreditFormattersTest.kt`
 
-- [ ] **Step 1: Write failing formatter tests**
+- [x] **Step 1: Write failing formatter tests**
 
 Create tests for:
 
@@ -570,7 +570,7 @@ assertThat(CreditsPeriod.ThirtyDays.apiValue).isEqualTo("thirtydays")
 assertThat(CreditsPeriod.All.apiValue).isEqualTo("all")
 ```
 
-- [ ] **Step 2: Run failing tests**
+- [x] **Step 2: Run failing tests**
 
 Run:
 
@@ -580,7 +580,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: fails because formatter symbols do not exist.
 
-- [ ] **Step 3: Implement formatter helpers**
+- [x] **Step 3: Implement formatter helpers**
 
 Implement `CreditFormatters.kt` with pure functions:
 
@@ -601,11 +601,11 @@ fun formatMicrosDelta(micros: String): String {
 
 Also add `isLowBalance`, `DailyUsageRange`, `CreditsPeriod`, and `localDayRangeEpochSeconds(range, clock)`.
 
-- [ ] **Step 4: Run formatter tests**
+- [x] **Step 4: Run formatter tests**
 
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 5: Commit formatter helpers**
+- [x] **Step 5: Commit formatter helpers**
 
 ```bash
 git add features/credits/impl/src/main/kotlin/io/element/android/features/credits/impl/model features/credits/impl/src/test/kotlin/io/element/android/features/credits/impl/model
