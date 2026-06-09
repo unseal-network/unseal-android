@@ -21,6 +21,7 @@ import com.bumble.appyx.navmodel.backstack.operation.push
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
+import io.element.android.features.credits.api.CreditsEntryPoint
 import io.element.android.features.deactivation.api.AccountDeactivationEntryPoint
 import io.element.android.features.licenses.api.OpenSourceLicensesEntryPoint
 import io.element.android.features.lockscreen.api.LockScreenEntryPoint
@@ -42,6 +43,7 @@ import io.element.android.libraries.architecture.BaseFlowNode
 import io.element.android.libraries.architecture.appyx.canPop
 import io.element.android.libraries.architecture.callback
 import io.element.android.libraries.architecture.createNode
+import io.element.android.libraries.chatbot.api.model.credits.CreditBalance
 import io.element.android.libraries.designsystem.utils.OpenUrlInTabView
 import io.element.android.libraries.di.SessionScope
 import io.element.android.libraries.matrix.api.core.EventId
@@ -63,6 +65,7 @@ class PreferencesFlowNode(
     private val openSourceLicensesEntryPoint: OpenSourceLicensesEntryPoint,
     private val accountDeactivationEntryPoint: AccountDeactivationEntryPoint,
     private val webhookTriggersEntryPoint: WebhookTriggersEntryPoint,
+    private val creditsEntryPoint: CreditsEntryPoint,
 ) : BaseFlowNode<PreferencesFlowNode.NavTarget>(
     backstack = BackStack(
         initialElement = plugins.filterIsInstance<PreferencesEntryPoint.Params>().first().initialElement.toNavTarget(),
@@ -122,6 +125,9 @@ class PreferencesFlowNode(
 
         @Parcelize
         data object OssLicenses : NavTarget
+
+        @Parcelize
+        data class Credits(val initialTab: CreditsEntryPoint.CreditsTab) : NavTarget
     }
 
     private val callback: PreferencesEntryPoint.Callback = callback()
@@ -193,6 +199,16 @@ class PreferencesFlowNode(
                     override fun startAccountDeactivationFlow() {
                         backstack.push(NavTarget.AccountDeactivation)
                     }
+
+                    override fun navigateToCreditsBilling() {
+                        backstack.push(NavTarget.Credits(CreditsEntryPoint.CreditsTab.Balance))
+                    }
+
+                    override fun navigateToCreditsUsage() {
+                        backstack.push(NavTarget.Credits(CreditsEntryPoint.CreditsTab.DailyUsage))
+                    }
+
+                    override fun openCreditsTopUp() = Unit
                 }
                 createNode<PreferencesRootNode>(buildContext, plugins = listOf(callback))
             }
@@ -358,6 +374,24 @@ class PreferencesFlowNode(
             }
             NavTarget.AccountDeactivation -> {
                 accountDeactivationEntryPoint.createNode(this, buildContext)
+            }
+            is NavTarget.Credits -> {
+                creditsEntryPoint.createNode(
+                    parentNode = this,
+                    buildContext = buildContext,
+                    params = CreditsEntryPoint.Params(initialTab = navTarget.initialTab),
+                    callback = object : CreditsEntryPoint.Callback {
+                        override fun onDone() {
+                            if (backstack.canPop()) {
+                                backstack.pop()
+                            } else {
+                                navigateUp()
+                            }
+                        }
+
+                        override fun onTopUpRequested(balance: CreditBalance?) = Unit
+                    },
+                )
             }
         }
     }

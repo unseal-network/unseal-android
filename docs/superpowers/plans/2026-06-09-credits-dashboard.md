@@ -761,7 +761,7 @@ git commit -m "feat: add credits dashboard screen"
 - Modify: `features/preferences/impl/src/test/kotlin/io/element/android/features/preferences/impl/root/PreferencesRootPresenterTest.kt`
 - Modify: `features/preferences/impl/src/test/kotlin/io/element/android/features/preferences/impl/root/PreferencesRootViewTest.kt`
 
-- [ ] **Step 1: Write Preferences tests**
+- [x] **Step 1: Write Preferences tests**
 
 Add presenter tests:
 
@@ -780,7 +780,7 @@ Add view tests:
 - Billing click calls supplied callback
 - Usage click calls supplied callback
 
-- [ ] **Step 2: Run failing Preferences tests**
+- [x] **Step 2: Run failing Preferences tests**
 
 Run:
 
@@ -790,7 +790,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: failures for missing credits state and navigation.
 
-- [ ] **Step 3: Wire Preferences**
+- [x] **Step 3: Wire Preferences**
 
 Add:
 
@@ -821,11 +821,11 @@ fun navigateToCreditsTopUp()
 
 Inject `CreditsEntryPoint` into `PreferencesFlowNode`, add `NavTarget.Credits(initialTab: CreditsEntryPoint.CreditsTab)`, and route Billing to `Balance`, Usage to `DailyUsage`. For top-up, keep callback as no-op until `credits-topup`.
 
-- [ ] **Step 4: Run Preferences tests**
+- [x] **Step 4: Run Preferences tests**
 
 Expected: the focused Preferences tests pass.
 
-- [ ] **Step 5: Commit Preferences integration**
+- [x] **Step 5: Commit Preferences integration**
 
 ```bash
 git add features/preferences

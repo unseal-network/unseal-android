@@ -51,6 +51,9 @@ class PreferencesRootNode(
         fun navigateToBlockedUsers()
         fun startSignOutFlow()
         fun startAccountDeactivationFlow()
+        fun openCreditsTopUp()
+        fun navigateToCreditsBilling()
+        fun navigateToCreditsUsage()
     }
 
     private val callback: Callback = callback()
@@ -93,6 +96,9 @@ class PreferencesRootNode(
             onOpenWebhookTriggers = callback::navigateToWebhookTriggers,
             onOpenUserProfile = callback::navigateToUserProfile,
             onOpenBlockedUsers = callback::navigateToBlockedUsers,
+            onOpenCreditsTopUp = callback::openCreditsTopUp,
+            onOpenCreditsBilling = callback::navigateToCreditsBilling,
+            onOpenCreditsUsage = callback::navigateToCreditsUsage,
             onSignOutClick = {
                 if (state.directLogoutState.canDoDirectSignOut) {
                     state.directLogoutState.eventSink(DirectLogoutEvents.Logout(ignoreSdkError = false))

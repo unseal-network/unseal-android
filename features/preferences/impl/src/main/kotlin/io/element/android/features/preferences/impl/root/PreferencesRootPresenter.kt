@@ -24,6 +24,7 @@ import io.element.android.features.logout.api.direct.DirectLogoutState
 import io.element.android.features.preferences.impl.utils.ShowDeveloperSettingsProvider
 import io.element.android.features.rageshake.api.RageshakeFeatureAvailability
 import io.element.android.libraries.architecture.Presenter
+import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
 import io.element.android.libraries.designsystem.utils.snackbar.SnackbarDispatcher
 import io.element.android.libraries.designsystem.utils.snackbar.collectSnackbarMessageAsState
 import io.element.android.libraries.featureflag.api.FeatureFlagService
@@ -57,6 +58,7 @@ class PreferencesRootPresenter(
     private val featureFlagService: FeatureFlagService,
     private val sessionStore: SessionStore,
     private val sessionEnterpriseService: SessionEnterpriseService,
+    private val chatbotApiServiceFactory: ChatbotApiServiceFactory,
 ) : Presenter<PreferencesRootState> {
     @Composable
     override fun present(): PreferencesRootState {
@@ -123,6 +125,18 @@ class PreferencesRootPresenter(
         }
 
         val showDeveloperSettings by showDeveloperSettingsProvider.showDeveloperSettings.collectAsState()
+        val creditBalanceLoadState by produceState<CreditBalanceLoadState>(initialValue = CreditBalanceLoadState.Loading) {
+            value = chatbotApiServiceFactory
+                .createForUnsealApi(matrixClient)
+                .getBalance()
+                .map { balance ->
+                    balance.balanceUsd
+                        .takeUnless { it.isBlank() }
+                        ?.let(CreditBalanceLoadState::Loaded)
+                        ?: CreditBalanceLoadState.Unavailable
+                }
+                .getOrElse { CreditBalanceLoadState.Unavailable }
+        }
 
         fun handleEvent(event: PreferencesRootEvent) {
             when (event) {
@@ -151,6 +165,7 @@ class PreferencesRootPresenter(
             canDeactivateAccount = canDeactivateAccount,
             nbOfBlockedUsers = nbOfBlockedUsers,
             showLabsItem = showLabsItem,
+            creditBalanceLoadState = creditBalanceLoadState,
             directLogoutState = directLogoutState,
             snackbarMessage = snackbarMessage,
             eventSink = ::handleEvent,

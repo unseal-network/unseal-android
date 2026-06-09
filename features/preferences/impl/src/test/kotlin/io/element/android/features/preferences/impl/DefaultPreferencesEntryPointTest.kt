@@ -12,6 +12,8 @@ import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import com.bumble.appyx.core.modality.BuildContext
 import com.bumble.appyx.testing.junit4.util.MainDispatcherRule
 import com.google.common.truth.Truth.assertThat
+import io.element.android.features.credits.api.CreditsEntryPoint
+import io.element.android.features.credits.test.FakeCreditsEntryPoint
 import io.element.android.features.deactivation.test.FakeAccountDeactivationEntryPoint
 import io.element.android.features.licenses.test.FakeOpenSourceLicensesEntryPoint
 import io.element.android.features.lockscreen.test.FakeLockScreenEntryPoint
@@ -49,6 +51,7 @@ class DefaultPreferencesEntryPointTest {
                 openSourceLicensesEntryPoint = FakeOpenSourceLicensesEntryPoint(),
                 accountDeactivationEntryPoint = FakeAccountDeactivationEntryPoint(),
                 webhookTriggersEntryPoint = FakeWebhookTriggersEntryPoint(),
+                creditsEntryPoint = FakeCreditsEntryPoint(),
             )
         }
         val callback = object : PreferencesEntryPoint.Callback {
@@ -111,6 +114,7 @@ class DefaultPreferencesEntryPointTest {
                 capturedParams = params
                 parentNode
             },
+            creditsEntryPoint = FakeCreditsEntryPoint(),
         )
 
         node.resolve(PreferencesFlowNode.NavTarget.WebhookTriggers, BuildContext.root(null))
@@ -118,4 +122,72 @@ class DefaultPreferencesEntryPointTest {
         assertThat(capturedParams?.initialTarget)
             .isEqualTo(WebhookTriggersEntryPoint.InitialTarget.Global)
     }
+
+    @Test
+    fun `test credits billing nav target creates balance credits node`() {
+        var capturedParams: CreditsEntryPoint.Params? = null
+        val node = aPreferencesFlowNode(
+            creditsEntryPoint = FakeCreditsEntryPoint { parentNode, _, params, _ ->
+                capturedParams = params
+                parentNode
+            },
+        )
+
+        node.resolve(
+            PreferencesFlowNode.NavTarget.Credits(CreditsEntryPoint.CreditsTab.Balance),
+            BuildContext.root(null),
+        )
+
+        assertThat(capturedParams).isEqualTo(
+            CreditsEntryPoint.Params(initialTab = CreditsEntryPoint.CreditsTab.Balance)
+        )
+    }
+
+    @Test
+    fun `test credits usage nav target creates daily usage credits node`() {
+        var capturedParams: CreditsEntryPoint.Params? = null
+        val node = aPreferencesFlowNode(
+            creditsEntryPoint = FakeCreditsEntryPoint { parentNode, _, params, _ ->
+                capturedParams = params
+                parentNode
+            },
+        )
+
+        node.resolve(
+            PreferencesFlowNode.NavTarget.Credits(CreditsEntryPoint.CreditsTab.DailyUsage),
+            BuildContext.root(null),
+        )
+
+        assertThat(capturedParams).isEqualTo(
+            CreditsEntryPoint.Params(initialTab = CreditsEntryPoint.CreditsTab.DailyUsage)
+        )
+    }
 }
+
+private fun aPreferencesFlowNode(
+    creditsEntryPoint: CreditsEntryPoint = FakeCreditsEntryPoint(),
+    webhookTriggersEntryPoint: WebhookTriggersEntryPoint = FakeWebhookTriggersEntryPoint(),
+) = PreferencesFlowNode(
+    buildContext = BuildContext.root(null),
+    plugins = listOf(
+        PreferencesEntryPoint.Params(
+            initialElement = PreferencesEntryPoint.InitialTarget.Root,
+        ),
+        object : PreferencesEntryPoint.Callback {
+            override fun navigateToAddAccount() = lambdaError()
+            override fun navigateToLinkNewDevice() = lambdaError()
+            override fun navigateToBugReport() = lambdaError()
+            override fun navigateToSecureBackup() = lambdaError()
+            override fun navigateToRoomNotificationSettings(roomId: RoomId) = lambdaError()
+            override fun navigateToEvent(roomId: RoomId, eventId: EventId) = lambdaError()
+        }
+    ),
+    lockScreenEntryPoint = FakeLockScreenEntryPoint(),
+    notificationTroubleShootEntryPoint = FakeNotificationTroubleShootEntryPoint(),
+    pushHistoryEntryPoint = FakePushHistoryEntryPoint(),
+    logoutEntryPoint = FakeLogoutEntryPoint(),
+    openSourceLicensesEntryPoint = FakeOpenSourceLicensesEntryPoint(),
+    accountDeactivationEntryPoint = FakeAccountDeactivationEntryPoint(),
+    webhookTriggersEntryPoint = webhookTriggersEntryPoint,
+    creditsEntryPoint = creditsEntryPoint,
+)

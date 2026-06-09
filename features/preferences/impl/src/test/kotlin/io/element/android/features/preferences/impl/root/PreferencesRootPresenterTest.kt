@@ -17,6 +17,9 @@ import io.element.android.features.enterprise.test.FakeSessionEnterpriseService
 import io.element.android.features.logout.api.direct.aDirectLogoutState
 import io.element.android.features.preferences.impl.utils.ShowDeveloperSettingsProvider
 import io.element.android.features.rageshake.api.RageshakeFeatureAvailability
+import io.element.android.libraries.chatbot.test.FakeChatbotApiService
+import io.element.android.libraries.chatbot.test.FakeChatbotApiServiceFactory
+import io.element.android.libraries.chatbot.test.aCreditBalance
 import io.element.android.libraries.core.meta.BuildType
 import io.element.android.libraries.designsystem.utils.snackbar.SnackbarDispatcher
 import io.element.android.libraries.featureflag.api.FeatureFlagService
@@ -102,10 +105,11 @@ class PreferencesRootPresenterTest {
             assertThat(loadedState.nbOfBlockedUsers).isEqualTo(0)
             assertThat(loadedState.directLogoutState).isEqualTo(aDirectLogoutState())
             assertThat(loadedState.snackbarMessage).isNull()
-            val finalState = awaitItem()
+            val finalState = awaitStateWhere { it.accountManagementUrl == "tweaked null url" }
             accountManagementUrlResult.assertions().isCalledOnce()
                 .with(value(null))
             assertThat(finalState.accountManagementUrl).isEqualTo("tweaked null url")
+            cancelAndIgnoreRemainingEvents()
         }
     }
 
@@ -319,9 +323,57 @@ class PreferencesRootPresenterTest {
         }
     }
 
+    @Test
+    fun `present - credit balance starts loading then becomes loaded`() = runTest {
+        val chatbotApiService = FakeChatbotApiService().apply {
+            getBalanceResult = {
+                Result.success(aCreditBalance(balanceMicros = "12500000").copy(balanceUsd = "12.50"))
+            }
+        }
+        createPresenter(
+            matrixClient = FakeMatrixClient(
+                canDeactivateAccountResult = { true },
+                accountManagementUrlResult = { Result.success(null) },
+            ),
+            chatbotApiServiceFactory = FakeChatbotApiServiceFactory(chatbotApiService),
+        ).test {
+            assertThat(awaitItem().creditBalanceLoadState).isEqualTo(CreditBalanceLoadState.Loading)
+            val loaded = awaitStateWhere { it.creditBalanceLoadState == CreditBalanceLoadState.Loaded("12.50") }
+            assertThat(loaded.creditBalanceLoadState).isEqualTo(CreditBalanceLoadState.Loaded("12.50"))
+        }
+    }
+
+    @Test
+    fun `present - credit balance failure becomes unavailable`() = runTest {
+        val chatbotApiService = FakeChatbotApiService().apply {
+            getBalanceResult = { Result.failure(IllegalStateException("No credits")) }
+        }
+        createPresenter(
+            matrixClient = FakeMatrixClient(
+                canDeactivateAccountResult = { true },
+                accountManagementUrlResult = { Result.success(null) },
+            ),
+            chatbotApiServiceFactory = FakeChatbotApiServiceFactory(chatbotApiService),
+        ).test {
+            assertThat(awaitItem().creditBalanceLoadState).isEqualTo(CreditBalanceLoadState.Loading)
+            val unavailable = awaitStateWhere { it.creditBalanceLoadState == CreditBalanceLoadState.Unavailable }
+            assertThat(unavailable.creditBalanceLoadState).isEqualTo(CreditBalanceLoadState.Unavailable)
+        }
+    }
+
     private suspend fun <T> ReceiveTurbine<T>.awaitFirstItem(): T {
         skipItems(1)
         return awaitItem()
+    }
+
+    private suspend fun ReceiveTurbine<PreferencesRootState>.awaitStateWhere(
+        predicate: (PreferencesRootState) -> Boolean,
+    ): PreferencesRootState {
+        repeat(20) {
+            val item = awaitItem()
+            if (predicate(item)) return item
+        }
+        error("State matching predicate was not emitted")
     }
 
     private fun createPresenter(
@@ -333,6 +385,7 @@ class PreferencesRootPresenterTest {
         featureFlagService: FeatureFlagService = FakeFeatureFlagService(),
         sessionStore: SessionStore = InMemorySessionStore(),
         sessionEnterpriseService: SessionEnterpriseService = FakeSessionEnterpriseService(),
+        chatbotApiServiceFactory: FakeChatbotApiServiceFactory = FakeChatbotApiServiceFactory(),
     ) = PreferencesRootPresenter(
         matrixClient = matrixClient,
         sessionVerificationService = sessionVerificationService,
@@ -346,5 +399,6 @@ class PreferencesRootPresenterTest {
         featureFlagService = featureFlagService,
         sessionStore = sessionStore,
         sessionEnterpriseService = sessionEnterpriseService,
+        chatbotApiServiceFactory = chatbotApiServiceFactory,
     )
 }

@@ -12,6 +12,7 @@ package io.element.android.features.preferences.impl.root
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.AndroidComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -456,6 +457,79 @@ class PreferencesRootViewTest {
             .performClick()
         eventsRecorder.assertSingle(PreferencesRootEvent.OnVersionInfoClick)
     }
+
+    @Test
+    fun `credit balance card shows loaded prefixed balance`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        setView(
+            aPreferencesRootState(
+                creditBalanceLoadState = CreditBalanceLoadState.Loaded("12.50"),
+                eventSink = eventsRecorder,
+            ),
+        )
+        onNodeWithText("Credit Balance")
+            .performScrollTo()
+            .assertIsDisplayed()
+        onNodeWithText("$12.50")
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun `credit balance card shows unavailable zero balance`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        setView(
+            aPreferencesRootState(
+                creditBalanceLoadState = CreditBalanceLoadState.Unavailable,
+                eventSink = eventsRecorder,
+            ),
+        )
+        onNodeWithText("$0.00")
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun `click on Recharge invokes the expected callback`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        ensureCalledOnce { callback ->
+            setView(
+                aPreferencesRootState(eventSink = eventsRecorder),
+                onOpenCreditsTopUp = callback,
+            )
+            onNodeWithText("Recharge")
+                .performScrollTo()
+                .performClick()
+        }
+    }
+
+    @Test
+    fun `click on Billing invokes the expected callback`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        ensureCalledOnce { callback ->
+            setView(
+                aPreferencesRootState(eventSink = eventsRecorder),
+                onOpenCreditsBilling = callback,
+            )
+            onNodeWithText("Billing")
+                .performScrollTo()
+                .performClick()
+        }
+    }
+
+    @Test
+    fun `click on Usage invokes the expected callback`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        ensureCalledOnce { callback ->
+            setView(
+                aPreferencesRootState(eventSink = eventsRecorder),
+                onOpenCreditsUsage = callback,
+            )
+            onNodeWithText("Usage")
+                .performScrollTo()
+                .performClick()
+        }
+    }
 }
 
 private fun AndroidComposeUiTest<ComponentActivity>.setView(
@@ -474,6 +548,9 @@ private fun AndroidComposeUiTest<ComponentActivity>.setView(
     onOpenLabs: () -> Unit = EnsureNeverCalled(),
     onOpenNotificationSettings: () -> Unit = EnsureNeverCalled(),
     onOpenWebhookTriggers: () -> Unit = EnsureNeverCalled(),
+    onOpenCreditsTopUp: () -> Unit = EnsureNeverCalled(),
+    onOpenCreditsBilling: () -> Unit = EnsureNeverCalled(),
+    onOpenCreditsUsage: () -> Unit = EnsureNeverCalled(),
     onOpenUserProfile: (MatrixUser) -> Unit = EnsureNeverCalledWithParam(),
     onOpenBlockedUsers: () -> Unit = EnsureNeverCalled(),
     onSignOutClick: () -> Unit = EnsureNeverCalled(),
@@ -496,6 +573,9 @@ private fun AndroidComposeUiTest<ComponentActivity>.setView(
             onOpenLabs = onOpenLabs,
             onOpenNotificationSettings = onOpenNotificationSettings,
             onOpenWebhookTriggers = onOpenWebhookTriggers,
+            onOpenCreditsTopUp = onOpenCreditsTopUp,
+            onOpenCreditsBilling = onOpenCreditsBilling,
+            onOpenCreditsUsage = onOpenCreditsUsage,
             onOpenUserProfile = onOpenUserProfile,
             onOpenBlockedUsers = onOpenBlockedUsers,
             onSignOutClick = onSignOutClick,

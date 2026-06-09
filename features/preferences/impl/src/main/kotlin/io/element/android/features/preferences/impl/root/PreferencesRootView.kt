@@ -62,6 +62,9 @@ fun PreferencesRootView(
     onOpenWebhookTriggers: () -> Unit,
     onOpenUserProfile: (MatrixUser) -> Unit,
     onOpenBlockedUsers: () -> Unit,
+    onOpenCreditsTopUp: () -> Unit,
+    onOpenCreditsBilling: () -> Unit,
+    onOpenCreditsUsage: () -> Unit,
     onSignOutClick: () -> Unit,
     onDeactivateClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -95,7 +98,7 @@ fun PreferencesRootView(
             state = state,
             onManageAccountClick = onManageAccountClick,
             onLinkNewDeviceClick = onLinkNewDeviceClick,
-            onOpenBlockedUsers = onOpenBlockedUsers
+            onOpenBlockedUsers = onOpenBlockedUsers,
         )
         // 'Manage my app' section
         ManageAppSection(
@@ -117,6 +120,12 @@ fun PreferencesRootView(
             onOpenLabs = onOpenLabs,
             onSignOutClick = onSignOutClick,
             onDeactivateClick = onDeactivateClick,
+        )
+        CreditBalanceSection(
+            loadState = state.creditBalanceLoadState,
+            onOpenCreditsTopUp = onOpenCreditsTopUp,
+            onOpenCreditsBilling = onOpenCreditsBilling,
+            onOpenCreditsUsage = onOpenCreditsUsage,
         )
         // Version
         Footer(
@@ -231,6 +240,44 @@ private fun ColumnScope.ManageAccountSection(
     }
     if (state.accountManagementUrl != null || state.showLinkNewDevice || state.showBlockedUsersItem) {
         HorizontalDivider()
+    }
+}
+
+@Composable
+private fun ColumnScope.CreditBalanceSection(
+    loadState: CreditBalanceLoadState,
+    onOpenCreditsTopUp: () -> Unit,
+    onOpenCreditsBilling: () -> Unit,
+    onOpenCreditsUsage: () -> Unit,
+) {
+    ListItem(
+        headlineContent = { Text("Credit Balance") },
+        supportingContent = { Text(loadState.displayBalance()) },
+        leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.Chart())),
+    )
+    ListItem(
+        headlineContent = { Text("Recharge") },
+        leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.Plus())),
+        onClick = onOpenCreditsTopUp,
+    )
+    ListItem(
+        headlineContent = { Text("Billing") },
+        leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.UserProfile())),
+        onClick = onOpenCreditsBilling,
+    )
+    ListItem(
+        headlineContent = { Text("Usage") },
+        leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.Chart())),
+        onClick = onOpenCreditsUsage,
+    )
+    HorizontalDivider()
+}
+
+private fun CreditBalanceLoadState.displayBalance(): String {
+    return when (this) {
+        CreditBalanceLoadState.Loading,
+        CreditBalanceLoadState.Unavailable -> "$0.00"
+        is CreditBalanceLoadState.Loaded -> balanceUsd.takeIf { it.startsWith("$") } ?: "$$balanceUsd"
     }
 }
 
@@ -369,6 +416,9 @@ private fun ContentToPreview(state: PreferencesRootState) {
         onOpenWebhookTriggers = {},
         onOpenUserProfile = {},
         onOpenBlockedUsers = {},
+        onOpenCreditsTopUp = {},
+        onOpenCreditsBilling = {},
+        onOpenCreditsUsage = {},
         onSignOutClick = {},
         onDeactivateClick = {},
     )
