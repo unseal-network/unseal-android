@@ -203,7 +203,9 @@ class PreferencesRootViewTest {
                 ),
                 onOpenAnalytics = callback,
             )
-            clickOn(CommonStrings.common_analytics)
+            onNodeWithText(activity!!.getString(CommonStrings.common_analytics))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -230,7 +232,9 @@ class PreferencesRootViewTest {
                 ),
                 onOpenRageShake = callback,
             )
-            clickOn(CommonStrings.common_report_a_problem)
+            onNodeWithText(activity!!.getString(CommonStrings.common_report_a_problem))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -409,7 +413,9 @@ class PreferencesRootViewTest {
                 ),
                 onSignOutClick = callback,
             )
-            clickOn(CommonStrings.action_signout)
+            onNodeWithText(activity!!.getString(CommonStrings.action_signout))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -548,6 +554,8 @@ private fun AndroidComposeUiTest<ComponentActivity>.setView(
     onOpenLabs: () -> Unit = EnsureNeverCalled(),
     onOpenNotificationSettings: () -> Unit = EnsureNeverCalled(),
     onOpenWebhookTriggers: () -> Unit = EnsureNeverCalled(),
+    onOpenConnectors: () -> Unit = EnsureNeverCalled(),
+    onOpenVoiceLibrary: () -> Unit = EnsureNeverCalled(),
     onOpenCreditsTopUp: () -> Unit = EnsureNeverCalled(),
     onOpenCreditsBilling: () -> Unit = EnsureNeverCalled(),
     onOpenCreditsUsage: () -> Unit = EnsureNeverCalled(),
@@ -573,6 +581,8 @@ private fun AndroidComposeUiTest<ComponentActivity>.setView(
             onOpenLabs = onOpenLabs,
             onOpenNotificationSettings = onOpenNotificationSettings,
             onOpenWebhookTriggers = onOpenWebhookTriggers,
+            onOpenConnectors = onOpenConnectors,
+            onOpenVoiceLibrary = onOpenVoiceLibrary,
             onOpenCreditsTopUp = onOpenCreditsTopUp,
             onOpenCreditsBilling = onOpenCreditsBilling,
             onOpenCreditsUsage = onOpenCreditsUsage,

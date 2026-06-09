@@ -18,6 +18,12 @@ import io.element.android.libraries.chatbot.api.model.connectors.ChatbotInitiate
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListConnectedAccountsResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListToolkitCategoriesResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListToolkitsResponse
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotCreateVoiceProfileRequest
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotCreateVoiceShareRequest
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotDeleteVoiceProfileResponse
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotProviderVoice
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceProfile
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceShare
 import io.element.android.libraries.chatbot.api.model.credits.CreditBalance
 import io.element.android.libraries.chatbot.api.model.credits.CreditDailyUsageResponse
 import io.element.android.libraries.chatbot.api.model.credits.CreditLedgerResponse
@@ -93,4 +99,10 @@ interface ChatbotApiService {
     suspend fun createPaymentIntent(amountCents: Int): Result<CreditPaymentIntentResponse>
     suspend fun getPaymentIntentStatus(paymentIntentId: String): Result<CreditPaymentIntentStatusResponse>
     suspend fun getAnalyticsTokens(period: String): Result<AnalyticsTokensResponse>
+    suspend fun listProviderVoices(provider: String?, availabilityStatus: String?, search: String?, limit: Int?, offset: Int?): Result<List<ChatbotProviderVoice>>
+    suspend fun listVoiceProfiles(provider: String?, status: String?, search: String?, limit: Int?, offset: Int?): Result<List<ChatbotVoiceProfile>>
+    suspend fun createVoiceProfile(request: ChatbotCreateVoiceProfileRequest): Result<ChatbotVoiceProfile>
+    suspend fun deleteVoiceProfile(voiceProfileId: String): Result<ChatbotDeleteVoiceProfileResponse>
+    suspend fun createVoiceShare(request: ChatbotCreateVoiceShareRequest): Result<ChatbotVoiceShare>
+    suspend fun importVoiceShare(shareId: String): Result<ChatbotVoiceProfile>
 }

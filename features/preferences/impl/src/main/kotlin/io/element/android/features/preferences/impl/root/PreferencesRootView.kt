@@ -60,6 +60,8 @@ fun PreferencesRootView(
     onOpenLabs: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
     onOpenWebhookTriggers: () -> Unit,
+    onOpenConnectors: () -> Unit,
+    onOpenVoiceLibrary: () -> Unit,
     onOpenUserProfile: (MatrixUser) -> Unit,
     onOpenBlockedUsers: () -> Unit,
     onOpenCreditsTopUp: () -> Unit,
@@ -106,6 +108,8 @@ fun PreferencesRootView(
             onOpenNotificationSettings = onOpenNotificationSettings,
             onOpenLockScreenSettings = onOpenLockScreenSettings,
             onOpenWebhookTriggers = onOpenWebhookTriggers,
+            onOpenConnectors = onOpenConnectors,
+            onOpenVoiceLibrary = onOpenVoiceLibrary,
             onSecureBackupClick = onSecureBackupClick,
         )
 
@@ -180,6 +184,8 @@ private fun ColumnScope.ManageAppSection(
     onOpenNotificationSettings: () -> Unit,
     onOpenLockScreenSettings: () -> Unit,
     onOpenWebhookTriggers: () -> Unit,
+    onOpenConnectors: () -> Unit,
+    onOpenVoiceLibrary: () -> Unit,
     onSecureBackupClick: () -> Unit,
 ) {
     ListItem(
@@ -191,6 +197,16 @@ private fun ColumnScope.ManageAppSection(
         headlineContent = { Text(stringResource(id = R.string.screen_preferences_webhook_triggers_title)) },
         leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.Notifications())),
         onClick = onOpenWebhookTriggers,
+    )
+    ListItem(
+        headlineContent = { Text(stringResource(id = R.string.screen_preferences_connectors_title)) },
+        leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.Link())),
+        onClick = onOpenConnectors,
+    )
+    ListItem(
+        headlineContent = { Text(stringResource(id = R.string.screen_preferences_voice_library_title)) },
+        leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.MicOn())),
+        onClick = onOpenVoiceLibrary,
     )
     ListItem(
         headlineContent = { Text(stringResource(id = CommonStrings.common_screen_lock)) },
@@ -414,6 +430,8 @@ private fun ContentToPreview(state: PreferencesRootState) {
         onOpenNotificationSettings = {},
         onOpenLockScreenSettings = {},
         onOpenWebhookTriggers = {},
+        onOpenConnectors = {},
+        onOpenVoiceLibrary = {},
         onOpenUserProfile = {},
         onOpenBlockedUsers = {},
         onOpenCreditsTopUp = {},

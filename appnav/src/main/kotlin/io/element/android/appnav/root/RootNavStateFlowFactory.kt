@@ -15,11 +15,13 @@ import io.element.android.appnav.di.MatrixSessionCache
 import io.element.android.features.preferences.api.CacheService
 import io.element.android.libraries.matrix.ui.media.ImageLoaderHolder
 import io.element.android.libraries.preferences.api.store.SessionPreferencesStoreFactory
+import io.element.android.libraries.sessionstorage.api.LoggedInState
 import io.element.android.libraries.sessionstorage.api.SessionStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.onStart
 
 private const val SAVE_INSTANCE_KEY = "io.element.android.x.RootNavStateFlowFactory.SAVE_INSTANCE_KEY"
 
@@ -40,7 +42,14 @@ class RootNavStateFlowFactory(
     fun create(savedStateMap: SavedStateMap?): Flow<RootNavState> {
         return combine(
             cacheIndexFlow(savedStateMap),
-            sessionStore.loggedInStateFlow(),
+            sessionStore.loggedInStateFlow().onStart {
+                emit(sessionStore.getLatestSession()?.let {
+                    LoggedInState.LoggedIn(
+                        sessionId = it.userId,
+                        isTokenValid = it.isTokenValid,
+                    )
+                } ?: LoggedInState.NotLoggedIn)
+            },
         ) { cacheIndex, loggedInState ->
             RootNavState(
                 cacheIndex = cacheIndex,

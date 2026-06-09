@@ -31,6 +31,7 @@ import io.element.android.libraries.matrix.api.timeline.item.event.FailedToParse
 import io.element.android.libraries.matrix.api.timeline.item.event.LegacyCallInviteContent
 import io.element.android.libraries.matrix.api.timeline.item.event.LiveLocationContent
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageContent
+import io.element.android.libraries.matrix.api.timeline.item.event.OtherMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.PollContent
 import io.element.android.libraries.matrix.api.timeline.item.event.ProfileChangeContent
 import io.element.android.libraries.matrix.api.timeline.item.event.ProfileDetails
@@ -44,9 +45,12 @@ import io.element.android.libraries.matrix.api.timeline.item.event.getDisambigua
 import io.element.android.libraries.ui.strings.CommonStrings
 import io.element.android.services.toolbox.api.strings.StringProvider
 
+private const val AI_MESSAGE_MSGTYPE = "m.aisdk.protocol"
+
 @Inject
 class TimelineItemContentFactory(
     private val messageFactory: TimelineItemContentMessageFactory,
+    private val aiMessageContentParser: AiMessageContentParser,
     private val redactedMessageFactory: TimelineItemContentRedactedFactory,
     private val stickerFactory: TimelineItemContentStickerFactory,
     private val pollFactory: TimelineItemContentPollFactory,
@@ -66,6 +70,17 @@ class TimelineItemContentFactory(
         eventTimelineItem: EventTimelineItem,
         roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus> = emptyMap(),
     ): TimelineItemEventContent {
+        // Unseal AI/assistant messages arrive as a custom "m.aisdk.protocol" msgtype; the rich
+        // parts live in the event's original JSON. Detect them here and render natively, falling
+        // back to normal message rendering when the payload isn't an AI message.
+        val itemContent = eventTimelineItem.content
+        if (itemContent is MessageContent) {
+            val messageType = itemContent.type
+            if (messageType is OtherMessageType && messageType.msgType == AI_MESSAGE_MSGTYPE) {
+                val originalJson = eventTimelineItem.timelineItemDebugInfoProvider().originalJson
+                aiMessageContentParser.parse(originalJson, itemContent.isEdited)?.let { return it }
+            }
+        }
         return create(
             itemContent = eventTimelineItem.content,
             eventId = eventTimelineItem.eventId,

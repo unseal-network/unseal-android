@@ -12,24 +12,24 @@ object ApplicationConfig {
     /**
      * Application name used in the UI for string. If empty, the value is taken from the resources `R.string.app_name`.
      * Note that this value is not used for the launcher icon.
-     * For Element, the value is empty, and so read from `R.string.app_name`, which depends on the build variant:
-     * - "Element X" for release builds;
-     * - "Element X dbg" for debug builds;
-     * - "Element X nightly" for nightly builds.
+     * For Unseal, the value is empty, and so read from `R.string.app_name`, which depends on the build variant:
+     * - "Unseal" for release builds;
+     * - "Unseal dbg" for debug builds;
+     * - "Unseal nightly" for nightly builds.
      */
     const val APPLICATION_NAME: String = ""
 
     /**
-     * Used in the strings to reference the Element client.
+     * Used in the strings to reference the Unseal client.
      * Cannot be empty.
-     * For Element, the value is "Element".
+     * For Unseal, the value is "Unseal".
      */
-    const val PRODUCTION_APPLICATION_NAME: String = "Element"
+    const val PRODUCTION_APPLICATION_NAME: String = "Unseal"
 
     /**
-     * Used in the strings to reference the Element Desktop client, for instance Element Web.
+     * Used in the strings to reference the Unseal desktop client.
      * Cannot be empty.
-     * For Element, the value is "Element". We use the same name for desktop and mobile for now.
+     * For Unseal, the value is "Unseal". We use the same name for desktop and mobile for now.
      */
-    const val DESKTOP_APPLICATION_NAME: String = "Element"
+    const val DESKTOP_APPLICATION_NAME: String = "Unseal"
 }

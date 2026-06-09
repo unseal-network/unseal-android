@@ -12,6 +12,8 @@ import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import com.bumble.appyx.core.modality.BuildContext
 import com.bumble.appyx.testing.junit4.util.MainDispatcherRule
 import com.google.common.truth.Truth.assertThat
+import io.element.android.features.connectors.test.FakeConnectorsEntryPoint
+import io.element.android.features.voicelibrary.test.FakeVoiceLibraryEntryPoint
 import io.element.android.features.credits.api.CreditsEntryPoint
 import io.element.android.features.credits.test.FakeCreditsEntryPoint
 import io.element.android.features.deactivation.test.FakeAccountDeactivationEntryPoint
@@ -51,6 +53,8 @@ class DefaultPreferencesEntryPointTest {
                 openSourceLicensesEntryPoint = FakeOpenSourceLicensesEntryPoint(),
                 accountDeactivationEntryPoint = FakeAccountDeactivationEntryPoint(),
                 webhookTriggersEntryPoint = FakeWebhookTriggersEntryPoint(),
+                connectorsEntryPoint = FakeConnectorsEntryPoint(),
+                voiceLibraryEntryPoint = FakeVoiceLibraryEntryPoint(),
                 creditsEntryPoint = FakeCreditsEntryPoint(),
             )
         }
@@ -114,6 +118,8 @@ class DefaultPreferencesEntryPointTest {
                 capturedParams = params
                 parentNode
             },
+            connectorsEntryPoint = FakeConnectorsEntryPoint(),
+            voiceLibraryEntryPoint = FakeVoiceLibraryEntryPoint(),
             creditsEntryPoint = FakeCreditsEntryPoint(),
         )
 
@@ -121,6 +127,21 @@ class DefaultPreferencesEntryPointTest {
 
         assertThat(capturedParams?.initialTarget)
             .isEqualTo(WebhookTriggersEntryPoint.InitialTarget.Global)
+    }
+
+    @Test
+    fun `test connectors nav target creates connectors node`() {
+        var created = false
+        val node = aPreferencesFlowNode(
+            connectorsEntryPoint = FakeConnectorsEntryPoint { parentNode, _, _ ->
+                created = true
+                parentNode
+            },
+        )
+
+        node.resolve(PreferencesFlowNode.NavTarget.Connectors, BuildContext.root(null))
+
+        assertThat(created).isTrue()
     }
 
     @Test
@@ -167,6 +188,8 @@ class DefaultPreferencesEntryPointTest {
 private fun aPreferencesFlowNode(
     creditsEntryPoint: CreditsEntryPoint = FakeCreditsEntryPoint(),
     webhookTriggersEntryPoint: WebhookTriggersEntryPoint = FakeWebhookTriggersEntryPoint(),
+    connectorsEntryPoint: io.element.android.features.connectors.api.ConnectorsEntryPoint = FakeConnectorsEntryPoint(),
+    voiceLibraryEntryPoint: io.element.android.features.voicelibrary.api.VoiceLibraryEntryPoint = FakeVoiceLibraryEntryPoint(),
 ) = PreferencesFlowNode(
     buildContext = BuildContext.root(null),
     plugins = listOf(
@@ -189,5 +212,7 @@ private fun aPreferencesFlowNode(
     openSourceLicensesEntryPoint = FakeOpenSourceLicensesEntryPoint(),
     accountDeactivationEntryPoint = FakeAccountDeactivationEntryPoint(),
     webhookTriggersEntryPoint = webhookTriggersEntryPoint,
+    connectorsEntryPoint = connectorsEntryPoint,
+    voiceLibraryEntryPoint = voiceLibraryEntryPoint,
     creditsEntryPoint = creditsEntryPoint,
 )

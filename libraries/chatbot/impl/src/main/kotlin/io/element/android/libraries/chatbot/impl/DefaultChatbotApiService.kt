@@ -39,6 +39,12 @@ import io.element.android.libraries.chatbot.api.model.schedules.ChatbotListSched
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotSchedule
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotScheduleStatusRequest
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotUpdateScheduleRequest
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotCreateVoiceProfileRequest
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotCreateVoiceShareRequest
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotDeleteVoiceProfileResponse
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotProviderVoice
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceProfile
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceShare
 import io.element.android.libraries.chatbot.api.model.storage.ChatbotPresignedUpload
 import io.element.android.libraries.chatbot.api.model.storage.ChatbotStsTokenRequest
 import io.element.android.libraries.chatbot.api.model.storage.ChatbotStsTokenResponse
@@ -251,6 +257,30 @@ internal class DefaultChatbotApiService(
 
     override suspend fun getAnalyticsTokens(period: String): Result<AnalyticsTokensResponse> =
         httpClient.requestJson("/chatbot/v1/analytics/tokens${ChatbotUrlBuilder.query(mapOf("period" to period))}", ChatbotHttpMethod.GET)
+
+    override suspend fun listProviderVoices(provider: String?, availabilityStatus: String?, search: String?, limit: Int?, offset: Int?): Result<List<ChatbotProviderVoice>> =
+        httpClient.requestJson(
+            "/api/voices/provider-catalog${ChatbotUrlBuilder.query(mapOf("provider" to provider?.takeIf { it.isNotEmpty() }, "availabilityStatus" to availabilityStatus?.takeIf { it.isNotEmpty() }, "search" to search?.takeIf { it.isNotEmpty() }, "limit" to limit?.toString(), "offset" to offset?.toString()))}",
+            ChatbotHttpMethod.GET
+        )
+
+    override suspend fun listVoiceProfiles(provider: String?, status: String?, search: String?, limit: Int?, offset: Int?): Result<List<ChatbotVoiceProfile>> =
+        httpClient.requestJson(
+            "/api/voices/profiles${ChatbotUrlBuilder.query(mapOf("provider" to provider?.takeIf { it.isNotEmpty() }, "status" to status?.takeIf { it.isNotEmpty() }, "search" to search?.takeIf { it.isNotEmpty() }, "limit" to limit?.toString(), "offset" to offset?.toString()))}",
+            ChatbotHttpMethod.GET
+        )
+
+    override suspend fun createVoiceProfile(request: ChatbotCreateVoiceProfileRequest): Result<ChatbotVoiceProfile> =
+        httpClient.requestJson("/api/voices/profiles", ChatbotHttpMethod.POST, encode(request))
+
+    override suspend fun deleteVoiceProfile(voiceProfileId: String): Result<ChatbotDeleteVoiceProfileResponse> =
+        httpClient.requestJson("/api/voices/profiles/${path(voiceProfileId)}", ChatbotHttpMethod.DELETE)
+
+    override suspend fun createVoiceShare(request: ChatbotCreateVoiceShareRequest): Result<ChatbotVoiceShare> =
+        httpClient.requestJson("/api/voices/shares", ChatbotHttpMethod.POST, encode(request))
+
+    override suspend fun importVoiceShare(shareId: String): Result<ChatbotVoiceProfile> =
+        httpClient.requestJson("/api/voices/shares/${path(shareId)}/import", ChatbotHttpMethod.POST)
 
     private suspend fun rawUnit(path: String, method: ChatbotHttpMethod, body: String? = null): Result<Unit> =
         httpClient.requestRaw(path, method, body).map { }

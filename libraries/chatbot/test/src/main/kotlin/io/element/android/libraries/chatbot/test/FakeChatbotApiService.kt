@@ -19,6 +19,12 @@ import io.element.android.libraries.chatbot.api.model.connectors.ChatbotInitiate
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListConnectedAccountsResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListToolkitCategoriesResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListToolkitsResponse
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotCreateVoiceProfileRequest
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotCreateVoiceShareRequest
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotDeleteVoiceProfileResponse
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotProviderVoice
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceProfile
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceShare
 import io.element.android.libraries.chatbot.api.model.credits.CreditBalance
 import io.element.android.libraries.chatbot.api.model.credits.CreditDailyUsageResponse
 import io.element.android.libraries.chatbot.api.model.credits.CreditLedgerResponse
@@ -98,6 +104,12 @@ class FakeChatbotApiService : ChatbotApiService {
     var createPaymentIntentResult: (Int) -> Result<CreditPaymentIntentResponse> = { Result.success(CreditPaymentIntentResponse(paymentIntentClientSecret = "pi_secret", ephemeralKeySecret = "ek_secret", customerId = "customer")) }
     var getPaymentIntentStatusResult: (String) -> Result<CreditPaymentIntentStatusResponse> = { Result.success(CreditPaymentIntentStatusResponse(status = "succeeded", amountCents = 100, ledgerSettled = true)) }
     var getAnalyticsTokensResult: (String) -> Result<AnalyticsTokensResponse> = { Result.success(AnalyticsTokensResponse(period = it)) }
+    var listProviderVoicesResult: (String?, String?, String?, Int?, Int?) -> Result<List<ChatbotProviderVoice>> = { _, _, _, _, _ -> Result.success(emptyList()) }
+    var listVoiceProfilesResult: (String?, String?, String?, Int?, Int?) -> Result<List<ChatbotVoiceProfile>> = { _, _, _, _, _ -> Result.success(emptyList()) }
+    var createVoiceProfileResult: (ChatbotCreateVoiceProfileRequest) -> Result<ChatbotVoiceProfile> = { Result.success(aChatbotVoiceProfile(displayName = it.displayName)) }
+    var deleteVoiceProfileResult: (String) -> Result<ChatbotDeleteVoiceProfileResponse> = { Result.success(ChatbotDeleteVoiceProfileResponse(deleted = true)) }
+    var createVoiceShareResult: (ChatbotCreateVoiceShareRequest) -> Result<ChatbotVoiceShare> = { Result.success(ChatbotVoiceShare(id = "share-1", voiceProfileId = it.voiceProfileId)) }
+    var importVoiceShareResult: (String) -> Result<ChatbotVoiceProfile> = { Result.success(aChatbotVoiceProfile()) }
 
     override suspend fun listAgents() = simulateLongTask { listAgentsResult() }
     override suspend fun getAgent(botName: String) = simulateLongTask { getAgentResult(botName) }
@@ -144,4 +156,10 @@ class FakeChatbotApiService : ChatbotApiService {
     override suspend fun createPaymentIntent(amountCents: Int) = simulateLongTask { createPaymentIntentResult(amountCents) }
     override suspend fun getPaymentIntentStatus(paymentIntentId: String) = simulateLongTask { getPaymentIntentStatusResult(paymentIntentId) }
     override suspend fun getAnalyticsTokens(period: String) = simulateLongTask { getAnalyticsTokensResult(period) }
+    override suspend fun listProviderVoices(provider: String?, availabilityStatus: String?, search: String?, limit: Int?, offset: Int?) = simulateLongTask { listProviderVoicesResult(provider, availabilityStatus, search, limit, offset) }
+    override suspend fun listVoiceProfiles(provider: String?, status: String?, search: String?, limit: Int?, offset: Int?) = simulateLongTask { listVoiceProfilesResult(provider, status, search, limit, offset) }
+    override suspend fun createVoiceProfile(request: ChatbotCreateVoiceProfileRequest) = simulateLongTask { createVoiceProfileResult(request) }
+    override suspend fun deleteVoiceProfile(voiceProfileId: String) = simulateLongTask { deleteVoiceProfileResult(voiceProfileId) }
+    override suspend fun createVoiceShare(request: ChatbotCreateVoiceShareRequest) = simulateLongTask { createVoiceShareResult(request) }
+    override suspend fun importVoiceShare(shareId: String) = simulateLongTask { importVoiceShareResult(shareId) }
 }

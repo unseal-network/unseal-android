@@ -11,6 +11,7 @@ package io.element.android.features.messages.impl.utils.messagesummary
 import android.content.Context
 import dev.zacsweers.metro.ContributesBinding
 import io.element.android.features.messages.impl.timeline.model.event.RtcNotificationState
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAudioContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEventContent
@@ -40,6 +41,7 @@ class DefaultMessageSummaryFormatter(
     override fun format(content: TimelineItemEventContent): String {
         return when (content) {
             is TimelineItemTextBasedContent -> content.plainText
+            is TimelineItemAiContent -> content.body
             is TimelineItemProfileChangeContent -> content.body
             is TimelineItemStateContent -> content.body
             is TimelineItemLocationContent -> when (content.mode) {

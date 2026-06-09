@@ -26,7 +26,7 @@ class DefaultWebClientUrlForAuthenticationRetriever(
 ) : WebClientUrlForAuthenticationRetriever {
     override suspend fun retrieve(homeServerUrl: String): String {
         if (homeServerUrl != AuthenticationConfig.MATRIX_ORG_URL) {
-            Timber.w("Temporary account creation flow is only supported on matrix.org")
+            Timber.w("Temporary account creation flow is only supported on unseal.network")
             throw AccountCreationNotSupported()
         }
         val wellknown = wellknownRetriever.getElementWellKnown(homeServerUrl).dataOrNull()

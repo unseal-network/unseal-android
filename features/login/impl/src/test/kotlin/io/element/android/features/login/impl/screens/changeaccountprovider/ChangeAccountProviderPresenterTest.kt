@@ -9,12 +9,11 @@
 package io.element.android.features.login.impl.screens.changeaccountprovider
 
 import com.google.common.truth.Truth.assertThat
+import io.element.android.appconfig.AuthenticationConfig
 import io.element.android.features.enterprise.api.EnterpriseService
 import io.element.android.features.enterprise.test.FakeEnterpriseService
 import io.element.android.features.login.impl.accountprovider.AccountProvider
 import io.element.android.features.login.impl.changeserver.aChangeServerState
-import io.element.android.libraries.matrix.test.AN_ACCOUNT_PROVIDER
-import io.element.android.libraries.matrix.test.AN_ACCOUNT_PROVIDER_2
 import io.element.android.tests.testutils.WarmUpRule
 import io.element.android.tests.testutils.test
 import kotlinx.coroutines.test.runTest
@@ -38,8 +37,8 @@ class ChangeAccountProviderPresenterTest {
             assertThat(initialState.accountProviders).isEqualTo(
                 listOf(
                     AccountProvider(
-                        url = "https://matrix.org",
-                        title = "matrix.org",
+                        url = "https://unseal.network",
+                        title = "unseal.network",
                         subtitle = null,
                         isPublic = true,
                         isMatrixOrg = true,
@@ -56,7 +55,7 @@ class ChangeAccountProviderPresenterTest {
             changeServerPresenter = { aChangeServerState() },
             enterpriseService = FakeEnterpriseService(
                 defaultHomeserverListResult = {
-                    listOf(AN_ACCOUNT_PROVIDER, AN_ACCOUNT_PROVIDER_2)
+                    listOf(AuthenticationConfig.MATRIX_ORG_URL, "example.com")
                 }
             ),
         )
@@ -65,15 +64,15 @@ class ChangeAccountProviderPresenterTest {
             assertThat(initialState.accountProviders).isEqualTo(
                 listOf(
                     AccountProvider(
-                        url = "https://matrix.org",
-                        title = "matrix.org",
+                        url = "https://unseal.network",
+                        title = "unseal.network",
                         subtitle = null,
                         isPublic = true,
                         isMatrixOrg = true,
                     ),
                     AccountProvider(
-                        url = "https://element.io",
-                        title = "element.io",
+                        url = "https://example.com",
+                        title = "example.com",
                         subtitle = null,
                         isPublic = false,
                         isMatrixOrg = false,
@@ -90,7 +89,7 @@ class ChangeAccountProviderPresenterTest {
             changeServerPresenter = { aChangeServerState() },
             enterpriseService = FakeEnterpriseService(
                 defaultHomeserverListResult = {
-                    listOf(AN_ACCOUNT_PROVIDER, EnterpriseService.ANY_ACCOUNT_PROVIDER)
+                    listOf(AuthenticationConfig.MATRIX_ORG_URL, EnterpriseService.ANY_ACCOUNT_PROVIDER)
                 }
             ),
         )
@@ -99,8 +98,8 @@ class ChangeAccountProviderPresenterTest {
             assertThat(initialState.accountProviders).isEqualTo(
                 listOf(
                     AccountProvider(
-                        url = "https://matrix.org",
-                        title = "matrix.org",
+                        url = "https://unseal.network",
+                        title = "unseal.network",
                         subtitle = null,
                         isPublic = true,
                         isMatrixOrg = true,

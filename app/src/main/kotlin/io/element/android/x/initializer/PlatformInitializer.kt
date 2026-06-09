@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import timber.log.Timber
 
-private const val ELEMENT_X_TARGET = "elementx"
+private const val UNSEAL_TARGET = "unseal"
 
 class PlatformInitializer : Initializer<Unit> {
     override fun create(context: Context) {
@@ -28,7 +28,7 @@ class PlatformInitializer : Initializer<Unit> {
         val tracingService = appBindings.tracingService()
         val platformService = appBindings.platformService()
         val bugReporter = appBindings.bugReporter()
-        Timber.plant(tracingService.createTimberTree(ELEMENT_X_TARGET))
+        Timber.plant(tracingService.createTimberTree(UNSEAL_TARGET))
         val preferencesStore = appBindings.preferencesStore()
         val featureFlagService = appBindings.featureFlagService()
         val logLevel = runBlocking { preferencesStore.getTracingLogLevelFlow().first() }
@@ -36,7 +36,7 @@ class PlatformInitializer : Initializer<Unit> {
             writesToLogcat = runBlocking { featureFlagService.isFeatureEnabled(FeatureFlags.PrintLogsToLogcat) },
             writesToFilesConfiguration = bugReporter.createWriteToFilesConfiguration(),
             logLevel = logLevel,
-            extraTargets = listOf(ELEMENT_X_TARGET),
+            extraTargets = listOf(UNSEAL_TARGET),
             traceLogPacks = runBlocking { preferencesStore.getTracingLogPacksFlow().first() },
             sdkSentryDsn = appBindings.sentrySdkDsn()?.value?.takeIf { it.isNotBlank() },
         )

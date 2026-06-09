@@ -14,6 +14,7 @@ import io.element.android.features.messages.impl.timeline.TimelineEvent
 import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
 import io.element.android.features.messages.impl.timeline.di.LocalTimelineItemPresenterFactories
 import io.element.android.features.messages.impl.timeline.di.rememberPresenter
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAudioContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEventContent
@@ -68,6 +69,10 @@ fun TimelineItemEventContentView(
             onLinkClick = onLinkClick,
             onLinkLongClick = onLinkLongClick,
             onContentLayoutChange = onContentLayoutChange
+        )
+        is TimelineItemAiContent -> TimelineItemAiView(
+            content = content,
+            modifier = modifier,
         )
         is TimelineItemUnknownContent -> TimelineItemUnknownView(
             content = content,

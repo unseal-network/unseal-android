@@ -18,8 +18,9 @@ import io.element.android.features.login.api.LoginParams
 class DefaultLoginIntentResolver : LoginIntentResolver {
     override fun parse(uriString: String): LoginParams? {
         val uri = uriString.toUri()
-        if (uri.host != "mobile.element.io") return null
-        if (uri.path.orEmpty().startsWith("/element").not()) return null
+        if (uri.host != "mobile.unseal.network") return null
+        val path = uri.path.orEmpty()
+        if (path.startsWith("/unseal").not() && path.startsWith("/element").not()) return null
         val accountProvider = uri.getQueryParameter("account_provider") ?: return null
         val loginHint = uri.getQueryParameter("login_hint")
         return LoginParams(

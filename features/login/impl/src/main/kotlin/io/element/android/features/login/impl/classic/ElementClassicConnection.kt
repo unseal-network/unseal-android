@@ -284,8 +284,8 @@ class DefaultElementClassicConnection(
             if (elementXCanConnect) {
                 state
             } else {
-                Timber.tag(loggerTag.value).w("Cannot import session because the homeserver is not compatible with Element X")
-                ElementClassicConnectionState.Error("The homeserver is not compatible with Element X")
+                Timber.tag(loggerTag.value).w("Cannot import session because the homeserver is not compatible with Unseal")
+                ElementClassicConnectionState.Error("The homeserver is not compatible with Unseal")
             }
         } else {
             state

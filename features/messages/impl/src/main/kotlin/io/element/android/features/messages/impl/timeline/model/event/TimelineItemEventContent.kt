@@ -70,6 +70,7 @@ fun TimelineItemEventContent.canBeForwarded(): Boolean =
 fun TimelineItemEventContent.canReact(): Boolean =
     when (this) {
         is TimelineItemTextBasedContent,
+        is TimelineItemAiContent,
         is TimelineItemAudioContent,
         is TimelineItemEncryptedContent,
         is TimelineItemFileContent,

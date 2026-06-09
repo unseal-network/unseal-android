@@ -10,6 +10,8 @@ package io.element.android.libraries.chatbot.test
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotToolkit
 import io.element.android.libraries.chatbot.api.model.credits.CreditBalance
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotProviderVoice
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceProfile
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotSchedule
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookTrigger
@@ -68,4 +70,26 @@ fun aChatbotToolkit(
 ) = ChatbotToolkit(
     name = name,
     slug = slug,
+)
+
+fun aChatbotVoiceProfile(
+    id: String = "profile-1",
+    displayName: String = "My Voice",
+    provider: String = "elevenlabs",
+    providerVoiceId: String = "voice-1",
+) = ChatbotVoiceProfile(
+    id = id,
+    provider = provider,
+    providerVoiceId = providerVoiceId,
+    displayName = displayName,
+)
+
+fun aChatbotProviderVoice(
+    providerVoiceId: String = "voice-1",
+    displayName: String = "Catalog Voice",
+    provider: String = "elevenlabs",
+) = ChatbotProviderVoice(
+    provider = provider,
+    providerVoiceId = providerVoiceId,
+    displayName = displayName,
 )

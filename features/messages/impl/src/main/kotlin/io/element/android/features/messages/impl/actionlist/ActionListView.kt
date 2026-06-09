@@ -63,6 +63,7 @@ import io.element.android.features.messages.impl.crypto.sendfailure.VerifiedUser
 import io.element.android.features.messages.impl.timeline.a11y.a11yReactionAction
 import io.element.android.features.messages.impl.timeline.components.MessageShieldView
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAudioContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemFileContent
@@ -285,6 +286,7 @@ private fun MessageSummary(
 
     when (event.content) {
         is TimelineItemTextBasedContent,
+        is TimelineItemAiContent,
         is TimelineItemStateContent,
         is TimelineItemEncryptedContent,
         is TimelineItemRedactedContent,

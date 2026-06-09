@@ -44,6 +44,8 @@ class PreferencesRootNode(
         fun navigateToNotificationSettings()
         fun navigateToLockScreenSettings()
         fun navigateToWebhookTriggers()
+        fun navigateToConnectors()
+        fun navigateToVoiceLibrary()
         fun navigateToAdvancedSettings()
         fun navigateToLabs()
         fun navigateToLinkNewDevice()
@@ -94,6 +96,8 @@ class PreferencesRootNode(
             onOpenNotificationSettings = callback::navigateToNotificationSettings,
             onOpenLockScreenSettings = callback::navigateToLockScreenSettings,
             onOpenWebhookTriggers = callback::navigateToWebhookTriggers,
+            onOpenConnectors = callback::navigateToConnectors,
+            onOpenVoiceLibrary = callback::navigateToVoiceLibrary,
             onOpenUserProfile = callback::navigateToUserProfile,
             onOpenBlockedUsers = callback::navigateToBlockedUsers,
             onOpenCreditsTopUp = callback::openCreditsTopUp,

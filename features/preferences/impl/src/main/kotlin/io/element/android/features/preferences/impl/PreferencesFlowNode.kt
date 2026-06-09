@@ -37,6 +37,8 @@ import io.element.android.features.preferences.impl.notifications.NotificationSe
 import io.element.android.features.preferences.impl.notifications.edit.EditDefaultNotificationSettingNode
 import io.element.android.features.preferences.impl.root.PreferencesRootNode
 import io.element.android.features.preferences.impl.user.editprofile.EditUserProfileNode
+import io.element.android.features.connectors.api.ConnectorsEntryPoint
+import io.element.android.features.voicelibrary.api.VoiceLibraryEntryPoint
 import io.element.android.features.webhooks.api.WebhookTriggersEntryPoint
 import io.element.android.libraries.architecture.BackstackView
 import io.element.android.libraries.architecture.BaseFlowNode
@@ -65,6 +67,8 @@ class PreferencesFlowNode(
     private val openSourceLicensesEntryPoint: OpenSourceLicensesEntryPoint,
     private val accountDeactivationEntryPoint: AccountDeactivationEntryPoint,
     private val webhookTriggersEntryPoint: WebhookTriggersEntryPoint,
+    private val connectorsEntryPoint: ConnectorsEntryPoint,
+    private val voiceLibraryEntryPoint: VoiceLibraryEntryPoint,
     private val creditsEntryPoint: CreditsEntryPoint,
 ) : BaseFlowNode<PreferencesFlowNode.NavTarget>(
     backstack = BackStack(
@@ -107,6 +111,12 @@ class PreferencesFlowNode(
 
         @Parcelize
         data object WebhookTriggers : NavTarget
+
+        @Parcelize
+        data object Connectors : NavTarget
+
+        @Parcelize
+        data object VoiceLibrary : NavTarget
 
         @Parcelize
         data class EditDefaultNotificationSetting(val isOneToOne: Boolean) : NavTarget
@@ -170,6 +180,14 @@ class PreferencesFlowNode(
 
                     override fun navigateToWebhookTriggers() {
                         backstack.push(NavTarget.WebhookTriggers)
+                    }
+
+                    override fun navigateToConnectors() {
+                        backstack.push(NavTarget.Connectors)
+                    }
+
+                    override fun navigateToVoiceLibrary() {
+                        backstack.push(NavTarget.VoiceLibrary)
                     }
 
                     override fun navigateToAdvancedSettings() {
@@ -350,6 +368,40 @@ class PreferencesFlowNode(
 
                         override fun onOpenConnectUrl(url: String) {
                             connectUrl.value = url
+                        }
+                    },
+                )
+            }
+            NavTarget.Connectors -> {
+                connectorsEntryPoint.createNode(
+                    parentNode = this,
+                    buildContext = buildContext,
+                    callback = object : ConnectorsEntryPoint.Callback {
+                        override fun onDone() {
+                            if (backstack.canPop()) {
+                                backstack.pop()
+                            } else {
+                                navigateUp()
+                            }
+                        }
+
+                        override fun onOpenConnectUrl(url: String) {
+                            connectUrl.value = url
+                        }
+                    },
+                )
+            }
+            NavTarget.VoiceLibrary -> {
+                voiceLibraryEntryPoint.createNode(
+                    parentNode = this,
+                    buildContext = buildContext,
+                    callback = object : VoiceLibraryEntryPoint.Callback {
+                        override fun onDone() {
+                            if (backstack.canPop()) {
+                                backstack.pop()
+                            } else {
+                                navigateUp()
+                            }
                         }
                     },
                 )
