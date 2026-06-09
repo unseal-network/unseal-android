@@ -710,7 +710,7 @@ git commit -m "feat: add credits dashboard presenter"
 - Modify: `features/credits/impl/src/main/kotlin/io/element/android/features/credits/impl/CreditsView.kt`
 - Create: `features/credits/impl/src/test/kotlin/io/element/android/features/credits/impl/CreditsViewTest.kt`
 
-- [ ] **Step 1: Write view tests**
+- [x] **Step 1: Write view tests**
 
 Cover:
 
@@ -722,15 +722,15 @@ Cover:
 - usage ranking controls `Agent`, `Model`, `7 days`, `30 days`, `All`
 - recharge click emits `RequestTopUp`
 
-- [ ] **Step 2: Run view tests and confirm failure**
+- [x] **Step 2: Run view tests and confirm failure**
 
 Run `:features:credits:impl:testDebugUnitTest --tests '*CreditsViewTest'`.
 
-- [ ] **Step 3: Implement screen**
+- [x] **Step 3: Implement screen**
 
 Use `PreferencePage` or the local top-app-bar pattern already used in adjacent feature screens, existing design-system `ListItem`, `Text`, `Button`, `HorizontalDivider`, and simple rows instead of adding a chart library.
 
-- [ ] **Step 4: Run view tests and compile**
+- [x] **Step 4: Run view tests and compile**
 
 Run:
 
@@ -740,7 +740,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 5: Commit UI**
+- [x] **Step 5: Commit UI**
 
 ```bash
 git add features/credits/impl
