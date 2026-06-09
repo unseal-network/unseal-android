@@ -21,6 +21,7 @@ import io.element.android.features.roomschedules.impl.cron.CronPickerModel
 import io.element.android.features.roomschedules.impl.model.matrixUserId
 import io.element.android.features.roomschedules.impl.model.stableId
 import io.element.android.libraries.architecture.Presenter
+import io.element.android.libraries.chatbot.api.ChatbotApiError
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotCreateScheduleRequest
@@ -142,14 +143,14 @@ class ScheduleEditPresenter(
                     ).map { Unit }
                 }
             }
-            result
-                .onSuccess {
-                    error = null
-                    navigator.onSaved()
-                }
-                .onFailure {
-                    error = errorMessage(it)
-                }
+            val isLenientCreateSuccess = mode is ScheduleEditMode.Create &&
+                (result.exceptionOrNull() as? ChatbotApiError.HttpError)?.statusCode in setOf(200, 500)
+            if (result.isSuccess || isLenientCreateSuccess) {
+                error = null
+                navigator.onSaved()
+            } else {
+                error = errorMessage(result.exceptionOrNull() ?: RuntimeException("Failed to save schedule"))
+            }
             isSubmitting = false
         }
 

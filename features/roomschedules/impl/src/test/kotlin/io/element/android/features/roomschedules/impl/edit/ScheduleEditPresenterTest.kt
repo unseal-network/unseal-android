@@ -107,6 +107,28 @@ class ScheduleEditPresenterTest {
     }
 
     @Test
+    fun `event - create treats server bug http errors as saved`() = runTest {
+        val navigator = FakeScheduleEditNavigator()
+        val service = FakeChatbotApiService().apply {
+            listAgentsResult = { Result.success(listOf(agent("bot", localpart = "agent", serverName = "example.com"))) }
+            createScheduleResult = {
+                Result.failure(io.element.android.libraries.chatbot.api.ChatbotApiError.HttpError(500, "server created schedule but returned error"))
+            }
+        }
+        val presenter = createPresenter(service = service, navigator = navigator)
+
+        presenter.test {
+            awaitItem().eventSink(ScheduleEditEvents.OnAppear)
+            val loaded = awaitStateWhere { it.selectedAgentBotName == "bot" }
+            loaded.eventSink(ScheduleEditEvents.NameChanged("Daily"))
+            awaitStateWhere { it.name == "Daily" }.eventSink(ScheduleEditEvents.ActionChanged("Work"))
+            awaitStateWhere { it.action == "Work" }.eventSink(ScheduleEditEvents.Submit)
+            awaitStateWhere { navigator.savedCalls == 1 && !it.isSubmitting }
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `event - create blocks known agent that is not in room`() = runTest {
         val service = FakeChatbotApiService().apply {
             listAgentsResult = { Result.success(listOf(agent("bot", localpart = "agent", serverName = "example.com"))) }

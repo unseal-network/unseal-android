@@ -1903,9 +1903,87 @@ Expected: no commit is needed when Steps 1-5 already pass with a clean worktree.
 
 ---
 
+### Task 8: Preserve iOS Create Schedule Server-Bug Leniency
+
+**Files:**
+- Modify: `features/roomschedules/impl/src/test/kotlin/io/element/android/features/roomschedules/impl/edit/ScheduleEditPresenterTest.kt`
+- Modify: `features/roomschedules/impl/src/main/kotlin/io/element/android/features/roomschedules/impl/edit/ScheduleEditPresenter.kt`
+
+- [x] **Step 1: Write failing create-leniency presenter test**
+
+Add this test to `ScheduleEditPresenterTest.kt` after `event - create builds full agent matrix id and saves`:
+
+```kotlin
+@Test
+fun `event - create treats server bug http errors as saved`() = runTest {
+    val navigator = FakeScheduleEditNavigator()
+    val service = FakeChatbotApiService().apply {
+        listAgentsResult = { Result.success(listOf(agent("bot", localpart = "agent", serverName = "example.com"))) }
+        createScheduleResult = {
+            Result.failure(io.element.android.libraries.chatbot.api.ChatbotApiError.HttpError(500, "server created schedule but returned error"))
+        }
+    }
+    val presenter = createPresenter(service = service, navigator = navigator)
+
+    presenter.test {
+        awaitItem().eventSink(ScheduleEditEvents.OnAppear)
+        val loaded = awaitStateWhere { it.selectedAgentBotName == "bot" }
+        loaded.eventSink(ScheduleEditEvents.NameChanged("Daily"))
+        awaitStateWhere { it.name == "Daily" }.eventSink(ScheduleEditEvents.ActionChanged("Work"))
+        awaitStateWhere { it.action == "Work" }.eventSink(ScheduleEditEvents.Submit)
+        awaitStateWhere { navigator.savedCalls == 1 && !it.isSubmitting }
+        cancelAndIgnoreRemainingEvents()
+    }
+}
+```
+
+- [x] **Step 2: Run the focused test and verify failure**
+
+Run:
+
+```sh
+env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy JAVA_HOME=/usr/local/opt/openjdk@21 ANDROID_HOME=/usr/local/share/android-commandlinetools ./gradlew --no-daemon --no-configuration-cache :features:roomschedules:impl:testDebugUnitTest --tests 'io.element.android.features.roomschedules.impl.edit.ScheduleEditPresenterTest.event - create treats server bug http errors as saved'
+```
+
+Expected: FAIL because create-mode `ChatbotApiError.HttpError(500, ...)` is currently surfaced as an error instead of calling `navigator.onSaved()`.
+
+- [x] **Step 3: Implement create-mode server-bug leniency**
+
+In `ScheduleEditPresenter.kt`, import `io.element.android.libraries.chatbot.api.ChatbotApiError` and replace the final `result.onSuccess/onFailure` handling with:
+
+```kotlin
+val isLenientCreateSuccess = mode is ScheduleEditMode.Create &&
+    (result.exceptionOrNull() as? ChatbotApiError.HttpError)?.statusCode in setOf(200, 500)
+if (result.isSuccess || isLenientCreateSuccess) {
+    error = null
+    navigator.onSaved()
+} else {
+    error = errorMessage(result.exceptionOrNull() ?: RuntimeException("Failed to save schedule"))
+}
+```
+
+- [x] **Step 4: Run focused test and full Room Schedules tests**
+
+Run:
+
+```sh
+env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy JAVA_HOME=/usr/local/opt/openjdk@21 ANDROID_HOME=/usr/local/share/android-commandlinetools ./gradlew --no-daemon --no-configuration-cache :features:roomschedules:impl:testDebugUnitTest --tests 'io.element.android.features.roomschedules.impl.edit.ScheduleEditPresenterTest.event - create treats server bug http errors as saved' :features:roomschedules:impl:testDebugUnitTest
+```
+
+Expected: PASS.
+
+- [x] **Step 5: Commit**
+
+```sh
+git add docs/superpowers/plans/2026-06-09-room-schedules.md features/roomschedules/impl/src/main/kotlin/io/element/android/features/roomschedules/impl/edit/ScheduleEditPresenter.kt features/roomschedules/impl/src/test/kotlin/io/element/android/features/roomschedules/impl/edit/ScheduleEditPresenterTest.kt
+git commit -m "fix: preserve schedule create leniency"
+```
+
+---
+
 ## Self-Review Checklist
 
-- Spec coverage: Tasks 1-7 cover feature modules, cron parser, schedule filtering/toggling/delete, working memory, schedule create/edit, room badge, room integration, tests, and forbidden dependency scan.
+- Spec coverage: Tasks 1-8 cover feature modules, cron parser, schedule filtering/toggling/delete, working memory, schedule create/edit including iOS server-bug leniency, room badge, room integration, tests, and forbidden dependency scan.
 - Dependency boundary: No task edits Rust SDK, voice, vault, sandbox, MiniApp, or Unseal component-library modules.
 - Execution order: Implementation starts only after this plan exists. Each task ends with focused verification and a commit.
 - Next migration item after this feature: `webhook-triggers`, but only after `room-schedules` is implemented and verified.
