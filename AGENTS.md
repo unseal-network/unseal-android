@@ -66,6 +66,77 @@ Common Gradle tasks:
 - Format: `./gradlew ktlintFormat`
 - Update Docs TOC: `./gradlew generateDocsToc`
 
+### Android Debugging
+
+Use JDK 17 or newer. JDK 21 is recommended for local Gradle builds.
+
+Before building or installing from the command line, make sure the Android SDK tools are on `PATH`:
+
+```bash
+export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+```
+
+Install or verify the basic Android SDK packages:
+
+```bash
+sdkmanager "platform-tools" "emulator" "platforms;android-36" "build-tools;36.0.0"
+yes | sdkmanager --licenses
+```
+
+Build a debug APK:
+
+```bash
+./gradlew --no-daemon --no-configuration-cache :app:assembleGplayDebug
+```
+
+If the GPlay flavor is not desired, build the F-Droid flavor instead:
+
+```bash
+./gradlew --no-daemon --no-configuration-cache :app:assembleFdroidDebug
+```
+
+Find the generated APK:
+
+```bash
+find app/build/outputs/apk -name "*.apk" -print
+```
+
+Start a visible emulator:
+
+```bash
+emulator -list-avds
+emulator -avd <AVD_NAME> -no-snapshot -gpu swiftshader_indirect
+```
+
+Do not pass `-no-window` when a human needs to inspect the app. A process launched with `-no-window` or `qemu-system-*-headless` is usable by `adb` but will not show an emulator window.
+
+Wait for the emulator or device:
+
+```bash
+adb wait-for-device
+adb devices -l
+```
+
+Install the APK:
+
+```bash
+adb install -r <APK_PATH>
+```
+
+Launch the debug app:
+
+```bash
+adb shell monkey -p io.element.android.x.debug -c android.intent.category.LAUNCHER 1
+```
+
+If launch fails, confirm the package and launchable activity from the APK:
+
+```bash
+aapt dump badging <APK_PATH> | grep -E "package:|launchable-activity"
+```
+
+For true device debugging, enable Developer Options and USB Debugging on the phone, connect it by USB, then use the same `adb devices`, `adb install -r <APK_PATH>`, and `adb shell monkey ...` commands. If the device ABI is unknown, use a universal APK; otherwise prefer the ABI-specific APK that matches the device.
+
 ### Gradle Modules
 
 Features follow a 3-module structure:
@@ -119,3 +190,45 @@ We wrap the `matrix-rust-sdk` to isolate the UI from the underlying SDK.
 - Naming: SDK `Room` → `JoinedRoom` or `RoomInfo`.
 - Type Mapping: Map Rust SDK types to Kotlin data classes in the `api` module to avoid leaking `MatrixRustSDK` into the UI.
 - Always follow Kotlin naming conventions (e.g., `userId` instead of `userID`).
+
+---
+
+## Unseal Feature Migration Status
+
+Use the iOS project as the source of truth for behavior. For each remaining Android migration task, first locate the iOS View, ViewModel, Service, Model, and navigation implementation, then migrate the smallest complete Android behavior.
+
+Do not start a long planning flow for routine migration work. Read the relevant existing spec only to confirm scope and acceptance checks, then implement and verify.
+
+### Completed Or Implemented Specs
+
+| Feature | Spec |
+| :--- | :--- |
+| Matrix Rust SDK artifact integration | `docs/superpowers/specs/2026-06-08-matrix-rust-sdk-artifact-integration-design.md` |
+| Matrix Rust SDK 26.06.5 Maven artifact adoption | `docs/superpowers/plans/2026-06-09-rust-sdk-26-06-5-build.md` |
+| Matrix Rust SDK 26.06.5 test fixture adaptation | `docs/superpowers/plans/2026-06-09-rust-sdk-26-06-5-matrix-test-fixtures.md` |
+| Session verification | `docs/superpowers/specs/2026-06-08-session-verification-design.md` |
+| Secure backup recovery | `docs/superpowers/specs/2026-06-08-secure-backup-recovery-design.md` |
+| Encrypted room key recovery | `docs/superpowers/specs/2026-06-09-encrypted-room-key-recovery-design.md` |
+| Agent room key recovery | `docs/superpowers/specs/2026-06-09-agent-room-key-recovery-design.md` |
+| Chatbot API service | `docs/superpowers/specs/2026-06-08-chatbot-api-service-design.md` |
+| Agent management | `docs/superpowers/specs/2026-06-08-agent-management-design.md` |
+| Skills marketplace | `docs/superpowers/specs/2026-06-08-skills-marketplace-design.md` |
+| Agent skills management | `docs/superpowers/specs/2026-06-09-agent-skills-management-design.md` |
+| Room schedules | `docs/superpowers/specs/2026-06-09-room-schedules-design.md` |
+| Webhook triggers feature module | `docs/superpowers/specs/2026-06-09-webhook-triggers-design.md` |
+| Credits dashboard | `docs/superpowers/specs/2026-06-09-credits-dashboard-design.md` |
+
+### Remaining Migration Work
+
+| Feature | Status | Next action |
+| :--- | :--- | :--- |
+| Webhook trigger host entry points | Spec exists; settings and room-details entry points still need completion. | Implement from `docs/superpowers/specs/2026-06-09-webhook-triggers-host-entrypoints-design.md`, using iOS Webhook and Room Details/Settings behavior as the reference. |
+| Connectors | Listed in the migration index; no standalone Android spec or implementation yet. | Find iOS connector list/detail/connect/disconnect/settings implementation, then create the Android feature and settings entry point. |
+| Game picker | Listed in the migration index; no standalone Android spec or implementation yet. | Migrate the room game picker and room event flow only. Do not implement MiniApp runtime in this task. |
+| AI message rich renderer | Component-library dependent; no standalone Android spec or implementation yet. | Find iOS AI timeline rendering, tool/thinking/source blocks, and decide whether Android can ship a degraded native renderer first. |
+| Vault management | Component-library dependent; no standalone Android spec or implementation yet. | Find iOS Vault behavior and identify any UnsealUI/UnsealAgent dependency before implementation. |
+| Local agent runtime | Component-library dependent; no standalone Android spec or implementation yet. | Find iOS local agent runtime, persistence, keychain bridge, stream persistence, and failure recovery behavior before implementation. |
+| MiniApp runtime | Component-library dependent; no standalone Android spec or implementation yet. | Find iOS MiniApp runtime/WebView bridge implementation. Keep separate from the game picker task. |
+| Voice library | Pending dependency classification; no standalone Android spec or implementation yet. | Find iOS Voice Library behavior and classify as native list/detail/manage or component-library dependent recording/playback/generation work. |
+
+The migration index is `docs/superpowers/specs/2026-06-08-unseal-android-feature-migration-index-design.md`.
