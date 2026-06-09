@@ -10,6 +10,7 @@ package io.element.android.features.preferences.impl
 
 import android.os.Parcelable
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import com.bumble.appyx.core.modality.BuildContext
 import com.bumble.appyx.core.node.Node
@@ -35,11 +36,13 @@ import io.element.android.features.preferences.impl.notifications.NotificationSe
 import io.element.android.features.preferences.impl.notifications.edit.EditDefaultNotificationSettingNode
 import io.element.android.features.preferences.impl.root.PreferencesRootNode
 import io.element.android.features.preferences.impl.user.editprofile.EditUserProfileNode
+import io.element.android.features.webhooks.api.WebhookTriggersEntryPoint
 import io.element.android.libraries.architecture.BackstackView
 import io.element.android.libraries.architecture.BaseFlowNode
 import io.element.android.libraries.architecture.appyx.canPop
 import io.element.android.libraries.architecture.callback
 import io.element.android.libraries.architecture.createNode
+import io.element.android.libraries.designsystem.utils.OpenUrlInTabView
 import io.element.android.libraries.di.SessionScope
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomId
@@ -59,6 +62,7 @@ class PreferencesFlowNode(
     private val logoutEntryPoint: LogoutEntryPoint,
     private val openSourceLicensesEntryPoint: OpenSourceLicensesEntryPoint,
     private val accountDeactivationEntryPoint: AccountDeactivationEntryPoint,
+    private val webhookTriggersEntryPoint: WebhookTriggersEntryPoint,
 ) : BaseFlowNode<PreferencesFlowNode.NavTarget>(
     backstack = BackStack(
         initialElement = plugins.filterIsInstance<PreferencesEntryPoint.Params>().first().initialElement.toNavTarget(),
@@ -97,6 +101,9 @@ class PreferencesFlowNode(
 
         @Parcelize
         data object LockScreenSettings : NavTarget
+
+        @Parcelize
+        data object WebhookTriggers : NavTarget
 
         @Parcelize
         data class EditDefaultNotificationSetting(val isOneToOne: Boolean) : NavTarget
@@ -153,6 +160,10 @@ class PreferencesFlowNode(
 
                     override fun navigateToLockScreenSettings() {
                         backstack.push(NavTarget.LockScreenSettings)
+                    }
+
+                    override fun navigateToWebhookTriggers() {
+                        backstack.push(NavTarget.WebhookTriggers)
                     }
 
                     override fun navigateToAdvancedSettings() {
@@ -303,6 +314,30 @@ class PreferencesFlowNode(
                     }
                 )
             }
+            NavTarget.WebhookTriggers -> {
+                webhookTriggersEntryPoint.createNode(
+                    parentNode = this,
+                    buildContext = buildContext,
+                    params = WebhookTriggersEntryPoint.Params(
+                        initialTarget = WebhookTriggersEntryPoint.InitialTarget.Global,
+                    ),
+                    callback = object : WebhookTriggersEntryPoint.Callback {
+                        override fun onDone() {
+                            if (backstack.canPop()) {
+                                backstack.pop()
+                            } else {
+                                navigateUp()
+                            }
+                        }
+
+                        override fun onTriggersChanged() = Unit
+
+                        override fun onOpenConnectUrl(url: String) {
+                            connectUrl.value = url
+                        }
+                    },
+                )
+            }
             NavTarget.BlockedUsers -> {
                 createNode<BlockedUsersNode>(buildContext)
             }
@@ -327,8 +362,11 @@ class PreferencesFlowNode(
         }
     }
 
+    private val connectUrl = mutableStateOf<String?>(null)
+
     @Composable
     override fun View(modifier: Modifier) {
         BackstackView()
+        OpenUrlInTabView(connectUrl)
     }
 }

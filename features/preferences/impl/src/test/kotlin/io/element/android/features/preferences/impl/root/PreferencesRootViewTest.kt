@@ -14,6 +14,7 @@ import androidx.compose.ui.test.AndroidComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.v2.runAndroidComposeUiTest
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.element.android.features.preferences.impl.R
@@ -283,7 +284,9 @@ class PreferencesRootViewTest {
                 ),
                 onOpenDeveloperSettings = callback,
             )
-            clickOn(CommonStrings.common_developer_options)
+            onNodeWithText(activity!!.getString(CommonStrings.common_developer_options))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -355,6 +358,20 @@ class PreferencesRootViewTest {
     }
 
     @Test
+    fun `click on Webhook triggers invokes the expected callback`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        ensureCalledOnce { callback ->
+            setView(
+                aPreferencesRootState(
+                    eventSink = eventsRecorder,
+                ),
+                onOpenWebhookTriggers = callback,
+            )
+            clickOn(R.string.screen_preferences_webhook_triggers_title)
+        }
+    }
+
+    @Test
     fun `click on Blocked users invokes the expected callback`() = runAndroidComposeUiTest {
         val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
         ensureCalledOnce { callback ->
@@ -406,7 +423,9 @@ class PreferencesRootViewTest {
                 ),
                 onDeactivateClick = callback,
             )
-            clickOn(CommonStrings.action_delete_account)
+            onNodeWithText(activity!!.getString(CommonStrings.action_delete_account))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -432,7 +451,9 @@ class PreferencesRootViewTest {
                 eventSink = eventsRecorder,
             ),
         )
-        onNodeWithText(version).performClick()
+        onNodeWithText(version)
+            .performScrollTo()
+            .performClick()
         eventsRecorder.assertSingle(PreferencesRootEvent.OnVersionInfoClick)
     }
 }
@@ -452,6 +473,7 @@ private fun AndroidComposeUiTest<ComponentActivity>.setView(
     onOpenAdvancedSettings: () -> Unit = EnsureNeverCalled(),
     onOpenLabs: () -> Unit = EnsureNeverCalled(),
     onOpenNotificationSettings: () -> Unit = EnsureNeverCalled(),
+    onOpenWebhookTriggers: () -> Unit = EnsureNeverCalled(),
     onOpenUserProfile: (MatrixUser) -> Unit = EnsureNeverCalledWithParam(),
     onOpenBlockedUsers: () -> Unit = EnsureNeverCalled(),
     onSignOutClick: () -> Unit = EnsureNeverCalled(),
@@ -473,6 +495,7 @@ private fun AndroidComposeUiTest<ComponentActivity>.setView(
             onOpenAdvancedSettings = onOpenAdvancedSettings,
             onOpenLabs = onOpenLabs,
             onOpenNotificationSettings = onOpenNotificationSettings,
+            onOpenWebhookTriggers = onOpenWebhookTriggers,
             onOpenUserProfile = onOpenUserProfile,
             onOpenBlockedUsers = onOpenBlockedUsers,
             onSignOutClick = onSignOutClick,

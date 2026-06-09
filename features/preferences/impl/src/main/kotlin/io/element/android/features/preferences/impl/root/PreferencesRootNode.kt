@@ -43,6 +43,7 @@ class PreferencesRootNode(
         fun navigateToDeveloperSettings()
         fun navigateToNotificationSettings()
         fun navigateToLockScreenSettings()
+        fun navigateToWebhookTriggers()
         fun navigateToAdvancedSettings()
         fun navigateToLabs()
         fun navigateToLinkNewDevice()
@@ -89,6 +90,7 @@ class PreferencesRootNode(
             onManageAccountClick = { onManageAccountClick(activity, it, isDark) },
             onOpenNotificationSettings = callback::navigateToNotificationSettings,
             onOpenLockScreenSettings = callback::navigateToLockScreenSettings,
+            onOpenWebhookTriggers = callback::navigateToWebhookTriggers,
             onOpenUserProfile = callback::navigateToUserProfile,
             onOpenBlockedUsers = callback::navigateToBlockedUsers,
             onSignOutClick = {

@@ -17,6 +17,8 @@ import io.element.android.features.licenses.test.FakeOpenSourceLicensesEntryPoin
 import io.element.android.features.lockscreen.test.FakeLockScreenEntryPoint
 import io.element.android.features.logout.test.FakeLogoutEntryPoint
 import io.element.android.features.preferences.api.PreferencesEntryPoint
+import io.element.android.features.webhooks.api.WebhookTriggersEntryPoint
+import io.element.android.features.webhooks.test.FakeWebhookTriggersEntryPoint
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.troubleshoot.test.FakeNotificationTroubleShootEntryPoint
@@ -46,6 +48,7 @@ class DefaultPreferencesEntryPointTest {
                 logoutEntryPoint = FakeLogoutEntryPoint(),
                 openSourceLicensesEntryPoint = FakeOpenSourceLicensesEntryPoint(),
                 accountDeactivationEntryPoint = FakeAccountDeactivationEntryPoint(),
+                webhookTriggersEntryPoint = FakeWebhookTriggersEntryPoint(),
             )
         }
         val callback = object : PreferencesEntryPoint.Callback {
@@ -78,5 +81,41 @@ class DefaultPreferencesEntryPointTest {
             .isEqualTo(PreferencesFlowNode.NavTarget.NotificationSettings)
         assertThat(PreferencesEntryPoint.InitialTarget.NotificationTroubleshoot.toNavTarget())
             .isEqualTo(PreferencesFlowNode.NavTarget.TroubleshootNotifications)
+    }
+
+    @Test
+    fun `test webhook triggers nav target creates global webhook node`() {
+        var capturedParams: WebhookTriggersEntryPoint.Params? = null
+        val node = PreferencesFlowNode(
+            buildContext = BuildContext.root(null),
+            plugins = listOf(
+                PreferencesEntryPoint.Params(
+                    initialElement = PreferencesEntryPoint.InitialTarget.Root,
+                ),
+                object : PreferencesEntryPoint.Callback {
+                    override fun navigateToAddAccount() = lambdaError()
+                    override fun navigateToLinkNewDevice() = lambdaError()
+                    override fun navigateToBugReport() = lambdaError()
+                    override fun navigateToSecureBackup() = lambdaError()
+                    override fun navigateToRoomNotificationSettings(roomId: RoomId) = lambdaError()
+                    override fun navigateToEvent(roomId: RoomId, eventId: EventId) = lambdaError()
+                }
+            ),
+            lockScreenEntryPoint = FakeLockScreenEntryPoint(),
+            notificationTroubleShootEntryPoint = FakeNotificationTroubleShootEntryPoint(),
+            pushHistoryEntryPoint = FakePushHistoryEntryPoint(),
+            logoutEntryPoint = FakeLogoutEntryPoint(),
+            openSourceLicensesEntryPoint = FakeOpenSourceLicensesEntryPoint(),
+            accountDeactivationEntryPoint = FakeAccountDeactivationEntryPoint(),
+            webhookTriggersEntryPoint = FakeWebhookTriggersEntryPoint { parentNode, _, params, _ ->
+                capturedParams = params
+                parentNode
+            },
+        )
+
+        node.resolve(PreferencesFlowNode.NavTarget.WebhookTriggers, BuildContext.root(null))
+
+        assertThat(capturedParams?.initialTarget)
+            .isEqualTo(WebhookTriggersEntryPoint.InitialTarget.Global)
     }
 }

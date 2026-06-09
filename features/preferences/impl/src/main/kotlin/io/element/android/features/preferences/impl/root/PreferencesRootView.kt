@@ -59,6 +59,7 @@ fun PreferencesRootView(
     onOpenAdvancedSettings: () -> Unit,
     onOpenLabs: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
+    onOpenWebhookTriggers: () -> Unit,
     onOpenUserProfile: (MatrixUser) -> Unit,
     onOpenBlockedUsers: () -> Unit,
     onSignOutClick: () -> Unit,
@@ -101,6 +102,7 @@ fun PreferencesRootView(
             state = state,
             onOpenNotificationSettings = onOpenNotificationSettings,
             onOpenLockScreenSettings = onOpenLockScreenSettings,
+            onOpenWebhookTriggers = onOpenWebhookTriggers,
             onSecureBackupClick = onSecureBackupClick,
         )
 
@@ -168,12 +170,18 @@ private fun ColumnScope.ManageAppSection(
     state: PreferencesRootState,
     onOpenNotificationSettings: () -> Unit,
     onOpenLockScreenSettings: () -> Unit,
+    onOpenWebhookTriggers: () -> Unit,
     onSecureBackupClick: () -> Unit,
 ) {
     ListItem(
         headlineContent = { Text(stringResource(id = R.string.screen_notification_settings_title)) },
         leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.Notifications())),
         onClick = onOpenNotificationSettings,
+    )
+    ListItem(
+        headlineContent = { Text(stringResource(id = R.string.screen_preferences_webhook_triggers_title)) },
+        leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.Notifications())),
+        onClick = onOpenWebhookTriggers,
     )
     ListItem(
         headlineContent = { Text(stringResource(id = CommonStrings.common_screen_lock)) },
@@ -358,6 +366,7 @@ private fun ContentToPreview(state: PreferencesRootState) {
         onLinkNewDeviceClick = {},
         onOpenNotificationSettings = {},
         onOpenLockScreenSettings = {},
+        onOpenWebhookTriggers = {},
         onOpenUserProfile = {},
         onOpenBlockedUsers = {},
         onSignOutClick = {},
