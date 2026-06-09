@@ -840,7 +840,7 @@ git commit -m "feat: add credits settings entry"
 - Inspect: `features/credits`
 - Inspect: `features/preferences/impl/src/main/kotlin/io/element/android/features/preferences/impl`
 
-- [ ] **Step 1: Run focused credits tests**
+- [x] **Step 1: Run focused credits tests**
 
 ```bash
 env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy JAVA_HOME=/usr/local/opt/openjdk@21 ANDROID_HOME=/usr/local/share/android-commandlinetools ./gradlew --no-daemon --no-configuration-cache :features:credits:impl:testDebugUnitTest
@@ -848,7 +848,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 2: Run compile checks**
+- [x] **Step 2: Run compile checks**
 
 ```bash
 env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy JAVA_HOME=/usr/local/opt/openjdk@21 ANDROID_HOME=/usr/local/share/android-commandlinetools ./gradlew --no-daemon --no-configuration-cache :features:credits:impl:compileDebugKotlin :features:preferences:impl:compileDebugKotlin
@@ -856,7 +856,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 3: Run app assemble**
+- [x] **Step 3: Run app assemble**
 
 ```bash
 env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy JAVA_HOME=/usr/local/opt/openjdk@21 ANDROID_HOME=/usr/local/share/android-commandlinetools ./gradlew --no-daemon --no-configuration-cache :app:assembleDebug
@@ -864,7 +864,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 4: Run forbidden dependency scan**
+- [x] **Step 4: Run forbidden dependency scan**
 
 ```bash
 rg -n "libraries\\.rustsdk|org\\.matrix\\.rust|voiceplayer|voicerecorder|UnsealUI|UnsealAgent|UnsealMiniApp|stripe|Stripe" features/credits features/preferences/impl/src/main/kotlin/io/element/android/features/preferences/impl
@@ -872,7 +872,7 @@ rg -n "libraries\\.rustsdk|org\\.matrix\\.rust|voiceplayer|voicerecorder|UnsealU
 
 Expected: no output.
 
-- [ ] **Step 5: Commit verification note if docs changed**
+- [x] **Step 5: Commit verification note if docs changed**
 
 If no source files changed during verification, do not create an empty commit. If a verification doc is added, commit:
 
