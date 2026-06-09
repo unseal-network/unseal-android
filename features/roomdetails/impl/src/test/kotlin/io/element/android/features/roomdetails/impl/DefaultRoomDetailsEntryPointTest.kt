@@ -23,6 +23,8 @@ import io.element.android.features.roomdetails.api.RoomDetailsEntryPoint
 import io.element.android.features.roomdetailsedit.test.FakeRoomDetailsEditEntryPoint
 import io.element.android.features.securityandprivacy.test.FakeSecurityAndPrivacyEntryPoint
 import io.element.android.features.verifysession.test.FakeOutgoingVerificationEntryPoint
+import io.element.android.features.webhooks.api.WebhookTriggersEntryPoint
+import io.element.android.features.webhooks.test.FakeWebhookTriggersEntryPoint
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.permalink.PermalinkData
@@ -65,6 +67,7 @@ class DefaultRoomDetailsEntryPointTest {
                 rolesAndPermissionsEntryPoint = FakeRolesAndPermissionsEntryPoint(),
                 securityAndPrivacyEntryPoint = FakeSecurityAndPrivacyEntryPoint(),
                 roomDetailsEditEntryPoint = FakeRoomDetailsEditEntryPoint(),
+                webhookTriggersEntryPoint = FakeWebhookTriggersEntryPoint(),
             )
         }
         val callback = object : RoomDetailsEntryPoint.Callback {
@@ -97,5 +100,55 @@ class DefaultRoomDetailsEntryPointTest {
             .isEqualTo(RoomDetailsFlowNode.NavTarget.RoomMemberDetails(A_USER_ID))
         assertThat(RoomDetailsEntryPoint.InitialTarget.RoomNotificationSettings.toNavTarget())
             .isEqualTo(RoomDetailsFlowNode.NavTarget.RoomNotificationSettings(showUserDefinedSettingStyle = true))
+    }
+
+    @Test
+    fun `test webhook triggers nav target creates room webhook node`() {
+        val room = FakeJoinedRoom()
+        var capturedParams: WebhookTriggersEntryPoint.Params? = null
+        val node = RoomDetailsFlowNode(
+            buildContext = BuildContext.root(null),
+            plugins = listOf(
+                RoomDetailsEntryPoint.Params(
+                    initialElement = RoomDetailsEntryPoint.InitialTarget.RoomDetails,
+                ),
+                object : RoomDetailsEntryPoint.Callback {
+                    override fun onDone() = lambdaError()
+                    override fun navigateToGlobalNotificationSettings() = lambdaError()
+                    override fun navigateToDeveloperSettings() = lambdaError()
+                    override fun navigateToRoom(roomId: RoomId, serverNames: List<String>, clearBackStack: Boolean) = lambdaError()
+                    override fun handlePermalinkClick(data: PermalinkData, pushToBackstack: Boolean) = lambdaError()
+                    override fun startForwardEventFlow(eventId: EventId, fromPinnedEvents: Boolean) = lambdaError()
+                },
+            ),
+            pollHistoryEntryPoint = FakePollHistoryEntryPoint(),
+            elementCallEntryPoint = FakeElementCallEntryPoint(),
+            room = room,
+            analyticsService = FakeAnalyticsService(),
+            messagesEntryPoint = FakeMessagesEntryPoint(),
+            knockRequestsListEntryPoint = FakeKnockRequestsListEntryPoint(),
+            mediaViewerEntryPoint = FakeMediaViewerEntryPoint(),
+            mediaGalleryEntryPoint = FakeMediaGalleryEntryPoint(),
+            outgoingVerificationEntryPoint = FakeOutgoingVerificationEntryPoint(),
+            reportRoomEntryPoint = FakeReportRoomEntryPoint(),
+            changeRoomMemberRolesEntryPoint = FakeChangeRoomMemberRolesEntryPoint(),
+            rolesAndPermissionsEntryPoint = FakeRolesAndPermissionsEntryPoint(),
+            securityAndPrivacyEntryPoint = FakeSecurityAndPrivacyEntryPoint(),
+            roomDetailsEditEntryPoint = FakeRoomDetailsEditEntryPoint(),
+            webhookTriggersEntryPoint = FakeWebhookTriggersEntryPoint { parentNode, _, params, _ ->
+                capturedParams = params
+                parentNode
+            },
+        )
+
+        node.resolve(RoomDetailsFlowNode.NavTarget.WebhookTriggers, BuildContext.root(null))
+
+        assertThat(capturedParams?.initialTarget)
+            .isEqualTo(
+                WebhookTriggersEntryPoint.InitialTarget.Room(
+                    roomId = room.roomId,
+                    roomName = room.info().name.orEmpty(),
+                )
+            )
     }
 }

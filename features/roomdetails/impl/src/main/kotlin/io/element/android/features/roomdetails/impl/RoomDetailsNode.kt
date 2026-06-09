@@ -60,6 +60,7 @@ class RoomDetailsNode(
         fun navigateToPinnedMessagesList()
         fun navigateToKnockRequestsList()
         fun navigateToSecurityAndPrivacy()
+        fun navigateToWebhookTriggers()
         fun navigateToRoomMemberDetails(userId: UserId)
         fun navigateToRoomCall(callIntent: CallIntent)
         fun navigateToReportRoom()
@@ -135,6 +136,7 @@ class RoomDetailsNode(
             onPinnedMessagesClick = callback::navigateToPinnedMessagesList,
             onKnockRequestsClick = callback::navigateToKnockRequestsList,
             onSecurityAndPrivacyClick = callback::navigateToSecurityAndPrivacy,
+            onWebhookTriggersClick = callback::navigateToWebhookTriggers,
             onProfileClick = callback::navigateToRoomMemberDetails,
             onReportRoomClick = callback::navigateToReportRoom,
             leaveRoomView = {

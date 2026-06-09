@@ -43,8 +43,10 @@ import io.element.android.features.roomdetailsedit.api.RoomDetailsEditEntryPoint
 import io.element.android.features.securityandprivacy.api.SecurityAndPrivacyEntryPoint
 import io.element.android.features.userprofile.shared.UserProfileNodeHelper
 import io.element.android.features.verifysession.api.OutgoingVerificationEntryPoint
+import io.element.android.features.webhooks.api.WebhookTriggersEntryPoint
 import io.element.android.libraries.architecture.BackstackWithOverlayBox
 import io.element.android.libraries.architecture.BaseFlowNode
+import io.element.android.libraries.architecture.appyx.canPop
 import io.element.android.libraries.architecture.callback
 import io.element.android.libraries.architecture.createNode
 import io.element.android.libraries.architecture.overlay.operation.hide
@@ -87,6 +89,7 @@ class RoomDetailsFlowNode(
     private val rolesAndPermissionsEntryPoint: RolesAndPermissionsEntryPoint,
     private val securityAndPrivacyEntryPoint: SecurityAndPrivacyEntryPoint,
     private val roomDetailsEditEntryPoint: RoomDetailsEditEntryPoint,
+    private val webhookTriggersEntryPoint: WebhookTriggersEntryPoint,
 ) : BaseFlowNode<RoomDetailsFlowNode.NavTarget>(
     backstack = BackStack(
         initialElement = plugins.filterIsInstance<RoomDetailsEntryPoint.Params>().first().initialElement.toNavTarget(),
@@ -140,6 +143,9 @@ class RoomDetailsFlowNode(
 
         @Parcelize
         data object SecurityAndPrivacy : NavTarget
+
+        @Parcelize
+        data object WebhookTriggers : NavTarget
 
         @Parcelize
         data class VerifyUser(val userId: UserId) : NavTarget
@@ -222,6 +228,10 @@ class RoomDetailsFlowNode(
 
                     override fun navigateToSecurityAndPrivacy() {
                         backstack.push(NavTarget.SecurityAndPrivacy)
+                    }
+
+                    override fun navigateToWebhookTriggers() {
+                        backstack.push(NavTarget.WebhookTriggers)
                     }
 
                     override fun navigateToRoomMemberDetails(userId: UserId) {
@@ -432,6 +442,33 @@ class RoomDetailsFlowNode(
                     parentNode = this,
                     buildContext = buildContext,
                     callback = callback,
+                )
+            }
+            NavTarget.WebhookTriggers -> {
+                webhookTriggersEntryPoint.createNode(
+                    parentNode = this,
+                    buildContext = buildContext,
+                    params = WebhookTriggersEntryPoint.Params(
+                        initialTarget = WebhookTriggersEntryPoint.InitialTarget.Room(
+                            roomId = room.roomId,
+                            roomName = room.info().name?.trim().orEmpty().ifEmpty { room.roomId.value },
+                        ),
+                    ),
+                    callback = object : WebhookTriggersEntryPoint.Callback {
+                        override fun onDone() {
+                            if (backstack.canPop()) {
+                                backstack.pop()
+                            } else {
+                                navigateUp()
+                            }
+                        }
+
+                        override fun onTriggersChanged() = Unit
+
+                        override fun onOpenConnectUrl(url: String) {
+                            learnMoreUrl.value = url
+                        }
+                    },
                 )
             }
             is NavTarget.VerifyUser -> {
