@@ -65,7 +65,7 @@
 - Create: `features/credits/test/build.gradle.kts`
 - Create: `features/credits/test/src/main/kotlin/io/element/android/features/credits/test/FakeCreditsEntryPoint.kt`
 
-- [ ] **Step 1: Create API module**
+- [x] **Step 1: Create API module**
 
 `features/credits/api/build.gradle.kts`:
 
@@ -136,7 +136,7 @@ interface CreditsEntryPoint : FeatureEntryPoint {
 }
 ```
 
-- [ ] **Step 2: Create implementation module and default entry point**
+- [x] **Step 2: Create implementation module and default entry point**
 
 `features/credits/impl/build.gradle.kts`:
 
@@ -224,7 +224,7 @@ class DefaultCreditsEntryPoint : CreditsEntryPoint {
 }
 ```
 
-- [ ] **Step 3: Create temporary flow, node, presenter, state, events, and view**
+- [x] **Step 3: Create temporary flow, node, presenter, state, events, and view**
 
 `features/credits/impl/src/main/kotlin/io/element/android/features/credits/impl/CreditsFlowNode.kt`:
 
@@ -470,7 +470,7 @@ fun CreditsView(
 }
 ```
 
-- [ ] **Step 4: Create test fake module**
+- [x] **Step 4: Create test fake module**
 
 `features/credits/test/build.gradle.kts`:
 
@@ -528,7 +528,7 @@ class FakeCreditsEntryPoint(
 }
 ```
 
-- [ ] **Step 5: Run compile for new modules**
+- [x] **Step 5: Run compile for new modules**
 
 Run:
 
@@ -538,7 +538,7 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 6: Commit module shell**
+- [x] **Step 6: Commit module shell**
 
 ```bash
 git add features/credits
