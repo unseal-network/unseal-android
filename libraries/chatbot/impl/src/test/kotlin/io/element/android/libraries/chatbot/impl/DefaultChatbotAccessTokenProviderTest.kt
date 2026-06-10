@@ -17,7 +17,24 @@ import org.junit.Test
 
 class DefaultChatbotAccessTokenProviderTest {
     @Test
-    fun `accessToken - returns current session access token`() = runTest {
+    fun `accessToken - returns runtime access token first`() = runTest {
+        val provider = DefaultChatbotAccessTokenProvider(
+            InMemorySessionStore(
+                initialList = listOf(aSessionData(sessionId = A_SESSION_ID.value, accessToken = "stored-token"))
+            )
+        )
+
+        assertThat(
+            provider.accessToken(
+                FakeMatrixClient(
+                    currentAccessTokenLambda = { Result.success("runtime-token") }
+                )
+            )
+        ).isEqualTo("runtime-token")
+    }
+
+    @Test
+    fun `accessToken - falls back to stored session access token`() = runTest {
         val provider = DefaultChatbotAccessTokenProvider(
             InMemorySessionStore(
                 initialList = listOf(aSessionData(sessionId = A_SESSION_ID.value, accessToken = "mx-token"))

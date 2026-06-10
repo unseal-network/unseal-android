@@ -110,6 +110,7 @@ class FakeChatbotApiService : ChatbotApiService {
     var deleteVoiceProfileResult: (String) -> Result<ChatbotDeleteVoiceProfileResponse> = { Result.success(ChatbotDeleteVoiceProfileResponse(deleted = true)) }
     var createVoiceShareResult: (ChatbotCreateVoiceShareRequest) -> Result<ChatbotVoiceShare> = { Result.success(ChatbotVoiceShare(id = "share-1", voiceProfileId = it.voiceProfileId)) }
     var importVoiceShareResult: (String) -> Result<ChatbotVoiceProfile> = { Result.success(aChatbotVoiceProfile()) }
+    var streamAgentMessageResult: suspend (String, String?, suspend (String) -> Unit) -> Result<Unit> = { _, _, _ -> Result.success(Unit) }
 
     override suspend fun listAgents() = simulateLongTask { listAgentsResult() }
     override suspend fun getAgent(botName: String) = simulateLongTask { getAgentResult(botName) }
@@ -209,4 +210,10 @@ class FakeChatbotApiService : ChatbotApiService {
     override suspend fun updateVaultEntry(key: String, value: String, description: String?) = simulateLongTask { Result.success(Unit) }
 
     override suspend fun deleteVaultEntry(vaultId: String) = simulateLongTask { Result.success(Unit) }
+
+    override suspend fun streamAgentMessage(
+        streamId: String,
+        sender: String?,
+        onChunk: suspend (String) -> Unit,
+    ): Result<Unit> = streamAgentMessageResult(streamId, sender, onChunk)
 }

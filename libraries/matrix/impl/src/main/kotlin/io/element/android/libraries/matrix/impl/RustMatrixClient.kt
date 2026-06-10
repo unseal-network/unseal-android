@@ -332,6 +332,12 @@ class RustMatrixClient(
         }.mapFailure { it.mapClientException() }
     }
 
+    override suspend fun currentAccessToken(): Result<String?> = withContext(sessionDispatcher) {
+        runCatchingExceptions {
+            innerClient.session().accessToken.takeIf { it.isNotBlank() }
+        }.mapFailure { it.mapClientException() }
+    }
+
     override suspend fun getRoom(roomId: RoomId): BaseRoom? = withContext(sessionDispatcher) {
         roomFactory.getBaseRoom(roomId)
     }

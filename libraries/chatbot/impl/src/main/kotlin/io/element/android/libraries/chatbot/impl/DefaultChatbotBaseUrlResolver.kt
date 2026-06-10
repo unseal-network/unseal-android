@@ -41,7 +41,7 @@ class DefaultChatbotBaseUrlResolver(
 
     override suspend fun resolveHomeserverBaseUrl(serverName: String?): String {
         val normalized = serverName?.trim()?.takeIf { it.isNotEmpty() }
-            ?: return ChatbotConfig.UNSEAL_API_FALLBACK_BASE_URL
+            ?: return ChatbotConfig.AI_STREAM_BASE_URL
 
         return mutex.withLock {
             cachedHomeserverBaseUrls[normalized]?.let { return@withLock it }

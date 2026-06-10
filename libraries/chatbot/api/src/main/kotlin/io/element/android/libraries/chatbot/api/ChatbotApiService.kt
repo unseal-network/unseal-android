@@ -127,4 +127,10 @@ interface ChatbotApiService {
     suspend fun createVaultEntry(key: String, value: String, description: String?): Result<Unit>
     suspend fun updateVaultEntry(key: String, value: String, description: String?): Result<Unit>
     suspend fun deleteVaultEntry(vaultId: String): Result<Unit>
+
+    suspend fun streamAgentMessage(
+        streamId: String,
+        sender: String?,
+        onChunk: suspend (String) -> Unit,
+    ): Result<Unit>
 }

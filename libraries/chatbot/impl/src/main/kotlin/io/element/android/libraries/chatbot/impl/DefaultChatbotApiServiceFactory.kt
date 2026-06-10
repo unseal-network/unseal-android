@@ -13,7 +13,6 @@ import dev.zacsweers.metro.binding
 import io.element.android.libraries.chatbot.api.ChatbotApiService
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
 import io.element.android.libraries.chatbot.api.ChatbotBaseUrlResolver
-import io.element.android.libraries.chatbot.api.ChatbotConfig
 import io.element.android.libraries.matrix.api.MatrixClient
 import okhttp3.OkHttpClient
 
@@ -23,8 +22,8 @@ class DefaultChatbotApiServiceFactory(
     private val tokenProvider: ChatbotAccessTokenProvider,
     private val baseUrlResolver: ChatbotBaseUrlResolver,
 ) : ChatbotApiServiceFactory {
-    override fun createForAiStream(matrixClient: MatrixClient): ChatbotApiService {
-        return createForBaseUrl(ChatbotConfig.AI_STREAM_BASE_URL, matrixClient)
+    override suspend fun createForAiStream(matrixClient: MatrixClient): ChatbotApiService {
+        return createForBaseUrl(baseUrlResolver.resolveHomeserverBaseUrl(matrixClient.userIdServerName()), matrixClient)
     }
 
     override suspend fun createForUnsealApi(matrixClient: MatrixClient): ChatbotApiService {

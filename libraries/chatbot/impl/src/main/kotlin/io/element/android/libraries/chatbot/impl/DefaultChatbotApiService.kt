@@ -328,6 +328,15 @@ internal class DefaultChatbotApiService(
     override suspend fun deleteVaultEntry(vaultId: String): Result<Unit> =
         rawUnit("/vaults/${path(vaultId)}", ChatbotHttpMethod.DELETE)
 
+    override suspend fun streamAgentMessage(
+        streamId: String,
+        sender: String?,
+        onChunk: suspend (String) -> Unit,
+    ): Result<Unit> {
+        val query = ChatbotUrlBuilder.query(mapOf("sender" to sender?.takeIf { it.isNotBlank() }))
+        return httpClient.streamRaw("/chatbot/v1/stream/${path(streamId)}$query", onChunk)
+    }
+
     private suspend fun rawUnit(path: String, method: ChatbotHttpMethod, body: String? = null): Result<Unit> =
         httpClient.requestRaw(path, method, body).map { }
 
