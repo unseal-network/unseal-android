@@ -121,9 +121,15 @@ class SQLiteStreamStorageProvider(
                 return@withContext null
             }
             val json = cursor.getString(0)
-            runCatching { codec.decode(json) }
+            val snapshot = runCatching { codec.decode(json) }
                 .onFailure { deleteSync(streamId) }
                 .getOrNull()
+            if (snapshot?.status == StreamStatus.Completed && snapshot.parts.isEmpty()) {
+                deleteSync(streamId)
+                null
+            } else {
+                snapshot
+            }
         }
     }
 

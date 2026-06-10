@@ -16,6 +16,7 @@ import io.element.android.libraries.agentstream.api.AGENT_STREAM_SCHEMA_VERSION
 import io.element.android.libraries.agentstream.api.StreamError
 import io.element.android.libraries.agentstream.api.StreamPart
 import io.element.android.libraries.agentstream.api.StreamSnapshot
+import io.element.android.libraries.agentstream.api.StreamSnapshotJsonCodec
 import io.element.android.libraries.agentstream.api.StreamStatus
 import io.element.android.libraries.agentstream.api.TextPartState
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
@@ -57,6 +58,16 @@ class AndroidAgentStreamAdaptersTest {
         provider.save(snapshot(status = StreamStatus.Completed, parts = emptyList()))
 
         assertThat(provider.load("stream-1")).isNull()
+    }
+
+    @Test
+    fun `empty completed snapshot loaded from database is ignored and deleted`() = runTest {
+        val provider = createProvider()
+        assertThat(provider.load("stream-1")).isNull()
+        insertSnapshotRow(snapshot(status = StreamStatus.Completed, parts = emptyList()))
+
+        assertThat(provider.load("stream-1")).isNull()
+        assertThat(rawRowCount()).isEqualTo(0)
     }
 
     @Test
@@ -168,6 +179,23 @@ class AndroidAgentStreamAdaptersTest {
                     put("snapshot_json", "{not-json")
                     put("updated_at_ms", 10L)
                     put("completed_at_ms", 20L)
+                }
+            )
+        }
+    }
+
+    private fun insertSnapshotRow(snapshot: StreamSnapshot) {
+        openDatabase().use { database ->
+            database.insertOrThrow(
+                "agent_stream_snapshots",
+                null,
+                ContentValues().apply {
+                    put("stream_id", snapshot.streamId)
+                    put("schema_version", snapshot.schemaVersion)
+                    put("status", "completed")
+                    put("snapshot_json", StreamSnapshotJsonCodec().encode(snapshot))
+                    put("updated_at_ms", snapshot.updatedAtMs)
+                    put("completed_at_ms", snapshot.completedAtMs)
                 }
             )
         }
