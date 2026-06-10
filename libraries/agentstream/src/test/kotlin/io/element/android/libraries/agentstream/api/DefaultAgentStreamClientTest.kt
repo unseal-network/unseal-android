@@ -308,6 +308,29 @@ class DefaultAgentStreamClientTest {
     }
 
     @Test
+    fun `cancelled task cleanup does not detach newer refresh on same handle`() = runTest {
+        val release = CompletableDeferred<Unit>()
+        val http = FakeStreamHttpClient(waitForRelease = release)
+        val client = createClient(http = http)
+        val handle = client.getStream(request("stream-1"))
+        advanceUntilIdle()
+
+        handle.cancel()
+        handle.refresh()
+        advanceUntilIdle()
+
+        assertEquals(2, http.openCount)
+
+        handle.refresh()
+        advanceUntilIdle()
+
+        assertEquals(2, http.openCount)
+
+        release.complete(Unit)
+        advanceUntilIdle()
+    }
+
+    @Test
     fun `cancel invokes task cancellation outside client lock`() = runTest {
         val release = CompletableDeferred<Unit>()
         lateinit var handle: StreamHandle

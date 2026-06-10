@@ -47,6 +47,7 @@ class DefaultAgentStreamClient(
         private var task: StreamTask? = null
         private var isStarting = false
         private var session: StreamReducerSession? = null
+        private var activeRunId = 0L
 
         override fun snapshot(): StreamSnapshot {
             return synchronized(lock) { currentSnapshot }
@@ -76,6 +77,7 @@ class DefaultAgentStreamClient(
             val taskToCancel: StreamTask?
             val sessionToClose: StreamReducerSession?
             val snapshotToPublish = synchronized(lock) {
+                activeRunId++
                 taskToCancel = task
                 task = null
                 isStarting = false
@@ -100,19 +102,24 @@ class DefaultAgentStreamClient(
         private fun start(forceRefresh: Boolean) {
             val completedBeforeRefresh: StreamSnapshot?
             val loadingToPublish: StreamSnapshot?
+            var runId: Long
             val shouldStart = synchronized(lock) {
                 completedBeforeRefresh = completedCache[request.streamId] ?: currentSnapshot.takeIf { it.status == StreamStatus.Completed }
                 if (task != null || isStarting || (!forceRefresh && currentSnapshot.status == StreamStatus.Completed)) {
                     loadingToPublish = null
+                    runId = activeRunId
                     false
                 } else if (handles[request.streamId] != null && handles[request.streamId] !== this) {
                     loadingToPublish = null
+                    runId = activeRunId
                     false
                 } else {
                     if (forceRefresh) {
                         completedCache.remove(request.streamId)
                     }
                     handles[request.streamId] = this
+                    activeRunId++
+                    runId = activeRunId
                     isStarting = true
                     currentSnapshot = loadingSnapshot(request.streamId)
                     loadingToPublish = currentSnapshot.takeIf { forceRefresh }
@@ -125,23 +132,32 @@ class DefaultAgentStreamClient(
             val streamTask = try {
                 taskRunner.run(request.streamId) {
                     runStream(
+                        runId = runId,
                         skipStorageLoad = forceRefresh,
                         completedBeforeRefresh = completedBeforeRefresh,
                     )
                 }
             } catch (throwable: Throwable) {
-                synchronized(lock) {
-                    isStarting = false
+                val shouldPublishFailed = synchronized(lock) {
+                    if (isActiveRunLocked(runId)) {
+                        isStarting = false
+                        true
+                    } else {
+                        false
+                    }
+                }
+                if (!shouldPublishFailed) {
+                    return
                 }
                 val failed = failedSnapshot(request.streamId, throwable, snapshot())
                 publish(failed)
                 completedBeforeRefresh?.let(::rememberCompleted)
-                finishInFlight()
+                finishInFlight(runId)
                 return
             }
             var cancelNewTask = false
             synchronized(lock) {
-                if (task == null && isStarting && handles[request.streamId] === this) {
+                if (task == null && isStarting && isActiveRunLocked(runId)) {
                     task = streamTask
                     isStarting = false
                 } else {
@@ -154,16 +170,18 @@ class DefaultAgentStreamClient(
         }
 
         private suspend fun runStream(
+            runId: Long,
             skipStorageLoad: Boolean,
             completedBeforeRefresh: StreamSnapshot?,
         ) {
+            var reducerSessionForRun: StreamReducerSession? = null
             try {
                 if (!skipStorageLoad) {
                     storageProvider.load(request.streamId)?.let { storedSnapshot ->
                         publish(storedSnapshot.withStreamIdFallback(request.streamId))
                         if (storedSnapshot.isTerminal) {
                             rememberCompleted(storedSnapshot.withStreamIdFallback(request.streamId))
-                            finishInFlight()
+                            finishInFlight(runId)
                             return
                         }
                     }
@@ -173,8 +191,18 @@ class DefaultAgentStreamClient(
                     streamId = request.streamId,
                     includeRawEvents = request.includeRawEvents,
                 )
-                synchronized(lock) {
-                    session = reducerSession
+                reducerSessionForRun = reducerSession
+                val shouldRun = synchronized(lock) {
+                    if (isActiveRunLocked(runId)) {
+                        session = reducerSession
+                        true
+                    } else {
+                        false
+                    }
+                }
+                if (!shouldRun) {
+                    reducerSession.close()
+                    return
                 }
                 reducerSession.use { activeSession ->
                     httpClient.openStream(request) { chunk ->
@@ -196,10 +224,10 @@ class DefaultAgentStreamClient(
                     } catch (_: Throwable) {
                         // Completion is already terminal for the UI; persistence can retry on a future path.
                     }
-                    finishInFlight()
+                    finishInFlight(runId)
                 }
             } catch (throwable: CancellationException) {
-                finishInFlight()
+                finishInFlight(runId)
             } catch (throwable: Throwable) {
                 try {
                     val failed = failedSnapshot(request.streamId, throwable, snapshot())
@@ -214,11 +242,13 @@ class DefaultAgentStreamClient(
                         completedBeforeRefresh?.let(::rememberCompleted)
                     }
                 } finally {
-                    finishInFlight()
+                    finishInFlight(runId)
                 }
             } finally {
                 synchronized(lock) {
-                    session = null
+                    if (activeRunId == runId && session === reducerSessionForRun) {
+                        session = null
+                    }
                 }
             }
         }
@@ -241,14 +271,21 @@ class DefaultAgentStreamClient(
             }
         }
 
-        private fun finishInFlight() {
+        private fun finishInFlight(runId: Long) {
             synchronized(lock) {
+                if (!isActiveRunLocked(runId)) {
+                    return
+                }
                 if (handles[request.streamId] === this) {
                     handles.remove(request.streamId)
                 }
                 task = null
                 isStarting = false
             }
+        }
+
+        private fun isActiveRunLocked(runId: Long): Boolean {
+            return activeRunId == runId && handles[request.streamId] === this
         }
     }
 
