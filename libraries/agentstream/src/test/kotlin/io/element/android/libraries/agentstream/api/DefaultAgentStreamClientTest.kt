@@ -149,6 +149,63 @@ class DefaultAgentStreamClientTest {
     }
 
     @Test
+    fun `network failure from loading publishes failed snapshot with error part`() = runTest {
+        val http = FakeStreamHttpClient(error = IllegalStateException("boom"))
+        val client = createClient(http = http)
+        val snapshots = mutableListOf<StreamSnapshot>()
+
+        client.getStream(request("stream-1")).subscribe { snapshots += it }
+        advanceUntilIdle()
+
+        val failed = snapshots.last()
+        val errorPart = failed.parts.single() as StreamPart.Error
+        assertEquals(StreamStatus.Failed, failed.status)
+        assertNotNull(failed.error)
+        assertEquals("error-stream-1", errorPart.id)
+        assertEquals("error", errorPart.type)
+        assertEquals("error", errorPart.state)
+        assertEquals(failed.error, errorPart.error)
+    }
+
+    @Test
+    fun `refresh on completed cached handle bypasses memory cache and stores fresh completed snapshot`() = runTest {
+        val storage = FakeStreamStorageProvider()
+        val http = FakeStreamHttpClient(
+            chunks = listOf(streamingJson("stream-1", "old")),
+        )
+        val client = createClient(storage = storage, http = http)
+        val initialSnapshots = mutableListOf<StreamSnapshot>()
+
+        client.getStream(request("stream-1")).subscribe { initialSnapshots += it }
+        advanceUntilIdle()
+
+        assertEquals("old", initialSnapshots.last().text())
+        assertEquals(1, http.openCount)
+
+        http.chunks = listOf(streamingJson("stream-1", "fresh"))
+        val cachedSnapshots = mutableListOf<StreamSnapshot>()
+        val cachedHandle = client.getStream(request("stream-1"))
+        cachedHandle.subscribe { cachedSnapshots += it }
+
+        assertEquals("old", cachedSnapshots.single().text())
+
+        cachedHandle.refresh()
+        advanceUntilIdle()
+
+        assertEquals(2, http.openCount)
+        assertEquals("fresh", cachedSnapshots.last().text())
+        assertEquals(StreamStatus.Completed, cachedSnapshots.last().status)
+        assertEquals(listOf("old", "fresh"), storage.savedSnapshots.map { it.text() })
+
+        val followingSnapshots = mutableListOf<StreamSnapshot>()
+        client.getStream(request("stream-1")).subscribe { followingSnapshots += it }
+        advanceUntilIdle()
+
+        assertEquals("fresh", followingSnapshots.single().text())
+        assertEquals(2, http.openCount)
+    }
+
+    @Test
     fun `subscribe immediately emits current snapshot`() = runTest {
         val release = CompletableDeferred<Unit>()
         val client = createClient(http = FakeStreamHttpClient(waitForRelease = release))
@@ -275,7 +332,7 @@ class DefaultAgentStreamClientTest {
     }
 
     private class FakeStreamHttpClient(
-        private val chunks: List<String> = emptyList(),
+        var chunks: List<String> = emptyList(),
         private val error: Throwable? = null,
         private val waitForRelease: CompletableDeferred<Unit>? = null,
     ) : StreamHttpClient {

@@ -29,7 +29,7 @@ class DefaultAgentStreamClient(
 
     override fun getStream(request: StreamRequest): StreamHandle {
         val handle = synchronized(lock) {
-            completedCache[request.streamId]?.let { return CachedStreamHandle(it) }
+            completedCache[request.streamId]?.let { return DefaultStreamHandle(request, it) }
             handles.getOrPut(request.streamId) {
                 DefaultStreamHandle(request)
             }
@@ -40,9 +40,10 @@ class DefaultAgentStreamClient(
 
     private inner class DefaultStreamHandle(
         private val request: StreamRequest,
+        initialSnapshot: StreamSnapshot = loadingSnapshot(request.streamId),
     ) : StreamHandle {
         private val listeners = mutableMapOf<String, StreamListener>()
-        private var currentSnapshot = loadingSnapshot(request.streamId)
+        private var currentSnapshot = initialSnapshot
         private var task: StreamTask? = null
         private var isStarting = false
         private var session: StreamReducerSession? = null
@@ -68,14 +69,7 @@ class DefaultAgentStreamClient(
         }
 
         override fun refresh() {
-            val snapshot = synchronized(lock) {
-                completedCache[request.streamId]
-            }
-            if (snapshot != null) {
-                publish(snapshot)
-                return
-            }
-            startIfNeeded()
+            start(forceRefresh = true)
         }
 
         override fun cancel() {
@@ -96,10 +90,22 @@ class DefaultAgentStreamClient(
         }
 
         fun startIfNeeded() {
+            start(forceRefresh = false)
+        }
+
+        private fun start(forceRefresh: Boolean) {
+            val completedBeforeRefresh: StreamSnapshot?
             val shouldStart = synchronized(lock) {
-                if (task != null || isStarting || currentSnapshot.status == StreamStatus.Completed) {
+                completedBeforeRefresh = completedCache[request.streamId] ?: currentSnapshot.takeIf { it.status == StreamStatus.Completed }
+                if (task != null || isStarting || (!forceRefresh && currentSnapshot.status == StreamStatus.Completed)) {
+                    false
+                } else if (handles[request.streamId] != null && handles[request.streamId] !== this) {
                     false
                 } else {
+                    if (forceRefresh) {
+                        completedCache.remove(request.streamId)
+                    }
+                    handles[request.streamId] = this
                     isStarting = true
                     currentSnapshot = loadingSnapshot(request.streamId)
                     true
@@ -109,7 +115,10 @@ class DefaultAgentStreamClient(
 
             val streamTask = try {
                 taskRunner.run(request.streamId) {
-                    runStream()
+                    runStream(
+                        skipStorageLoad = forceRefresh,
+                        completedBeforeRefresh = completedBeforeRefresh,
+                    )
                 }
             } catch (throwable: Throwable) {
                 synchronized(lock) {
@@ -117,6 +126,7 @@ class DefaultAgentStreamClient(
                 }
                 val failed = failedSnapshot(request.streamId, throwable, snapshot())
                 publish(failed)
+                completedBeforeRefresh?.let(::rememberCompleted)
                 finishInFlight()
                 return
             }
@@ -134,14 +144,19 @@ class DefaultAgentStreamClient(
             }
         }
 
-        private suspend fun runStream() {
+        private suspend fun runStream(
+            skipStorageLoad: Boolean,
+            completedBeforeRefresh: StreamSnapshot?,
+        ) {
             try {
-                storageProvider.load(request.streamId)?.let { storedSnapshot ->
-                    publish(storedSnapshot.withStreamIdFallback(request.streamId))
-                    if (storedSnapshot.isTerminal) {
-                        rememberCompleted(storedSnapshot.withStreamIdFallback(request.streamId))
-                        finishInFlight()
-                        return
+                if (!skipStorageLoad) {
+                    storageProvider.load(request.streamId)?.let { storedSnapshot ->
+                        publish(storedSnapshot.withStreamIdFallback(request.streamId))
+                        if (storedSnapshot.isTerminal) {
+                            rememberCompleted(storedSnapshot.withStreamIdFallback(request.streamId))
+                            finishInFlight()
+                            return
+                        }
                     }
                 }
 
@@ -179,8 +194,10 @@ class DefaultAgentStreamClient(
             } catch (throwable: Throwable) {
                 val failed = failedSnapshot(request.streamId, throwable, snapshot())
                 publish(failed)
-                if (!hasCompletedSnapshot(request.streamId)) {
+                if (completedBeforeRefresh == null && !hasCompletedSnapshot(request.streamId)) {
                     storageProvider.save(failed)
+                } else {
+                    completedBeforeRefresh?.let(::rememberCompleted)
                 }
                 finishInFlight()
             } finally {
@@ -217,23 +234,6 @@ class DefaultAgentStreamClient(
                 isStarting = false
             }
         }
-    }
-
-    private class CachedStreamHandle(
-        private val snapshot: StreamSnapshot,
-    ) : StreamHandle {
-        override fun snapshot(): StreamSnapshot = snapshot
-
-        override fun subscribe(listener: StreamListener): StreamSubscription {
-            listener.onSnapshot(snapshot)
-            return object : StreamSubscription {
-                override fun cancel() = Unit
-            }
-        }
-
-        override fun refresh() = Unit
-
-        override fun cancel() = Unit
     }
 
     private fun hasCompletedSnapshot(streamId: String): Boolean {
@@ -276,9 +276,30 @@ class DefaultAgentStreamClient(
         val error = StreamError(
             message = throwable.message.orEmpty().ifBlank { "Failed to load stream." },
         )
+        val errorPart = StreamPart.Error(
+            id = "error-$streamId",
+            error = error,
+            state = "error",
+        )
+        var replacedErrorPart = false
+        val parts = previous.parts.map { part ->
+            if (part is StreamPart.Error && part.id == errorPart.id) {
+                replacedErrorPart = true
+                errorPart
+            } else {
+                part
+            }
+        }.let { updatedParts ->
+            if (replacedErrorPart) {
+                updatedParts
+            } else {
+                updatedParts + errorPart
+            }
+        }
         return previous.copy(
             streamId = previous.streamId.ifBlank { streamId },
             status = StreamStatus.Failed,
+            parts = parts,
             updatedAtMs = clock(),
             completedAtMs = null,
             error = error,
