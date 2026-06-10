@@ -73,6 +73,7 @@ class AndroidAgentStreamAdaptersTest {
     @Test
     fun `blank stream id snapshot is not saved`() = runTest {
         val provider = createProvider()
+        assertThat(provider.load("stream-1")).isNull()
 
         provider.save(
             snapshot(
@@ -82,7 +83,7 @@ class AndroidAgentStreamAdaptersTest {
             )
         )
 
-        assertThat(provider.load("")).isNull()
+        assertThat(rawRowCount()).isEqualTo(0)
     }
 
     @Test
