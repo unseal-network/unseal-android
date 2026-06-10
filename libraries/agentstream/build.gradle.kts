@@ -5,10 +5,18 @@
  * Please see LICENSE files in the repository root for full details.
  */
 
+import extension.testCommonDependencies
+
 plugins {
     id("io.element.android-library")
 }
 
 android {
     namespace = "io.element.android.libraries.agentstream"
+}
+
+dependencies {
+    implementation(libs.serialization.json)
+
+    testCommonDependencies(libs, true)
 }
