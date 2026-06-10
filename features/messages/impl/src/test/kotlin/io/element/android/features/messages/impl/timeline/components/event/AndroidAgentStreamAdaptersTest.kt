@@ -60,6 +60,21 @@ class AndroidAgentStreamAdaptersTest {
     }
 
     @Test
+    fun `blank stream id snapshot is not saved`() = runTest {
+        val provider = createProvider()
+
+        provider.save(
+            snapshot(
+                streamId = "",
+                status = StreamStatus.Completed,
+                parts = listOf(StreamPart.Text("part-1", "Hello", TextPartState.Complete)),
+            )
+        )
+
+        assertThat(provider.load("")).isNull()
+    }
+
+    @Test
     fun `completed snapshot is loaded across provider instances`() = runTest {
         createProvider().save(
             snapshot(
@@ -72,6 +87,21 @@ class AndroidAgentStreamAdaptersTest {
 
         assertThat(loaded?.status).isEqualTo(StreamStatus.Completed)
         assertThat(loaded?.parts).containsExactly(StreamPart.Text("part-1", "Hello", TextPartState.Complete))
+    }
+
+    @Test
+    fun `delete removes saved snapshot`() = runTest {
+        val provider = createProvider()
+        provider.save(
+            snapshot(
+                status = StreamStatus.Completed,
+                parts = listOf(StreamPart.Text("part-1", "Hello", TextPartState.Complete)),
+            )
+        )
+
+        provider.delete("stream-1")
+
+        assertThat(provider.load("stream-1")).isNull()
     }
 
     @Test
