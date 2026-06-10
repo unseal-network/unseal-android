@@ -39,6 +39,7 @@ import io.element.android.wysiwyg.link.Link
 @Composable
 fun TimelineItemEventContentView(
     content: TimelineItemEventContent,
+    streamPriority: Long,
     hideMediaContent: Boolean,
     onContentClick: (() -> Unit)?,
     onLongClick: (() -> Unit)?,
@@ -70,10 +71,17 @@ fun TimelineItemEventContentView(
             onLinkLongClick = onLinkLongClick,
             onContentLayoutChange = onContentLayoutChange
         )
-        is TimelineItemAiContent -> TimelineItemAiView(
-            content = content,
-            modifier = modifier,
-        )
+        is TimelineItemAiContent -> {
+            val presenter: Presenter<TimelineItemAiState> = presenterFactories.rememberPresenter(content)
+            LocalTimelineItemAiStreamPriorityProvider(streamPriority) {
+                TimelineItemAiView(
+                    content = presenter.present().content,
+                    onLinkClick = onLinkClick,
+                    onLinkLongClick = onLinkLongClick,
+                    modifier = modifier,
+                )
+            }
+        }
         is TimelineItemUnknownContent -> TimelineItemUnknownView(
             content = content,
             onContentLayoutChange = onContentLayoutChange,

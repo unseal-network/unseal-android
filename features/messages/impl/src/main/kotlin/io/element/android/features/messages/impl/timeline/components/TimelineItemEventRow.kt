@@ -164,6 +164,7 @@ fun TimelineItemEventRow(
 
         TimelineItemEventContentView(
             content = event.content,
+            streamPriority = event.sentTimeMillis,
             hideMediaContent = timelineProtectionState.hideMediaContent(event.eventId),
             onContentClick = onContentClick,
             onLongClick = onLongClick,

@@ -25,8 +25,8 @@ import kotlinx.serialization.json.jsonObject
  * Parses an Unseal AI/assistant "stream" message from a Matrix event's original JSON.
  *
  * Mirrors iOS `RoomTimelineItemFactory.checkAgentMessage` + `parseAIMessageContentSync`.
- * Detection: `content.msgtype == "m.aisdk.protocol"` OR (`content.msgtype == "m.text"` and a
- * `content.stream` object is present). The rich parts are read from custom keys under `content`.
+ * Detection: `m.stream.start` / `m.stream.complete`, `m.aisdk.protocol`, or any message with a
+ * stream pointer. The rich parts are read from custom keys under `content`.
  *
  * Returns null when the JSON is absent/invalid or the event is not an AI message, so callers can
  * fall back to normal message rendering.
@@ -35,20 +35,38 @@ import kotlinx.serialization.json.jsonObject
 class AiMessageContentParser {
     private val json = Json { ignoreUnknownKeys = true }
 
-    fun parse(originalJson: String?, isEdited: Boolean): TimelineItemAiContent? {
+    fun parse(
+        originalJson: String?,
+        isEdited: Boolean,
+        fallbackSender: String? = null,
+    ): TimelineItemAiContent? {
         val raw = originalJson?.takeIf { it.isNotBlank() } ?: return null
         val root = runCatching { json.parseToJsonElement(raw).jsonObject }.getOrNull() ?: return null
         val content = root["content"] as? JsonObject ?: return null
 
+        val eventType = root.string("type")
         val msgType = content.string("msgtype")
-        val isStream = content["stream"] is JsonObject
-        val isAiMessage = msgType == MSGTYPE_AISDK || (msgType == MSGTYPE_TEXT && isStream)
+        val stream = content["stream"] as? JsonObject
+        val streamId = stream?.string("id").takeIfNotBlank()
+            ?: content.string("streamId").takeIfNotBlank()
+            ?: content.string("stream_id").takeIfNotBlank()
+            ?: content.string("body").takeIfNotBlank().takeIf { msgType == MSGTYPE_STREAM_START || msgType == MSGTYPE_STREAM_COMPLETE }
+        val isStream = stream != null || streamId != null
+        val isStreamEvent = eventType == MSGTYPE_STREAM_START ||
+            eventType == MSGTYPE_STREAM_COMPLETE ||
+            msgType == MSGTYPE_STREAM_START ||
+            msgType == MSGTYPE_STREAM_COMPLETE
+        val isAiMessage = msgType == MSGTYPE_AISDK || isStreamEvent || isStream
         if (!isAiMessage) return null
 
         return TimelineItemAiContent(
             body = content.string("content") ?: content.string("body").orEmpty(),
             isEdited = isEdited,
-            isStreaming = isStream,
+            isStreaming = content.boolean("is_streaming") ?: (eventType == MSGTYPE_STREAM_START || msgType == MSGTYPE_STREAM_START || isStream),
+            streamId = streamId,
+            sender = content.string("sender").takeIfNotBlank()
+                ?: stream?.string("sender").takeIfNotBlank()
+                ?: fallbackSender.takeIfNotBlank(),
             thinkingSteps = content.objectArray("thinking_process").mapNotNull { it.toThinkingStep() }.toImmutableList(),
             toolCalls = content.objectArray("tool_calls").mapNotNull { it.toToolCall() }.toImmutableList(),
             sources = content.objectArray("sources").mapNotNull { it.toSource() }.toImmutableList(),
@@ -96,13 +114,19 @@ class AiMessageContentParser {
     private fun JsonObject.string(key: String): String? =
         (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
 
+    private fun JsonObject.boolean(key: String): Boolean? =
+        (this[key] as? JsonPrimitive)?.contentOrNull?.toBooleanStrictOrNull()
+
     private fun JsonObject.objectArray(key: String): List<JsonObject> =
         (this[key] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }
 
     private fun JsonArray?.orEmpty(): JsonArray = this ?: JsonArray(emptyList())
 
+    private fun String?.takeIfNotBlank(): String? = takeIf { !it.isNullOrBlank() }
+
     private companion object {
         const val MSGTYPE_AISDK = "m.aisdk.protocol"
-        const val MSGTYPE_TEXT = "m.text"
+        const val MSGTYPE_STREAM_START = "m.stream.start"
+        const val MSGTYPE_STREAM_COMPLETE = "m.stream.complete"
     }
 }

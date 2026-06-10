@@ -116,7 +116,7 @@ class TimelineItemAiPresenter(
                 includeRawEvents = false,
             )
         )
-        val snapshots = Channel<StreamSnapshot>(Channel.UNLIMITED)
+        val snapshots = Channel<StreamSnapshot>(Channel.CONFLATED)
         var lastEmittedAtMs = 0L
 
         suspend fun emit(snapshot: StreamSnapshot, force: Boolean = false) {
@@ -135,13 +135,15 @@ class TimelineItemAiPresenter(
             }
         }
 
-        emit(handle.snapshot(), force = true)
         val subscription = handle.subscribe { snapshot ->
             snapshots.trySend(snapshot)
         }
         try {
             for (snapshot in snapshots) {
                 emit(snapshot, force = snapshot.isTerminal)
+                if (snapshot.isTerminal) {
+                    break
+                }
             }
         } finally {
             subscription.cancel()

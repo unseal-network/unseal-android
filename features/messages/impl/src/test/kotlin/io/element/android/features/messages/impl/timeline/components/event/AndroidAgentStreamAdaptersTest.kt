@@ -15,11 +15,15 @@ import com.google.common.truth.Truth.assertThat
 import io.element.android.libraries.agentstream.api.AGENT_STREAM_SCHEMA_VERSION
 import io.element.android.libraries.agentstream.api.StreamError
 import io.element.android.libraries.agentstream.api.StreamPart
+import io.element.android.libraries.agentstream.api.StreamRequest
 import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.agentstream.api.StreamSnapshotJsonCodec
 import io.element.android.libraries.agentstream.api.StreamStatus
 import io.element.android.libraries.agentstream.api.TextPartState
+import io.element.android.libraries.chatbot.test.FakeChatbotApiService
+import io.element.android.libraries.chatbot.test.FakeChatbotApiServiceFactory
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
+import io.element.android.libraries.matrix.test.FakeMatrixClient
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -170,6 +174,34 @@ class AndroidAgentStreamAdaptersTest {
 
         assertThat(provider.load("stream-1")).isNull()
         assertThat(rawRowCount()).isEqualTo(0)
+    }
+
+    @Test
+    fun `stream http client sends null sender when request sender is blank`() = runTest {
+        var capturedSender: String? = "unset"
+        val service = FakeChatbotApiService().apply {
+            streamAgentMessageResult = { _, sender, _ ->
+                capturedSender = sender
+                Result.success(Unit)
+            }
+        }
+        val httpClient = ChatbotStreamHttpClient(
+            matrixClient = FakeMatrixClient(),
+            chatbotApiServiceFactory = FakeChatbotApiServiceFactory(service),
+        )
+
+        httpClient.openStream(
+            request = StreamRequest(
+                streamId = "stream-1",
+                sender = " ",
+                roomId = "",
+                eventId = "",
+                includeRawEvents = false,
+            ),
+            onChunk = {},
+        )
+
+        assertThat(capturedSender).isNull()
     }
 
     private fun createProvider(): SQLiteStreamStorageProvider {

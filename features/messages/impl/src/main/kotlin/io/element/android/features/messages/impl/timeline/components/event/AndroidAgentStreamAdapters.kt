@@ -66,7 +66,7 @@ class ChatbotStreamHttpClient(
     ) {
         chatbotApiServiceFactory
             .createForAiStream(matrixClient)
-            .streamAgentMessage(request.streamId, request.sender, onChunk)
+            .streamAgentMessage(request.streamId, request.sender.takeIf { it.isNotBlank() }, onChunk)
             .getOrThrow()
     }
 }

@@ -125,6 +125,86 @@ class TimelineItemAiPresenterTest {
         assertThat(client.handle.cancelledHandles).isEqualTo(0)
     }
 
+    @Test
+    fun `present - terminal snapshot updates even when non-terminal burst is throttled`() = runTest {
+        val client = FakeAgentStreamClient()
+        val presenter = createPresenter(
+            content = aTimelineItemAiContent(streamId = "stream-1"),
+            agentStreamClient = client,
+            dispatchers = testCoroutineDispatchers(useUnconfinedTestDispatcher = true),
+        )
+
+        presenter.test {
+            assertThat(awaitItem().content.body).isEmpty()
+
+            client.handle.emit(
+                snapshot(
+                    streamId = "stream-1",
+                    status = StreamStatus.Streaming,
+                    parts = listOf(
+                        StreamPart.Text(id = "text-1", text = "intermediate", textState = TextPartState.Streaming),
+                    ),
+                )
+            )
+            client.handle.emit(
+                snapshot(
+                    streamId = "stream-1",
+                    status = StreamStatus.Completed,
+                    parts = listOf(
+                        StreamPart.Text(id = "text-1", text = "final", textState = TextPartState.Complete),
+                    ),
+                )
+            )
+
+            val firstUpdate = awaitItem().content
+            val updated = if (firstUpdate.body == "final") {
+                firstUpdate
+            } else {
+                assertThat(firstUpdate.body).isEqualTo("intermediate")
+                awaitItem().content
+            }
+            assertThat(updated.body).isEqualTo("final")
+            assertThat(updated.isStreaming).isFalse()
+            assertThat(client.handle.cancelledSubscriptions).isEqualTo(1)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - terminal immediate subscription snapshot exits collection`() = runTest {
+        val client = FakeAgentStreamClient(
+            initialSnapshot = snapshot(
+                streamId = "stream-1",
+                status = StreamStatus.Completed,
+                parts = listOf(
+                    StreamPart.Text(id = "text-1", text = "cached final", textState = TextPartState.Complete),
+                ),
+            )
+        )
+        val presenter = createPresenter(
+            content = aTimelineItemAiContent(streamId = "stream-1"),
+            agentStreamClient = client,
+            dispatchers = testCoroutineDispatchers(useUnconfinedTestDispatcher = true),
+        )
+
+        presenter.test {
+            val firstUpdate = awaitItem().content
+            val updated = if (firstUpdate.body == "cached final") {
+                firstUpdate
+            } else {
+                assertThat(firstUpdate.body).isEmpty()
+                awaitItem().content
+            }
+
+            assertThat(updated.body).isEqualTo("cached final")
+            assertThat(updated.isStreaming).isFalse()
+            assertThat(client.handle.cancelledSubscriptions).isEqualTo(1)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     private fun createPresenter(
         content: TimelineItemAiContent,
         agentStreamClient: AgentStreamClient = FakeAgentStreamClient(),
@@ -138,9 +218,11 @@ class TimelineItemAiPresenterTest {
         )
     }
 
-    private class FakeAgentStreamClient : AgentStreamClient {
+    private class FakeAgentStreamClient(
+        initialSnapshot: StreamSnapshot = snapshot(streamId = "stream-1"),
+    ) : AgentStreamClient {
         val requests = mutableListOf<StreamRequest>()
-        val handle = FakeStreamHandle()
+        val handle = FakeStreamHandle(initialSnapshot)
 
         override fun getStream(request: StreamRequest): StreamHandle {
             requests += request
@@ -148,14 +230,16 @@ class TimelineItemAiPresenterTest {
         }
     }
 
-    private class FakeStreamHandle : StreamHandle {
+    private class FakeStreamHandle(
+        private val initialSnapshot: StreamSnapshot,
+    ) : StreamHandle {
         private val listeners = mutableListOf<StreamListener>()
         var cancelledSubscriptions = 0
             private set
         var cancelledHandles = 0
             private set
 
-        override fun snapshot(): StreamSnapshot = snapshot(streamId = "stream-1")
+        override fun snapshot(): StreamSnapshot = initialSnapshot
 
         override fun subscribe(listener: StreamListener): StreamSubscription {
             listeners += listener

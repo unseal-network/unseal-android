@@ -55,14 +55,75 @@ class AiMessageContentParserTest {
     @Test
     fun `parses m_text message with stream object as ai`() {
         val json = """
-            { "content": { "msgtype": "m.text", "body": "hi", "content": "streamed body", "stream": { "status": "active" } } }
+            { "content": { "msgtype": "m.text", "body": "hi", "content": "streamed body", "stream": { "id": "stream-1", "status": "active" } } }
         """.trimIndent()
 
         val result = parser.parse(json, isEdited = false)
 
         assertThat(result).isNotNull()
         assertThat(result!!.isStreaming).isTrue()
+        assertThat(result.streamId).isEqualTo("stream-1")
         assertThat(result.body).isEqualTo("streamed body")
+    }
+
+    @Test
+    fun `parses message with top level stream id and fallback sender as ai`() {
+        val json = """
+            { "content": { "msgtype": "m.text", "body": "loading", "stream_id": "stream-2", "sender": "" } }
+        """.trimIndent()
+
+        val result = parser.parse(json, isEdited = false, fallbackSender = "@agent:keepsecret.io")
+
+        assertThat(result).isNotNull()
+        assertThat(result!!.streamId).isEqualTo("stream-2")
+        assertThat(result.sender).isEqualTo("@agent:keepsecret.io")
+    }
+
+    @Test
+    fun `parses ios stream start event with stream id and fallback sender`() {
+        val json = """
+            {
+              "type": "m.stream.start",
+              "event_id": "${'$'}event",
+              "content": {
+                "msgtype": "m.stream.start",
+                "body": "stream-3",
+                "stream_id": "stream-3",
+                "is_streaming": true
+              }
+            }
+        """.trimIndent()
+
+        val result = parser.parse(json, isEdited = false, fallbackSender = "@agent:keepsecret.io")
+
+        assertThat(result).isNotNull()
+        requireNotNull(result)
+        assertThat(result.streamId).isEqualTo("stream-3")
+        assertThat(result.sender).isEqualTo("@agent:keepsecret.io")
+        assertThat(result.isStreaming).isTrue()
+    }
+
+    @Test
+    fun `parses ios stream complete event with completed content`() {
+        val json = """
+            {
+              "type": "m.stream.complete",
+              "content": {
+                "msgtype": "m.stream.complete",
+                "stream_id": "stream-4",
+                "content": "done",
+                "is_streaming": false
+              }
+            }
+        """.trimIndent()
+
+        val result = parser.parse(json, isEdited = false)
+
+        assertThat(result).isNotNull()
+        requireNotNull(result)
+        assertThat(result.streamId).isEqualTo("stream-4")
+        assertThat(result.body).isEqualTo("done")
+        assertThat(result.isStreaming).isFalse()
     }
 
     @Test
