@@ -36,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -71,52 +72,59 @@ fun SkillsHomeView(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Skills") },
+                title = { Text("技能") },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "Back")
+                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "返回")
                     }
                 },
                 actions = {
                     IconButton(onClick = { state.eventSink(SkillsHomeEvents.CreateSkill) }) {
-                        Icon(imageVector = CompoundIcons.Plus(), contentDescription = "Create skill")
+                        Icon(imageVector = CompoundIcons.Plus(), contentDescription = "创建技能")
                     }
                 },
             )
         },
     ) { padding ->
-        LazyColumn(
+        val isRefreshing = if (state.selectedTab == SkillsHomeTab.Mine) state.isLoading else state.isLoadingMarketplace
+        PullToRefreshBox(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(bottom = 24.dp),
+            isRefreshing = isRefreshing,
+            onRefresh = { state.eventSink(SkillsHomeEvents.Refresh) },
         ) {
-            item {
-                SkillsTabPicker(
-                    selectedTab = state.selectedTab,
-                    onSelect = { state.eventSink(SkillsHomeEvents.SelectTab(it)) },
-                )
-            }
-            item {
-                OutlinedTextField(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    value = state.searchQuery,
-                    onValueChange = { state.eventSink(SkillsHomeEvents.SearchQueryChanged(it)) },
-                    placeholder = {
-                        Text(if (state.selectedTab == SkillsHomeTab.Mine) "Search your skills" else "Search public skills")
-                    },
-                    leadingIcon = { Icon(imageVector = CompoundIcons.Search(), contentDescription = null) },
-                    singleLine = true,
-                    shape = RoundedCornerShape(28.dp),
-                )
-            }
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 24.dp),
+            ) {
+                item {
+                    SkillsTabPicker(
+                        selectedTab = state.selectedTab,
+                        onSelect = { state.eventSink(SkillsHomeEvents.SelectTab(it)) },
+                    )
+                }
+                item {
+                    OutlinedTextField(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        value = state.searchQuery,
+                        onValueChange = { state.eventSink(SkillsHomeEvents.SearchQueryChanged(it)) },
+                        placeholder = {
+                            Text(if (state.selectedTab == SkillsHomeTab.Mine) "搜索技能" else "搜索公开技能")
+                        },
+                        leadingIcon = { Icon(imageVector = CompoundIcons.Search(), contentDescription = null) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(28.dp),
+                    )
+                }
 
-            if (state.selectedTab == SkillsHomeTab.Mine) {
-                mineContent(state)
-            } else {
-                marketplaceContent(state)
+                if (state.selectedTab == SkillsHomeTab.Mine) {
+                    mineContent(state)
+                } else {
+                    marketplaceContent(state)
+                }
             }
         }
     }
@@ -128,7 +136,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.mineContent(state: Sk
             items(count = 5) { SkillSkeletonRow() }
         }
         state.filteredSkills.isEmpty() -> {
-            item { EmptyMessage("You haven't created any skills yet.") }
+            item { EmptyMessage("暂无技能") }
         }
         else -> {
             items(items = state.filteredSkills, key = { "mine-${it.id}" }) { skill ->
@@ -150,14 +158,14 @@ private fun androidx.compose.foundation.lazy.LazyListScope.marketplaceContent(st
             items(count = 5) { SkillSkeletonRow() }
         }
         state.marketplaceSkills.isEmpty() -> {
-            item { EmptyMessage("No public skills available.") }
+            item { EmptyMessage("暂无公开技能") }
         }
         else -> {
             state.marketplaceTotal?.let { total ->
                 item {
                     Text(
                         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
-                        text = "$total public skills",
+                        text = "$total 个公开技能",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -185,7 +193,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.marketplaceContent(st
                             CircularProgressIndicator(modifier = Modifier.size(20.dp))
                         } else {
                             Text(
-                                text = "Load more",
+                                text = "加载更多",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -221,7 +229,7 @@ private fun SkillsTabPicker(
                     )
                     .clickable { onSelect(tab) }
                     .padding(vertical = 7.dp),
-                text = if (tab == SkillsHomeTab.Mine) "My skills" else "Marketplace",
+                text = if (tab == SkillsHomeTab.Mine) "我的" else "市场",
                 style = MaterialTheme.typography.labelLarge,
                 color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,

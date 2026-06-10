@@ -75,11 +75,11 @@ fun AgentDetailView(
             CenterAlignedTopAppBar(
                 title = { Text(state.navigationTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) { Icon(CompoundIcons.ChevronLeft(), "Back") }
+                    IconButton(onClick = onBackClick) { Icon(CompoundIcons.ChevronLeft(), "返回") }
                 },
                 actions = {
                     state.agentProfileUrl?.let { url ->
-                        IconButton(onClick = { uriHandler.openUri(url) }) { Icon(CompoundIcons.PopOut(), "Open profile") }
+                        IconButton(onClick = { uriHandler.openUri(url) }) { Icon(CompoundIcons.PopOut(), "智能体资料") }
                     }
                 },
             )
@@ -133,7 +133,7 @@ private fun Header(state: AgentDetailState) {
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             state.providerModelText?.let { Chip(text = it, icon = CompoundIcons.Computer()) }
-            Chip(text = if (state.agent?.isPublic == true) "Public" else "Private", icon = if (state.agent?.isPublic == true) CompoundIcons.Public() else CompoundIcons.Lock())
+            Chip(text = if (state.agent?.isPublic == true) "公开" else "私密", icon = if (state.agent?.isPublic == true) CompoundIcons.Public() else CompoundIcons.Lock())
         }
     }
 }
@@ -165,7 +165,7 @@ private fun ActionButtons(state: AgentDetailState) {
         ) {
             Icon(CompoundIcons.Chat(), null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.size(8.dp))
-            Text("Start chat")
+            Text("开始聊天")
         }
         OutlinedButton(
             modifier = Modifier.weight(1f),
@@ -173,7 +173,7 @@ private fun ActionButtons(state: AgentDetailState) {
         ) {
             Icon(CompoundIcons.Edit(), null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.size(8.dp))
-            Text("Edit")
+            Text("编辑")
         }
     }
 }
@@ -191,7 +191,7 @@ private fun SectionLabel(title: String) {
 @Composable
 private fun SoulSection(state: AgentDetailState, soul: String) {
     Column {
-        SectionLabel("Soul")
+        SectionLabel("角色设定")
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -210,7 +210,7 @@ private fun SoulSection(state: AgentDetailState, soul: String) {
             if (soul.length > 120) {
                 Text(
                     modifier = Modifier.clickable { state.eventSink(AgentDetailEvents.ToggleSoulExpanded) },
-                    text = if (state.isSoulExpanded) "Show less" else "Show more",
+                    text = if (state.isSoulExpanded) "收起 ↑" else "展开 ↓",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -223,9 +223,9 @@ private fun SoulSection(state: AgentDetailState, soul: String) {
 private fun SkillsSection(state: AgentDetailState) {
     Column {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            SectionLabel("Skills")
+            SectionLabel("拥有的技能")
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = { state.eventSink(AgentDetailEvents.ManageSkills) }) { Text("Manage") }
+            TextButton(onClick = { state.eventSink(AgentDetailEvents.ManageSkills) }) { Text("管理") }
             Spacer(Modifier.size(8.dp))
         }
         OutlinedButton(
@@ -234,7 +234,7 @@ private fun SkillsSection(state: AgentDetailState) {
         ) {
             Icon(CompoundIcons.Plus(), null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.size(8.dp))
-            Text("Add your first skill")
+            Text("为此 Agent 添加技能")
         }
     }
 }
@@ -243,7 +243,7 @@ private fun SkillsSection(state: AgentDetailState) {
 private fun RoomsSection(state: AgentDetailState) {
     Column {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            SectionLabel("Rooms")
+            SectionLabel("已加入的房间")
             Spacer(Modifier.weight(1f))
             if (state.rooms.isNotEmpty()) {
                 Text(state.rooms.size.toString(), modifier = Modifier.padding(end = 16.dp), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -252,7 +252,7 @@ private fun RoomsSection(state: AgentDetailState) {
         if (state.rooms.isEmpty()) {
             Text(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
-                text = if (state.isLoading) "Loading rooms…" else "This agent isn't in any rooms yet.",
+                text = if (state.isLoading) "正在加载..." else "尚未加入任何房间",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,

@@ -39,24 +39,25 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImagePainter
+import coil3.compose.SubcomposeAsyncImage
+import coil3.compose.SubcomposeAsyncImageContent
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotToolkit
-import io.element.android.libraries.designsystem.components.avatar.Avatar
-import io.element.android.libraries.designsystem.components.avatar.AvatarData
-import io.element.android.libraries.designsystem.components.avatar.AvatarSize
-import io.element.android.libraries.designsystem.components.avatar.AvatarType
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import kotlinx.collections.immutable.persistentListOf
@@ -75,15 +76,10 @@ fun ConnectorListView(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Connectors") },
+                title = { Text("外部集成") },
                 navigationIcon = {
                     IconButton(onClick = { state.eventSink(ConnectorListEvents.Dismiss) }) {
-                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    TextButton(onClick = { state.eventSink(ConnectorListEvents.Dismiss) }) {
-                        Text("Done")
+                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "返回")
                     }
                 },
             )
@@ -96,12 +92,12 @@ fun ConnectorListView(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 value = state.searchQuery,
                 onValueChange = { state.eventSink(ConnectorListEvents.SearchChanged(it)) },
-                placeholder = { Text("Search connectors") },
+                placeholder = { Text("搜索工具包（至少 3 个字符）…") },
                 leadingIcon = { Icon(imageVector = CompoundIcons.Search(), contentDescription = null) },
                 trailingIcon = if (state.searchQuery.isNotEmpty()) {
                     {
                         IconButton(onClick = { state.eventSink(ConnectorListEvents.SearchChanged("")) }) {
-                            Icon(imageVector = CompoundIcons.Close(), contentDescription = "Clear")
+                            Icon(imageVector = CompoundIcons.Close(), contentDescription = "清除")
                         }
                     }
                 } else {
@@ -126,7 +122,7 @@ fun ConnectorListView(
                 state.toolkits.isEmpty() -> {
                     Text(
                         modifier = Modifier.fillMaxWidth().padding(top = 48.dp, start = 16.dp, end = 16.dp),
-                        text = "No connectors available.",
+                        text = "未找到工具包",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -188,7 +184,7 @@ private fun ErrorBanner(error: String, onDismiss: () -> Unit) {
         IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
             Icon(
                 imageVector = CompoundIcons.Close(),
-                contentDescription = "Dismiss",
+                contentDescription = "关闭",
                 tint = MaterialTheme.colorScheme.onErrorContainer,
                 modifier = Modifier.size(16.dp),
             )
@@ -206,15 +202,10 @@ private fun ToolkitRow(state: ConnectorListState, toolkit: ChatbotToolkit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Avatar(
-            avatarData = AvatarData(
-                id = toolkit.slug,
-                name = toolkit.name,
-                url = toolkit.logo,
-                size = AvatarSize.RoomListItem,
-            ),
-            avatarType = AvatarType.Room(),
-            forcedAvatarSize = 36.dp,
+        RemoteToolkitLogo(
+            logoUrl = toolkit.logo,
+            slug = toolkit.slug,
+            name = toolkit.name,
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -238,7 +229,7 @@ private fun ToolkitRow(state: ConnectorListState, toolkit: ChatbotToolkit) {
             OutlinedButton(onClick = { state.eventSink(ConnectorListEvents.Manage(toolkit)) }) {
                 Icon(imageVector = CompoundIcons.Settings(), contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.size(6.dp))
-                Text("Manage")
+                Text("管理")
             }
         } else {
             val connecting = state.connectingSlug == toolkit.slug
@@ -252,9 +243,59 @@ private fun ToolkitRow(state: ConnectorListState, toolkit: ChatbotToolkit) {
                     Icon(imageVector = CompoundIcons.Link(), contentDescription = null, modifier = Modifier.size(16.dp))
                 }
                 Spacer(Modifier.size(6.dp))
-                Text(if (connecting) "Connecting…" else "Connect")
+                Text(if (connecting) "连接中…" else "连接")
             }
         }
+    }
+}
+
+/**
+ * Renders the toolkit/connector logo as a remote image (mirrors the iOS RemoteToolkitIcon).
+ * Uses the API-provided [logoUrl] when present, otherwise falls back to the composio logo
+ * URL scheme `https://logos.composio.dev/api/<slug>`. On load failure or when no URL can be
+ * resolved, shows a letter-box fallback with the first character of [name].
+ */
+@Composable
+private fun RemoteToolkitLogo(
+    logoUrl: String?,
+    slug: String,
+    name: String,
+) {
+    val resolvedUrl = logoUrl?.takeIf { it.isNotBlank() }
+        ?: slug.takeIf { it.isNotBlank() }?.let { "https://logos.composio.dev/api/$it" }
+    val shape = RoundedCornerShape(6.dp)
+    if (resolvedUrl == null) {
+        LogoLetterFallback(name = name, shape = shape)
+        return
+    }
+    SubcomposeAsyncImage(
+        model = resolvedUrl,
+        contentDescription = null,
+        contentScale = ContentScale.Fit,
+        modifier = Modifier.size(36.dp).clip(shape),
+    ) {
+        val painterState by painter.state.collectAsState()
+        when (painterState) {
+            is AsyncImagePainter.State.Success -> SubcomposeAsyncImageContent()
+            else -> LogoLetterFallback(name = name, shape = shape)
+        }
+    }
+}
+
+@Composable
+private fun LogoLetterFallback(name: String, shape: androidx.compose.ui.graphics.Shape) {
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surface),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = name.take(1).uppercase(),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

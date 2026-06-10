@@ -70,11 +70,11 @@ fun SkillDetailView(
                 navigationIcon = {
                     if (state.isEditing) {
                         TextButton(onClick = { state.eventSink(SkillDetailEvents.CancelEditing) }, enabled = !state.isSaving) {
-                            Text("Cancel")
+                            Text("取消")
                         }
                     } else {
                         IconButton(onClick = onBackClick) {
-                            Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "Back")
+                            Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "返回")
                         }
                     }
                 },
@@ -84,11 +84,11 @@ fun SkillDetailView(
                             if (state.isSaving) {
                                 CircularProgressIndicator(modifier = Modifier.size(20.dp).padding(end = 8.dp))
                             } else {
-                                TextButton(onClick = { state.eventSink(SkillDetailEvents.SaveEditing) }) { Text("Save") }
+                                TextButton(onClick = { state.eventSink(SkillDetailEvents.SaveEditing) }) { Text("保存") }
                             }
                         }
                         state.canEdit -> {
-                            TextButton(onClick = { state.eventSink(SkillDetailEvents.StartEditing) }) { Text("Edit") }
+                            TextButton(onClick = { state.eventSink(SkillDetailEvents.StartEditing) }) { Text("编辑") }
                         }
                     }
                 },
@@ -115,14 +115,14 @@ fun SkillDetailView(
                     ) {
                         Icon(CompoundIcons.Delete(), null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.size(8.dp))
-                        Text(if (state.isDeleting) "Deleting…" else "Delete skill")
+                        Text(if (state.isDeleting) "删除中…" else "删除技能")
                     }
                 }
             }
             if (state.isLoading) {
                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp))
-                    Text("Loading…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("正在加载...", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             state.error?.let { error ->
@@ -153,17 +153,17 @@ private fun InfoRow(label: String, value: String) {
 
 @Composable
 private fun SkillReadOnlyContent(state: SkillDetailState) {
-    SectionHeader("Info")
-    InfoRow("Name", state.title)
-    InfoRow("Identifier", state.id)
+    SectionHeader("信息")
+    InfoRow("名称", state.title)
+    InfoRow("标识符", state.id)
     state.skill?.description?.takeIf { it.isNotBlank() }?.let {
-        InfoRow("Description", it)
-    } ?: InfoRow("Description", "No description")
-    state.visibilityLabel?.let { InfoRow("Visibility", it) }
-    state.skill?.createdAt?.let { InfoRow("Created at", it) }
+        InfoRow("描述", it)
+    } ?: InfoRow("描述", "暂无描述")
+    state.visibilityLabel?.let { InfoRow("可见性", it) }
+    state.skill?.createdAt?.let { InfoRow("创建时间", it) }
     if (!state.isOwner) {
         Text(
-            text = "Public marketplace skill",
+            text = "公开市场技能",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -172,12 +172,12 @@ private fun SkillReadOnlyContent(state: SkillDetailState) {
 
 @Composable
 private fun SkillEditForm(state: SkillDetailState) {
-    SectionHeader("Edit")
+    SectionHeader("编辑信息")
     OutlinedTextField(
         modifier = Modifier.fillMaxWidth(),
         value = state.editName,
         onValueChange = { state.eventSink(SkillDetailEvents.EditNameChanged(it)) },
-        label = { Text("Name") },
+        label = { Text("名称") },
         singleLine = true,
         enabled = !state.isSaving,
     )
@@ -185,12 +185,12 @@ private fun SkillEditForm(state: SkillDetailState) {
         modifier = Modifier.fillMaxWidth(),
         value = state.editDescription,
         onValueChange = { state.eventSink(SkillDetailEvents.EditDescriptionChanged(it)) },
-        label = { Text("Description") },
-        placeholder = { Text("Describe what this skill does") },
+        label = { Text("描述") },
+        placeholder = { Text("可选描述") },
         minLines = 3,
         enabled = !state.isSaving,
     )
-    Text("Visibility", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+    Text("可见性", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         ChatbotSkillVisibility.entries.forEach { visibility ->
             FilterChip(
@@ -207,7 +207,7 @@ private fun SkillEditForm(state: SkillDetailState) {
         onClick = { state.eventSink(SkillDetailEvents.SaveEditing) },
         enabled = !state.isSaving,
     ) {
-        Text(if (state.isSaving) "Saving…" else "Save changes")
+        Text(if (state.isSaving) "保存中…" else "保存修改")
     }
 }
 

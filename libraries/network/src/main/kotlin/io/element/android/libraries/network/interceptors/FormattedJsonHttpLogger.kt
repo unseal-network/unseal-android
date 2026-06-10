@@ -20,6 +20,10 @@ internal class FormattedJsonHttpLogger(
 ) : HttpLoggingInterceptor.Logger {
     companion object {
         private const val INDENT_SPACE = 2
+        private val SENSITIVE_LINE_PATTERNS = listOf(
+            Regex("""(?i)^(Authorization:\s*Bearer\s+).+$"""),
+            Regex("""(?i)^(access_token["=:\s]+).+$"""),
+        )
     }
 
     /**
@@ -30,30 +34,31 @@ internal class FormattedJsonHttpLogger(
      */
     @Synchronized
     override fun log(message: String) {
-        Timber.d(message.ellipsize(200_000))
+        val redactedMessage = message.redactSensitiveValues()
+        Timber.d(redactedMessage.ellipsize(200_000))
 
         // Try to log formatted Json only if there is a chance that [message] contains Json.
         // It can be only the case if we log the bodies of Http requests.
         if (level != HttpLoggingInterceptor.Level.BODY) return
 
-        if (message.length > 100_000) {
-            Timber.d("Content is too long (${message.length} chars) to be formatted as JSON")
+        if (redactedMessage.length > 100_000) {
+            Timber.d("Content is too long (${redactedMessage.length} chars) to be formatted as JSON")
             return
         }
 
-        if (message.startsWith("{")) {
+        if (redactedMessage.startsWith("{")) {
             // JSON Detected
             try {
-                val o = JSONObject(message)
+                val o = JSONObject(redactedMessage)
                 logJson(o.toString(INDENT_SPACE))
             } catch (e: JSONException) {
                 // Finally this is not a JSON string...
                 Timber.e(e)
             }
-        } else if (message.startsWith("[")) {
+        } else if (redactedMessage.startsWith("[")) {
             // JSON Array detected
             try {
-                val o = JSONArray(message)
+                val o = JSONArray(redactedMessage)
                 logJson(o.toString(INDENT_SPACE))
             } catch (e: JSONException) {
                 // Finally not JSON...
@@ -61,6 +66,12 @@ internal class FormattedJsonHttpLogger(
             }
         }
         // Else not a json string to log
+    }
+
+    private fun String.redactSensitiveValues(): String {
+        return SENSITIVE_LINE_PATTERNS.fold(this) { current, pattern ->
+            current.replace(pattern, "$1[REDACTED]")
+        }
     }
 
     private fun logJson(formattedJson: String) {

@@ -85,7 +85,7 @@ fun SkillListRow(
             }
             skill.createdDateLabel()?.let {
                 Text(
-                    text = "First Seen: $it",
+                    text = "创建时间：$it",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

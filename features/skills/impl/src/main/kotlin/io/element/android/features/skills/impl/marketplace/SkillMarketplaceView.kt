@@ -30,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -61,19 +62,24 @@ fun SkillMarketplaceView(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Skill Marketplace") },
+                title = { Text("Skill 市场") },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "Back")
+                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "返回")
                     }
                 },
             )
         },
     ) { padding ->
-        LazyColumn(
+        PullToRefreshBox(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
+            isRefreshing = state.isLoading,
+            onRefresh = { state.eventSink(SkillMarketplaceEvents.Refresh) },
+        ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 24.dp),
         ) {
             item {
@@ -83,7 +89,7 @@ fun SkillMarketplaceView(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     value = state.searchQuery,
                     onValueChange = { state.eventSink(SkillMarketplaceEvents.SearchQueryChanged(it)) },
-                    placeholder = { Text("Search public skills") },
+                    placeholder = { Text("搜索公开技能") },
                     leadingIcon = { Icon(imageVector = CompoundIcons.Search(), contentDescription = null) },
                     singleLine = true,
                     shape = RoundedCornerShape(28.dp),
@@ -93,7 +99,7 @@ fun SkillMarketplaceView(
                 item {
                     Text(
                         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
-                        text = "$total public skills",
+                        text = "$total 个公开技能",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -114,7 +120,7 @@ fun SkillMarketplaceView(
                     item {
                         Text(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 40.dp),
-                            text = "No public skills available.",
+                            text = "暂无公开技能",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
@@ -146,7 +152,7 @@ fun SkillMarketplaceView(
                                     CircularProgressIndicator(modifier = Modifier.size(20.dp))
                                 } else {
                                     Text(
-                                        text = "Load more",
+                                        text = "加载更多",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
@@ -156,6 +162,7 @@ fun SkillMarketplaceView(
                     }
                 }
             }
+        }
         }
     }
 }

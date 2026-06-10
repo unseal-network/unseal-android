@@ -40,6 +40,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -55,6 +56,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewParameter
@@ -78,15 +81,22 @@ fun VoiceLibraryView(
         state.eventSink(VoiceLibraryEvents.OnAppear)
     }
 
+    // iOS copies the share ID to the system clipboard (UIPasteboard) on Share. Mirror that here:
+    // whenever a new share ID arrives in state, copy it to the clipboard. The notice is still shown.
+    val clipboardManager = LocalClipboardManager.current
+    LaunchedEffect(state.lastShareId) {
+        state.lastShareId?.let { clipboardManager.setText(AnnotatedString(it)) }
+    }
+
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Voice Library") },
+                title = { Text("语音库") },
                 actions = {
                     TextButton(onClick = { state.eventSink(VoiceLibraryEvents.Dismiss) }) {
-                        Text("Done")
+                        Text("完成")
                     }
                 },
             )
@@ -113,7 +123,7 @@ fun VoiceLibraryView(
                 onValueChange = { state.eventSink(VoiceLibraryEvents.SearchChanged(it)) },
                 placeholder = {
                     Text(
-                        if (state.selectedTab == VoiceLibraryTab.Mine) "Search my voices" else "Search public voices"
+                        if (state.selectedTab == VoiceLibraryTab.Mine) "搜索我的语音" else "搜索公开语音"
                     )
                 },
                 leadingIcon = { Icon(CompoundIcons.Search(), contentDescription = null) },
@@ -123,10 +133,16 @@ fun VoiceLibraryView(
 
             Notices(state)
 
-            when {
-                state.isLoading -> LoadingState()
-                state.selectedTab == VoiceLibraryTab.Mine -> MyVoices(state)
-                else -> PublicVoices(state)
+            PullToRefreshBox(
+                modifier = Modifier.fillMaxSize(),
+                isRefreshing = state.isLoading,
+                onRefresh = { state.eventSink(VoiceLibraryEvents.Refresh) },
+            ) {
+                when {
+                    state.isLoading -> LoadingState()
+                    state.selectedTab == VoiceLibraryTab.Mine -> MyVoices(state)
+                    else -> PublicVoices(state)
+                }
             }
         }
     }
@@ -138,7 +154,7 @@ private fun TabPicker(
     onSelect: (VoiceLibraryTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val tabs = listOf(VoiceLibraryTab.Mine to "Mine", VoiceLibraryTab.Public to "Public")
+    val tabs = listOf(VoiceLibraryTab.Mine to "我的", VoiceLibraryTab.Public to "公开")
     SingleChoiceSegmentedButtonRow(modifier = modifier) {
         tabs.forEachIndexed { index, (tab, label) ->
             SegmentedButton(
@@ -163,7 +179,7 @@ private fun Notices(state: VoiceLibraryState) {
     }
     state.lastShareId?.let { shareId ->
         NoticeCard(
-            text = "Share ID copied: $shareId",
+            text = "分享 ID 已复制：$shareId",
             container = MaterialTheme.colorScheme.tertiaryContainer,
             content = MaterialTheme.colorScheme.onTertiaryContainer,
             onDismiss = { state.eventSink(VoiceLibraryEvents.ClearShareId) },
@@ -196,7 +212,7 @@ private fun NoticeCard(
                 color = content,
             )
             IconButton(onClick = onDismiss) {
-                Icon(CompoundIcons.Close(), contentDescription = "Dismiss", tint = content)
+                Icon(CompoundIcons.Close(), contentDescription = "关闭", tint = content)
             }
         }
     }
@@ -215,10 +231,11 @@ private fun LoadingState() {
 
 @Composable
 private fun MyVoices(state: VoiceLibraryState) {
+    val profiles = state.filteredProfiles
     Column(modifier = Modifier.fillMaxSize()) {
         ImportRow(state)
-        if (state.profiles.isEmpty()) {
-            EmptyState("No saved voices yet.")
+        if (profiles.isEmpty()) {
+            EmptyState("暂无保存的语音")
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -226,9 +243,9 @@ private fun MyVoices(state: VoiceLibraryState) {
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 item {
-                    SectionHeader(title = "My Voices", trailing = null)
+                    SectionHeader(title = "我的语音", trailing = null)
                 }
-                items(state.profiles, key = { it.id }) { profile ->
+                items(profiles, key = { it.id }) { profile ->
                     ProfileRow(state, profile)
                 }
             }
@@ -249,14 +266,14 @@ private fun ImportRow(state: VoiceLibraryState) {
             modifier = Modifier.weight(1f),
             value = state.importShareId,
             onValueChange = { state.eventSink(VoiceLibraryEvents.ImportShareChanged(it)) },
-            label = { Text("Import share ID") },
+            label = { Text("导入分享 ID") },
             singleLine = true,
         )
         Button(
             enabled = state.busyId != "import" && state.importShareId.isNotBlank(),
             onClick = { state.eventSink(VoiceLibraryEvents.ImportShare) },
         ) {
-            Text(if (state.busyId == "import") "Importing…" else "Import")
+            Text(if (state.busyId == "import") "导入中…" else "导入")
         }
     }
 }
@@ -304,10 +321,10 @@ private fun ProfileRow(state: VoiceLibraryState, profile: ChatbotVoiceProfile) {
         if (state.deleteConfirmationProfileId == profile.id) {
             Column(horizontalAlignment = Alignment.End) {
                 TextButton(onClick = { state.eventSink(VoiceLibraryEvents.ConfirmDelete) }) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text("删除", color = MaterialTheme.colorScheme.error)
                 }
                 TextButton(onClick = { state.eventSink(VoiceLibraryEvents.CancelDelete) }) {
-                    Text("Cancel")
+                    Text("取消")
                 }
             }
         } else {
@@ -329,11 +346,11 @@ private fun ProfileOverflowMenu(
     var expanded by remember { mutableStateOf(false) }
     Box {
         IconButton(enabled = enabled, onClick = { expanded = true }) {
-            Icon(CompoundIcons.Share(), contentDescription = "Voice actions")
+            Icon(CompoundIcons.Share(), contentDescription = "语音操作")
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(
-                text = { Text("Share") },
+                text = { Text("分享") },
                 leadingIcon = { Icon(CompoundIcons.Share(), contentDescription = null) },
                 onClick = {
                     expanded = false
@@ -341,7 +358,7 @@ private fun ProfileOverflowMenu(
                 },
             )
             DropdownMenuItem(
-                text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                text = { Text("删除", color = MaterialTheme.colorScheme.error) },
                 leadingIcon = {
                     Icon(CompoundIcons.Delete(), contentDescription = null, tint = MaterialTheme.colorScheme.error)
                 },
@@ -356,8 +373,9 @@ private fun ProfileOverflowMenu(
 
 @Composable
 private fun PublicVoices(state: VoiceLibraryState) {
-    if (state.catalog.isEmpty()) {
-        EmptyState("No public voices found.")
+    val catalog = state.filteredCatalog
+    if (catalog.isEmpty()) {
+        EmptyState("暂无公开语音")
     } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -365,9 +383,10 @@ private fun PublicVoices(state: VoiceLibraryState) {
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             item {
-                SectionHeader(title = "Public Voices", trailing = state.catalog.size.toString())
+                // Trailing count mirrors iOS, which shows the full (unfiltered) catalog size.
+                SectionHeader(title = "公开语音", trailing = state.catalog.size.toString())
             }
-            items(state.catalog, key = { it.providerVoiceId }) { voice ->
+            items(catalog, key = { it.providerVoiceId }) { voice ->
                 CatalogRow(state, voice)
             }
         }
@@ -427,9 +446,9 @@ private fun CatalogRow(state: VoiceLibraryState, voice: ChatbotProviderVoice) {
         ) {
             Text(
                 when {
-                    isSaved -> "Saved"
-                    isBusy -> "Saving…"
-                    else -> "Save"
+                    isSaved -> "已保存"
+                    isBusy -> "保存中…"
+                    else -> "保存"
                 }
             )
         }
@@ -447,7 +466,7 @@ private fun PreviewControl(previewUrl: String?) {
     IconButton(enabled = false, onClick = {}) {
         Icon(
             imageVector = if (hasPreview) CompoundIcons.Play() else CompoundIcons.VolumeOff(),
-            contentDescription = if (hasPreview) "Preview voice" else "Preview unavailable",
+            contentDescription = if (hasPreview) "试听语音" else "暂无试听",
             tint = if (hasPreview) {
                 MaterialTheme.colorScheme.onSurfaceVariant
             } else {
@@ -484,7 +503,7 @@ private fun SavedBadge() {
     ) {
         Text(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-            text = "Saved",
+            text = "已保存",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onTertiaryContainer,
         )

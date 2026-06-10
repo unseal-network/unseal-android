@@ -30,7 +30,7 @@ class RoomAgentResolver(
             .joinToString("|")
         cache?.takeIf { it.roomId == roomId && it.memberSignature == memberSignature }?.let { return it.userIds }
 
-        val service = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
+        val service = chatbotApiServiceFactory.createForHomeserver(matrixClient)
         val userIds = service.getRoomAgents(roomId.value)
             .getOrElse { return emptySet() }
             .agents

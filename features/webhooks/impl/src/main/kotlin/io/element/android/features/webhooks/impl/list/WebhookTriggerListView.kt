@@ -37,8 +37,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,13 +48,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImagePainter
+import coil3.compose.SubcomposeAsyncImage
+import coil3.compose.SubcomposeAsyncImageContent
+import coil3.request.ImageRequest
+import coil3.svg.SvgDecoder
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.webhooks.impl.shared.composioLogoUrl
 import io.element.android.features.webhooks.impl.shared.isEnabled
+import io.element.android.features.webhooks.impl.shared.resolveSourceSlug
 import io.element.android.libraries.chatbot.api.model.rooms.ChatbotRoomAgent
 import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookTrigger
 import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookTriggerStatus
@@ -78,21 +89,21 @@ fun WebhookTriggerListView(
                 title = {
                     Text(
                         text = when (val mode = state.mode) {
-                            WebhookTriggerListMode.Global -> "Webhook Triggers"
-                            is WebhookTriggerListMode.Room -> "${mode.roomName} Triggers"
+                            WebhookTriggerListMode.Global -> "触发器管理"
+                            is WebhookTriggerListMode.Room -> "${mode.roomName} 触发器"
                         },
                     )
                 },
                 navigationIcon = {
                     if (state.mode is WebhookTriggerListMode.Room) {
                         IconButton(onClick = { state.eventSink(WebhookTriggerListEvents.Dismiss) }) {
-                            Icon(CompoundIcons.Close(), contentDescription = "Close")
+                            Icon(CompoundIcons.Close(), contentDescription = "关闭")
                         }
                     }
                 },
                 actions = {
                     IconButton(onClick = { state.eventSink(WebhookTriggerListEvents.CreateTrigger) }) {
-                        Icon(CompoundIcons.Plus(), contentDescription = "Create trigger")
+                        Icon(CompoundIcons.Plus(), contentDescription = "新建触发器")
                     }
                 },
             )
@@ -131,20 +142,28 @@ fun WebhookTriggerListView(
                     CircularProgressIndicator()
                 }
                 state.filteredTriggers.isEmpty() -> EmptyState(state.mode)
-                else -> LazyColumn(
+                else -> PullToRefreshBox(
+                    isRefreshing = state.isLoading,
+                    onRefresh = { state.eventSink(WebhookTriggerListEvents.Refresh) },
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(state.filteredTriggers, key = { it.triggerId }) { trigger ->
-                        WebhookTriggerItem(
-                            trigger = trigger,
-                            showRoom = state.mode is WebhookTriggerListMode.Global,
-                            isToggling = state.togglingTriggerId == trigger.triggerId,
-                            onToggle = { state.eventSink(WebhookTriggerListEvents.ToggleStatus(trigger)) },
-                            onEdit = { state.eventSink(WebhookTriggerListEvents.EditTrigger(trigger)) },
-                            onDelete = { state.eventSink(WebhookTriggerListEvents.RequestDelete(trigger)) },
-                        )
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(state.filteredTriggers, key = { it.triggerId }) { trigger ->
+                            WebhookTriggerItem(
+                                trigger = trigger,
+                                sourceSlug = resolveSourceSlug(trigger, state.eventSources),
+                                roomName = state.roomName(trigger.roomId),
+                                showRoom = state.mode is WebhookTriggerListMode.Global,
+                                isToggling = state.togglingTriggerId == trigger.triggerId,
+                                onToggle = { state.eventSink(WebhookTriggerListEvents.ToggleStatus(trigger)) },
+                                onEdit = { state.eventSink(WebhookTriggerListEvents.EditTrigger(trigger)) },
+                                onDelete = { state.eventSink(WebhookTriggerListEvents.RequestDelete(trigger)) },
+                            )
+                        }
                     }
                 }
             }
@@ -154,20 +173,20 @@ fun WebhookTriggerListView(
     if (state.deleteConfirmationTriggerId != null) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { state.eventSink(WebhookTriggerListEvents.CancelDelete) },
-            title = { Text("Delete trigger") },
-            text = { Text("Are you sure you want to delete this webhook trigger? This action cannot be undone.") },
+            title = { Text("删除触发器") },
+            text = { Text("确定要删除此触发器吗？此操作无法撤销。") },
             confirmButton = {
                 androidx.compose.material3.TextButton(
                     onClick = { state.eventSink(WebhookTriggerListEvents.ConfirmDelete) },
                 ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text("删除", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(
                     onClick = { state.eventSink(WebhookTriggerListEvents.CancelDelete) },
                 ) {
-                    Text("Cancel")
+                    Text("取消")
                 }
             },
         )
@@ -187,30 +206,30 @@ private fun FilterSection(state: WebhookTriggerListState) {
                 modifier = Modifier.fillMaxWidth(),
                 value = state.searchQuery,
                 onValueChange = { state.eventSink(WebhookTriggerListEvents.SearchChanged(it)) },
-                placeholder = { Text("Search triggers") },
+                placeholder = { Text("搜索触发器...") },
                 leadingIcon = { Icon(CompoundIcons.Search(), contentDescription = null) },
                 singleLine = true,
                 shape = RoundedCornerShape(28.dp),
             )
             FilterDropdown(
-                label = "Room:",
+                label = "房间:",
                 value = state.availableRooms.firstOrNull { it.roomId.value == state.selectedRoomId }
                     ?.let { it.info.name ?: it.roomId.value }
-                    ?: "All rooms",
+                    ?: "所有房间",
                 options = buildList {
-                    add(null to "All rooms")
+                    add(null to "所有房间")
                     state.availableRooms.forEach { add(it.roomId.value to (it.info.name ?: it.roomId.value)) }
                 },
                 onSelect = { state.eventSink(WebhookTriggerListEvents.SelectRoomFilter(it)) },
             )
         } else {
             FilterDropdown(
-                label = "Agent:",
+                label = "助手:",
                 value = state.availableAgents.firstOrNull { it.agentId == state.selectedAgentId }
                     ?.let { it.displayName ?: it.agentId }
-                    ?: "All agents",
+                    ?: "所有助手",
                 options = buildList {
-                    add(null to "All agents")
+                    add(null to "所有助手")
                     state.availableAgents.forEach { add(it.agentId to (it.displayName ?: it.agentId)) }
                 },
                 onSelect = { state.eventSink(WebhookTriggerListEvents.SelectAgentFilter(it)) },
@@ -263,6 +282,8 @@ private fun FilterDropdown(
 @Composable
 private fun WebhookTriggerItem(
     trigger: ChatbotWebhookTrigger,
+    sourceSlug: String?,
+    roomName: String,
     showRoom: Boolean,
     isToggling: Boolean,
     onToggle: () -> Unit,
@@ -280,19 +301,10 @@ private fun WebhookTriggerItem(
             modifier = Modifier.padding(14.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(8.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    CompoundIcons.Link(),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
+            SourceLogo(
+                slug = sourceSlug,
+                modifier = Modifier.size(36.dp),
+            )
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -334,14 +346,14 @@ private fun WebhookTriggerItem(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     if (showRoom) {
-                        MetadataChip(CompoundIcons.Room(), trigger.roomId)
+                        MetadataChip(CompoundIcons.Room(), roomName)
                     }
                     MetadataChip(CompoundIcons.Computer(), trigger.agentId)
                     Spacer(Modifier.weight(1f))
                     IconButton(onClick = onEdit, modifier = Modifier.size(28.dp)) {
                         Icon(
                             CompoundIcons.Edit(),
-                            contentDescription = "Edit",
+                            contentDescription = "编辑",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp),
                         )
@@ -349,7 +361,7 @@ private fun WebhookTriggerItem(
                     IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
                         Icon(
                             CompoundIcons.Delete(),
-                            contentDescription = "Delete",
+                            contentDescription = "删除",
                             tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(18.dp),
                         )
@@ -358,6 +370,56 @@ private fun WebhookTriggerItem(
             }
         }
     }
+}
+
+@Composable
+private fun SourceLogo(
+    slug: String?,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(8.dp)
+    val url = slug?.let { composioLogoUrl(it) }
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surface, shape),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (url == null) {
+            LogoFallback()
+        } else {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val model = remember(url) {
+                ImageRequest.Builder(context)
+                    .data(url)
+                    .decoderFactory(SvgDecoder.Factory())
+                    .build()
+            }
+            SubcomposeAsyncImage(
+                model = model,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                val painterState by painter.state.collectAsState()
+                when (painterState) {
+                    is AsyncImagePainter.State.Success -> SubcomposeAsyncImageContent()
+                    else -> LogoFallback()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LogoFallback() {
+    // iOS falls back to a bolt icon; Compound has no bolt glyph so we keep the existing link icon.
+    Icon(
+        CompoundIcons.Link(),
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.size(18.dp),
+    )
 }
 
 @Composable
@@ -401,14 +463,14 @@ private fun EmptyState(mode: WebhookTriggerListMode) {
             modifier = Modifier.size(40.dp),
         )
         Text(
-            text = "No webhook triggers",
+            text = "暂无触发器",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
             text = when (mode) {
-                WebhookTriggerListMode.Global -> "Create a trigger to let webhooks reach your agents."
-                is WebhookTriggerListMode.Room -> "Create a trigger to let webhooks reach this room's agents."
+                WebhookTriggerListMode.Global -> "创建您的第一个触发器，自动响应外部事件。"
+                is WebhookTriggerListMode.Room -> "创建触发器以自动响应此房间中的外部事件。"
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

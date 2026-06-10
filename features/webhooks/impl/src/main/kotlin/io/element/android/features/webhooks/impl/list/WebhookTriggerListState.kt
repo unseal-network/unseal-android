@@ -29,4 +29,12 @@ data class WebhookTriggerListState(
     val deletingTriggerId: String?,
     val deleteConfirmationTriggerId: String?,
     val eventSink: (WebhookTriggerListEvents) -> Unit,
-)
+) {
+    /**
+     * Mirrors iOS `roomName(for:)`: resolve a room id to its display name via the loaded
+     * [availableRooms], falling back to the raw id when no match is found.
+     */
+    fun roomName(roomId: String): String {
+        return availableRooms.firstOrNull { it.roomId.value == roomId }?.info?.name ?: roomId
+    }
+}

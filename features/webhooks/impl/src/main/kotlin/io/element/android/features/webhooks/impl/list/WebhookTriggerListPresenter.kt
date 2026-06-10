@@ -103,7 +103,7 @@ class WebhookTriggerListPresenter(
                     error = null
                 }
                 .onFailure {
-                    error = errorMessage(it, "Failed to load webhook triggers")
+                    error = errorMessage(it, "加载触发器失败")
                 }
             isLoading = false
         }
@@ -116,7 +116,7 @@ class WebhookTriggerListPresenter(
                     loadTriggers()
                 }
                 .onFailure {
-                    error = errorMessage(it, "Failed to update webhook trigger")
+                    error = errorMessage(it, "更新触发器状态失败")
                 }
             togglingTriggerId = null
         }
@@ -131,7 +131,7 @@ class WebhookTriggerListPresenter(
                     loadTriggers()
                 }
                 .onFailure {
-                    error = errorMessage(it, "Failed to delete webhook trigger")
+                    error = errorMessage(it, "删除触发器失败")
                 }
             deletingTriggerId = null
         }

@@ -61,7 +61,7 @@ class DefaultRoomScheduleBadgePresenter(
             if (isInitial && hasLoadedOnce) return
             coroutineScope.launch {
                 isLoading = true
-                val service = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
+                val service = chatbotApiServiceFactory.createForHomeserver(matrixClient)
                 val agentsResult = service.listAgents()
                 val schedulesResult = service.listSchedules(roomId.value)
                 if (agentsResult.isFailure || schedulesResult.isFailure) {

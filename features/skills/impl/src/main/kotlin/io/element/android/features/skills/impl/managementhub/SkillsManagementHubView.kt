@@ -46,10 +46,10 @@ fun SkillsManagementHubView(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Agent & Skills") },
+                title = { Text("Agent 与技能") },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "Back")
+                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "返回")
                     }
                 },
             )
@@ -61,13 +61,13 @@ fun SkillsManagementHubView(
                 .padding(padding),
         ) {
             HubRow(
-                title = "Agent Management",
+                title = "Agent 管理",
                 icon = CompoundIcons.Labs(),
                 onClick = onOpenAgentManagement,
             )
             HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
             HubRow(
-                title = "Skills Management",
+                title = "技能管理",
                 icon = CompoundIcons.ListBulleted(),
                 onClick = onOpenSkills,
             )

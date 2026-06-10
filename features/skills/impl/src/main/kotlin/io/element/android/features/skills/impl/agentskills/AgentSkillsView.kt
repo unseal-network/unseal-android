@@ -77,7 +77,7 @@ fun AgentSkillsView(
             CenterAlignedTopAppBar(
                 title = {
                     Column {
-                        Text("Agent Skills")
+                        Text("智能体技能")
                         Text(
                             text = state.botName,
                             style = MaterialTheme.typography.labelMedium,
@@ -89,7 +89,7 @@ fun AgentSkillsView(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "Back")
+                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "返回")
                     }
                 },
                 actions = {
@@ -97,7 +97,7 @@ fun AgentSkillsView(
                         CircularProgressIndicator(modifier = Modifier.size(20.dp).padding(end = 8.dp))
                     } else {
                         TextButton(onClick = { state.eventSink(AgentSkillsEvents.Save) }) {
-                            Text("Save")
+                            Text("保存")
                         }
                     }
                 },
@@ -120,12 +120,12 @@ fun AgentSkillsView(
                     FilterChip(
                         selected = state.selectedTab == AgentSkillsTab.Mine,
                         onClick = { state.eventSink(AgentSkillsEvents.SelectTab(AgentSkillsTab.Mine)) },
-                        label = { Text("Mine") },
+                        label = { Text("我的") },
                     )
                     FilterChip(
                         selected = state.selectedTab == AgentSkillsTab.Public,
                         onClick = { state.eventSink(AgentSkillsEvents.SelectTab(AgentSkillsTab.Public)) },
-                        label = { Text("Public") },
+                        label = { Text("公开") },
                     )
                 }
             }
@@ -136,7 +136,7 @@ fun AgentSkillsView(
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     value = state.searchQuery,
                     onValueChange = { state.eventSink(AgentSkillsEvents.SearchQueryChanged(it)) },
-                    placeholder = { Text("Search skills") },
+                    placeholder = { Text("搜索技能") },
                     leadingIcon = { Icon(imageVector = CompoundIcons.Search(), contentDescription = null) },
                     singleLine = true,
                     shape = RoundedCornerShape(28.dp),
@@ -146,7 +146,7 @@ fun AgentSkillsView(
                 item {
                     Text(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                        text = "Existing attached skills can't be removed yet.",
+                        text = "已添加的技能暂时无法移除。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -182,7 +182,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.mineSkills(state: Age
     val skills = state.filteredUserSkills
     when {
         state.isLoading && skills.isEmpty() -> item { LoadingRow() }
-        skills.isEmpty() -> item { EmptyRow("You haven't created any skills yet.") }
+        skills.isEmpty() -> item { EmptyRow("暂无技能") }
         else -> items(items = skills, key = { "mine-${it.id}" }) { skill ->
             SelectableSkillRow(
                 skill = skill,
@@ -199,7 +199,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.publicSkills(state: A
         item {
             Text(
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
-                text = "$total public skills",
+                text = "$total 个公开技能",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -207,7 +207,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.publicSkills(state: A
     }
     when {
         state.isLoadingPublic && state.publicSkills.isEmpty() -> item { LoadingRow() }
-        state.publicSkills.isEmpty() -> item { EmptyRow("No public skills available.") }
+        state.publicSkills.isEmpty() -> item { EmptyRow("暂无公开技能") }
         else -> {
             items(items = state.publicSkills, key = { "public-${it.id}" }) { skill ->
                 SelectableSkillRow(
@@ -231,7 +231,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.publicSkills(state: A
                         if (state.isLoadingPublicNextPage) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp))
                         } else {
-                            Text("Load more", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("加载更多", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }

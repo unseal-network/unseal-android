@@ -22,9 +22,9 @@ fun ChatbotUserSkill.matchesSkillQuery(query: String): Boolean {
 }
 
 fun ChatbotSkillVisibility.displayName(): String = when (this) {
-    ChatbotSkillVisibility.Private -> "Private"
-    ChatbotSkillVisibility.Public -> "Public"
-    ChatbotSkillVisibility.Shared -> "Shared"
+    ChatbotSkillVisibility.Private -> "私密"
+    ChatbotSkillVisibility.Public -> "公开"
+    ChatbotSkillVisibility.Shared -> "共享"
 }
 
 fun ChatbotSkillVisibility.apiValue(): String = when (this) {

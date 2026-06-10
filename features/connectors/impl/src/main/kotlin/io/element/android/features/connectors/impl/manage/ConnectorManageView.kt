@@ -35,20 +35,24 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImagePainter
+import coil3.compose.SubcomposeAsyncImage
+import coil3.compose.SubcomposeAsyncImageContent
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotConnectedAccount
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotConnectedAccountProfile
-import io.element.android.libraries.designsystem.components.avatar.Avatar
-import io.element.android.libraries.designsystem.components.avatar.AvatarData
-import io.element.android.libraries.designsystem.components.avatar.AvatarSize
-import io.element.android.libraries.designsystem.components.avatar.AvatarType
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import kotlinx.collections.immutable.persistentListOf
@@ -67,10 +71,10 @@ fun ConnectorManageView(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Manage ${state.toolkitName}", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text("管理 ${state.toolkitName}", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = { state.eventSink(ConnectorManageEvents.Dismiss) }) {
-                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "Back")
+                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "返回")
                     }
                 },
                 actions = {
@@ -81,7 +85,7 @@ fun ConnectorManageView(
                         if (state.connecting) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                         } else {
-                            Icon(imageVector = CompoundIcons.Plus(), contentDescription = "Connect new account")
+                            Icon(imageVector = CompoundIcons.Plus(), contentDescription = "连接新账户")
                         }
                     }
                 },
@@ -101,7 +105,7 @@ fun ConnectorManageView(
                 state.accounts.isEmpty() -> {
                     Text(
                         modifier = Modifier.fillMaxWidth().padding(top = 48.dp, start = 16.dp, end = 16.dp),
-                        text = "No connected accounts.",
+                        text = "暂无已连接的账户",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -126,11 +130,11 @@ fun ConnectorManageView(
         AlertDialog(
             onDismissRequest = { state.eventSink(ConnectorManageEvents.CancelDisconnect) },
             icon = { Icon(imageVector = CompoundIcons.Error(), contentDescription = null) },
-            title = { Text("Confirm disconnect") },
+            title = { Text("确认断开连接") },
             text = {
                 Text(
-                    "Are you sure you want to disconnect this account? The assistant will no longer be able to use it.\n\n" +
-                        "All triggers configured with this connection will also be permanently removed.",
+                    "确定要断开此账户的连接吗？助手将无法再使用它。\n\n" +
+                        "使用此连接配置的所有触发器也将被永久删除。",
                 )
             },
             confirmButton = {
@@ -138,12 +142,12 @@ fun ConnectorManageView(
                     enabled = state.disconnectingId == null,
                     onClick = { state.eventSink(ConnectorManageEvents.Disconnect(accountId)) },
                 ) {
-                    Text("Disconnect", color = MaterialTheme.colorScheme.error)
+                    Text("断开连接", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { state.eventSink(ConnectorManageEvents.CancelDisconnect) }) {
-                    Text("Cancel")
+                    Text("取消")
                 }
             },
         )
@@ -176,7 +180,7 @@ private fun ErrorBanner(error: String, onDismiss: () -> Unit) {
         IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
             Icon(
                 imageVector = CompoundIcons.Close(),
-                contentDescription = "Dismiss",
+                contentDescription = "关闭",
                 tint = MaterialTheme.colorScheme.onErrorContainer,
                 modifier = Modifier.size(16.dp),
             )
@@ -196,15 +200,10 @@ private fun ConnectedAccountRow(state: ConnectorManageState, account: ChatbotCon
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Avatar(
-            avatarData = AvatarData(
-                id = account.id,
-                name = title,
-                url = account.profile?.image,
-                size = AvatarSize.RoomListItem,
-            ),
-            avatarType = AvatarType.User,
-            forcedAvatarSize = 36.dp,
+        RemoteAccountLogo(
+            imageUrl = account.profile?.image,
+            slug = account.toolkit,
+            name = title,
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -215,7 +214,7 @@ private fun ConnectedAccountRow(state: ConnectorManageState, account: ChatbotCon
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = if (account.status == "ACTIVE") "Connected" else "Connected · ${account.status}",
+                text = if (account.status == "ACTIVE") "已连接" else "已连接 · ${account.status}",
                 style = MaterialTheme.typography.bodySmall,
                 color = if (account.status == "ACTIVE") {
                     MaterialTheme.colorScheme.onSurfaceVariant
@@ -237,9 +236,59 @@ private fun ConnectedAccountRow(state: ConnectorManageState, account: ChatbotCon
                     modifier = Modifier.size(16.dp),
                 )
                 Spacer(Modifier.size(6.dp))
-                Text("Disconnect", color = MaterialTheme.colorScheme.error)
+                Text("断开连接", color = MaterialTheme.colorScheme.error)
             }
         }
+    }
+}
+
+/**
+ * Renders the connected-account logo as a remote image (mirrors iOS). Prefers the account
+ * profile [imageUrl]; otherwise falls back to the composio logo URL scheme
+ * `https://logos.composio.dev/api/<slug>`. Shows a letter-box fallback on failure or when no
+ * URL can be resolved.
+ */
+@Composable
+private fun RemoteAccountLogo(
+    imageUrl: String?,
+    slug: String,
+    name: String,
+) {
+    val resolvedUrl = imageUrl?.takeIf { it.isNotBlank() }
+        ?: slug.takeIf { it.isNotBlank() }?.let { "https://logos.composio.dev/api/$it" }
+    val shape = androidx.compose.foundation.shape.CircleShape
+    if (resolvedUrl == null) {
+        AccountLetterFallback(name = name, shape = shape)
+        return
+    }
+    SubcomposeAsyncImage(
+        model = resolvedUrl,
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier.size(36.dp).clip(shape),
+    ) {
+        val painterState by painter.state.collectAsState()
+        when (painterState) {
+            is AsyncImagePainter.State.Success -> SubcomposeAsyncImageContent()
+            else -> AccountLetterFallback(name = name, shape = shape)
+        }
+    }
+}
+
+@Composable
+private fun AccountLetterFallback(name: String, shape: Shape) {
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surface),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = name.take(1).uppercase(),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

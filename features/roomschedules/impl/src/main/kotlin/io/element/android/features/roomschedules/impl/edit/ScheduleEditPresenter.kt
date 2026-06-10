@@ -72,7 +72,7 @@ class ScheduleEditPresenter(
             return throwable.message ?: throwable::class.simpleName ?: throwable.toString()
         }
 
-        suspend fun api() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
+        suspend fun api() = chatbotApiServiceFactory.createForHomeserver(matrixClient)
 
         fun selectedAgentIsInRoom(): Boolean {
             if (selectedAgentBotName.isBlank() || joinedMemberIds.isEmpty()) return true

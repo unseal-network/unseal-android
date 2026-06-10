@@ -81,22 +81,22 @@ fun AgentListView(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Agents") },
+                title = { Text("Agent 列表") },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "Back")
+                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "返回")
                     }
                 },
                 actions = {
                     IconButton(onClick = { state.eventSink(AgentListEvents.OpenSkills) }) {
-                        Icon(imageVector = CompoundIcons.ListBulleted(), contentDescription = "Skills")
+                        Icon(imageVector = CompoundIcons.ListBulleted(), contentDescription = "技能")
                     }
                 },
             )
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                text = { Text("Create agent") },
+                text = { Text("创建 Agent") },
                 icon = { Icon(imageVector = CompoundIcons.Plus(), contentDescription = null) },
                 onClick = { state.eventSink(AgentListEvents.CreateAgent) },
             )
@@ -109,7 +109,7 @@ fun AgentListView(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 value = state.searchQuery,
                 onValueChange = { state.eventSink(AgentListEvents.SearchQueryChanged(it)) },
-                placeholder = { Text("Search agents") },
+                placeholder = { Text("搜索 Agent") },
                 leadingIcon = { Icon(imageVector = CompoundIcons.Search(), contentDescription = null) },
                 singleLine = true,
                 shape = RoundedCornerShape(28.dp),
@@ -126,7 +126,7 @@ fun AgentListView(
                     state.filteredAgents.isEmpty() -> fullSpanItem {
                         Text(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
-                            text = "No agents yet. Tap “Create agent” to add one.",
+                            text = "暂无 Agent",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
@@ -210,7 +210,7 @@ private fun AgentGridCard(agent: ChatbotAgent, onClick: () -> Unit) {
                 )
                 Spacer(modifier = Modifier.size(4.dp))
                 Text(
-                    text = if (agent.isPublic == true) "Public" else "Private",
+                    text = if (agent.isPublic == true) "公开" else "私密",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

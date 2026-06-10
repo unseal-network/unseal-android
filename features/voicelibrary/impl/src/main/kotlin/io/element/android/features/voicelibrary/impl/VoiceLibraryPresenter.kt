@@ -61,27 +61,28 @@ class VoiceLibraryPresenter(
             return throwable.message ?: throwable::class.simpleName ?: fallback
         }
 
-        fun search() = searchQuery.trim().ifEmpty { null }
-
         fun loadProfiles() = coroutineScope.launch {
             isLoading = true
-            api().listVoiceProfiles(provider = VOICE_PROVIDER, status = "available", search = search(), limit = PAGE_LIMIT, offset = null)
+            // Search is applied client-side (see VoiceLibraryState.filteredProfiles), mirroring iOS
+            // which passes search = nil and filters the already-loaded list in memory.
+            api().listVoiceProfiles(provider = VOICE_PROVIDER, status = "available", search = null, limit = PAGE_LIMIT, offset = null)
                 .onSuccess {
                     profiles = it
                     error = null
                 }
-                .onFailure { error = errorMessage(it, "Failed to load voices") }
+                .onFailure { error = errorMessage(it, "加载语音失败") }
             isLoading = false
         }
 
         fun loadCatalog() = coroutineScope.launch {
             isLoading = true
-            api().listProviderVoices(provider = VOICE_PROVIDER, availabilityStatus = "available", search = search(), limit = PAGE_LIMIT, offset = null)
+            // Search is applied client-side (see VoiceLibraryState.filteredCatalog), mirroring iOS.
+            api().listProviderVoices(provider = VOICE_PROVIDER, availabilityStatus = "available", search = null, limit = PAGE_LIMIT, offset = null)
                 .onSuccess {
                     catalog = it
                     error = null
                 }
-                .onFailure { error = errorMessage(it, "Failed to load public voices") }
+                .onFailure { error = errorMessage(it, "加载公开语音失败") }
             isLoading = false
         }
 
@@ -105,7 +106,7 @@ class VoiceLibraryPresenter(
                     error = null
                     loadProfiles()
                 }
-                .onFailure { error = errorMessage(it, "Failed to save voice") }
+                .onFailure { error = errorMessage(it, "保存语音失败") }
             busyId = null
         }
 
@@ -118,7 +119,7 @@ class VoiceLibraryPresenter(
                     profiles = profiles.filterNot { it.id == profileId }
                     error = null
                 }
-                .onFailure { error = errorMessage(it, "Failed to delete voice") }
+                .onFailure { error = errorMessage(it, "删除语音失败") }
             busyId = null
         }
 
@@ -129,7 +130,7 @@ class VoiceLibraryPresenter(
                     lastShareId = it.id
                     error = null
                 }
-                .onFailure { error = errorMessage(it, "Failed to create share link") }
+                .onFailure { error = errorMessage(it, "创建分享链接失败") }
             busyId = null
         }
 
@@ -143,7 +144,7 @@ class VoiceLibraryPresenter(
                     error = null
                     loadProfiles()
                 }
-                .onFailure { error = errorMessage(it, "Failed to import shared voice") }
+                .onFailure { error = errorMessage(it, "导入分享语音失败") }
             busyId = null
         }
 
@@ -154,13 +155,19 @@ class VoiceLibraryPresenter(
                     loadProfiles()
                 }
                 VoiceLibraryEvents.Refresh -> loadCurrentTab()
-                is VoiceLibraryEvents.SelectTab -> {
+                is VoiceLibraryEvents.SelectTab -> if (selectedTab != event.tab) {
                     selectedTab = event.tab
-                    loadCurrentTab()
+                    // iOS selectTab resets the search query and only loads when the target tab is empty.
+                    searchQuery = ""
+                    val needsLoad = when (event.tab) {
+                        VoiceLibraryTab.Mine -> profiles.isEmpty()
+                        VoiceLibraryTab.Public -> catalog.isEmpty()
+                    }
+                    if (needsLoad) loadCurrentTab()
                 }
                 is VoiceLibraryEvents.SearchChanged -> {
+                    // Filtering happens client-side in VoiceLibraryState; no API call, no loading spinner.
                     searchQuery = event.query
-                    loadCurrentTab()
                 }
                 is VoiceLibraryEvents.SaveVoice -> saveVoice(event.voice)
                 is VoiceLibraryEvents.RequestDelete -> deleteConfirmationProfileId = event.profileId
