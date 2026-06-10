@@ -107,6 +107,70 @@ class DefaultAgentStreamClientTest {
     }
 
     @Test
+    fun `completed callback cancellation prevents stale final snapshot cache and save`() = runTest {
+        val storage = FakeStreamStorageProvider()
+        val http = FakeStreamHttpClient(
+            chunks = listOf(streamingJson("stream-1", "stale")),
+        )
+        val client = createClient(storage = storage, http = http)
+        val handle = client.getStream(request("stream-1"))
+        val snapshots = mutableListOf<StreamSnapshot>()
+
+        handle.subscribe { snapshot ->
+            snapshots += snapshot
+            if (snapshot.status == StreamStatus.Completed) {
+                handle.cancel()
+            }
+        }
+        advanceUntilIdle()
+
+        assertEquals(StreamStatus.Completed, snapshots.last().status)
+        assertEquals("stale", snapshots.last().text())
+        assertTrue(storage.savedSnapshots.isEmpty())
+
+        http.chunks = listOf(streamingJson("stream-1", "fresh"))
+        val followingSnapshots = mutableListOf<StreamSnapshot>()
+        client.getStream(request("stream-1")).subscribe { followingSnapshots += it }
+        advanceUntilIdle()
+
+        assertEquals(2, http.openCount)
+        assertEquals(StreamStatus.Completed, followingSnapshots.last().status)
+        assertEquals("fresh", followingSnapshots.last().text())
+        assertEquals(listOf("fresh"), storage.savedSnapshots.map { it.text() })
+    }
+
+    @Test
+    fun `storage terminal callback cancellation prevents stale snapshot cache`() = runTest {
+        val storage = FakeStreamStorageProvider(loadResult = completedSnapshot("stream-1", "stale"))
+        val http = FakeStreamHttpClient()
+        val client = createClient(storage = storage, http = http)
+        val handle = client.getStream(request("stream-1"))
+        val snapshots = mutableListOf<StreamSnapshot>()
+
+        handle.subscribe { snapshot ->
+            snapshots += snapshot
+            if (snapshot.status == StreamStatus.Completed) {
+                handle.cancel()
+                storage.loadResult = null
+            }
+        }
+        advanceUntilIdle()
+
+        assertEquals(StreamStatus.Completed, snapshots.last().status)
+        assertEquals("stale", snapshots.last().text())
+
+        http.chunks = listOf(streamingJson("stream-1", "fresh"))
+        val followingSnapshots = mutableListOf<StreamSnapshot>()
+        client.getStream(request("stream-1")).subscribe { followingSnapshots += it }
+        advanceUntilIdle()
+
+        assertEquals(1, http.openCount)
+        assertEquals(StreamStatus.Completed, followingSnapshots.last().status)
+        assertEquals("fresh", followingSnapshots.last().text())
+        assertEquals(listOf("fresh"), storage.savedSnapshots.map { it.text() })
+    }
+
+    @Test
     fun `save failure after completed publish keeps completed snapshot`() = runTest {
         val storage = FakeStreamStorageProvider(
             saveErrorForStatus = StreamStatus.Completed,
@@ -462,7 +526,7 @@ class DefaultAgentStreamClientTest {
     }
 
     private class FakeStreamStorageProvider(
-        private val loadResult: StreamSnapshot? = null,
+        var loadResult: StreamSnapshot? = null,
         private val saveErrorForStatus: StreamStatus? = null,
     ) : StreamStorageProvider {
         val savedSnapshots = mutableListOf<StreamSnapshot>()

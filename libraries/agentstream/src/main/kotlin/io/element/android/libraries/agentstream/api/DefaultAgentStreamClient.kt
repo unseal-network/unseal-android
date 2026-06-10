@@ -151,7 +151,9 @@ class DefaultAgentStreamClient(
                 }
                 val failed = failedSnapshot(request.streamId, throwable, snapshot())
                 publish(failed)
-                completedBeforeRefresh?.let(::rememberCompleted)
+                if (isActiveRun(runId)) {
+                    completedBeforeRefresh?.let(::rememberCompleted)
+                }
                 finishInFlight(runId)
                 return
             }
@@ -183,7 +185,9 @@ class DefaultAgentStreamClient(
                             return
                         }
                         if (snapshot.isTerminal) {
-                            rememberCompleted(snapshot)
+                            if (isActiveRun(runId)) {
+                                rememberCompleted(snapshot)
+                            }
                             finishInFlight(runId)
                             return
                         }
@@ -223,6 +227,9 @@ class DefaultAgentStreamClient(
                     if (!publishIfActive(runId, finalSnapshot)) {
                         return
                     }
+                    if (!isActiveRun(runId)) {
+                        return
+                    }
                     rememberCompleted(finalSnapshot)
                     try {
                         storageProvider.save(finalSnapshot)
@@ -243,6 +250,9 @@ class DefaultAgentStreamClient(
                     if (previousSnapshot != null) {
                         val failed = failedSnapshot(request.streamId, throwable, previousSnapshot)
                         if (publishIfActive(runId, failed)) {
+                            if (!isActiveRun(runId)) {
+                                return
+                            }
                             if (completedBeforeRefresh == null && !hasCompletedSnapshot(request.streamId)) {
                                 try {
                                     storageProvider.save(failed)
@@ -313,6 +323,12 @@ class DefaultAgentStreamClient(
 
         private fun isActiveRunLocked(runId: Long): Boolean {
             return activeRunId == runId && handles[request.streamId] === this
+        }
+
+        private fun isActiveRun(runId: Long): Boolean {
+            return synchronized(lock) {
+                isActiveRunLocked(runId)
+            }
         }
     }
 
