@@ -12,7 +12,10 @@ import io.element.android.libraries.chatbot.api.ChatbotApiService
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentProvider
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentRoom
+import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentVoiceConfig
+import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentVoiceConfigResolution
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotCreateAgentRequest
+import io.element.android.libraries.chatbot.api.model.agent.ChatbotSetAgentVoiceConfigRequest
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotGetAgentProvidersResponse
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotListAgentRoomsResponse
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotListAgentsResponse
@@ -281,6 +284,49 @@ internal class DefaultChatbotApiService(
 
     override suspend fun importVoiceShare(shareId: String): Result<ChatbotVoiceProfile> =
         httpClient.requestJson("/api/voices/shares/${path(shareId)}/import", ChatbotHttpMethod.POST)
+
+    override suspend fun getAgentSandbox(agentId: String) =
+        httpClient.requestJson<io.element.android.libraries.chatbot.api.model.agent.AgentSandboxResponse>("/api/agent/${path(agentId)}/sandbox", ChatbotHttpMethod.GET)
+
+    override suspend fun createAgentSandbox(agentId: String) =
+        httpClient.requestJson<io.element.android.libraries.chatbot.api.model.agent.AgentSandboxStatus>("/api/agent/${path(agentId)}/sandbox", ChatbotHttpMethod.POST)
+
+    override suspend fun cloneAgentSandbox(agentId: String) =
+        httpClient.requestJson<io.element.android.libraries.chatbot.api.model.agent.AgentSandboxCloneResponse>("/api/agent/${path(agentId)}/sandbox/clone", ChatbotHttpMethod.POST)
+
+    override suspend fun listAgentVault(agentId: String) =
+        httpClient.requestJson<List<io.element.android.libraries.chatbot.api.model.agent.AgentVaultEntry>>("/api/agent/${path(agentId)}/vault", ChatbotHttpMethod.GET)
+
+    override suspend fun cloneAgentVault(agentId: String, keys: List<String>) =
+        httpClient.requestJson<io.element.android.libraries.chatbot.api.model.agent.AgentVaultCloneResponse>(
+            "/api/agent/${path(agentId)}/vault/clone",
+            ChatbotHttpMethod.POST,
+            encode(io.element.android.libraries.chatbot.api.model.agent.AgentVaultCloneRequest(keys = keys)),
+        )
+
+    override suspend fun getAgentVoiceConfig(agentId: String): Result<ChatbotAgentVoiceConfigResolution> =
+        httpClient.requestJson("/api/agents/${path(agentId)}/voice-config", ChatbotHttpMethod.GET)
+
+    override suspend fun setAgentVoiceConfig(agentId: String, request: ChatbotSetAgentVoiceConfigRequest): Result<ChatbotAgentVoiceConfig> =
+        httpClient.requestJson("/api/agents/${path(agentId)}/voice-config", ChatbotHttpMethod.PUT, encode(request))
+
+    override suspend fun deleteAgentVoiceConfig(agentId: String): Result<Unit> =
+        rawUnit("/api/agents/${path(agentId)}/voice-config", ChatbotHttpMethod.DELETE)
+
+    override suspend fun listVault(): Result<List<io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem>> =
+        httpClient.requestJson<io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultListResponse>("/chatbot/v1/vault", ChatbotHttpMethod.GET).map { it.items }
+
+    override suspend fun getVaultValue(key: String): Result<String> =
+        httpClient.requestJson<io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultDetailResponse>("/chatbot/v1/vault/${path(key)}", ChatbotHttpMethod.GET).map { it.value.orEmpty() }
+
+    override suspend fun createVaultEntry(key: String, value: String, description: String?): Result<Unit> =
+        rawUnit("/chatbot/v1/vault", ChatbotHttpMethod.POST, jsonObject("key" to key, "value" to value, "description" to description.orEmpty()))
+
+    override suspend fun updateVaultEntry(key: String, value: String, description: String?): Result<Unit> =
+        rawUnit("/chatbot/v1/vault/${path(key)}", ChatbotHttpMethod.PATCH, jsonObject("key" to key, "value" to value, "description" to description.orEmpty()))
+
+    override suspend fun deleteVaultEntry(vaultId: String): Result<Unit> =
+        rawUnit("/vaults/${path(vaultId)}", ChatbotHttpMethod.DELETE)
 
     private suspend fun rawUnit(path: String, method: ChatbotHttpMethod, body: String? = null): Result<Unit> =
         httpClient.requestRaw(path, method, body).map { }

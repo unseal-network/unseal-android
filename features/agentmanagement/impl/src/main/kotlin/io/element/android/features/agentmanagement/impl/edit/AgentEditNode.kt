@@ -8,8 +8,12 @@
 package io.element.android.features.agentmanagement.impl.edit
 
 import android.os.Parcelable
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import com.bumble.appyx.core.modality.BuildContext
 import com.bumble.appyx.core.node.Node
 import com.bumble.appyx.core.plugin.Plugin
@@ -57,9 +61,20 @@ class AgentEditNode(
 
     @Composable
     override fun View(modifier: Modifier) {
+        val state = presenter.present()
+        val context = LocalContext.current
+        val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            if (uri != null) {
+                val resolver = context.contentResolver
+                val bytes = runCatching { resolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
+                val mimeType = resolver.getType(uri) ?: "image/jpeg"
+                if (bytes != null) state.eventSink(AgentEditEvents.AvatarPicked(bytes, mimeType))
+            }
+        }
         AgentEditView(
-            state = presenter.present(),
+            state = state,
             onBackClick = callback::onDone,
+            onSetAvatar = { avatarPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
             modifier = modifier,
         )
     }

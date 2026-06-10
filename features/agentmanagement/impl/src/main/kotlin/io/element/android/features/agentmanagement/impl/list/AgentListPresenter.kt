@@ -49,7 +49,7 @@ class AgentListPresenter(
             if (isInitial && hasLoadedOnce) return
             coroutineScope.launch {
                 isLoading = true
-                chatbotApiServiceFactory.createForUnsealApi(matrixClient)
+                chatbotApiServiceFactory.createForHomeserver(matrixClient)
                     .listAgents()
                     .onSuccess { freshAgents ->
                         agents = freshAgents.sortedBy { it.displayTitle() }

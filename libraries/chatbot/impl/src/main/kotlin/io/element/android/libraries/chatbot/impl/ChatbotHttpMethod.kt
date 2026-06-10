@@ -11,5 +11,6 @@ internal enum class ChatbotHttpMethod {
     GET,
     POST,
     PUT,
+    PATCH,
     DELETE,
 }

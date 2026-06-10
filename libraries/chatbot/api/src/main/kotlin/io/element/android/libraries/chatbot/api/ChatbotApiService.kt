@@ -10,7 +10,10 @@ package io.element.android.libraries.chatbot.api
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentProvider
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentRoom
+import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentVoiceConfig
+import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentVoiceConfigResolution
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotCreateAgentRequest
+import io.element.android.libraries.chatbot.api.model.agent.ChatbotSetAgentVoiceConfigRequest
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotUpdateAgentRequest
 import io.element.android.libraries.chatbot.api.model.analytics.AnalyticsTokensResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotDisconnectAccountResponse
@@ -105,4 +108,23 @@ interface ChatbotApiService {
     suspend fun deleteVoiceProfile(voiceProfileId: String): Result<ChatbotDeleteVoiceProfileResponse>
     suspend fun createVoiceShare(request: ChatbotCreateVoiceShareRequest): Result<ChatbotVoiceShare>
     suspend fun importVoiceShare(shareId: String): Result<ChatbotVoiceProfile>
+
+    // Agent runtime environment (sandbox) — agent-api endpoints.
+    suspend fun getAgentSandbox(agentId: String): Result<io.element.android.libraries.chatbot.api.model.agent.AgentSandboxResponse>
+    suspend fun createAgentSandbox(agentId: String): Result<io.element.android.libraries.chatbot.api.model.agent.AgentSandboxStatus>
+    suspend fun cloneAgentSandbox(agentId: String): Result<io.element.android.libraries.chatbot.api.model.agent.AgentSandboxCloneResponse>
+    suspend fun listAgentVault(agentId: String): Result<List<io.element.android.libraries.chatbot.api.model.agent.AgentVaultEntry>>
+    suspend fun cloneAgentVault(agentId: String, keys: List<String>): Result<io.element.android.libraries.chatbot.api.model.agent.AgentVaultCloneResponse>
+
+    // Agent voice config — agent-api endpoints.
+    suspend fun getAgentVoiceConfig(agentId: String): Result<ChatbotAgentVoiceConfigResolution>
+    suspend fun setAgentVoiceConfig(agentId: String, request: ChatbotSetAgentVoiceConfigRequest): Result<ChatbotAgentVoiceConfig>
+    suspend fun deleteAgentVoiceConfig(agentId: String): Result<Unit>
+
+    // Personal vault (secret store) — AI-stream base endpoints.
+    suspend fun listVault(): Result<List<io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem>>
+    suspend fun getVaultValue(key: String): Result<String>
+    suspend fun createVaultEntry(key: String, value: String, description: String?): Result<Unit>
+    suspend fun updateVaultEntry(key: String, value: String, description: String?): Result<Unit>
+    suspend fun deleteVaultEntry(vaultId: String): Result<Unit>
 }

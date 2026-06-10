@@ -24,6 +24,10 @@ class FakeChatbotApiServiceFactory(
         createForUnsealApiResult
     }
 
+    override suspend fun createForHomeserver(matrixClient: MatrixClient): ChatbotApiService = simulateLongTask {
+        createForUnsealApiResult
+    }
+
     override fun createForBaseUrl(baseUrl: String, matrixClient: MatrixClient): ChatbotApiService {
         explicitBaseUrls += baseUrl
         return service

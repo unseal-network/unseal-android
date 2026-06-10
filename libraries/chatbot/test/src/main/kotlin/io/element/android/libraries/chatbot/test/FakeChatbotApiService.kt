@@ -162,4 +162,51 @@ class FakeChatbotApiService : ChatbotApiService {
     override suspend fun deleteVoiceProfile(voiceProfileId: String) = simulateLongTask { deleteVoiceProfileResult(voiceProfileId) }
     override suspend fun createVoiceShare(request: ChatbotCreateVoiceShareRequest) = simulateLongTask { createVoiceShareResult(request) }
     override suspend fun importVoiceShare(shareId: String) = simulateLongTask { importVoiceShareResult(shareId) }
+
+    override suspend fun getAgentSandbox(agentId: String) = simulateLongTask {
+        Result.success(io.element.android.libraries.chatbot.api.model.agent.AgentSandboxResponse())
+    }
+
+    override suspend fun createAgentSandbox(agentId: String) = simulateLongTask {
+        Result.success(io.element.android.libraries.chatbot.api.model.agent.AgentSandboxStatus(id = "", status = "running"))
+    }
+
+    override suspend fun cloneAgentSandbox(agentId: String) = simulateLongTask {
+        Result.success(io.element.android.libraries.chatbot.api.model.agent.AgentSandboxCloneResponse(status = "ok"))
+    }
+
+    override suspend fun listAgentVault(agentId: String) = simulateLongTask {
+        Result.success(emptyList<io.element.android.libraries.chatbot.api.model.agent.AgentVaultEntry>())
+    }
+
+    override suspend fun cloneAgentVault(agentId: String, keys: List<String>) = simulateLongTask {
+        Result.success(io.element.android.libraries.chatbot.api.model.agent.AgentVaultCloneResponse(copied = keys))
+    }
+
+    override suspend fun getAgentVoiceConfig(agentId: String) = simulateLongTask {
+        Result.success(io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentVoiceConfigResolution())
+    }
+
+    override suspend fun setAgentVoiceConfig(
+        agentId: String,
+        request: io.element.android.libraries.chatbot.api.model.agent.ChatbotSetAgentVoiceConfigRequest,
+    ) = simulateLongTask {
+        Result.success(io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentVoiceConfig(agentId = agentId, sourceType = request.sourceType))
+    }
+
+    override suspend fun deleteAgentVoiceConfig(agentId: String) = simulateLongTask {
+        Result.success(Unit)
+    }
+
+    override suspend fun listVault() = simulateLongTask {
+        Result.success(emptyList<io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem>())
+    }
+
+    override suspend fun getVaultValue(key: String) = simulateLongTask { Result.success("") }
+
+    override suspend fun createVaultEntry(key: String, value: String, description: String?) = simulateLongTask { Result.success(Unit) }
+
+    override suspend fun updateVaultEntry(key: String, value: String, description: String?) = simulateLongTask { Result.success(Unit) }
+
+    override suspend fun deleteVaultEntry(vaultId: String) = simulateLongTask { Result.success(Unit) }
 }

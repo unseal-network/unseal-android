@@ -48,7 +48,7 @@ class SkillMarketplacePresenter(
         var error by remember { mutableStateOf<String?>(null) }
         var searchJob by remember { mutableStateOf<Job?>(null) }
 
-        suspend fun api() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
+        suspend fun api() = chatbotApiServiceFactory.createForHomeserver(matrixClient)
 
         fun hasMore(): Boolean = total?.let { skills.size < it } ?: (skills.size >= PAGE_SIZE)
 

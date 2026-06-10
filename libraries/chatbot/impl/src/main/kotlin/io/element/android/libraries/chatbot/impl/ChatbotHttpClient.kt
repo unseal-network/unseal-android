@@ -10,11 +10,14 @@ package io.element.android.libraries.chatbot.impl
 import io.element.android.libraries.chatbot.api.ChatbotApiError
 import io.element.android.libraries.matrix.api.MatrixClient
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import timber.log.Timber
 import java.io.IOException
 
 internal class ChatbotHttpClient(
@@ -51,21 +54,25 @@ internal class ChatbotHttpClient(
             }
             .build()
 
-        return try {
-            okHttpClient.newCall(request).execute().use { response ->
-                val responseBody = response.body.string()
-                if (response.isSuccessful) {
-                    Result.success(responseBody)
-                } else {
-                    Result.failure(ChatbotApiError.HttpError(response.code, ChatbotRedactor.redact(responseBody)))
+        return withContext(Dispatchers.IO) {
+            try {
+                okHttpClient.newCall(request).execute().use { response ->
+                    val responseBody = response.body.string()
+                    if (response.isSuccessful) {
+                        Result.success(responseBody)
+                    } else {
+                        val redacted = ChatbotRedactor.redact(responseBody)
+                        Timber.w("Chatbot HTTP %d %s %s -> %s", response.code, method.name, url.encodedPath, redacted.take(800))
+                        Result.failure(ChatbotApiError.HttpError(response.code, redacted))
+                    }
                 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: IOException) {
+                Result.failure(ChatbotApiError.NetworkError(e.message.orEmpty(), e))
+            } catch (e: Exception) {
+                Result.failure(ChatbotApiError.NetworkError(e.message.orEmpty(), e))
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: IOException) {
-            Result.failure(ChatbotApiError.NetworkError(e.message.orEmpty(), e))
-        } catch (e: Exception) {
-            Result.failure(ChatbotApiError.NetworkError(e.message.orEmpty(), e))
         }
     }
 

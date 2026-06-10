@@ -5,21 +5,34 @@
  * Please see LICENSE files in the repository root for full details.
  */
 
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package io.element.android.features.skills.impl.managementhub
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
+import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.libraries.designsystem.preview.ElementPreview
+import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 
 @Composable
 fun SkillsManagementHubView(
@@ -28,27 +41,69 @@ fun SkillsManagementHubView(
     onOpenSkills: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        OutlinedButton(onClick = onBackClick) {
-            Text("Back")
-        }
-        Text("Agent & Skills", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Button(
-            modifier = Modifier.fillMaxWidth(),
-            onClick = onOpenAgentManagement,
+    Scaffold(
+        modifier = modifier,
+        containerColor = MaterialTheme.colorScheme.surface,
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("Agent & Skills") },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "Back")
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
         ) {
-            Text("Agent Management")
-        }
-        Button(
-            modifier = Modifier.fillMaxWidth(),
-            onClick = onOpenSkills,
-        ) {
-            Text("Skills Management")
+            HubRow(
+                title = "Agent Management",
+                icon = CompoundIcons.Labs(),
+                onClick = onOpenAgentManagement,
+            )
+            HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+            HubRow(
+                title = "Skills Management",
+                icon = CompoundIcons.ListBulleted(),
+                onClick = onOpenSkills,
+            )
         }
     }
+}
+
+@Composable
+private fun HubRow(
+    title: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+) {
+    ListItem(
+        modifier = Modifier.clickable(onClick = onClick),
+        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
+        leadingContent = {
+            Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
+        },
+        headlineContent = { Text(title) },
+        trailingContent = {
+            Icon(CompoundIcons.ChevronRight(), null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+        },
+    )
+}
+
+internal class SkillsManagementHubStateProvider : PreviewParameterProvider<Unit> {
+    override val values: Sequence<Unit> = sequenceOf(Unit)
+}
+
+@PreviewsDayNight
+@Composable
+internal fun SkillsManagementHubViewPreview(@PreviewParameter(SkillsManagementHubStateProvider::class) unused: Unit) = ElementPreview {
+    SkillsManagementHubView(
+        onBackClick = {},
+        onOpenAgentManagement = {},
+        onOpenSkills = {},
+    )
 }

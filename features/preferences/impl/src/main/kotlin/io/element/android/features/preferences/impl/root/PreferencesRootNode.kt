@@ -46,6 +46,9 @@ class PreferencesRootNode(
         fun navigateToWebhookTriggers()
         fun navigateToConnectors()
         fun navigateToVoiceLibrary()
+        fun navigateToAgentManagement()
+        fun navigateToSkills()
+        fun navigateToVaultManagement()
         fun navigateToAdvancedSettings()
         fun navigateToLabs()
         fun navigateToLinkNewDevice()
@@ -98,6 +101,9 @@ class PreferencesRootNode(
             onOpenWebhookTriggers = callback::navigateToWebhookTriggers,
             onOpenConnectors = callback::navigateToConnectors,
             onOpenVoiceLibrary = callback::navigateToVoiceLibrary,
+            onOpenAgentManagement = callback::navigateToAgentManagement,
+            onOpenSkills = callback::navigateToSkills,
+            onOpenVaultManagement = callback::navigateToVaultManagement,
             onOpenUserProfile = callback::navigateToUserProfile,
             onOpenBlockedUsers = callback::navigateToBlockedUsers,
             onOpenCreditsTopUp = callback::openCreditsTopUp,

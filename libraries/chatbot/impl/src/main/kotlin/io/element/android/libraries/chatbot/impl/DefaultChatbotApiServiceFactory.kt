@@ -31,6 +31,10 @@ class DefaultChatbotApiServiceFactory(
         return createForBaseUrl(baseUrlResolver.resolveUnsealApiBaseUrl(matrixClient.userIdServerName()), matrixClient)
     }
 
+    override suspend fun createForHomeserver(matrixClient: MatrixClient): ChatbotApiService {
+        return createForBaseUrl(baseUrlResolver.resolveHomeserverBaseUrl(matrixClient.userIdServerName()), matrixClient)
+    }
+
     override fun createForBaseUrl(baseUrl: String, matrixClient: MatrixClient): ChatbotApiService {
         return DefaultChatbotApiService(
             httpClient = ChatbotHttpClient(

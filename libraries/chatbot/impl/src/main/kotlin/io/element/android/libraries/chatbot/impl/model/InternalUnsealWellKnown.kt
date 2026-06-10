@@ -14,9 +14,17 @@ import kotlinx.serialization.Serializable
 internal data class InternalUnsealWellKnown(
     @SerialName("org.unseal.api")
     val unsealApi: UnsealApi? = null,
+    @SerialName("m.homeserver")
+    val homeserver: Homeserver? = null,
 ) {
     @Serializable
     data class UnsealApi(
+        @SerialName("base_url")
+        val baseUrl: String? = null,
+    )
+
+    @Serializable
+    data class Homeserver(
         @SerialName("base_url")
         val baseUrl: String? = null,
     )
