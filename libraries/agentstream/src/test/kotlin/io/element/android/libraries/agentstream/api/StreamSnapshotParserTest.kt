@@ -31,7 +31,7 @@ class StreamSnapshotParserTest {
               "parts": [
                 {"type": "text", "id": "text-1", "state": "complete", "text": "Hello"},
                 {"type": "reasoning", "id": "reason-1", "text": "Thinking"},
-                {"type": "tool", "toolCallId": "call-1", "toolName": "search", "state": "output-available", "rawInput": {"query": "matrix"}, "output": {"result": 1}, "errorText": "ignored", "display_name": "Search"},
+                {"type": "tool", "toolCallId": "call-1", "toolName": "search", "state": "output-available", "input": {"query": "matrix"}, "rawInput": {"rawQuery": "matrix raw"}, "output": {"result": 1}, "errorText": "ignored", "display_name": "Search"},
                 {"type": "tool-weather", "id": "weather-1", "state": "input-available", "input": {"city": "Paris"}},
                 {"type": "source-url", "id": "source-1", "sourceType": "url", "title": "Docs", "url": "https://example.com", "filename": "docs.html", "media_type": "text/html"},
                 {"type": "data-ui-spec", "id": "data-1", "data": {"component": "card"}},
@@ -72,6 +72,7 @@ class StreamSnapshotParserTest {
         assertEquals(ToolPartState.OutputAvailable.wireValue, tool.toolState)
         assertEquals(ToolPartState.OutputAvailable, tool.toolPartState)
         assertEquals(JsonPrimitive("matrix"), tool.input?.jsonObject?.get("query"))
+        assertEquals(JsonPrimitive("matrix raw"), tool.rawInput?.jsonObject?.get("rawQuery"))
         assertEquals(JsonPrimitive(1), tool.output?.jsonObject?.get("result"))
         assertEquals("ignored", tool.error?.message)
         assertEquals("Search", tool.title)
@@ -138,5 +139,24 @@ class StreamSnapshotParserTest {
         assertEquals(StreamStatus.Cancelled, parser.parse("""{"status":"canceled"}""").status)
         assertEquals(StreamStatus.Cancelled, parser.parse("""{"status":"cancelled"}""").status)
         assertEquals(StreamStatus.Idle, parser.parse("""{"status":"unexpected"}""").status)
+    }
+
+    @Test
+    fun `keeps raw input separate when tool input is absent`() {
+        val parser = StreamSnapshotParser(clock = { 987L })
+
+        val snapshot = parser.parse(
+            """
+            {
+              "parts": [
+                {"type": "dynamic-tool", "id": "tool-1", "state": "input-streaming", "raw_input": {"query": "matrix"}}
+              ]
+            }
+            """.trimIndent()
+        )
+
+        val tool = snapshot.parts.single() as StreamPart.Tool
+        assertNull(tool.input)
+        assertEquals(JsonPrimitive("matrix"), tool.rawInput?.jsonObject?.get("query"))
     }
 }

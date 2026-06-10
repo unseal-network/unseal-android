@@ -54,6 +54,7 @@ class StreamSnapshotJsonCodec(
                     part.toolName?.let { put("toolName", it) }
                     part.toolCallId?.let { put("toolCallId", it) }
                     part.input?.let { put("input", it) }
+                    part.rawInput?.let { put("rawInput", it) }
                     part.output?.let { put("output", it) }
                     part.error?.let { put("error", it.toJsonElement()) }
                     part.title?.let { put("title", it) }

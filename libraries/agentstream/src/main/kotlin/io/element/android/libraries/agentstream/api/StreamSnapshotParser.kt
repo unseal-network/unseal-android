@@ -113,7 +113,7 @@ class StreamSnapshotParser(
             else -> StreamPart.Custom(
                 id = id,
                 customType = type,
-                payload = part,
+                payload = part["payload"] ?: part["data"] ?: part.remainingObject("id", "type", "state"),
                 state = state,
             )
         }
@@ -131,7 +131,8 @@ class StreamSnapshotParser(
             toolState = ToolPartState.fromWire(state)?.wireValue ?: ToolPartState.InputStreaming.wireValue,
             toolName = toolName,
             toolCallId = part.string("toolCallId", "tool_call_id"),
-            input = part["input"] ?: part["rawInput"] ?: part["raw_input"],
+            input = part["input"],
+            rawInput = part["rawInput"] ?: part["raw_input"] ?: part["rawInputText"],
             output = part["output"],
             error = part.error("error", "errorText", "error_text"),
             title = part.string("title", "displayName", "display_name"),

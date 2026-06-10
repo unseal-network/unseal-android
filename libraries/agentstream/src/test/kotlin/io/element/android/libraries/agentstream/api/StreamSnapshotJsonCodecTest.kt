@@ -39,6 +39,16 @@ class StreamSnapshotJsonCodecTest {
                     output = buildJsonObject {
                         put("temperature", JsonPrimitive(21))
                     },
+                    rawInput = buildJsonObject {
+                        put("rawCity", JsonPrimitive("Paris, France"))
+                    },
+                ),
+                StreamPart.Custom(
+                    id = "custom-1",
+                    customType = "custom-widget",
+                    payload = buildJsonObject {
+                        put("component", JsonPrimitive("weather-card"))
+                    },
                 ),
             ),
             rawEvents = listOf(
@@ -74,7 +84,13 @@ class StreamSnapshotJsonCodecTest {
         assertEquals("call-1", tool.toolCallId)
         assertEquals(ToolPartState.OutputAvailable.wireValue, tool.toolState)
         assertEquals(JsonPrimitive("Paris"), tool.input?.jsonObject?.get("city"))
+        assertEquals(JsonPrimitive("Paris, France"), tool.rawInput?.jsonObject?.get("rawCity"))
         assertEquals(JsonPrimitive(21), tool.output?.jsonObject?.get("temperature"))
+
+        val custom = decoded.parts[2] as StreamPart.Custom
+        assertEquals("custom-widget", custom.customType)
+        assertEquals(JsonPrimitive("weather-card"), custom.payload.jsonObject.getValue("component"))
+        assertEquals(setOf("component"), custom.payload.jsonObject.keys)
 
         assertEquals(3L, decoded.rawEvents.single().sequence)
         assertEquals("snapshot", decoded.rawEvents.single().eventType)
