@@ -130,9 +130,9 @@ class AiMessageContentParser {
         (this[key] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }
 
     private fun JsonObject.streamingStatus(): Boolean? {
-        return when (string("status")) {
-            "complete", "completed", "done" -> false
-            "active", "streaming", "pending" -> true
+        return when (string("status")?.lowercase()) {
+            "complete", "completed", "done", "failed", "error", "cancelled", "canceled" -> false
+            "loading", "streaming", "active", "pending" -> true
             else -> null
         }
     }

@@ -67,6 +67,23 @@ class AiMessageContentParserTest {
     }
 
     @Test
+    fun `parses stream object terminal statuses as completed`() {
+        val terminalStatuses = listOf("FAILED", "cancelled", "canceled")
+
+        terminalStatuses.forEach { status ->
+            val json = """
+                { "content": { "msgtype": "m.text", "body": "done", "stream": { "id": "stream-1", "status": "$status" } } }
+            """.trimIndent()
+
+            val result = parser.parse(json, isEdited = false)
+
+            assertThat(result).isNotNull()
+            requireNotNull(result)
+            assertThat(result.isStreaming).isFalse()
+        }
+    }
+
+    @Test
     fun `parses message with top level stream id and fallback sender as ai`() {
         val json = """
             { "content": { "msgtype": "m.text", "body": "loading", "stream_id": "stream-2", "sender": "" } }
