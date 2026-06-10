@@ -14,6 +14,7 @@ import io.element.android.libraries.matrix.test.FakeMatrixClient
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
@@ -160,6 +161,29 @@ class ChatbotHttpClientTest {
         releaseExecute.countDown()
         streamJob.cancelAndJoin()
         assertThat(callWasCancelled.get()).isTrue()
+    }
+
+    @Test
+    fun `streamRaw - does not execute call when coroutine is already cancelled`() = runTest {
+        val interceptorWasCalled = AtomicBoolean(false)
+        val okHttpClient = OkHttpClient.Builder()
+            .addInterceptor(
+                Interceptor {
+                    interceptorWasCalled.set(true)
+                    throw IOException("unexpected execution")
+                }
+            )
+            .build()
+        val client = aClient(okHttpClient = okHttpClient)
+
+        val streamJob = async(Dispatchers.IO) {
+            cancel()
+            client.streamRaw("/chatbot/v1/stream/stream-1") {
+            }.getOrThrow()
+        }
+
+        streamJob.cancelAndJoin()
+        assertThat(interceptorWasCalled.get()).isFalse()
     }
 
     private fun aClient(

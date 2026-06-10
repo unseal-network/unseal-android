@@ -21,7 +21,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
-import okhttp3.Call
 import timber.log.Timber
 import java.io.IOException
 
@@ -77,15 +76,14 @@ internal class ChatbotHttpClient(
 
         return withContext(Dispatchers.IO) {
             val coroutineContext = currentCoroutineContext()
-            var call: Call? = null
+            val currentCall = okHttpClient.newCall(request)
             val cancellationHandle = coroutineContext.job.invokeOnCompletion(onCancelling = true, invokeImmediately = true) { cause ->
                 if (cause is CancellationException) {
-                    call?.cancel()
+                    currentCall.cancel()
                 }
             }
             try {
-                val currentCall = okHttpClient.newCall(request)
-                call = currentCall
+                coroutineContext.ensureActive()
                 currentCall.execute().use { response ->
                     if (!response.isSuccessful) {
                         val responseBody = response.body.string()
