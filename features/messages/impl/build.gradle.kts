@@ -36,6 +36,7 @@ dependencies {
     implementation(projects.features.roomcall.api)
     implementation(projects.features.roomschedules.api)
     implementation(projects.libraries.androidutils)
+    implementation(projects.libraries.agentstream)
     implementation(projects.libraries.core)
     implementation(projects.libraries.architecture)
     implementation(projects.libraries.matrix.api)
