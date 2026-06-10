@@ -42,7 +42,8 @@ class AiSdkStreamReducer {
         isEdited: Boolean,
         sender: String?,
     ): TimelineItemAiContent {
-        val streamParts = snapshot.parts.map { it.toAiStreamPart() }
+        val mappedParts = snapshot.parts.map { it.toAiStreamPart() }
+        val streamParts = mappedParts.withSnapshotErrorIfNeeded(snapshot)
         Timber.tag(TAG).d(
             "AI stream parts: %s",
             streamParts.joinToString(separator = ", ") { it.safeLogLabel() }
@@ -50,7 +51,6 @@ class AiSdkStreamReducer {
         val textParts = streamParts.filterIsInstance<AiTextStreamPart>()
         val reasoningParts = streamParts.filterIsInstance<AiReasoningStreamPart>()
         val toolParts = streamParts.filterIsInstance<AiToolStreamPart>()
-        val sourceParts = streamParts.filterIsInstance<AiSourceStreamPart>()
 
         return TimelineItemAiContent(
             body = textParts.joinToString(separator = "\n\n") { it.text },
@@ -74,13 +74,7 @@ class AiSdkStreamReducer {
                     error = part.errorText,
                 )
             }.toImmutableList(),
-            sources = sourceParts.map { part ->
-                AiSource(
-                    title = part.title,
-                    url = part.url,
-                    snippet = null,
-                )
-            }.toImmutableList(),
+            sources = emptyList<AiSource>().toImmutableList(),
             quickActions = emptyList<AiQuickAction>().toImmutableList(),
             parts = streamParts.toImmutableList(),
         )
@@ -171,10 +165,25 @@ class AiSdkStreamReducer {
         }
     }
 
+    private fun List<AiStreamPart>.withSnapshotErrorIfNeeded(snapshot: StreamSnapshot): List<AiStreamPart> {
+        val hasSnapshotError = snapshot.status == StreamStatus.Failed || snapshot.error != null
+        if (!hasSnapshotError || any { it is AiErrorStreamPart }) {
+            return this
+        }
+        val errorMessage = snapshot.error?.message?.takeIf { it.isNotBlank() } ?: DEFAULT_STREAM_ERROR_MESSAGE
+        val streamId = snapshot.streamId.ifBlank { "stream" }
+        return this + AiErrorStreamPart(
+            id = "$streamId-error",
+            state = DEFAULT_ERROR_STATE,
+            errorText = errorMessage,
+        )
+    }
+
     private companion object {
         const val TAG = "AiSdkStreamReducer"
         const val DEFAULT_DONE_STATE = "done"
         const val DEFAULT_ERROR_STATE = "error"
+        const val DEFAULT_STREAM_ERROR_MESSAGE = "Stream error"
     }
 }
 

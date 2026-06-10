@@ -8,6 +8,7 @@
 package io.element.android.features.messages.impl.timeline.factories.event
 
 import com.google.common.truth.Truth.assertThat
+import io.element.android.features.messages.impl.timeline.model.event.AiErrorStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiReasoningStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiSourceStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiTextStreamPart
@@ -95,9 +96,7 @@ class AiSdkStreamReducerTest {
         assertThat(source.state).isEqualTo("done")
         assertThat(source.title).isEqualTo("Forecast API")
         assertThat(source.url).isEqualTo("https://example.com/weather")
-        assertThat(result.sources.single().title).isEqualTo("Forecast API")
-        assertThat(result.sources.single().url).isEqualTo("https://example.com/weather")
-        assertThat(result.sources.single().snippet).isNull()
+        assertThat(result.sources).isEmpty()
 
         assertThat(result.toolCalls.single().name).isEqualTo("weather")
         assertThat(result.toolCalls.single().displayName).isEqualTo("Weather")
@@ -135,6 +134,44 @@ class AiSdkStreamReducerTest {
     }
 
     @Test
+    fun `failed snapshot with top-level error maps to error part`() {
+        val snapshot = snapshot(
+            streamId = "",
+            status = StreamStatus.Failed,
+            parts = emptyList(),
+            error = StreamError(message = "Stream failed"),
+        )
+
+        val result = reducer.mapSnapshot(snapshot, isEdited = false, sender = null)
+
+        assertThat(result.isStreaming).isFalse()
+        val error = result.parts.single() as AiErrorStreamPart
+        assertThat(error.id).isEqualTo("stream-error")
+        assertThat(error.state).isEqualTo("error")
+        assertThat(error.errorText).isEqualTo("Stream failed")
+    }
+
+    @Test
+    fun `source snapshot part stays in parts without filling legacy sources`() {
+        val snapshot = snapshot(
+            parts = listOf(
+                StreamPart.Source(
+                    id = "source-1",
+                    title = "Docs",
+                    url = "https://example.com/docs",
+                ),
+            ),
+        )
+
+        val result = reducer.mapSnapshot(snapshot, isEdited = false, sender = null)
+
+        val source = result.parts.single() as AiSourceStreamPart
+        assertThat(source.title).isEqualTo("Docs")
+        assertThat(source.url).isEqualTo("https://example.com/docs")
+        assertThat(result.sources).isEmpty()
+    }
+
+    @Test
     fun `transitional parseSnapshot uses sdk parser`() {
         val snapshotJson = """
             {
@@ -165,6 +202,7 @@ class AiSdkStreamReducerTest {
         streamId: String = "stream-1",
         status: StreamStatus = StreamStatus.Completed,
         parts: List<StreamPart>,
+        error: StreamError? = null,
     ) = StreamSnapshot(
         schemaVersion = AGENT_STREAM_SCHEMA_VERSION,
         streamId = streamId,
@@ -173,6 +211,6 @@ class AiSdkStreamReducerTest {
         rawEvents = emptyList(),
         updatedAtMs = 1L,
         completedAtMs = null,
-        error = null,
+        error = error,
     )
 }
