@@ -73,11 +73,13 @@ class DefaultAgentStreamClient(
         }
 
         override fun cancel() {
+            val taskToCancel: StreamTask?
+            val sessionToClose: StreamReducerSession?
             val snapshotToPublish = synchronized(lock) {
-                task?.cancel()
+                taskToCancel = task
                 task = null
                 isStarting = false
-                session?.close()
+                sessionToClose = session
                 session = null
                 handles.remove(request.streamId)
                 if (currentSnapshot.isTerminal) {
@@ -86,6 +88,8 @@ class DefaultAgentStreamClient(
                     cancelledSnapshot(request.streamId, currentSnapshot)
                 }
             }
+            taskToCancel?.cancel()
+            sessionToClose?.close()
             snapshotToPublish?.let(::publish)
         }
 
@@ -95,11 +99,14 @@ class DefaultAgentStreamClient(
 
         private fun start(forceRefresh: Boolean) {
             val completedBeforeRefresh: StreamSnapshot?
+            val loadingToPublish: StreamSnapshot?
             val shouldStart = synchronized(lock) {
                 completedBeforeRefresh = completedCache[request.streamId] ?: currentSnapshot.takeIf { it.status == StreamStatus.Completed }
                 if (task != null || isStarting || (!forceRefresh && currentSnapshot.status == StreamStatus.Completed)) {
+                    loadingToPublish = null
                     false
                 } else if (handles[request.streamId] != null && handles[request.streamId] !== this) {
+                    loadingToPublish = null
                     false
                 } else {
                     if (forceRefresh) {
@@ -108,10 +115,12 @@ class DefaultAgentStreamClient(
                     handles[request.streamId] = this
                     isStarting = true
                     currentSnapshot = loadingSnapshot(request.streamId)
+                    loadingToPublish = currentSnapshot.takeIf { forceRefresh }
                     true
                 }
             }
             if (!shouldStart) return
+            loadingToPublish?.let(::publish)
 
             val streamTask = try {
                 taskRunner.run(request.streamId) {
@@ -192,14 +201,21 @@ class DefaultAgentStreamClient(
             } catch (throwable: CancellationException) {
                 finishInFlight()
             } catch (throwable: Throwable) {
-                val failed = failedSnapshot(request.streamId, throwable, snapshot())
-                publish(failed)
-                if (completedBeforeRefresh == null && !hasCompletedSnapshot(request.streamId)) {
-                    storageProvider.save(failed)
-                } else {
-                    completedBeforeRefresh?.let(::rememberCompleted)
+                try {
+                    val failed = failedSnapshot(request.streamId, throwable, snapshot())
+                    publish(failed)
+                    if (completedBeforeRefresh == null && !hasCompletedSnapshot(request.streamId)) {
+                        try {
+                            storageProvider.save(failed)
+                        } catch (_: Throwable) {
+                            // The failed snapshot is already visible; a persistence failure must not keep the stream in flight.
+                        }
+                    } else {
+                        completedBeforeRefresh?.let(::rememberCompleted)
+                    }
+                } finally {
+                    finishInFlight()
                 }
-                finishInFlight()
             } finally {
                 synchronized(lock) {
                     session = null

@@ -23,6 +23,7 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.concurrent.thread
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DefaultAgentStreamClientTest {
@@ -168,6 +169,30 @@ class DefaultAgentStreamClientTest {
     }
 
     @Test
+    fun `failed save after network failure clears in flight and allows retry`() = runTest {
+        val storage = FakeStreamStorageProvider(saveErrorForStatus = StreamStatus.Failed)
+        val http = FakeStreamHttpClient(error = IllegalStateException("boom"))
+        val client = createClient(storage = storage, http = http)
+        val firstSnapshots = mutableListOf<StreamSnapshot>()
+
+        client.getStream(request("stream-1")).subscribe { firstSnapshots += it }
+        advanceUntilIdle()
+
+        assertEquals(StreamStatus.Failed, firstSnapshots.last().status)
+        assertEquals(1, http.openCount)
+
+        http.error = null
+        http.chunks = listOf(streamingJson("stream-1", "retry"))
+        val retrySnapshots = mutableListOf<StreamSnapshot>()
+        client.getStream(request("stream-1")).subscribe { retrySnapshots += it }
+        advanceUntilIdle()
+
+        assertEquals(2, http.openCount)
+        assertEquals(StreamStatus.Completed, retrySnapshots.last().status)
+        assertEquals("retry", retrySnapshots.last().text())
+    }
+
+    @Test
     fun `refresh on completed cached handle bypasses memory cache and stores fresh completed snapshot`() = runTest {
         val storage = FakeStreamStorageProvider()
         val http = FakeStreamHttpClient(
@@ -203,6 +228,43 @@ class DefaultAgentStreamClientTest {
 
         assertEquals("fresh", followingSnapshots.single().text())
         assertEquals(2, http.openCount)
+    }
+
+    @Test
+    fun `refresh publishes loading before fresh completed result`() = runTest {
+        val release = CompletableDeferred<Unit>()
+        val storage = FakeStreamStorageProvider()
+        val http = FakeStreamHttpClient(
+            chunks = listOf(streamingJson("stream-1", "old")),
+        )
+        val client = createClient(storage = storage, http = http)
+        val initialSnapshots = mutableListOf<StreamSnapshot>()
+
+        client.getStream(request("stream-1")).subscribe { initialSnapshots += it }
+        advanceUntilIdle()
+
+        assertEquals(StreamStatus.Completed, initialSnapshots.last().status)
+        assertEquals("old", initialSnapshots.last().text())
+
+        http.chunks = listOf(streamingJson("stream-1", "fresh"))
+        http.waitForRelease = release
+        val handle = client.getStream(request("stream-1"))
+        val refreshSnapshots = mutableListOf<StreamSnapshot>()
+        handle.subscribe { refreshSnapshots += it }
+
+        handle.refresh()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(StreamStatus.Completed, StreamStatus.Loading, StreamStatus.Streaming),
+            refreshSnapshots.map { it.status }
+        )
+
+        release.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(StreamStatus.Completed, refreshSnapshots.last().status)
+        assertEquals("fresh", refreshSnapshots.last().text())
     }
 
     @Test
@@ -243,6 +305,36 @@ class DefaultAgentStreamClientTest {
         assertEquals(StreamStatus.Cancelled, snapshots.last().status)
         assertTrue(runner.tasks.single().cancelled)
         assertTrue(factory.sessions.single().closed)
+    }
+
+    @Test
+    fun `cancel invokes task cancellation outside client lock`() = runTest {
+        val release = CompletableDeferred<Unit>()
+        lateinit var handle: StreamHandle
+        val runner = TestStreamTaskRunner(this).apply {
+            onCancel = {
+                thread {
+                    handle.snapshot()
+                    handle.subscribe { }
+                }.join()
+            }
+        }
+        val client = createClient(
+            http = FakeStreamHttpClient(waitForRelease = release),
+            runner = runner,
+        )
+        val snapshots = mutableListOf<StreamSnapshot>()
+        handle = client.getStream(request("stream-1"))
+        handle.subscribe { snapshots += it }
+        advanceUntilIdle()
+
+        handle.cancel()
+        advanceUntilIdle()
+        release.complete(Unit)
+
+        assertEquals(StreamStatus.Cancelled, snapshots.last().status)
+        assertTrue(runner.tasks.single().cancelled)
+        assertEquals(2, snapshots.size)
     }
 
     @Test
@@ -333,8 +425,8 @@ class DefaultAgentStreamClientTest {
 
     private class FakeStreamHttpClient(
         var chunks: List<String> = emptyList(),
-        private val error: Throwable? = null,
-        private val waitForRelease: CompletableDeferred<Unit>? = null,
+        var error: Throwable? = null,
+        var waitForRelease: CompletableDeferred<Unit>? = null,
     ) : StreamHttpClient {
         var openCount = 0
 
@@ -353,12 +445,13 @@ class DefaultAgentStreamClientTest {
         private val scope: TestScope,
     ) : StreamTaskRunner {
         val tasks = mutableListOf<TestStreamTask>()
+        var onCancel: (() -> Unit)? = null
 
         override fun run(
             key: String,
             block: suspend () -> Unit,
         ): StreamTask {
-            val task = TestStreamTask(scope.launch { block() })
+            val task = TestStreamTask(scope.launch { block() }, onCancel)
             tasks += task
             return task
         }
@@ -408,11 +501,13 @@ class DefaultAgentStreamClientTest {
 
     private class TestStreamTask(
         private val job: Job,
+        private val onCancel: (() -> Unit)? = null,
     ) : StreamTask {
         var cancelled = false
 
         override fun cancel() {
             cancelled = true
+            onCancel?.invoke()
             job.cancel()
         }
 
