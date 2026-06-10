@@ -159,4 +159,61 @@ class StreamSnapshotParserTest {
         assertNull(tool.input)
         assertEquals(JsonPrimitive("matrix"), tool.rawInput?.jsonObject?.get("query"))
     }
+
+    @Test
+    fun `preserves unknown present part states and only defaults absent states`() {
+        val parser = StreamSnapshotParser(clock = { 987L })
+
+        val snapshot = parser.parse(
+            """
+            {
+              "parts": [
+                {"type": "text", "id": "text-1", "state": "blocked-waiting", "text": "Blocked"},
+                {"type": "text", "id": "text-2", "text": "Default text"},
+                {"type": "reasoning", "id": "reason-1", "reasoningState": "blocked-waiting", "text": "Blocked reasoning"},
+                {"type": "reasoning", "id": "reason-2", "text": "Default reasoning"},
+                {"type": "tool", "id": "tool-1", "toolState": "output-streaming"},
+                {"type": "tool", "id": "tool-2"}
+              ]
+            }
+            """.trimIndent()
+        )
+
+        assertEquals("blocked-waiting", (snapshot.parts[0] as StreamPart.Text).textState)
+        assertEquals(TextPartState.Streaming.wireValue, (snapshot.parts[1] as StreamPart.Text).textState)
+        assertEquals("blocked-waiting", (snapshot.parts[2] as StreamPart.Reasoning).reasoningState)
+        assertEquals(TextPartState.Streaming.wireValue, (snapshot.parts[3] as StreamPart.Reasoning).reasoningState)
+        assertEquals("output-streaming", (snapshot.parts[4] as StreamPart.Tool).toolState)
+        assertEquals(ToolPartState.InputStreaming.wireValue, (snapshot.parts[5] as StreamPart.Tool).toolState)
+    }
+
+    @Test
+    fun `parseOrFailed returns failed snapshot for invalid json`() {
+        val parser = StreamSnapshotParser(clock = { 1234L })
+
+        val snapshot = parser.parseOrFailed("not json", streamId = "stream-1")
+
+        assertEquals(AGENT_STREAM_SCHEMA_VERSION, snapshot.schemaVersion)
+        assertEquals("stream-1", snapshot.streamId)
+        assertEquals(StreamStatus.Failed, snapshot.status)
+        assertTrue(snapshot.parts.isEmpty())
+        assertTrue(snapshot.rawEvents.isEmpty())
+        assertEquals(1234L, snapshot.updatedAtMs)
+        assertNull(snapshot.completedAtMs)
+        assertTrue(snapshot.error?.message.orEmpty().isNotBlank())
+    }
+
+    @Test
+    fun `parseOrFailed returns failed snapshot for non object root`() {
+        val parser = StreamSnapshotParser(clock = { 5678L })
+
+        val snapshot = parser.parseOrFailed("""["not", "an", "object"]""", streamId = "stream-2")
+
+        assertEquals("stream-2", snapshot.streamId)
+        assertEquals(StreamStatus.Failed, snapshot.status)
+        assertTrue(snapshot.parts.isEmpty())
+        assertTrue(snapshot.rawEvents.isEmpty())
+        assertEquals(5678L, snapshot.updatedAtMs)
+        assertTrue(snapshot.error?.message.orEmpty().isNotBlank())
+    }
 }

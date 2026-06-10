@@ -38,6 +38,25 @@ class StreamSnapshotParser(
         )
     }
 
+    fun parseOrFailed(snapshotJson: String, streamId: String = ""): StreamSnapshot {
+        return try {
+            parse(snapshotJson)
+        } catch (failure: Exception) {
+            StreamSnapshot(
+                schemaVersion = AGENT_STREAM_SCHEMA_VERSION,
+                streamId = streamId,
+                status = StreamStatus.Failed,
+                parts = emptyList(),
+                rawEvents = emptyList(),
+                updatedAtMs = clock(),
+                completedAtMs = null,
+                error = StreamError(
+                    message = failure.message.orEmpty().ifBlank { "Failed to parse stream snapshot." },
+                ),
+            )
+        }
+    }
+
     private fun parsePart(part: JsonObject): StreamPart {
         val type = part.string("type").orEmpty()
         val id = part.string("id", "toolCallId", "tool_call_id").ifBlank { type }
@@ -46,17 +65,15 @@ class StreamSnapshotParser(
             type == "text" -> StreamPart.Text(
                 id = id,
                 text = part.string("text").orEmpty(),
-                textState = TextPartState.fromWire(
-                    part.string("state", "textState", "text_state")
-                )?.wireValue ?: TextPartState.Streaming.wireValue,
+                textState = part.string("state", "textState", "text_state")
+                    ?: TextPartState.Streaming.wireValue,
                 type = type,
             )
             type == "reasoning" -> StreamPart.Reasoning(
                 id = id,
                 text = part.string("text").orEmpty(),
-                reasoningState = TextPartState.fromWire(
-                    part.string("state", "reasoningState", "reasoning_state")
-                )?.wireValue ?: TextPartState.Streaming.wireValue,
+                reasoningState = part.string("state", "reasoningState", "reasoning_state")
+                    ?: TextPartState.Streaming.wireValue,
                 type = type,
             )
             type == "tool" || type == "dynamic-tool" || type.startsWith("tool-") -> parseToolPart(
@@ -128,7 +145,7 @@ class StreamSnapshotParser(
         val toolName = part.string("toolName", "tool_name", "name") ?: type.removePrefix("tool-").takeIf { it != type }
         return StreamPart.Tool(
             id = id,
-            toolState = ToolPartState.fromWire(state)?.wireValue ?: ToolPartState.InputStreaming.wireValue,
+            toolState = state ?: ToolPartState.InputStreaming.wireValue,
             toolName = toolName,
             toolCallId = part.string("toolCallId", "tool_call_id"),
             input = part["input"],
@@ -189,7 +206,7 @@ private fun JsonObject.error(vararg keys: String): StreamError? {
             is JsonObject -> return StreamError(
                 message = value.string("message", "error", "errorText", "error_text").orEmpty(),
                 code = value.string("code"),
-                raw = value,
+                raw = value["raw"] ?: value,
             )
             is JsonPrimitive -> value.contentOrNull?.let { return StreamError(message = it, raw = value) }
             else -> Unit

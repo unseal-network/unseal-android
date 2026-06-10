@@ -7,6 +7,7 @@
 
 package io.element.android.libraries.agentstream.api
 
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -96,5 +97,91 @@ class StreamSnapshotJsonCodecTest {
         assertEquals("snapshot", decoded.rawEvents.single().eventType)
         assertEquals("text-1", decoded.rawEvents.single().partId)
         assertEquals(JsonPrimitive(true), decoded.rawEvents.single().payload.jsonObject.getValue("ok"))
+    }
+
+    @Test
+    fun `preserves unknown states across codec round trip`() {
+        val codec = StreamSnapshotJsonCodec()
+        val snapshot = StreamSnapshot(
+            schemaVersion = AGENT_STREAM_SCHEMA_VERSION,
+            streamId = "stream-1",
+            status = StreamStatus.Streaming,
+            parts = listOf(
+                StreamPart.Text(
+                    id = "text-1",
+                    text = "Blocked",
+                    textState = "blocked-waiting",
+                ),
+                StreamPart.Reasoning(
+                    id = "reason-1",
+                    text = "Still thinking",
+                    reasoningState = "blocked-waiting",
+                ),
+                StreamPart.Tool(
+                    id = "tool-1",
+                    toolState = "output-streaming",
+                ),
+            ),
+            rawEvents = emptyList(),
+            updatedAtMs = 111L,
+            completedAtMs = null,
+            error = null,
+        )
+
+        val decoded = codec.decode(codec.encode(snapshot))
+
+        assertEquals("blocked-waiting", (decoded.parts[0] as StreamPart.Text).textState)
+        assertEquals("blocked-waiting", (decoded.parts[1] as StreamPart.Reasoning).reasoningState)
+        assertEquals("output-streaming", (decoded.parts[2] as StreamPart.Tool).toolState)
+    }
+
+    @Test
+    fun `error raw payload is idempotent across codec round trips`() {
+        val codec = StreamSnapshotJsonCodec()
+        val snapshot = StreamSnapshot(
+            schemaVersion = AGENT_STREAM_SCHEMA_VERSION,
+            streamId = "stream-1",
+            status = StreamStatus.Failed,
+            parts = listOf(
+                StreamPart.Tool(
+                    id = "tool-1",
+                    toolState = ToolPartState.OutputError.wireValue,
+                    error = StreamError(
+                        message = "Tool exploded",
+                        code = "E_TOOL",
+                        raw = buildJsonObject {
+                            put("detail", JsonPrimitive("tool detail"))
+                        },
+                    ),
+                ),
+                StreamPart.Error(
+                    id = "error-1",
+                    error = StreamError(
+                        message = "Part exploded",
+                        code = "E_PART",
+                        raw = buildJsonObject {
+                            put("detail", JsonPrimitive("part detail"))
+                        },
+                    ),
+                ),
+            ),
+            rawEvents = emptyList(),
+            updatedAtMs = 111L,
+            completedAtMs = null,
+            error = StreamError(
+                message = "Snapshot exploded",
+                code = "E_SNAPSHOT",
+                raw = buildJsonObject {
+                    put("detail", JsonPrimitive("snapshot detail"))
+                },
+            ),
+        )
+
+        val encoded = codec.encode(snapshot)
+        val reEncoded = codec.encode(codec.decode(encoded))
+        val twiceReEncoded = codec.encode(codec.decode(reEncoded))
+
+        assertEquals(Json.parseToJsonElement(encoded), Json.parseToJsonElement(reEncoded))
+        assertEquals(Json.parseToJsonElement(encoded), Json.parseToJsonElement(twiceReEncoded))
     }
 }
