@@ -44,6 +44,7 @@ class DefaultAgentStreamClient(
         private val listeners = mutableMapOf<String, StreamListener>()
         private var currentSnapshot = loadingSnapshot(request.streamId)
         private var task: StreamTask? = null
+        private var isStarting = false
         private var session: StreamReducerSession? = null
 
         override fun snapshot(): StreamSnapshot {
@@ -81,6 +82,7 @@ class DefaultAgentStreamClient(
             val snapshotToPublish = synchronized(lock) {
                 task?.cancel()
                 task = null
+                isStarting = false
                 session?.close()
                 session = null
                 handles.remove(request.streamId)
@@ -95,22 +97,34 @@ class DefaultAgentStreamClient(
 
         fun startIfNeeded() {
             val shouldStart = synchronized(lock) {
-                if (task != null || currentSnapshot.status == StreamStatus.Completed) {
+                if (task != null || isStarting || currentSnapshot.status == StreamStatus.Completed) {
                     false
                 } else {
+                    isStarting = true
                     currentSnapshot = loadingSnapshot(request.streamId)
                     true
                 }
             }
             if (!shouldStart) return
 
-            val streamTask = taskRunner.run(request.streamId) {
-                runStream()
+            val streamTask = try {
+                taskRunner.run(request.streamId) {
+                    runStream()
+                }
+            } catch (throwable: Throwable) {
+                synchronized(lock) {
+                    isStarting = false
+                }
+                val failed = failedSnapshot(request.streamId, throwable, snapshot())
+                publish(failed)
+                finishInFlight()
+                return
             }
             var cancelNewTask = false
             synchronized(lock) {
-                if (task == null && handles[request.streamId] === this) {
+                if (task == null && isStarting && handles[request.streamId] === this) {
                     task = streamTask
+                    isStarting = false
                 } else {
                     cancelNewTask = true
                 }
@@ -151,7 +165,13 @@ class DefaultAgentStreamClient(
                         .asCompleted(clock())
                     publish(finalSnapshot)
                     rememberCompleted(finalSnapshot)
-                    storageProvider.save(finalSnapshot)
+                    try {
+                        storageProvider.save(finalSnapshot)
+                    } catch (throwable: CancellationException) {
+                        throw throwable
+                    } catch (_: Throwable) {
+                        // Completion is already terminal for the UI; persistence can retry on a future path.
+                    }
                     finishInFlight()
                 }
             } catch (throwable: CancellationException) {
@@ -194,6 +214,7 @@ class DefaultAgentStreamClient(
                     handles.remove(request.streamId)
                 }
                 task = null
+                isStarting = false
             }
         }
     }

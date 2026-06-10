@@ -66,6 +66,27 @@ class DefaultAgentStreamClientTest {
     }
 
     @Test
+    fun `concurrent same stream starts only one task and network request`() = runTest {
+        val runner = ReentrantStreamTaskRunner(this)
+        val http = FakeStreamHttpClient(
+            chunks = listOf(streamingJson("stream-1", "hi")),
+        )
+        lateinit var client: DefaultAgentStreamClient
+        runner.beforeFirstRunReturns = {
+            client.getStream(request("stream-1")).refresh()
+        }
+        client = createClient(runner = runner, http = http)
+
+        client.getStream(request("stream-1"))
+        assertEquals(1, runner.tasks.size)
+
+        runner.startAll()
+        advanceUntilIdle()
+
+        assertEquals(1, http.openCount)
+    }
+
+    @Test
     fun `completed stream saves final snapshot and publishes completed final parts`() = runTest {
         val storage = FakeStreamStorageProvider()
         val http = FakeStreamHttpClient(
@@ -82,6 +103,31 @@ class DefaultAgentStreamClientTest {
         assertEquals("hi", finalSnapshot.text())
         assertEquals(TextPartState.Complete.wireValue, (finalSnapshot.parts.single() as StreamPart.Text).textState)
         assertEquals(finalSnapshot, storage.savedSnapshots.single())
+    }
+
+    @Test
+    fun `save failure after completed publish keeps completed snapshot`() = runTest {
+        val storage = FakeStreamStorageProvider(
+            saveErrorForStatus = StreamStatus.Completed,
+        )
+        val http = FakeStreamHttpClient(
+            chunks = listOf(streamingJson("stream-1", "hi")),
+        )
+        val client = createClient(storage = storage, http = http)
+        val snapshots = mutableListOf<StreamSnapshot>()
+
+        client.getStream(request("stream-1")).subscribe { snapshots += it }
+        advanceUntilIdle()
+
+        assertEquals(StreamStatus.Completed, snapshots.last().status)
+        assertEquals(1, http.openCount)
+
+        val cachedSnapshots = mutableListOf<StreamSnapshot>()
+        client.getStream(request("stream-1")).subscribe { cachedSnapshots += it }
+        advanceUntilIdle()
+
+        assertEquals(StreamStatus.Completed, cachedSnapshots.single().status)
+        assertEquals(1, http.openCount)
     }
 
     @Test
@@ -164,7 +210,7 @@ class DefaultAgentStreamClientTest {
     private fun TestScope.createClient(
         storage: FakeStreamStorageProvider = FakeStreamStorageProvider(),
         http: FakeStreamHttpClient = FakeStreamHttpClient(),
-        runner: TestStreamTaskRunner = TestStreamTaskRunner(this),
+        runner: StreamTaskRunner = TestStreamTaskRunner(this),
         reducerSessionFactory: FakeStreamReducerSessionFactory = FakeStreamReducerSessionFactory(),
     ): DefaultAgentStreamClient {
         return DefaultAgentStreamClient(
@@ -207,12 +253,16 @@ class DefaultAgentStreamClientTest {
 
     private class FakeStreamStorageProvider(
         private val loadResult: StreamSnapshot? = null,
+        private val saveErrorForStatus: StreamStatus? = null,
     ) : StreamStorageProvider {
         val savedSnapshots = mutableListOf<StreamSnapshot>()
 
         override suspend fun load(streamId: String): StreamSnapshot? = loadResult
 
         override suspend fun save(snapshot: StreamSnapshot) {
+            if (snapshot.status == saveErrorForStatus) {
+                throw IllegalStateException("save failed")
+            }
             if (savedSnapshots.any { it.streamId == snapshot.streamId && it.status == StreamStatus.Completed } &&
                 snapshot.status == StreamStatus.Failed
             ) {
@@ -254,6 +304,48 @@ class DefaultAgentStreamClientTest {
             val task = TestStreamTask(scope.launch { block() })
             tasks += task
             return task
+        }
+    }
+
+    private class ReentrantStreamTaskRunner(
+        private val scope: TestScope,
+    ) : StreamTaskRunner {
+        val tasks = mutableListOf<QueuedStreamTask>()
+        var beforeFirstRunReturns: (() -> Unit)? = null
+
+        override fun run(
+            key: String,
+            block: suspend () -> Unit,
+        ): StreamTask {
+            val task = QueuedStreamTask(scope, block)
+            tasks += task
+            if (tasks.size == 1) {
+                beforeFirstRunReturns?.invoke()
+            }
+            return task
+        }
+
+        fun startAll() {
+            tasks.forEach { it.start() }
+        }
+    }
+
+    private class QueuedStreamTask(
+        private val scope: TestScope,
+        private val block: suspend () -> Unit,
+    ) : StreamTask {
+        private var job: Job? = null
+        var cancelled = false
+
+        fun start() {
+            if (job == null && !cancelled) {
+                job = scope.launch { block() }
+            }
+        }
+
+        override fun cancel() {
+            cancelled = true
+            job?.cancel()
         }
     }
 
