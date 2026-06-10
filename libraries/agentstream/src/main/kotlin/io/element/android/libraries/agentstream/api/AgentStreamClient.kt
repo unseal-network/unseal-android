@@ -28,6 +28,9 @@ interface StreamSubscription {
     fun cancel()
 }
 
+/**
+ * Stores SDK snapshot models; adapters should persist them through the SDK JSON codec once wired.
+ */
 interface StreamStorageProvider {
     suspend fun load(streamId: String): StreamSnapshot?
     suspend fun save(snapshot: StreamSnapshot)

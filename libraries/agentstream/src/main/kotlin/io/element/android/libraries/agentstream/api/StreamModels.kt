@@ -66,21 +66,21 @@ sealed interface StreamPart {
         val text: String,
         val textState: String,
         override val type: String = "text",
-        override val state: String = textState,
     ) : StreamPart {
         constructor(
             id: String,
             text: String,
             textState: TextPartState,
             type: String = "text",
-            state: String = textState.wireValue,
         ) : this(
             id = id,
             text = text,
             textState = textState.wireValue,
             type = type,
-            state = state,
         )
+
+        override val state: String
+            get() = textState
 
         val textPartState: TextPartState?
             get() = TextPartState.fromWire(textState)
@@ -91,21 +91,21 @@ sealed interface StreamPart {
         val text: String,
         val reasoningState: String,
         override val type: String = "reasoning",
-        override val state: String = reasoningState,
     ) : StreamPart {
         constructor(
             id: String,
             text: String,
             reasoningState: TextPartState,
             type: String = "reasoning",
-            state: String = reasoningState.wireValue,
         ) : this(
             id = id,
             text = text,
             reasoningState = reasoningState.wireValue,
             type = type,
-            state = state,
         )
+
+        override val state: String
+            get() = reasoningState
 
         val reasoningPartState: TextPartState?
             get() = TextPartState.fromWire(reasoningState)
@@ -121,7 +121,6 @@ sealed interface StreamPart {
         val error: StreamError? = null,
         val title: String? = null,
         override val type: String = toolName?.let { "tool-$it" } ?: "tool",
-        override val state: String = toolState,
     ) : StreamPart {
         constructor(
             id: String,
@@ -133,7 +132,6 @@ sealed interface StreamPart {
             error: StreamError? = null,
             title: String? = null,
             type: String = toolName?.let { "tool-$it" } ?: "tool",
-            state: String = toolState.wireValue,
         ) : this(
             id = id,
             toolState = toolState.wireValue,
@@ -144,8 +142,10 @@ sealed interface StreamPart {
             error = error,
             title = title,
             type = type,
-            state = state,
         )
+
+        override val state: String
+            get() = toolState
 
         val toolPartState: ToolPartState?
             get() = ToolPartState.fromWire(toolState)

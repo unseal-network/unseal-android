@@ -56,4 +56,37 @@ class StreamModelsCompileTest {
         assertEquals(ToolPartState.InputAvailable.wireValue, toolPart.toolState)
         assertEquals(ToolPartState.InputAvailable, toolPart.toolPartState)
     }
+
+    @Test
+    fun `text part copy keeps generic state aligned with named wire state`() {
+        val textPart = StreamPart.Text(
+            id = "text-1",
+            text = "Hello",
+            textState = TextPartState.Streaming.wireValue,
+        )
+
+        val copied = textPart.copy(textState = TextPartState.Complete.wireValue)
+
+        assertEquals(TextPartState.Complete.wireValue, copied.state)
+        assertEquals(TextPartState.Complete.wireValue, copied.textState)
+    }
+
+    @Test
+    fun `tool part copy keeps generic state aligned with named wire state`() {
+        val toolPart = StreamPart.Tool(
+            id = "tool-1",
+            toolName = "search",
+            toolCallId = "call-1",
+            input = JsonPrimitive("query"),
+            toolState = ToolPartState.InputAvailable.wireValue,
+        )
+
+        val copied = toolPart.copy(
+            output = JsonPrimitive("result"),
+            toolState = ToolPartState.OutputAvailable.wireValue,
+        )
+
+        assertEquals(ToolPartState.OutputAvailable.wireValue, copied.state)
+        assertEquals(ToolPartState.OutputAvailable.wireValue, copied.toolState)
+    }
 }
