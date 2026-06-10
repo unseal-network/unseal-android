@@ -64,22 +64,56 @@ sealed interface StreamPart {
     data class Text(
         override val id: String,
         val text: String,
-        val textState: TextPartState,
+        val textState: String,
         override val type: String = "text",
-        override val state: String = textState.wireValue,
-    ) : StreamPart
+        override val state: String = textState,
+    ) : StreamPart {
+        constructor(
+            id: String,
+            text: String,
+            textState: TextPartState,
+            type: String = "text",
+            state: String = textState.wireValue,
+        ) : this(
+            id = id,
+            text = text,
+            textState = textState.wireValue,
+            type = type,
+            state = state,
+        )
+
+        val textPartState: TextPartState?
+            get() = TextPartState.fromWire(textState)
+    }
 
     data class Reasoning(
         override val id: String,
         val text: String,
-        val reasoningState: TextPartState,
+        val reasoningState: String,
         override val type: String = "reasoning",
-        override val state: String = reasoningState.wireValue,
-    ) : StreamPart
+        override val state: String = reasoningState,
+    ) : StreamPart {
+        constructor(
+            id: String,
+            text: String,
+            reasoningState: TextPartState,
+            type: String = "reasoning",
+            state: String = reasoningState.wireValue,
+        ) : this(
+            id = id,
+            text = text,
+            reasoningState = reasoningState.wireValue,
+            type = type,
+            state = state,
+        )
+
+        val reasoningPartState: TextPartState?
+            get() = TextPartState.fromWire(reasoningState)
+    }
 
     data class Tool(
         override val id: String,
-        val toolState: ToolPartState,
+        val toolState: String,
         val toolName: String? = null,
         val toolCallId: String? = null,
         val input: JsonElement? = null,
@@ -87,8 +121,35 @@ sealed interface StreamPart {
         val error: StreamError? = null,
         val title: String? = null,
         override val type: String = toolName?.let { "tool-$it" } ?: "tool",
-        override val state: String = toolState.wireValue,
-    ) : StreamPart
+        override val state: String = toolState,
+    ) : StreamPart {
+        constructor(
+            id: String,
+            toolState: ToolPartState,
+            toolName: String? = null,
+            toolCallId: String? = null,
+            input: JsonElement? = null,
+            output: JsonElement? = null,
+            error: StreamError? = null,
+            title: String? = null,
+            type: String = toolName?.let { "tool-$it" } ?: "tool",
+            state: String = toolState.wireValue,
+        ) : this(
+            id = id,
+            toolState = toolState.wireValue,
+            toolName = toolName,
+            toolCallId = toolCallId,
+            input = input,
+            output = output,
+            error = error,
+            title = title,
+            type = type,
+            state = state,
+        )
+
+        val toolPartState: ToolPartState?
+            get() = ToolPartState.fromWire(toolState)
+    }
 
     data class Data(
         override val id: String,

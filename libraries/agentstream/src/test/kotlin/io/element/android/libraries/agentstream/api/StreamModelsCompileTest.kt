@@ -18,7 +18,7 @@ class StreamModelsCompileTest {
         val textPart = StreamPart.Text(
             id = "text-1",
             text = "Hello",
-            textState = TextPartState.Streaming,
+            textState = TextPartState.Streaming.wireValue,
         )
         val toolPart = StreamPart.Tool(
             id = "tool-1",
@@ -26,7 +26,7 @@ class StreamModelsCompileTest {
             toolCallId = "call-1",
             input = JsonPrimitive("query"),
             output = JsonPrimitive("result"),
-            toolState = ToolPartState.InputAvailable,
+            toolState = ToolPartState.InputAvailable.wireValue,
         )
 
         val snapshot = StreamSnapshot(
@@ -50,6 +50,10 @@ class StreamModelsCompileTest {
 
         assertTrue(snapshot.isTerminal)
         assertEquals(TextPartState.Streaming.wireValue, textPart.state)
+        assertEquals(TextPartState.Streaming.wireValue, textPart.textState)
+        assertEquals(TextPartState.Streaming, textPart.textPartState)
         assertEquals(ToolPartState.InputAvailable.wireValue, toolPart.state)
+        assertEquals(ToolPartState.InputAvailable.wireValue, toolPart.toolState)
+        assertEquals(ToolPartState.InputAvailable, toolPart.toolPartState)
     }
 }
