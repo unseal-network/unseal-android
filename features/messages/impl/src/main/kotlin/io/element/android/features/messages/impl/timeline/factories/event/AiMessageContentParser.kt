@@ -58,11 +58,20 @@ class AiMessageContentParser {
             msgType == MSGTYPE_STREAM_COMPLETE
         val isAiMessage = msgType == MSGTYPE_AISDK || isStreamEvent || isStream
         if (!isAiMessage) return null
+        val isStartEvent = eventType == MSGTYPE_STREAM_START || msgType == MSGTYPE_STREAM_START
+        val isCompleteEvent = eventType == MSGTYPE_STREAM_COMPLETE || msgType == MSGTYPE_STREAM_COMPLETE
 
         return TimelineItemAiContent(
             body = content.string("content") ?: content.string("body").orEmpty(),
             isEdited = isEdited,
-            isStreaming = content.boolean("is_streaming") ?: (eventType == MSGTYPE_STREAM_START || msgType == MSGTYPE_STREAM_START || isStream),
+            isStreaming = content.boolean("is_streaming")
+                ?: content.boolean("streaming")
+                ?: content.boolean("isStream")
+                ?: when {
+                    isCompleteEvent -> false
+                    isStartEvent -> true
+                    else -> stream?.streamingStatus() ?: isStream
+                },
             streamId = streamId,
             sender = content.string("sender").takeIfNotBlank()
                 ?: stream?.string("sender").takeIfNotBlank()
@@ -119,6 +128,14 @@ class AiMessageContentParser {
 
     private fun JsonObject.objectArray(key: String): List<JsonObject> =
         (this[key] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }
+
+    private fun JsonObject.streamingStatus(): Boolean? {
+        return when (string("status")) {
+            "complete", "completed", "done" -> false
+            "active", "streaming", "pending" -> true
+            else -> null
+        }
+    }
 
     private fun JsonArray?.orEmpty(): JsonArray = this ?: JsonArray(emptyList())
 

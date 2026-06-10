@@ -69,7 +69,6 @@ fun TimelineItemStateEventRow(
             ) {
                 TimelineItemEventContentView(
                     content = event.content,
-                    streamPriority = event.sentTimeMillis,
                     onLinkClick = {},
                     onLinkLongClick = {},
                     hideMediaContent = false,

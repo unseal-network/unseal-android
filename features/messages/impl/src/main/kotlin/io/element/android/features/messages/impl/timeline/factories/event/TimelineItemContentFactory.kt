@@ -72,21 +72,19 @@ class TimelineItemContentFactory(
         // message with a content.stream pointer. The Matrix SDK maps the latter to regular text,
         // so the original JSON must be inspected before falling back to normal rendering.
         val itemContent = eventTimelineItem.content
-        if (itemContent is MessageContent) {
-            val originalJson = eventTimelineItem.timelineItemDebugInfoProvider().originalJson
-            aiMessageContentParser.parse(
-                originalJson = originalJson,
-                isEdited = itemContent.isEdited,
-                fallbackSender = eventTimelineItem.sender.value,
-            )?.let { aiContent ->
-                Timber.tag("TimelineItemContentFactory").d(
-                    "AI stream: timeline content parsed streamId=%s body=%d parts=%d",
-                    aiContent.streamId,
-                    aiContent.body.length,
-                    aiContent.parts.size,
-                )
-                return aiContent
-            }
+        val originalJson = eventTimelineItem.timelineItemDebugInfoProvider().originalJson
+        aiMessageContentParser.parse(
+            originalJson = originalJson,
+            isEdited = itemContent.isEdited(),
+            fallbackSender = eventTimelineItem.sender.value,
+        )?.let { aiContent ->
+            Timber.tag("TimelineItemContentFactory").d(
+                "AI stream: timeline content parsed streamId=%s body=%d parts=%d",
+                aiContent.streamId,
+                aiContent.body.length,
+                aiContent.parts.size,
+            )
+            return aiContent
         }
         return create(
             itemContent = eventTimelineItem.content,
@@ -177,5 +175,13 @@ class TimelineItemContentFactory(
         if (content !is UnableToDecryptContent) return null
         val request = roomKeyRecoveryRequestParser.parse(timelineItemDebugInfoProvider().originalJson) ?: return null
         return roomKeyRecoveryStatuses[request.identityKey]
+    }
+
+    private fun EventContent.isEdited(): Boolean {
+        return when (this) {
+            is MessageContent -> isEdited
+            is PollContent -> isEdited
+            else -> false
+        }
     }
 }

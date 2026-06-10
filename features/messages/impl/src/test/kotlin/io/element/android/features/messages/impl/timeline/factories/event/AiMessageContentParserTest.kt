@@ -127,6 +127,27 @@ class AiMessageContentParserTest {
     }
 
     @Test
+    fun `parses ios stream complete event without streaming flag as completed`() {
+        val json = """
+            {
+              "type": "m.stream.complete",
+              "content": {
+                "msgtype": "m.stream.complete",
+                "stream_id": "stream-5",
+                "content": "done"
+              }
+            }
+        """.trimIndent()
+
+        val result = parser.parse(json, isEdited = false)
+
+        assertThat(result).isNotNull()
+        requireNotNull(result)
+        assertThat(result.streamId).isEqualTo("stream-5")
+        assertThat(result.isStreaming).isFalse()
+    }
+
+    @Test
     fun `returns null for normal text message`() {
         val json = """{ "content": { "msgtype": "m.text", "body": "just a normal message" } }"""
         assertThat(parser.parse(json, isEdited = false)).isNull()

@@ -8,13 +8,11 @@
 package io.element.android.features.messages.impl.timeline.components.event
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.staticCompositionLocalOf
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
@@ -47,19 +45,6 @@ interface TimelineItemAiPresenterModule {
 data class TimelineItemAiState(
     val content: TimelineItemAiContent,
 )
-
-private val LocalTimelineItemAiStreamPriority = staticCompositionLocalOf { 0L }
-
-@Composable
-fun LocalTimelineItemAiStreamPriorityProvider(
-    priority: Long,
-    content: @Composable () -> Unit,
-) {
-    CompositionLocalProvider(
-        LocalTimelineItemAiStreamPriority provides priority,
-        content = content,
-    )
-}
 
 @AssistedInject
 class TimelineItemAiPresenter(
