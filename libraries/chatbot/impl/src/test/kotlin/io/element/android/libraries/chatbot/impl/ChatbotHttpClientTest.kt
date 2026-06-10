@@ -11,13 +11,23 @@ import com.google.common.truth.Truth.assertThat
 import io.element.android.libraries.chatbot.api.ChatbotApiError
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 import io.element.android.libraries.matrix.test.FakeMatrixClient
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import java.io.IOException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 class ChatbotHttpClientTest {
     private lateinit var server: MockWebServer
@@ -98,11 +108,68 @@ class ChatbotHttpClientTest {
         assertThat(decodingError.bodySnippet).contains("[REDACTED]")
     }
 
-    private fun aClient(token: String? = "mx-token"): ChatbotHttpClient {
+    @Test
+    fun `streamRaw - dispatches SSE lines to callback`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "text/event-stream")
+                .setBody("data: one\n\ndata: two\n")
+        )
+        val client = aClient()
+        val chunks = mutableListOf<String>()
+
+        val result = client.streamRaw("/chatbot/v1/stream/stream-1") { chunk ->
+            chunks += chunk
+        }
+
+        assertThat(result.isSuccess).isTrue()
+        assertThat(chunks).containsExactly("data: one\n", "\n", "data: two\n").inOrder()
+        val request = server.takeRequest()
+        assertThat(request.method).isEqualTo("GET")
+        assertThat(request.getHeader("Accept")).isEqualTo("text/event-stream")
+    }
+
+    @Test
+    fun `streamRaw - cancels underlying call when coroutine is cancelled`() = runTest {
+        val executeStarted = CompletableDeferred<Unit>()
+        val releaseExecute = CountDownLatch(1)
+        val callWasCancelled = AtomicBoolean(false)
+        val okHttpClient = OkHttpClient.Builder()
+            .addInterceptor(
+                Interceptor { chain ->
+                    executeStarted.complete(Unit)
+                    releaseExecute.await(5, TimeUnit.SECONDS)
+                    callWasCancelled.set(chain.call().isCanceled())
+                    throw IOException("released")
+                }
+            )
+            .build()
+        val client = aClient(okHttpClient = okHttpClient)
+
+        val streamJob = async(Dispatchers.IO) {
+            client.streamRaw("/chatbot/v1/stream/stream-1") {
+            }.getOrThrow()
+        }
+        withTimeout(5_000) {
+            executeStarted.await()
+        }
+
+        streamJob.cancel()
+
+        releaseExecute.countDown()
+        streamJob.cancelAndJoin()
+        assertThat(callWasCancelled.get()).isTrue()
+    }
+
+    private fun aClient(
+        token: String? = "mx-token",
+        okHttpClient: OkHttpClient = OkHttpClient(),
+    ): ChatbotHttpClient {
         return ChatbotHttpClient(
             baseUrl = server.url("/api-root/").toString(),
             matrixClient = FakeMatrixClient(),
-            okHttpClient = OkHttpClient(),
+            okHttpClient = okHttpClient,
             tokenProvider = ChatbotAccessTokenProvider { token },
         )
     }

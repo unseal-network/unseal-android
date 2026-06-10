@@ -11,12 +11,17 @@ import io.element.android.libraries.chatbot.api.ChatbotApiError
 import io.element.android.libraries.matrix.api.MatrixClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.InternalCoroutinesApi
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.Call
 import timber.log.Timber
 import java.io.IOException
 
@@ -34,6 +39,7 @@ internal class ChatbotHttpClient(
         return requestRaw(pathWithQuery, ChatbotHttpMethod.GET, body = null, accept = "text/event-stream", onChunk = onChunk).map { }
     }
 
+    @OptIn(InternalCoroutinesApi::class)
     private suspend fun requestRaw(
         pathWithQuery: String,
         method: ChatbotHttpMethod,
@@ -70,8 +76,17 @@ internal class ChatbotHttpClient(
             .build()
 
         return withContext(Dispatchers.IO) {
+            val coroutineContext = currentCoroutineContext()
+            var call: Call? = null
+            val cancellationHandle = coroutineContext.job.invokeOnCompletion(onCancelling = true, invokeImmediately = true) { cause ->
+                if (cause is CancellationException) {
+                    call?.cancel()
+                }
+            }
             try {
-                okHttpClient.newCall(request).execute().use { response ->
+                val currentCall = okHttpClient.newCall(request)
+                call = currentCall
+                currentCall.execute().use { response ->
                     if (!response.isSuccessful) {
                         val responseBody = response.body.string()
                         val redacted = ChatbotRedactor.redact(responseBody)
@@ -81,24 +96,26 @@ internal class ChatbotHttpClient(
                     val responseBody = if (onChunk == null) {
                         response.body.string()
                     } else {
-                        val builder = StringBuilder()
                         val source = response.body.source()
                         while (true) {
                             val line = source.readUtf8Line() ?: break
                             val chunk = "$line\n"
-                            builder.append(chunk)
                             onChunk(chunk)
                         }
-                        builder.toString()
+                        ""
                     }
                     Result.success(responseBody)
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: IOException) {
+                coroutineContext.ensureActive()
                 Result.failure(ChatbotApiError.NetworkError(e.message.orEmpty(), e))
             } catch (e: Exception) {
+                coroutineContext.ensureActive()
                 Result.failure(ChatbotApiError.NetworkError(e.message.orEmpty(), e))
+            } finally {
+                cancellationHandle.dispose()
             }
         }
     }

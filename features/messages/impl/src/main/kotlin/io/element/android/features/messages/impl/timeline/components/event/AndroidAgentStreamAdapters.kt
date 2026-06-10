@@ -11,6 +11,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -96,8 +97,8 @@ class CoroutineStreamTaskRunner(
     }
 }
 
-@SingleIn(RoomScope::class)
-@ContributesBinding(RoomScope::class)
+@SingleIn(AppScope::class)
+@ContributesBinding(AppScope::class)
 @Inject
 class SQLiteStreamStorageProvider(
     @ApplicationContext context: Context,
@@ -137,10 +138,6 @@ class SQLiteStreamStorageProvider(
         if (!shouldSave(snapshot)) {
             return@withContext
         }
-        if (snapshot.status == StreamStatus.Failed && hasCompletedSnapshotWithParts(snapshot.streamId)) {
-            return@withContext
-        }
-
         val json = codec.encode(snapshot)
         val values = ContentValues().apply {
             put(COLUMN_STREAM_ID, snapshot.streamId)
@@ -150,12 +147,22 @@ class SQLiteStreamStorageProvider(
             put(COLUMN_UPDATED_AT_MS, snapshot.updatedAtMs)
             put(COLUMN_COMPLETED_AT_MS, snapshot.completedAtMs)
         }
-        helper.writableDatabase.insertWithOnConflict(
-            TABLE_NAME,
-            null,
-            values,
-            SQLiteDatabase.CONFLICT_REPLACE,
-        )
+        val database = helper.writableDatabase
+        database.beginTransaction()
+        try {
+            if (snapshot.status == StreamStatus.Failed && hasCompletedSnapshotWithParts(database, snapshot.streamId)) {
+                return@withContext
+            }
+            database.insertWithOnConflict(
+                TABLE_NAME,
+                null,
+                values,
+                SQLiteDatabase.CONFLICT_REPLACE,
+            )
+            database.setTransactionSuccessful()
+        } finally {
+            database.endTransaction()
+        }
     }
 
     override suspend fun delete(streamId: String) = withContext(dispatchers.io) {
@@ -172,8 +179,8 @@ class SQLiteStreamStorageProvider(
         return snapshot.status == StreamStatus.Completed || snapshot.status == StreamStatus.Failed
     }
 
-    private fun hasCompletedSnapshotWithParts(streamId: String): Boolean {
-        return helper.readableDatabase.query(
+    private fun hasCompletedSnapshotWithParts(database: SQLiteDatabase, streamId: String): Boolean {
+        return database.query(
             TABLE_NAME,
             arrayOf(COLUMN_STATUS, COLUMN_SNAPSHOT_JSON),
             "$COLUMN_STREAM_ID = ?",
@@ -191,7 +198,7 @@ class SQLiteStreamStorageProvider(
                     false
                 } else {
                     runCatching { codec.decode(json).parts.isNotEmpty() }
-                        .onFailure { deleteSync(streamId) }
+                        .onFailure { deleteSync(database, streamId) }
                         .getOrDefault(false)
                 }
             }
@@ -199,7 +206,11 @@ class SQLiteStreamStorageProvider(
     }
 
     private fun deleteSync(streamId: String) {
-        helper.writableDatabase.delete(
+        deleteSync(helper.writableDatabase, streamId)
+    }
+
+    private fun deleteSync(database: SQLiteDatabase, streamId: String) {
+        database.delete(
             TABLE_NAME,
             "$COLUMN_STREAM_ID = ?",
             arrayOf(streamId),

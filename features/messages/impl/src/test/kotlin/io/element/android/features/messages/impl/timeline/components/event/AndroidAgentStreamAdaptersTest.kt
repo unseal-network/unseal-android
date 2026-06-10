@@ -137,6 +137,32 @@ class AndroidAgentStreamAdaptersTest {
     }
 
     @Test
+    fun `completed snapshot replaces failed snapshot and rejects later failed snapshot`() = runTest {
+        val provider = createProvider()
+        val failed = snapshot(
+            status = StreamStatus.Failed,
+            parts = listOf(StreamPart.Error("error-stream-1", StreamError("Network failed"))),
+            error = StreamError("Network failed"),
+        )
+        val completed = snapshot(
+            status = StreamStatus.Completed,
+            parts = listOf(StreamPart.Text("part-1", "Hello", TextPartState.Complete)),
+        )
+        provider.save(failed)
+
+        provider.save(completed)
+        provider.save(
+            snapshot(
+                status = StreamStatus.Failed,
+                parts = listOf(StreamPart.Error("error-stream-2", StreamError("Late failure"))),
+                error = StreamError("Late failure"),
+            )
+        )
+
+        assertThat(provider.load("stream-1")).isEqualTo(completed)
+    }
+
+    @Test
     fun `corrupted row returns null and is deleted`() = runTest {
         val provider = createProvider()
         assertThat(provider.load("stream-1")).isNull()
