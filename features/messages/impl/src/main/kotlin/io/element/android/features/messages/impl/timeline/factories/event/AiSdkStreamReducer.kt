@@ -116,9 +116,10 @@ class AiSdkStreamReducer {
                     state = state,
                     toolName = name,
                     title = title,
-                    input = input?.asDisplayString() ?: rawInput?.asDisplayString(),
+                    input = input?.asDisplayString(),
                     output = output?.asDisplayString(),
                     errorText = error?.message,
+                    rawInput = rawInput?.asDisplayString(),
                 )
             }
             is StreamPart.Source -> AiSourceStreamPart(
@@ -179,7 +180,7 @@ class AiSdkStreamReducer {
 
 private fun AiStreamPart.safeLogLabel(): String {
     return when (this) {
-        is AiToolStreamPart -> "tool(type=$toolName,state=$state,input=${input != null},output=${output != null})"
+        is AiToolStreamPart -> "tool(type=$toolName,state=$state,input=${input != null},rawInput=${rawInput != null},output=${output != null})"
         is AiDataStreamPart -> "data(type=$type,state=$state,payload=${payload.isNotBlank()})"
         is AiTextStreamPart -> "text(state=$state,len=${text.length})"
         is AiReasoningStreamPart -> "reasoning(state=$state,len=${text.length})"

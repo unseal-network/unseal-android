@@ -45,6 +45,7 @@ class AiSdkStreamReducerTest {
                     toolState = "output-available",
                     toolName = "weather",
                     input = Json.parseToJsonElement("""{"city":"Shanghai"}"""),
+                    rawInput = JsonPrimitive("weather in Shanghai"),
                     output = JsonPrimitive("Sunny"),
                     title = "Weather",
                 ),
@@ -80,6 +81,7 @@ class AiSdkStreamReducerTest {
         assertThat(tool.title).isEqualTo("Weather")
         assertThat(tool.state).isEqualTo("output-available")
         assertThat(tool.input).contains("Shanghai")
+        assertThat(tool.rawInput).isEqualTo("weather in Shanghai")
         assertThat(tool.output).isEqualTo("Sunny")
 
         val reasoning = result.parts[3] as AiReasoningStreamPart
