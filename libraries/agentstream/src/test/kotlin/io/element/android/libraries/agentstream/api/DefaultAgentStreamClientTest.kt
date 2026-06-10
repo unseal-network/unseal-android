@@ -331,6 +331,44 @@ class DefaultAgentStreamClientTest {
     }
 
     @Test
+    fun `stale non cooperative run cannot publish after cancel and refresh starts newer run`() = runTest {
+        val storage = FakeStreamStorageProvider()
+        val http = ReleasableStreamHttpClient(
+            chunksByRun = listOf(
+                listOf(streamingJson("stream-1", "stale")),
+                listOf(streamingJson("stream-1", "fresh")),
+            )
+        )
+        val client = createClient(
+            storage = storage,
+            http = http,
+            runner = NonCooperativeStreamTaskRunner(this),
+        )
+        val handle = client.getStream(request("stream-1"))
+        val snapshots = mutableListOf<StreamSnapshot>()
+        handle.subscribe { snapshots += it }
+        advanceUntilIdle()
+
+        handle.cancel()
+        handle.refresh()
+        advanceUntilIdle()
+
+        http.releaseRun(1)
+        advanceUntilIdle()
+
+        assertEquals(StreamStatus.Completed, snapshots.last().status)
+        assertEquals("fresh", snapshots.last().text())
+
+        http.releaseRun(0)
+        advanceUntilIdle()
+
+        assertFalse(snapshots.any { it.text() == "stale" })
+        assertEquals(StreamStatus.Completed, snapshots.last().status)
+        assertEquals("fresh", snapshots.last().text())
+        assertEquals(listOf("fresh"), storage.savedSnapshots.map { it.text() })
+    }
+
+    @Test
     fun `cancel invokes task cancellation outside client lock`() = runTest {
         val release = CompletableDeferred<Unit>()
         lateinit var handle: StreamHandle
@@ -381,7 +419,7 @@ class DefaultAgentStreamClientTest {
 
     private fun TestScope.createClient(
         storage: FakeStreamStorageProvider = FakeStreamStorageProvider(),
-        http: FakeStreamHttpClient = FakeStreamHttpClient(),
+        http: StreamHttpClient = FakeStreamHttpClient(),
         runner: StreamTaskRunner = TestStreamTaskRunner(this),
         reducerSessionFactory: FakeStreamReducerSessionFactory = FakeStreamReducerSessionFactory(),
     ): DefaultAgentStreamClient {
@@ -464,6 +502,26 @@ class DefaultAgentStreamClientTest {
         }
     }
 
+    private class ReleasableStreamHttpClient(
+        private val chunksByRun: List<List<String>>,
+    ) : StreamHttpClient {
+        private val releases = chunksByRun.map { CompletableDeferred<Unit>() }
+        var openCount = 0
+
+        override suspend fun openStream(
+            request: StreamRequest,
+            onChunk: suspend (String) -> Unit,
+        ) {
+            val runIndex = openCount++
+            releases[runIndex].await()
+            chunksByRun[runIndex].forEach { onChunk(it) }
+        }
+
+        fun releaseRun(index: Int) {
+            releases[index].complete(Unit)
+        }
+    }
+
     private class TestStreamTaskRunner(
         private val scope: TestScope,
     ) : StreamTaskRunner {
@@ -477,6 +535,20 @@ class DefaultAgentStreamClientTest {
             val task = TestStreamTask(scope.launch { block() }, onCancel)
             tasks += task
             return task
+        }
+    }
+
+    private class NonCooperativeStreamTaskRunner(
+        private val scope: TestScope,
+    ) : StreamTaskRunner {
+        override fun run(
+            key: String,
+            block: suspend () -> Unit,
+        ): StreamTask {
+            scope.launch { block() }
+            return object : StreamTask {
+                override fun cancel() = Unit
+            }
         }
     }
 

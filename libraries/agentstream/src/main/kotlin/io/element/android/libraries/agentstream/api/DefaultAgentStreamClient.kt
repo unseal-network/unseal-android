@@ -178,9 +178,12 @@ class DefaultAgentStreamClient(
             try {
                 if (!skipStorageLoad) {
                     storageProvider.load(request.streamId)?.let { storedSnapshot ->
-                        publish(storedSnapshot.withStreamIdFallback(request.streamId))
-                        if (storedSnapshot.isTerminal) {
-                            rememberCompleted(storedSnapshot.withStreamIdFallback(request.streamId))
+                        val snapshot = storedSnapshot.withStreamIdFallback(request.streamId)
+                        if (!publishIfActive(runId, snapshot)) {
+                            return
+                        }
+                        if (snapshot.isTerminal) {
+                            rememberCompleted(snapshot)
                             finishInFlight(runId)
                             return
                         }
@@ -209,13 +212,17 @@ class DefaultAgentStreamClient(
                         val snapshot = snapshotParser
                             .parseOrFailed(activeSession.applySseChunk(chunk), request.streamId)
                             .withStreamIdFallback(request.streamId)
-                        publish(snapshot)
+                        if (!publishIfActive(runId, snapshot)) {
+                            throw CancellationException("Stale stream run")
+                        }
                     }
                     val finalSnapshot = snapshotParser
                         .parseOrFailed(activeSession.finish(), request.streamId)
                         .withStreamIdFallback(request.streamId)
                         .asCompleted(clock())
-                    publish(finalSnapshot)
+                    if (!publishIfActive(runId, finalSnapshot)) {
+                        return
+                    }
                     rememberCompleted(finalSnapshot)
                     try {
                         storageProvider.save(finalSnapshot)
@@ -230,16 +237,22 @@ class DefaultAgentStreamClient(
                 finishInFlight(runId)
             } catch (throwable: Throwable) {
                 try {
-                    val failed = failedSnapshot(request.streamId, throwable, snapshot())
-                    publish(failed)
-                    if (completedBeforeRefresh == null && !hasCompletedSnapshot(request.streamId)) {
-                        try {
-                            storageProvider.save(failed)
-                        } catch (_: Throwable) {
-                            // The failed snapshot is already visible; a persistence failure must not keep the stream in flight.
+                    val previousSnapshot = synchronized(lock) {
+                        currentSnapshot.takeIf { isActiveRunLocked(runId) }
+                    }
+                    if (previousSnapshot != null) {
+                        val failed = failedSnapshot(request.streamId, throwable, previousSnapshot)
+                        if (publishIfActive(runId, failed)) {
+                            if (completedBeforeRefresh == null && !hasCompletedSnapshot(request.streamId)) {
+                                try {
+                                    storageProvider.save(failed)
+                                } catch (_: Throwable) {
+                                    // The failed snapshot is already visible; a persistence failure must not keep the stream in flight.
+                                }
+                            } else {
+                                completedBeforeRefresh?.let(::rememberCompleted)
+                            }
                         }
-                    } else {
-                        completedBeforeRefresh?.let(::rememberCompleted)
                     }
                 } finally {
                     finishInFlight(runId)
@@ -251,6 +264,20 @@ class DefaultAgentStreamClient(
                     }
                 }
             }
+        }
+
+        private fun publishIfActive(runId: Long, snapshot: StreamSnapshot): Boolean {
+            val callbacks = synchronized(lock) {
+                if (!isActiveRunLocked(runId)) {
+                    return false
+                }
+                currentSnapshot = snapshot
+                listeners.values.toList()
+            }
+            callbacks.forEach { listener ->
+                listener.onSnapshot(snapshot)
+            }
+            return true
         }
 
         private fun publish(snapshot: StreamSnapshot) {
