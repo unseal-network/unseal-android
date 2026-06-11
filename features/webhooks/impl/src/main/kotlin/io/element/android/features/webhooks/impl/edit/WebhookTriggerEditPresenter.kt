@@ -69,6 +69,9 @@ class WebhookTriggerEditPresenter(
 
         suspend fun api() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
 
+        // Room→agents lives on the homeserver (/chatbot/v1/*), not the agent-api base URL.
+        suspend fun homeserverApi() = chatbotApiServiceFactory.createForHomeserver(matrixClient)
+
         fun errorMessage(throwable: Throwable, fallback: String): String {
             return throwable.message ?: throwable::class.simpleName ?: fallback
         }
@@ -100,13 +103,14 @@ class WebhookTriggerEditPresenter(
         }
 
         fun loadAgentsForRoom(roomId: String, selectedAfterLoad: String? = null) = coroutineScope.launch {
-            api().getRoomAgents(roomId)
+            homeserverApi().getRoomAgents(roomId)
                 .onSuccess {
                     availableAgents = it.agents
                     if (selectedAfterLoad != null) {
                         selectedAgentId = selectedAfterLoad
                     }
                 }
+                .onFailure { error = errorMessage(it, "加载房间助手失败") }
         }
 
         fun selectSource(source: ChatbotWebhookEventSource) {
