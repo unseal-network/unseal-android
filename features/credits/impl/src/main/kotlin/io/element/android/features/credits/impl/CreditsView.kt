@@ -57,6 +57,7 @@ import kotlinx.collections.immutable.toImmutableList
 import io.element.android.features.credits.impl.model.UsageRankingTab
 import io.element.android.features.credits.impl.model.formatMicrosDelta
 import io.element.android.features.credits.impl.model.formatMicrosUsd
+import io.element.android.features.credits.impl.model.isLowBalance
 import io.element.android.features.credits.impl.model.prefixedDollar
 import io.element.android.libraries.chatbot.api.model.analytics.AnalyticsAgentSummary
 import io.element.android.libraries.chatbot.api.model.analytics.AnalyticsModelSummary
@@ -180,17 +181,30 @@ private fun BalanceCard(state: CreditsState) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "USD",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(end = 6.dp),
+            )
             if (state.isBalanceLoading) {
                 CircularProgressIndicator(modifier = Modifier.size(28.dp))
             } else {
+                val low = isLowBalance(state.balance?.balanceMicros.orEmpty())
                 Text(
                     text = state.balance?.balanceUsd.orEmpty().prefixedDollar(),
                     style = MaterialTheme.typography.displaySmall,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = if (low) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                 )
             }
+            Spacer(Modifier.weight(1f))
+            BalanceSparkline(
+                values = state.dailyUsage?.daily.orEmpty().takeLast(14).map { microsToUsd(it.usageMicros) },
+                modifier = Modifier
+                    .size(width = 100.dp, height = 40.dp),
+            )
         }
         state.balance?.userId?.let {
             Text(
@@ -271,15 +285,13 @@ private fun TransactionRow(transaction: CreditLedgerItem) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            transaction.description?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            Text(
+                text = formatLedgerTimestamp(transaction.ts),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
         Text(
             text = formatMicrosDelta(transaction.deltaMicros),
@@ -296,21 +308,22 @@ private fun TransactionRow(transaction: CreditLedgerItem) {
 
 @Composable
 private fun TransactionIcon(source: String) {
-    val icon: ImageVector = when (source) {
-        "topup" -> CompoundIcons.Download()
-        "grant" -> CompoundIcons.Favourite()
-        else -> CompoundIcons.Computer()
+    // Mirrors iOS: topup=card/blue, grant=gift/purple, usage=cpu/gray.
+    val (icon, color) = when (source) {
+        "topup" -> CompoundIcons.Download() to Color(0xFF1565C0)
+        "grant" -> CompoundIcons.Favourite() to Color(0xFF6A1B9A)
+        else -> CompoundIcons.Computer() to MaterialTheme.colorScheme.onSurfaceVariant
     }
     Box(
         modifier = Modifier
             .size(32.dp)
-            .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(8.dp)),
+            .background(color.copy(alpha = 0.12f), RoundedCornerShape(8.dp)),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+            tint = color,
             modifier = Modifier.size(18.dp),
         )
     }
@@ -334,19 +347,28 @@ private fun DailyUsageCard(state: CreditsState) {
             )
             DailyUsageRangeSelector(state)
         }
-        if (state.isDailyUsageLoading) {
-            CircularProgressIndicator(modifier = Modifier.size(28.dp))
-        }
         val dailyUsage = state.dailyUsage
-        if (!state.isDailyUsageLoading && dailyUsage == null) {
-            Text(
-                text = "暂无数据",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
+        val buckets = dailyUsage?.daily.orEmpty()
+        when {
+            state.isDailyUsageLoading -> Box(
+                modifier = Modifier.fillMaxWidth().height(180.dp),
+                contentAlignment = Alignment.Center,
+            ) { CircularProgressIndicator(modifier = Modifier.size(28.dp)) }
+            buckets.isEmpty() -> Box(
+                modifier = Modifier.fillMaxWidth().height(180.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "暂无数据",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            else -> DailyUsageBarChart(
+                buckets = buckets.map { it.start to microsToUsd(it.usageMicros) },
+                sevenDayRange = state.dailyUsageRange == DailyUsageRange.SevenDays,
+                modifier = Modifier.fillMaxWidth().height(180.dp),
             )
-        }
-        dailyUsage?.daily.orEmpty().take(8).forEach { bucket ->
-            DailyUsageRow(bucket)
         }
         HorizontalDivider()
         Row(
@@ -371,39 +393,14 @@ private fun DailyUsageCard(state: CreditsState) {
 
 @Composable
 private fun DailyUsageRangeSelector(state: CreditsState) {
-    val ranges = listOf(
-        DailyUsageRange.SevenDays to "7 天",
-        DailyUsageRange.ThirtyDays to "30 天",
+    CreditPillPicker(
+        options = listOf(
+            DailyUsageRange.SevenDays to "7 天",
+            DailyUsageRange.ThirtyDays to "30 天",
+        ),
+        selected = state.dailyUsageRange,
+        onSelect = { state.eventSink(CreditsEvents.SelectDailyUsageRange(it)) },
     )
-    SingleChoiceSegmentedButtonRow {
-        ranges.forEachIndexed { index, (range, label) ->
-            SegmentedButton(
-                index = index,
-                count = ranges.size,
-                selected = state.dailyUsageRange == range,
-                onClick = { state.eventSink(CreditsEvents.SelectDailyUsageRange(range)) },
-                text = label,
-            )
-        }
-    }
-}
-
-@Composable
-private fun DailyUsageRow(bucket: CreditDailyBucket) {
-    Row(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = "第 ${bucket.start} 天",
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = formatMicrosUsd(bucket.usageMicros),
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-    }
 }
 
 // MARK: - Usage Ranking
@@ -431,6 +428,12 @@ private fun UsageRankingCard(state: CreditsState) {
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
+        if (analytics != null && !state.isAnalyticsLoading) {
+            TokenMiniBarChart(
+                values = analytics.daily.map { day -> day.models.sumOf { (it.inputTokens + it.outputTokens).toDouble() } },
+                modifier = Modifier.fillMaxWidth().height(60.dp),
+            )
+        }
         when (state.usageRankingTab) {
             UsageRankingTab.Agent -> {
                 val items = analytics?.summaryByAgent.orEmpty().take(5)
@@ -456,42 +459,28 @@ private fun UsageRankingCard(state: CreditsState) {
 
 @Composable
 private fun RankingTabSelector(state: CreditsState) {
-    val tabs = listOf(
-        UsageRankingTab.Agent to "Agent",
-        UsageRankingTab.Model to "Model",
-    )
     // iOS keeps "Agent"/"Model" untranslated in zh-Hans (credits_ranking_tab_agent/model).
-    SingleChoiceSegmentedButtonRow {
-        tabs.forEachIndexed { index, (tab, label) ->
-            SegmentedButton(
-                index = index,
-                count = tabs.size,
-                selected = state.usageRankingTab == tab,
-                onClick = { state.eventSink(CreditsEvents.SelectUsageRankingTab(tab)) },
-                text = label,
-            )
-        }
-    }
+    CreditPillPicker(
+        options = listOf(
+            UsageRankingTab.Agent to "Agent",
+            UsageRankingTab.Model to "Model",
+        ),
+        selected = state.usageRankingTab,
+        onSelect = { state.eventSink(CreditsEvents.SelectUsageRankingTab(it)) },
+    )
 }
 
 @Composable
 private fun AnalyticsPeriodSelector(state: CreditsState) {
-    val periods = listOf(
-        CreditsPeriod.SevenDays to "7 天",
-        CreditsPeriod.ThirtyDays to "30 天",
-        CreditsPeriod.All to "全部",
+    CreditPillPicker(
+        options = listOf(
+            CreditsPeriod.SevenDays to "7 天",
+            CreditsPeriod.ThirtyDays to "30 天",
+            CreditsPeriod.All to "全部",
+        ),
+        selected = state.analyticsPeriod,
+        onSelect = { state.eventSink(CreditsEvents.SelectAnalyticsPeriod(it)) },
     )
-    SingleChoiceSegmentedButtonRow {
-        periods.forEachIndexed { index, (period, label) ->
-            SegmentedButton(
-                index = index,
-                count = periods.size,
-                selected = state.analyticsPeriod == period,
-                onClick = { state.eventSink(CreditsEvents.SelectAnalyticsPeriod(period)) },
-                text = label,
-            )
-        }
-    }
 }
 
 @Composable
