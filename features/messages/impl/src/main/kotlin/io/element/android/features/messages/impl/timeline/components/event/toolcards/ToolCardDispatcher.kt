@@ -39,8 +39,10 @@ internal fun ToolCard(
     data: JSONObject,
     onLinkClick: () -> Unit = {},
 ): Boolean {
-    // Bespoke cards are wired in here as each category lands. For now, a generic list renderer
-    // covers the common "list of items" shape so content is always shown.
+    // Bespoke per-category cards first (iOS ToolCardsIOS parity); generic list renderer last.
+    if (composioSearchCard(cardType, data, onLinkClick)) return true
+    if (gitHubPrimaryCard(cardType, data, onLinkClick)) return true
+    if (gitHubActivityCard(cardType, data, onLinkClick)) return true
     return GenericListCard(data)
 }
 
