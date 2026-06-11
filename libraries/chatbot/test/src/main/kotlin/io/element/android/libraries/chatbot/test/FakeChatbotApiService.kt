@@ -78,6 +78,7 @@ class FakeChatbotApiService : ChatbotApiService {
     var getStsTokenResult: (String, Int) -> Result<ChatbotStsTokenResponse> = { _, _ ->
         Result.success(ChatbotStsTokenResponse(ChatbotStsCredentials(accessKeyId = "access", secretAccessKey = "secret")))
     }
+    var uploadToS3Result: (String, String, String) -> Result<Unit> = { _, _, _ -> Result.success(Unit) }
     var listSchedulesResult: (String) -> Result<List<ChatbotSchedule>> = { Result.success(emptyList()) }
     var createScheduleResult: (ChatbotCreateScheduleRequest) -> Result<ChatbotCreateScheduleResponse> = { Result.success(ChatbotCreateScheduleResponse(success = true, ebScheduleId = "schedule")) }
     var updateScheduleResult: (String, ChatbotUpdateScheduleRequest) -> Result<ChatbotCreateScheduleResponse> = { _, _ -> Result.success(ChatbotCreateScheduleResponse(success = true, ebScheduleId = "schedule")) }
@@ -110,6 +111,7 @@ class FakeChatbotApiService : ChatbotApiService {
     var deleteVoiceProfileResult: (String) -> Result<ChatbotDeleteVoiceProfileResponse> = { Result.success(ChatbotDeleteVoiceProfileResponse(deleted = true)) }
     var createVoiceShareResult: (ChatbotCreateVoiceShareRequest) -> Result<ChatbotVoiceShare> = { Result.success(ChatbotVoiceShare(id = "share-1", voiceProfileId = it.voiceProfileId)) }
     var importVoiceShareResult: (String) -> Result<ChatbotVoiceProfile> = { Result.success(aChatbotVoiceProfile()) }
+    var streamAgentMessageResult: suspend (String, String?, suspend (String) -> Unit) -> Result<Unit> = { _, _, _ -> Result.success(Unit) }
 
     override suspend fun listAgents() = simulateLongTask { listAgentsResult() }
     override suspend fun getAgent(botName: String) = simulateLongTask { getAgentResult(botName) }
@@ -130,6 +132,16 @@ class FakeChatbotApiService : ChatbotApiService {
     override suspend fun deleteUserSkill(id: String) = simulateLongTask { deleteUserSkillResult(id) }
     override suspend fun presignedUploadUrls(body: ChatbotJsonObject) = simulateLongTask { presignedUploadUrlsResult(body) }
     override suspend fun getStsToken(scope: String, durationSeconds: Int) = simulateLongTask { getStsTokenResult(scope, durationSeconds) }
+    override suspend fun uploadToS3(
+        endpoint: String,
+        bucket: String,
+        key: String,
+        data: ByteArray,
+        contentType: String,
+        credentials: io.element.android.libraries.chatbot.api.model.storage.ChatbotStsCredentials,
+        region: String,
+        isMinIO: Boolean,
+    ) = simulateLongTask { uploadToS3Result(endpoint, bucket, key) }
     override suspend fun listSchedules(roomId: String) = simulateLongTask { listSchedulesResult(roomId) }
     override suspend fun createSchedule(request: ChatbotCreateScheduleRequest) = simulateLongTask { createScheduleResult(request) }
     override suspend fun updateSchedule(scheduleId: String, request: ChatbotUpdateScheduleRequest) = simulateLongTask { updateScheduleResult(scheduleId, request) }
@@ -162,4 +174,57 @@ class FakeChatbotApiService : ChatbotApiService {
     override suspend fun deleteVoiceProfile(voiceProfileId: String) = simulateLongTask { deleteVoiceProfileResult(voiceProfileId) }
     override suspend fun createVoiceShare(request: ChatbotCreateVoiceShareRequest) = simulateLongTask { createVoiceShareResult(request) }
     override suspend fun importVoiceShare(shareId: String) = simulateLongTask { importVoiceShareResult(shareId) }
+
+    override suspend fun getAgentSandbox(agentId: String) = simulateLongTask {
+        Result.success(io.element.android.libraries.chatbot.api.model.agent.AgentSandboxResponse())
+    }
+
+    override suspend fun createAgentSandbox(agentId: String) = simulateLongTask {
+        Result.success(io.element.android.libraries.chatbot.api.model.agent.AgentSandboxStatus(id = "", status = "running"))
+    }
+
+    override suspend fun cloneAgentSandbox(agentId: String) = simulateLongTask {
+        Result.success(io.element.android.libraries.chatbot.api.model.agent.AgentSandboxCloneResponse(status = "ok"))
+    }
+
+    override suspend fun listAgentVault(agentId: String) = simulateLongTask {
+        Result.success(emptyList<io.element.android.libraries.chatbot.api.model.agent.AgentVaultEntry>())
+    }
+
+    override suspend fun cloneAgentVault(agentId: String, keys: List<String>) = simulateLongTask {
+        Result.success(io.element.android.libraries.chatbot.api.model.agent.AgentVaultCloneResponse(copied = keys))
+    }
+
+    override suspend fun getAgentVoiceConfig(agentId: String) = simulateLongTask {
+        Result.success(io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentVoiceConfigResolution())
+    }
+
+    override suspend fun setAgentVoiceConfig(
+        agentId: String,
+        request: io.element.android.libraries.chatbot.api.model.agent.ChatbotSetAgentVoiceConfigRequest,
+    ) = simulateLongTask {
+        Result.success(io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentVoiceConfig(agentId = agentId, sourceType = request.sourceType))
+    }
+
+    override suspend fun deleteAgentVoiceConfig(agentId: String) = simulateLongTask {
+        Result.success(Unit)
+    }
+
+    override suspend fun listVault() = simulateLongTask {
+        Result.success(emptyList<io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem>())
+    }
+
+    override suspend fun getVaultValue(key: String) = simulateLongTask { Result.success("") }
+
+    override suspend fun createVaultEntry(key: String, value: String, description: String?) = simulateLongTask { Result.success(Unit) }
+
+    override suspend fun updateVaultEntry(key: String, value: String, description: String?) = simulateLongTask { Result.success(Unit) }
+
+    override suspend fun deleteVaultEntry(vaultId: String) = simulateLongTask { Result.success(Unit) }
+
+    override suspend fun streamAgentMessage(
+        streamId: String,
+        sender: String?,
+        onChunk: suspend (String) -> Unit,
+    ): Result<Unit> = streamAgentMessageResult(streamId, sender, onChunk)
 }

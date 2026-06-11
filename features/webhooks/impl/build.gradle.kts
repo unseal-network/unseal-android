@@ -36,6 +36,8 @@ dependencies {
     implementation(projects.libraries.matrixui)
     implementation(projects.libraries.uiStrings)
     implementation(projects.services.analytics.api)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.svg)
     implementation(libs.coroutines.core)
     implementation(libs.kotlinx.collections.immutable)
     api(projects.features.webhooks.api)

@@ -71,7 +71,7 @@ class RoomSchedulesPresenter(
             return throwable.message ?: throwable::class.simpleName ?: throwable.toString()
         }
 
-        suspend fun api() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
+        suspend fun api() = chatbotApiServiceFactory.createForHomeserver(matrixClient)
 
         fun loadSchedules() = coroutineScope.launch {
             isLoadingSchedules = true

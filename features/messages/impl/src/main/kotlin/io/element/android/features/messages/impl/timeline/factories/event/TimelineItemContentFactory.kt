@@ -31,7 +31,6 @@ import io.element.android.libraries.matrix.api.timeline.item.event.FailedToParse
 import io.element.android.libraries.matrix.api.timeline.item.event.LegacyCallInviteContent
 import io.element.android.libraries.matrix.api.timeline.item.event.LiveLocationContent
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageContent
-import io.element.android.libraries.matrix.api.timeline.item.event.OtherMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.PollContent
 import io.element.android.libraries.matrix.api.timeline.item.event.ProfileChangeContent
 import io.element.android.libraries.matrix.api.timeline.item.event.ProfileDetails
@@ -44,8 +43,7 @@ import io.element.android.libraries.matrix.api.timeline.item.event.UnknownConten
 import io.element.android.libraries.matrix.api.timeline.item.event.getDisambiguatedDisplayName
 import io.element.android.libraries.ui.strings.CommonStrings
 import io.element.android.services.toolbox.api.strings.StringProvider
-
-private const val AI_MESSAGE_MSGTYPE = "m.aisdk.protocol"
+import timber.log.Timber
 
 @Inject
 class TimelineItemContentFactory(
@@ -70,16 +68,23 @@ class TimelineItemContentFactory(
         eventTimelineItem: EventTimelineItem,
         roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus> = emptyMap(),
     ): TimelineItemEventContent {
-        // Unseal AI/assistant messages arrive as a custom "m.aisdk.protocol" msgtype; the rich
-        // parts live in the event's original JSON. Detect them here and render natively, falling
-        // back to normal message rendering when the payload isn't an AI message.
+        // Unseal AI/assistant messages can arrive either as "m.aisdk.protocol" or as a normal
+        // message with a content.stream pointer. The Matrix SDK maps the latter to regular text,
+        // so the original JSON must be inspected before falling back to normal rendering.
         val itemContent = eventTimelineItem.content
-        if (itemContent is MessageContent) {
-            val messageType = itemContent.type
-            if (messageType is OtherMessageType && messageType.msgType == AI_MESSAGE_MSGTYPE) {
-                val originalJson = eventTimelineItem.timelineItemDebugInfoProvider().originalJson
-                aiMessageContentParser.parse(originalJson, itemContent.isEdited)?.let { return it }
-            }
+        val originalJson = eventTimelineItem.timelineItemDebugInfoProvider().originalJson
+        aiMessageContentParser.parse(
+            originalJson = originalJson,
+            isEdited = itemContent.isEdited(),
+            fallbackSender = eventTimelineItem.sender.value,
+        )?.let { aiContent ->
+            Timber.tag("TimelineItemContentFactory").d(
+                "AI stream: timeline content parsed streamId=%s body=%d parts=%d",
+                aiContent.streamId,
+                aiContent.body.length,
+                aiContent.parts.size,
+            )
+            return aiContent
         }
         return create(
             itemContent = eventTimelineItem.content,
@@ -170,5 +175,13 @@ class TimelineItemContentFactory(
         if (content !is UnableToDecryptContent) return null
         val request = roomKeyRecoveryRequestParser.parse(timelineItemDebugInfoProvider().originalJson) ?: return null
         return roomKeyRecoveryStatuses[request.identityKey]
+    }
+
+    private fun EventContent.isEdited(): Boolean {
+        return when (this) {
+            is MessageContent -> isEdited
+            is PollContent -> isEdited
+            else -> false
+        }
     }
 }

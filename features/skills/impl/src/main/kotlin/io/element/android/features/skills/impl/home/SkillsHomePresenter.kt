@@ -53,7 +53,7 @@ class SkillsHomePresenter(
         var hasLoadedOnce by remember { mutableStateOf(false) }
         var marketplaceSearchJob by remember { mutableStateOf<Job?>(null) }
 
-        suspend fun api() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
+        suspend fun api() = chatbotApiServiceFactory.createForHomeserver(matrixClient)
 
         fun loadSkills(isInitial: Boolean) {
             if (isInitial && hasLoadedOnce) return

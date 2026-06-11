@@ -69,6 +69,9 @@ class WebhookTriggerEditPresenter(
 
         suspend fun api() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
 
+        // Room→agents lives on the homeserver (/chatbot/v1/*), not the agent-api base URL.
+        suspend fun homeserverApi() = chatbotApiServiceFactory.createForHomeserver(matrixClient)
+
         fun errorMessage(throwable: Throwable, fallback: String): String {
             return throwable.message ?: throwable::class.simpleName ?: fallback
         }
@@ -100,13 +103,14 @@ class WebhookTriggerEditPresenter(
         }
 
         fun loadAgentsForRoom(roomId: String, selectedAfterLoad: String? = null) = coroutineScope.launch {
-            api().getRoomAgents(roomId)
+            homeserverApi().getRoomAgents(roomId)
                 .onSuccess {
                     availableAgents = it.agents
                     if (selectedAfterLoad != null) {
                         selectedAgentId = selectedAfterLoad
                     }
                 }
+                .onFailure { error = errorMessage(it, "加载房间助手失败") }
         }
 
         fun selectSource(source: ChatbotWebhookEventSource) {
@@ -157,7 +161,7 @@ class WebhookTriggerEditPresenter(
                     error = null
                 }
                 .onFailure {
-                    error = errorMessage(it, "Failed to load webhook event types")
+                    error = errorMessage(it, "加载事件类型失败")
                 }
             availableRooms = matrixClient.roomListService.allRooms.summaries.firstOrNull().orEmpty()
             seedFromMode(loadedSources)
@@ -184,7 +188,7 @@ class WebhookTriggerEditPresenter(
                     error = null
                 }
                 .onFailure {
-                    error = errorMessage(it, "Failed to draft webhook trigger")
+                    error = errorMessage(it, "生成触发器草稿失败")
                 }
             isDrafting = false
         }
@@ -198,7 +202,7 @@ class WebhookTriggerEditPresenter(
                     error = null
                 }
                 .onFailure {
-                    error = errorMessage(it, "Failed to connect source")
+                    error = errorMessage(it, "连接失败，请重试。")
                 }
         }
 
@@ -244,7 +248,7 @@ class WebhookTriggerEditPresenter(
                             error = null
                             navigator.onSaved(it)
                         }
-                        .onFailure { error = errorMessage(it, "Failed to save webhook trigger") }
+                        .onFailure { error = errorMessage(it, "保存触发器失败") }
                 }
                 is WebhookTriggerEditMode.Edit -> {
                     val request = ChatbotUpdateWebhookTriggerRequest(
@@ -258,7 +262,7 @@ class WebhookTriggerEditPresenter(
                             error = null
                             navigator.onSaved(it)
                         }
-                        .onFailure { error = errorMessage(it, "Failed to save webhook trigger") }
+                        .onFailure { error = errorMessage(it, "保存触发器失败") }
                 }
             }
             isSaving = false

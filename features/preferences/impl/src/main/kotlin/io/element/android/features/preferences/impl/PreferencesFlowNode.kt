@@ -37,7 +37,11 @@ import io.element.android.features.preferences.impl.notifications.NotificationSe
 import io.element.android.features.preferences.impl.notifications.edit.EditDefaultNotificationSettingNode
 import io.element.android.features.preferences.impl.root.PreferencesRootNode
 import io.element.android.features.preferences.impl.user.editprofile.EditUserProfileNode
+import io.element.android.features.preferences.impl.vault.VaultManagementNode
+import io.element.android.features.preferences.impl.vault.edit.VaultEditNode
+import io.element.android.features.agentmanagement.api.AgentManagementEntryPoint
 import io.element.android.features.connectors.api.ConnectorsEntryPoint
+import io.element.android.features.skills.api.SkillsEntryPoint
 import io.element.android.features.voicelibrary.api.VoiceLibraryEntryPoint
 import io.element.android.features.webhooks.api.WebhookTriggersEntryPoint
 import io.element.android.libraries.architecture.BackstackView
@@ -50,6 +54,7 @@ import io.element.android.libraries.designsystem.utils.OpenUrlInTabView
 import io.element.android.libraries.di.SessionScope
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomId
+import io.element.android.libraries.matrix.api.core.RoomIdOrAlias
 import io.element.android.libraries.matrix.api.user.MatrixUser
 import io.element.android.libraries.troubleshoot.api.NotificationTroubleShootEntryPoint
 import io.element.android.libraries.troubleshoot.api.PushHistoryEntryPoint
@@ -69,6 +74,8 @@ class PreferencesFlowNode(
     private val webhookTriggersEntryPoint: WebhookTriggersEntryPoint,
     private val connectorsEntryPoint: ConnectorsEntryPoint,
     private val voiceLibraryEntryPoint: VoiceLibraryEntryPoint,
+    private val agentManagementEntryPoint: AgentManagementEntryPoint,
+    private val skillsEntryPoint: SkillsEntryPoint,
     private val creditsEntryPoint: CreditsEntryPoint,
 ) : BaseFlowNode<PreferencesFlowNode.NavTarget>(
     backstack = BackStack(
@@ -117,6 +124,18 @@ class PreferencesFlowNode(
 
         @Parcelize
         data object VoiceLibrary : NavTarget
+
+        @Parcelize
+        data object AgentManagement : NavTarget
+
+        @Parcelize
+        data object Skills : NavTarget
+
+        @Parcelize
+        data object VaultManagement : NavTarget
+
+        @Parcelize
+        data class VaultEdit(val key: String?, val description: String?) : NavTarget
 
         @Parcelize
         data class EditDefaultNotificationSetting(val isOneToOne: Boolean) : NavTarget
@@ -188,6 +207,18 @@ class PreferencesFlowNode(
 
                     override fun navigateToVoiceLibrary() {
                         backstack.push(NavTarget.VoiceLibrary)
+                    }
+
+                    override fun navigateToAgentManagement() {
+                        backstack.push(NavTarget.AgentManagement)
+                    }
+
+                    override fun navigateToSkills() {
+                        backstack.push(NavTarget.Skills)
+                    }
+
+                    override fun navigateToVaultManagement() {
+                        backstack.push(NavTarget.VaultManagement)
                     }
 
                     override fun navigateToAdvancedSettings() {
@@ -405,6 +436,84 @@ class PreferencesFlowNode(
                         }
                     },
                 )
+            }
+            NavTarget.AgentManagement -> {
+                agentManagementEntryPoint.createNode(
+                    parentNode = this,
+                    buildContext = buildContext,
+                    params = AgentManagementEntryPoint.Params(),
+                    callback = object : AgentManagementEntryPoint.Callback {
+                        override fun onDone() {
+                            if (backstack.canPop()) backstack.pop() else navigateUp()
+                        }
+
+                        // Opening a room from Settings is not wired yet; close the settings flow.
+                        override fun onOpenRoom(roomIdOrAlias: RoomIdOrAlias) {
+                            if (backstack.canPop()) backstack.pop() else navigateUp()
+                        }
+
+                        override fun onOpenSkills(botName: String?) {
+                            backstack.push(NavTarget.Skills)
+                        }
+
+                        override fun onOpenCreatedDirectRoom(roomId: RoomId) {
+                            if (backstack.canPop()) backstack.pop() else navigateUp()
+                        }
+                    },
+                )
+            }
+            NavTarget.Skills -> {
+                skillsEntryPoint.createNode(
+                    parentNode = this,
+                    buildContext = buildContext,
+                    params = SkillsEntryPoint.Params(),
+                    callback = object : SkillsEntryPoint.Callback {
+                        override fun onDone() {
+                            if (backstack.canPop()) backstack.pop() else navigateUp()
+                        }
+
+                        override fun onCreateSkill() = Unit
+
+                        override fun onSkillDeleted(id: String) = Unit
+
+                        override fun onOpenAgentManagement() {
+                            backstack.push(NavTarget.AgentManagement)
+                        }
+                    },
+                )
+            }
+            NavTarget.VaultManagement -> {
+                val vaultCallback = object : VaultManagementNode.Callback {
+                    override fun onDone() {
+                        if (backstack.canPop()) backstack.pop() else navigateUp()
+                    }
+
+                    override fun onAddEntry() {
+                        backstack.push(NavTarget.VaultEdit(key = null, description = null))
+                    }
+
+                    override fun onEditEntry(item: io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem) {
+                        backstack.push(NavTarget.VaultEdit(key = item.key, description = item.description))
+                    }
+                }
+                createNode<VaultManagementNode>(buildContext, plugins = listOf(vaultCallback))
+            }
+            is NavTarget.VaultEdit -> {
+                val inputs = if (navTarget.key == null) {
+                    VaultEditNode.Inputs.Create
+                } else {
+                    VaultEditNode.Inputs.Edit(navTarget.key, navTarget.description)
+                }
+                val vaultEditCallback = object : VaultEditNode.Callback {
+                    override fun onDone() {
+                        backstack.pop()
+                    }
+
+                    override fun onComplete() {
+                        backstack.pop()
+                    }
+                }
+                createNode<VaultEditNode>(buildContext, plugins = listOf(inputs, vaultEditCallback))
             }
             NavTarget.BlockedUsers -> {
                 createNode<BlockedUsersNode>(buildContext)

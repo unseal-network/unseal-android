@@ -70,10 +70,15 @@ fun TimelineItemEventContentView(
             onLinkLongClick = onLinkLongClick,
             onContentLayoutChange = onContentLayoutChange
         )
-        is TimelineItemAiContent -> TimelineItemAiView(
-            content = content,
-            modifier = modifier,
-        )
+        is TimelineItemAiContent -> {
+            val presenter: Presenter<TimelineItemAiState> = presenterFactories.rememberPresenter(content)
+            TimelineItemAiView(
+                content = presenter.present().content,
+                onLinkClick = onLinkClick,
+                onLinkLongClick = onLinkLongClick,
+                modifier = modifier,
+            )
+        }
         is TimelineItemUnknownContent -> TimelineItemUnknownView(
             content = content,
             onContentLayoutChange = onContentLayoutChange,

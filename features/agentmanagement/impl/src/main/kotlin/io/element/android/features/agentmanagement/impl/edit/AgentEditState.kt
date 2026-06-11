@@ -9,15 +9,32 @@ package io.element.android.features.agentmanagement.impl.edit
 
 import io.element.android.features.agentmanagement.impl.shared.needsApiKey
 import io.element.android.features.agentmanagement.impl.shared.supportsBaseUrl
+import io.element.android.libraries.chatbot.api.model.agent.AgentSandboxMode
+import io.element.android.libraries.chatbot.api.model.agent.AgentSandboxStatus
+import io.element.android.libraries.chatbot.api.model.agent.AgentVaultEntryInput
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentProvider
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotProviderModel
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
+import io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotProviderVoice
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceProfile
+import io.element.android.features.agentmanagement.impl.shared.AgentVoiceSelection
 import io.element.android.libraries.matrix.api.core.RoomId
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableSet
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentSetOf
 
 sealed interface AgentEditMode {
     data object Create : AgentEditMode
     data class Edit(val botName: String) : AgentEditMode
+}
+
+/** How a dedicated agent sandbox is initialised on creation (mirrors iOS AgentSandboxInitMethod). */
+enum class AgentSandboxInitMethod {
+    Empty,
+    CloneOwner,
 }
 
 enum class AgentNameAvailability {
@@ -63,6 +80,9 @@ data class AgentEditFormState(
     val apiKey: String = "",
     val baseUrl: String = "",
     val soul: String = "",
+    val sandboxMode: AgentSandboxMode = AgentSandboxMode.PerUser,
+    val sandboxInitMethod: AgentSandboxInitMethod = AgentSandboxInitMethod.Empty,
+    val vaultEntries: List<AgentVaultEntryInput> = emptyList(),
 ) {
     companion object {
         fun fromAgent(agent: ChatbotAgent, botName: String = agent.botName): AgentEditFormState {
@@ -91,6 +111,17 @@ data class AgentEditState(
     val phase: AgentEditPhase,
     val isLoading: Boolean,
     val error: String?,
+    val availableSkills: ImmutableList<ChatbotUserSkill> = persistentListOf(),
+    val selectedSkillIds: ImmutableSet<String> = persistentSetOf(),
+    val voiceProfiles: ImmutableList<ChatbotVoiceProfile> = persistentListOf(),
+    val providerVoices: ImmutableList<ChatbotProviderVoice> = persistentListOf(),
+    val voiceSelection: String = AgentVoiceSelection.DEFAULT,
+    val personalVaultKeys: ImmutableList<ChatbotVaultItem> = persistentListOf(),
+    val selectedVaultKeys: ImmutableSet<String> = persistentSetOf(),
+    val sandboxStatus: AgentSandboxStatus? = null,
+    val sandboxBusy: Boolean = false,
+    val sandboxMessage: String? = null,
+    val pendingSandboxAction: AgentSandboxInitMethod? = null,
     val eventSink: (AgentEditEvents) -> Unit,
 ) {
     val selectedProvider: ChatbotAgentProvider? = providers.firstOrNull { it.id == form.providerId }

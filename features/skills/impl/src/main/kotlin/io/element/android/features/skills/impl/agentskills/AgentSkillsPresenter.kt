@@ -62,7 +62,7 @@ class AgentSkillsPresenter(
         var hasLoadedOnce by remember { mutableStateOf(false) }
         var publicSearchJob by remember { mutableStateOf<Job?>(null) }
 
-        suspend fun api() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
+        suspend fun api() = chatbotApiServiceFactory.createForHomeserver(matrixClient)
 
         fun errorMessage(throwable: Throwable, fallback: String): String {
             return throwable.message ?: throwable::class.simpleName ?: fallback

@@ -9,6 +9,7 @@ package io.element.android.features.messages.impl.timeline.model.event
 
 import androidx.compose.runtime.Immutable
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 
 /**
  * Native (degraded) rendering of an Unseal AI/assistant "stream" message.
@@ -24,16 +25,94 @@ data class TimelineItemAiContent(
     val body: String,
     override val isEdited: Boolean,
     val isStreaming: Boolean,
+    val streamId: String? = null,
+    val sender: String? = null,
     val thinkingSteps: ImmutableList<AiThinkingStep>,
     val toolCalls: ImmutableList<AiToolCall>,
     val sources: ImmutableList<AiSource>,
     val quickActions: ImmutableList<AiQuickAction>,
+    val parts: ImmutableList<AiStreamPart> = persistentListOf(),
 ) : TimelineItemEventContent, TimelineItemEventMutableContent {
     override val type: String = "TimelineItemAiContent"
 
     val hasRichParts: Boolean
-        get() = thinkingSteps.isNotEmpty() || toolCalls.isNotEmpty() || sources.isNotEmpty() || quickActions.isNotEmpty()
+        get() = parts.isNotEmpty() || thinkingSteps.isNotEmpty() || toolCalls.isNotEmpty() || sources.isNotEmpty() || quickActions.isNotEmpty()
 }
+
+@Immutable
+sealed interface AiStreamPart {
+    val id: String
+    val state: String
+}
+
+@Immutable
+data class AiTextStreamPart(
+    override val id: String,
+    override val state: String,
+    val text: String,
+) : AiStreamPart
+
+@Immutable
+data class AiReasoningStreamPart(
+    override val id: String,
+    override val state: String,
+    val text: String,
+) : AiStreamPart
+
+@Immutable
+data class AiToolStreamPart(
+    override val id: String,
+    override val state: String,
+    val toolName: String,
+    val title: String?,
+    val input: String?,
+    val output: String?,
+    val errorText: String?,
+    val rawInput: String? = null,
+) : AiStreamPart
+
+@Immutable
+data class AiSourceStreamPart(
+    override val id: String,
+    override val state: String,
+    val sourceType: String,
+    val title: String,
+    val url: String?,
+    val filename: String?,
+    val mediaType: String?,
+) : AiStreamPart
+
+@Immutable
+data class AiErrorStreamPart(
+    override val id: String,
+    override val state: String,
+    val errorText: String,
+) : AiStreamPart
+
+@Immutable
+data class AiDataStreamPart(
+    override val id: String,
+    override val state: String,
+    val type: String,
+    val payload: String,
+) : AiStreamPart
+
+@Immutable
+data class AiFileStreamPart(
+    override val id: String,
+    override val state: String,
+    val mediaType: String?,
+    val filename: String?,
+    val url: String?,
+) : AiStreamPart
+
+@Immutable
+data class AiCustomStreamPart(
+    override val id: String,
+    override val state: String,
+    val type: String,
+    val payload: String,
+) : AiStreamPart
 
 @Immutable
 data class AiThinkingStep(

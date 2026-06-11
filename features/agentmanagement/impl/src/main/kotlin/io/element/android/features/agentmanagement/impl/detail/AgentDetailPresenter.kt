@@ -60,7 +60,7 @@ class AgentDetailPresenter(
             if (isInitial && hasLoadedOnce) return
             coroutineScope.launch {
                 isLoading = true
-                val api = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
+                val api = chatbotApiServiceFactory.createForHomeserver(matrixClient)
                 val previousAgent = agent
                 api.getAgent(botName)
                     .onSuccess { freshAgent ->
@@ -113,7 +113,7 @@ class AgentDetailPresenter(
         fun leaveRoom(roomId: String) {
             coroutineScope.launch {
                 isLoading = true
-                chatbotApiServiceFactory.createForUnsealApi(matrixClient)
+                chatbotApiServiceFactory.createForHomeserver(matrixClient)
                     .agentLeaveRoom(botName, roomId)
                     .onSuccess { loadExtras(isInitial = false) }
                     .onFailure { error = it.message ?: it::class.simpleName ?: "Failed to leave room" }

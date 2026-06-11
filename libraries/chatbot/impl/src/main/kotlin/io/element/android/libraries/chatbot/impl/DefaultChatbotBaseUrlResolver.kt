@@ -22,26 +22,46 @@ class DefaultChatbotBaseUrlResolver(
     private val wellKnownFetcher: ChatbotWellKnownFetcher,
 ) : ChatbotBaseUrlResolver {
     private val mutex = Mutex()
-    private val cachedBaseUrls = mutableMapOf<String, String>()
+    private val cachedApiBaseUrls = mutableMapOf<String, String>()
+    private val cachedHomeserverBaseUrls = mutableMapOf<String, String>()
+    private val cachedWellKnown = mutableMapOf<String, InternalUnsealWellKnown?>()
 
     override suspend fun resolveUnsealApiBaseUrl(serverName: String?): String {
         val normalized = serverName?.trim()?.takeIf { it.isNotEmpty() }
             ?: return ChatbotConfig.UNSEAL_API_FALLBACK_BASE_URL
 
         return mutex.withLock {
-            cachedBaseUrls[normalized]?.let { return@withLock it }
-            val resolved = fetchFromWellKnown(normalized) ?: ChatbotConfig.UNSEAL_API_FALLBACK_BASE_URL
-            cachedBaseUrls[normalized] = resolved
+            cachedApiBaseUrls[normalized]?.let { return@withLock it }
+            val resolved = wellKnown(normalized)?.unsealApi?.baseUrl?.takeIf { it.isNotBlank() }
+                ?: ChatbotConfig.UNSEAL_API_FALLBACK_BASE_URL
+            cachedApiBaseUrls[normalized] = resolved
             resolved
         }
     }
 
-    private suspend fun fetchFromWellKnown(serverName: String): String? {
-        return runCatching {
+    override suspend fun resolveHomeserverBaseUrl(serverName: String?): String {
+        val normalized = serverName?.trim()?.takeIf { it.isNotEmpty() }
+            ?: return ChatbotConfig.AI_STREAM_BASE_URL
+
+        return mutex.withLock {
+            cachedHomeserverBaseUrls[normalized]?.let { return@withLock it }
+            val resolved = wellKnown(normalized)?.homeserver?.baseUrl?.takeIf { it.isNotBlank() }
+                ?: "https://$normalized"
+            cachedHomeserverBaseUrls[normalized] = resolved
+            resolved
+        }
+    }
+
+    /** Fetch + decode the `.well-known/matrix/client` once per server name (cached, mutex-guarded). */
+    private suspend fun wellKnown(serverName: String): InternalUnsealWellKnown? {
+        if (cachedWellKnown.containsKey(serverName)) return cachedWellKnown[serverName]
+        val decoded = runCatching {
             val payload = wellKnownFetcher.fetch(serverName) ?: return@runCatching null
-            ChatbotJson.decode<InternalUnsealWellKnown>(payload).unsealApi?.baseUrl?.takeIf { it.isNotBlank() }
+            ChatbotJson.decode<InternalUnsealWellKnown>(payload)
         }.onFailure {
-            Timber.e(it, "Failed to fetch Unseal API well-known for $serverName")
+            Timber.e(it, "Failed to fetch Unseal well-known for $serverName")
         }.getOrNull()
+        cachedWellKnown[serverName] = decoded
+        return decoded
     }
 }

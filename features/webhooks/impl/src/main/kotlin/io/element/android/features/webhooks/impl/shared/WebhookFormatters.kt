@@ -8,6 +8,7 @@
 package io.element.android.features.webhooks.impl.shared
 
 import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookEventCatalogResponse
+import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookEventSource
 import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookTrigger
 import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookTriggerStatus
 
@@ -37,6 +38,24 @@ fun ChatbotWebhookEventCatalogResponse.sourceSlugFor(trigger: ChatbotWebhookTrig
         }?.source
     }
 }
+
+/**
+ * Mirrors iOS `resolveSourceSlug(for:)`: find the event source whose event types contain one of
+ * the trigger's event types and return its `source` slug, used to build the composio logo URL.
+ */
+fun resolveSourceSlug(
+    trigger: ChatbotWebhookTrigger,
+    eventSources: List<ChatbotWebhookEventSource>,
+): String? {
+    return trigger.eventTypes.firstNotNullOfOrNull { eventType ->
+        eventSources.firstOrNull { source ->
+            source.eventTypes.any { it.eventType == eventType }
+        }?.source
+    }
+}
+
+/** The composio logo URL for a source slug, mirroring iOS `https://logos.composio.dev/api/<slug>`. */
+fun composioLogoUrl(slug: String): String = "https://logos.composio.dev/api/$slug"
 
 fun ChatbotWebhookTrigger.displaySource(fallback: String? = null): String {
     return source ?: fallback ?: eventTypes.firstOrNull()?.substringBefore('.') ?: "Webhook"

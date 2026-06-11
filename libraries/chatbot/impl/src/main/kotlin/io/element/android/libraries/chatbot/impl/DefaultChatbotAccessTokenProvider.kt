@@ -18,6 +18,11 @@ class DefaultChatbotAccessTokenProvider(
     private val sessionStore: SessionStore,
 ) : ChatbotAccessTokenProvider {
     override suspend fun accessToken(matrixClient: MatrixClient): String? {
+        matrixClient.currentAccessToken()
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?.let { return it }
+
         return sessionStore.getSession(matrixClient.sessionId.value)
             ?.accessToken
             ?.takeIf { it.isNotBlank() }

@@ -10,4 +10,7 @@ package io.element.android.libraries.chatbot.api
 object ChatbotConfig {
     const val AI_STREAM_BASE_URL = "https://api.unseal.network"
     const val UNSEAL_API_FALLBACK_BASE_URL = "https://agent-api.unseal.network"
+
+    /** Public website used for agent profile pages (`<website>/@<localpart>`). */
+    const val WEBSITE_BASE_URL = "https://unseal.network"
 }

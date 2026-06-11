@@ -53,7 +53,7 @@ class SkillDetailPresenter(
         var error by remember { mutableStateOf<String?>(null) }
         var hasLoadedOnce by remember { mutableStateOf(false) }
 
-        suspend fun api() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
+        suspend fun api() = chatbotApiServiceFactory.createForHomeserver(matrixClient)
 
         fun failureMessage(error: Throwable, fallback: String): String = error.message ?: error::class.simpleName ?: fallback
 

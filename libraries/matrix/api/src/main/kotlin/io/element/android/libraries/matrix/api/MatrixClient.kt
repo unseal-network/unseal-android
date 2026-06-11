@@ -158,6 +158,11 @@ interface MatrixClient {
     suspend fun getUrl(url: String): Result<ByteArray>
 
     /**
+     * Return the current Matrix access token held by the runtime client.
+     */
+    suspend fun currentAccessToken(): Result<String?>
+
+    /**
      * Get a room preview for a given room ID or alias. This is especially useful for rooms that the user is not a member of, or hasn't joined yet.
      */
     suspend fun getRoomPreview(roomIdOrAlias: RoomIdOrAlias, serverNames: List<String>): Result<NotJoinedRoom>

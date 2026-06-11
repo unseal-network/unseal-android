@@ -10,6 +10,8 @@ package io.element.android.libraries.chatbot.impl
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.binding
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
@@ -21,11 +23,11 @@ fun interface ChatbotWellKnownFetcher {
 class DefaultChatbotWellKnownFetcher(
     private val okHttpClient: () -> OkHttpClient,
 ) : ChatbotWellKnownFetcher {
-    override suspend fun fetch(serverName: String): String? {
+    override suspend fun fetch(serverName: String): String? = withContext(Dispatchers.IO) {
         val url = "https://$serverName/.well-known/matrix/client"
         val request = Request.Builder().url(url).build()
-        return okHttpClient().newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return null
+        okHttpClient().newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return@use null
             response.body.string()
         }
     }

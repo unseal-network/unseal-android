@@ -13,6 +13,9 @@ sealed interface ConnectorListEvents {
     data object OnAppear : ConnectorListEvents
     data object Refresh : ConnectorListEvents
     data class SearchChanged(val query: String) : ConnectorListEvents
+
+    /** Mirror iOS `.selectCategory`: empty [categoryId] selects the "All" chip. */
+    data class SelectCategory(val categoryId: String) : ConnectorListEvents
     data object LoadMore : ConnectorListEvents
     data class Connect(val toolkit: ChatbotToolkit) : ConnectorListEvents
     data class Manage(val toolkit: ChatbotToolkit) : ConnectorListEvents

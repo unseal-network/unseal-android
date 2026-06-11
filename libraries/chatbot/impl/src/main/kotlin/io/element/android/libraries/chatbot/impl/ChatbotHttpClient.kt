@@ -10,11 +10,18 @@ package io.element.android.libraries.chatbot.impl
 import io.element.android.libraries.chatbot.api.ChatbotApiError
 import io.element.android.libraries.matrix.api.MatrixClient
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.InternalCoroutinesApi
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.job
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import timber.log.Timber
 import java.io.IOException
 
 internal class ChatbotHttpClient(
@@ -24,6 +31,21 @@ internal class ChatbotHttpClient(
     private val tokenProvider: ChatbotAccessTokenProvider,
 ) {
     suspend fun requestRaw(pathWithQuery: String, method: ChatbotHttpMethod, body: String? = null): Result<String> {
+        return requestRaw(pathWithQuery, method, body, accept = "application/json")
+    }
+
+    suspend fun streamRaw(pathWithQuery: String, onChunk: suspend (String) -> Unit): Result<Unit> {
+        return requestRaw(pathWithQuery, ChatbotHttpMethod.GET, body = null, accept = "text/event-stream", onChunk = onChunk).map { }
+    }
+
+    @OptIn(InternalCoroutinesApi::class)
+    private suspend fun requestRaw(
+        pathWithQuery: String,
+        method: ChatbotHttpMethod,
+        body: String? = null,
+        accept: String,
+        onChunk: (suspend (String) -> Unit)? = null,
+    ): Result<String> {
         val base = baseUrl.toHttpUrlOrNull() ?: return Result.failure(ChatbotApiError.InvalidBaseUrl)
         val token = tokenProvider.accessToken(matrixClient)?.takeIf { it.isNotBlank() }
             ?: return Result.failure(ChatbotApiError.MissingAccessToken)
@@ -41,8 +63,9 @@ internal class ChatbotHttpClient(
         }
         val request = Request.Builder()
             .url(url)
-            .header("Accept", "application/json")
+            .header("Accept", accept)
             .header("Authorization", "Bearer $token")
+            .header("Cache-Control", "no-cache")
             .apply {
                 if (body != null) {
                     header("Content-Type", "application/json")
@@ -51,21 +74,47 @@ internal class ChatbotHttpClient(
             }
             .build()
 
-        return try {
-            okHttpClient.newCall(request).execute().use { response ->
-                val responseBody = response.body.string()
-                if (response.isSuccessful) {
-                    Result.success(responseBody)
-                } else {
-                    Result.failure(ChatbotApiError.HttpError(response.code, ChatbotRedactor.redact(responseBody)))
+        return withContext(Dispatchers.IO) {
+            val coroutineContext = currentCoroutineContext()
+            val currentCall = okHttpClient.newCall(request)
+            val cancellationHandle = coroutineContext.job.invokeOnCompletion(onCancelling = true, invokeImmediately = true) { cause ->
+                if (cause is CancellationException) {
+                    currentCall.cancel()
                 }
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: IOException) {
-            Result.failure(ChatbotApiError.NetworkError(e.message.orEmpty(), e))
-        } catch (e: Exception) {
-            Result.failure(ChatbotApiError.NetworkError(e.message.orEmpty(), e))
+            try {
+                coroutineContext.ensureActive()
+                currentCall.execute().use { response ->
+                    if (!response.isSuccessful) {
+                        val responseBody = response.body.string()
+                        val redacted = ChatbotRedactor.redact(responseBody)
+                        Timber.w("Chatbot HTTP %d %s %s -> %s", response.code, method.name, url.encodedPath, redacted.take(800))
+                        return@withContext Result.failure(ChatbotApiError.HttpError(response.code, redacted))
+                    }
+                    val responseBody = if (onChunk == null) {
+                        response.body.string()
+                    } else {
+                        val source = response.body.source()
+                        while (true) {
+                            val line = source.readUtf8Line() ?: break
+                            val chunk = "$line\n"
+                            onChunk(chunk)
+                        }
+                        ""
+                    }
+                    Result.success(responseBody)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: IOException) {
+                coroutineContext.ensureActive()
+                Result.failure(ChatbotApiError.NetworkError(e.message.orEmpty(), e))
+            } catch (e: Exception) {
+                coroutineContext.ensureActive()
+                Result.failure(ChatbotApiError.NetworkError(e.message.orEmpty(), e))
+            } finally {
+                cancellationHandle.dispose()
+            }
         }
     }
 

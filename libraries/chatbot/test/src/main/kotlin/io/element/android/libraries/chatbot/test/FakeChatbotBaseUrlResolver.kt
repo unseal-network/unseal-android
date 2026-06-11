@@ -19,4 +19,9 @@ class FakeChatbotBaseUrlResolver : ChatbotBaseUrlResolver {
         seenServerNames += serverName
         resolveResult(serverName)
     }
+
+    override suspend fun resolveHomeserverBaseUrl(serverName: String?): String = simulateLongTask {
+        seenServerNames += serverName
+        resolveResult(serverName)
+    }
 }

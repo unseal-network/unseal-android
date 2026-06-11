@@ -18,9 +18,15 @@ class FakeChatbotApiServiceFactory(
     val explicitBaseUrls = mutableListOf<String>()
     var createForUnsealApiResult: ChatbotApiService = service
 
-    override fun createForAiStream(matrixClient: MatrixClient): ChatbotApiService = service
+    override suspend fun createForAiStream(matrixClient: MatrixClient): ChatbotApiService = simulateLongTask {
+        service
+    }
 
     override suspend fun createForUnsealApi(matrixClient: MatrixClient): ChatbotApiService = simulateLongTask {
+        createForUnsealApiResult
+    }
+
+    override suspend fun createForHomeserver(matrixClient: MatrixClient): ChatbotApiService = simulateLongTask {
         createForUnsealApiResult
     }
 

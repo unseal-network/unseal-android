@@ -12,7 +12,9 @@ import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import com.bumble.appyx.core.modality.BuildContext
 import com.bumble.appyx.testing.junit4.util.MainDispatcherRule
 import com.google.common.truth.Truth.assertThat
+import io.element.android.features.agentmanagement.test.FakeAgentManagementEntryPoint
 import io.element.android.features.connectors.test.FakeConnectorsEntryPoint
+import io.element.android.features.skills.test.FakeSkillsEntryPoint
 import io.element.android.features.voicelibrary.test.FakeVoiceLibraryEntryPoint
 import io.element.android.features.credits.api.CreditsEntryPoint
 import io.element.android.features.credits.test.FakeCreditsEntryPoint
@@ -55,6 +57,8 @@ class DefaultPreferencesEntryPointTest {
                 webhookTriggersEntryPoint = FakeWebhookTriggersEntryPoint(),
                 connectorsEntryPoint = FakeConnectorsEntryPoint(),
                 voiceLibraryEntryPoint = FakeVoiceLibraryEntryPoint(),
+                agentManagementEntryPoint = FakeAgentManagementEntryPoint(),
+                skillsEntryPoint = FakeSkillsEntryPoint(),
                 creditsEntryPoint = FakeCreditsEntryPoint(),
             )
         }
@@ -120,6 +124,8 @@ class DefaultPreferencesEntryPointTest {
             },
             connectorsEntryPoint = FakeConnectorsEntryPoint(),
             voiceLibraryEntryPoint = FakeVoiceLibraryEntryPoint(),
+            agentManagementEntryPoint = FakeAgentManagementEntryPoint(),
+            skillsEntryPoint = FakeSkillsEntryPoint(),
             creditsEntryPoint = FakeCreditsEntryPoint(),
         )
 
@@ -190,6 +196,8 @@ private fun aPreferencesFlowNode(
     webhookTriggersEntryPoint: WebhookTriggersEntryPoint = FakeWebhookTriggersEntryPoint(),
     connectorsEntryPoint: io.element.android.features.connectors.api.ConnectorsEntryPoint = FakeConnectorsEntryPoint(),
     voiceLibraryEntryPoint: io.element.android.features.voicelibrary.api.VoiceLibraryEntryPoint = FakeVoiceLibraryEntryPoint(),
+    agentManagementEntryPoint: io.element.android.features.agentmanagement.api.AgentManagementEntryPoint = FakeAgentManagementEntryPoint(),
+    skillsEntryPoint: io.element.android.features.skills.api.SkillsEntryPoint = FakeSkillsEntryPoint(),
 ) = PreferencesFlowNode(
     buildContext = BuildContext.root(null),
     plugins = listOf(
@@ -214,5 +222,7 @@ private fun aPreferencesFlowNode(
     webhookTriggersEntryPoint = webhookTriggersEntryPoint,
     connectorsEntryPoint = connectorsEntryPoint,
     voiceLibraryEntryPoint = voiceLibraryEntryPoint,
+    agentManagementEntryPoint = agentManagementEntryPoint,
+    skillsEntryPoint = skillsEntryPoint,
     creditsEntryPoint = creditsEntryPoint,
 )

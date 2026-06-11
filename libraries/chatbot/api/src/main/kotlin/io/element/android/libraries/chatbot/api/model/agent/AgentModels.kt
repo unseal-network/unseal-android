@@ -165,18 +165,35 @@ data class ChatbotListAgentRoomsResponse(
 
 @Serializable
 enum class AgentSandboxMode {
-    @SerialName("none")
-    None,
-    @SerialName("blank")
-    Blank,
-    @SerialName("clone")
-    Clone,
+    @SerialName("own_sandbox")
+    PerUser,
+    @SerialName("agent_sandbox")
+    AgentDedicated,
 }
 
 @Serializable
 data class AgentSandboxStatus(
-    val mode: AgentSandboxMode? = null,
+    val id: String? = null,
     val status: String? = null,
+    @SerialName("source_user_id")
+    val sourceUserId: String? = null,
+    @SerialName("source_snapshot_id")
+    val sourceSnapshotId: String? = null,
+    @SerialName("created_at")
+    val createdAt: String? = null,
+)
+
+@Serializable
+data class AgentSandboxResponse(
+    @SerialName("sandbox_mode")
+    val sandboxMode: AgentSandboxMode? = null,
+    val sandbox: AgentSandboxStatus? = null,
+)
+
+@Serializable
+data class AgentSandboxCloneResponse(
+    val status: String? = null,
+    val message: String? = null,
 )
 
 @Serializable
@@ -201,4 +218,20 @@ data class AgentVaultEntryInput(
 @Serializable
 data class AgentVaultEntriesWrapper(
     val entries: List<AgentVaultEntryInput> = emptyList(),
+)
+
+@Serializable
+data class AgentVaultCloneRequest(
+    val keys: List<String>,
+)
+
+@Serializable
+data class AgentVaultCloneResponse(
+    val copied: List<String> = emptyList(),
+    val skipped: List<String> = emptyList(),
+)
+
+@Serializable
+data class AgentVaultListResponse(
+    val items: List<AgentVaultEntry> = emptyList(),
 )

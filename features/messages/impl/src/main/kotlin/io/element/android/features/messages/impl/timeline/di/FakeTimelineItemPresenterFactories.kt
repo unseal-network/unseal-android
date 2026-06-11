@@ -8,6 +8,8 @@
 
 package io.element.android.features.messages.impl.timeline.di
 
+import io.element.android.features.messages.impl.timeline.components.event.TimelineItemAiState
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVoiceContent
 import io.element.android.features.messages.impl.timeline.model.event.ensureActiveLiveLocation
@@ -29,6 +31,12 @@ fun aFakeTimelineItemPresenterFactories() = TimelineItemPresenterFactories(
         Pair(
             TimelineItemVoiceContent::class,
             TimelineItemPresenterFactory<TimelineItemVoiceContent, VoiceMessageState> { Presenter { aVoiceMessageState() } },
+        ),
+        Pair(
+            TimelineItemAiContent::class,
+            TimelineItemPresenterFactory<TimelineItemAiContent, TimelineItemAiState> { content ->
+                Presenter { TimelineItemAiState(content) }
+            },
         ),
     )
 )

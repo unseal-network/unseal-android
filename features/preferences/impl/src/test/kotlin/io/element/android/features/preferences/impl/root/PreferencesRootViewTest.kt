@@ -122,7 +122,9 @@ class PreferencesRootViewTest {
                 ),
                 onSecureBackupClick = callback,
             )
-            clickOn(CommonStrings.common_encryption)
+            onNodeWithText(activity!!.getString(CommonStrings.common_encryption))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -149,7 +151,9 @@ class PreferencesRootViewTest {
                 ),
                 onManageAccountClick = callback,
             )
-            clickOn(CommonStrings.action_manage_account_and_devices)
+            onNodeWithText(activity!!.getString(CommonStrings.action_manage_account_and_devices))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -176,7 +180,9 @@ class PreferencesRootViewTest {
                 ),
                 onLinkNewDeviceClick = callback,
             )
-            clickOn(CommonStrings.common_link_new_device)
+            onNodeWithText(activity!!.getString(CommonStrings.common_link_new_device))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -260,7 +266,9 @@ class PreferencesRootViewTest {
                 ),
                 onOpenLockScreenSettings = callback,
             )
-            clickOn(CommonStrings.common_screen_lock)
+            onNodeWithText(activity!!.getString(CommonStrings.common_screen_lock))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -274,7 +282,9 @@ class PreferencesRootViewTest {
                 ),
                 onOpenAbout = callback,
             )
-            clickOn(CommonStrings.common_about)
+            onNodeWithText(activity!!.getString(CommonStrings.common_about))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -317,7 +327,9 @@ class PreferencesRootViewTest {
                 ),
                 onOpenAdvancedSettings = callback,
             )
-            clickOn(CommonStrings.common_advanced_settings)
+            onNodeWithText(activity!!.getString(CommonStrings.common_advanced_settings))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -332,7 +344,9 @@ class PreferencesRootViewTest {
                 ),
                 onOpenLabs = callback,
             )
-            clickOn(R.string.screen_labs_title)
+            onNodeWithText(activity!!.getString(R.string.screen_labs_title))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -358,7 +372,9 @@ class PreferencesRootViewTest {
                 ),
                 onOpenNotificationSettings = callback,
             )
-            clickOn(R.string.screen_notification_settings_title)
+            onNodeWithText(activity!!.getString(R.string.screen_notification_settings_title))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -372,7 +388,9 @@ class PreferencesRootViewTest {
                 ),
                 onOpenWebhookTriggers = callback,
             )
-            clickOn(R.string.screen_preferences_webhook_triggers_title)
+            onNodeWithText(activity!!.getString(R.string.screen_preferences_webhook_triggers_title))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -387,7 +405,9 @@ class PreferencesRootViewTest {
                 ),
                 onOpenBlockedUsers = callback,
             )
-            clickOn(CommonStrings.common_blocked_users)
+            onNodeWithText(activity!!.getString(CommonStrings.common_blocked_users))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -473,7 +493,7 @@ class PreferencesRootViewTest {
                 eventSink = eventsRecorder,
             ),
         )
-        onNodeWithText("Credit Balance")
+        onNodeWithText("Credit balance")
             .performScrollTo()
             .assertIsDisplayed()
         onNodeWithText("$12.50")
@@ -556,6 +576,9 @@ private fun AndroidComposeUiTest<ComponentActivity>.setView(
     onOpenWebhookTriggers: () -> Unit = EnsureNeverCalled(),
     onOpenConnectors: () -> Unit = EnsureNeverCalled(),
     onOpenVoiceLibrary: () -> Unit = EnsureNeverCalled(),
+    onOpenAgentManagement: () -> Unit = EnsureNeverCalled(),
+    onOpenSkills: () -> Unit = EnsureNeverCalled(),
+    onOpenVaultManagement: () -> Unit = EnsureNeverCalled(),
     onOpenCreditsTopUp: () -> Unit = EnsureNeverCalled(),
     onOpenCreditsBilling: () -> Unit = EnsureNeverCalled(),
     onOpenCreditsUsage: () -> Unit = EnsureNeverCalled(),
@@ -583,6 +606,9 @@ private fun AndroidComposeUiTest<ComponentActivity>.setView(
             onOpenWebhookTriggers = onOpenWebhookTriggers,
             onOpenConnectors = onOpenConnectors,
             onOpenVoiceLibrary = onOpenVoiceLibrary,
+            onOpenAgentManagement = onOpenAgentManagement,
+            onOpenSkills = onOpenSkills,
+            onOpenVaultManagement = onOpenVaultManagement,
             onOpenCreditsTopUp = onOpenCreditsTopUp,
             onOpenCreditsBilling = onOpenCreditsBilling,
             onOpenCreditsUsage = onOpenCreditsUsage,

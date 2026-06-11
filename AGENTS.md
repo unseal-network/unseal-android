@@ -191,6 +191,76 @@ We wrap the `matrix-rust-sdk` to isolate the UI from the underlying SDK.
 - Type Mapping: Map Rust SDK types to Kotlin data classes in the `api` module to avoid leaking `MatrixRustSDK` into the UI.
 - Always follow Kotlin naming conventions (e.g., `userId` instead of `userID`).
 
+## Agent Stream SDK Dependency
+
+AI SDK stream parsing and `parts` state updates are shared through the Rust stream SDK:
+
+- SDK repo: `git@pagepeek:unseal-network/agent-stream-sdk.git`
+- Current Android integration branch: `feature/stream-core-types`
+- Android wrapper module: `libraries/agentstream`
+- Native library name loaded by Android: `libunseal_agent_stream.so`
+- JNI Kotlin entrypoint: `libraries/agentstream/src/main/kotlin/io/element/android/libraries/agentstream/jni/UnsealAgentStreamNative.kt`
+- Native `.so` destination:
+  - `libraries/agentstream/src/main/jniLibs/arm64-v8a/libunseal_agent_stream.so`
+  - `libraries/agentstream/src/main/jniLibs/armeabi-v7a/libunseal_agent_stream.so`
+  - `libraries/agentstream/src/main/jniLibs/x86_64/libunseal_agent_stream.so`
+
+The ownership split is important:
+
+- Rust stream SDK owns SSE frame parsing, AI SDK / Unseal stream event reduction, canonical `parts`, part states, raw events, and patch coalescing.
+- Android `libraries/agentstream` owns platform lifecycle: `AgentStreamClient.getStream`, memory cache, SQLite storage provider, HTTP provider injection, task runner injection, JNI session lifecycle, listener fan-out, and final snapshot persistence.
+- Timeline UI owns rendering only. UI should render `UI = f(snapshot.parts)` and should not open SSE, run a reducer, or keep a separate stream cache.
+
+Build the Rust stream SDK for Android:
+
+```bash
+export ANDROID_HOME=/usr/local/share/android-commandlinetools
+export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
+rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+cargo install cargo-ndk
+
+git clone git@pagepeek:unseal-network/agent-stream-sdk.git /tmp/agent-stream-sdk
+cd /tmp/agent-stream-sdk
+git checkout feature/stream-core-types
+
+ANDROID_NDK_HOME="$ANDROID_NDK_HOME" \
+cargo ndk \
+  --target aarch64-linux-android \
+  --target armv7-linux-androideabi \
+  --target x86_64-linux-android \
+  --platform 26 \
+  -- build --release -p unseal-agent-stream
+```
+
+Copy the generated `.so` files into this Android repo:
+
+```bash
+ANDROID_REPO=/path/to/unseal-android
+SDK_REPO=/tmp/agent-stream-sdk
+
+mkdir -p \
+  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/arm64-v8a" \
+  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/armeabi-v7a" \
+  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/x86_64"
+
+cp "$SDK_REPO/target/aarch64-linux-android/release/libunseal_agent_stream.so" \
+  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/arm64-v8a/libunseal_agent_stream.so"
+cp "$SDK_REPO/target/armv7-linux-androideabi/release/libunseal_agent_stream.so" \
+  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/armeabi-v7a/libunseal_agent_stream.so"
+cp "$SDK_REPO/target/x86_64-linux-android/release/libunseal_agent_stream.so" \
+  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/x86_64/libunseal_agent_stream.so"
+```
+
+Verify after updating the SDK binary:
+
+```bash
+./gradlew :libraries:agentstream:testDebugUnitTest
+./gradlew :features:messages:impl:testDebugUnitTest --tests '*TimelineItemAiPresenterTest*'
+./gradlew :app:installGplayDebug
+```
+
+More context and the current handoff are in `HANDOFF_AGENT_MANAGEMENT.md`.
+
 ---
 
 ## Unseal Feature Migration Status

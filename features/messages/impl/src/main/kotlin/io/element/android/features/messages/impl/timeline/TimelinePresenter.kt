@@ -132,7 +132,6 @@ class TimelinePresenter(
         }
 
         val localScope = rememberCoroutineScope()
-
         val timelineMode = remember { timelineController.mainTimelineMode() }
 
         val lastReadReceiptId = rememberSaveable { mutableStateOf<EventId?>(null) }

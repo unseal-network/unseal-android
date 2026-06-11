@@ -33,6 +33,7 @@ dependencies {
     implementation(projects.libraries.di)
     implementation(projects.libraries.matrix.api)
     implementation(projects.libraries.uiStrings)
+    implementation(libs.coil.compose)
     implementation(libs.coroutines.core)
     implementation(libs.kotlinx.collections.immutable)
     api(projects.features.connectors.api)

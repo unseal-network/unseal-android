@@ -10,7 +10,10 @@ package io.element.android.libraries.chatbot.api
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentProvider
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentRoom
+import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentVoiceConfig
+import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentVoiceConfigResolution
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotCreateAgentRequest
+import io.element.android.libraries.chatbot.api.model.agent.ChatbotSetAgentVoiceConfigRequest
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotUpdateAgentRequest
 import io.element.android.libraries.chatbot.api.model.analytics.AnalyticsTokensResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotDisconnectAccountResponse
@@ -36,6 +39,7 @@ import io.element.android.libraries.chatbot.api.model.schedules.ChatbotCreateSch
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotSchedule
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotUpdateScheduleRequest
 import io.element.android.libraries.chatbot.api.model.storage.ChatbotPresignedUpload
+import io.element.android.libraries.chatbot.api.model.storage.ChatbotStsCredentials
 import io.element.android.libraries.chatbot.api.model.storage.ChatbotStsTokenResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotCreateUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotDeleteUserSkillResponse
@@ -73,6 +77,21 @@ interface ChatbotApiService {
     suspend fun deleteUserSkill(id: String): Result<ChatbotDeleteUserSkillResponse>
     suspend fun presignedUploadUrls(body: ChatbotJsonObject): Result<List<ChatbotPresignedUpload>>
     suspend fun getStsToken(scope: String, durationSeconds: Int): Result<ChatbotStsTokenResponse>
+
+    /**
+     * Uploads bytes to S3 (or MinIO) using STS temporary credentials and AWS Signature V4.
+     * Mirrors the iOS `ChatbotAPIClient.uploadToS3` flow.
+     */
+    suspend fun uploadToS3(
+        endpoint: String,
+        bucket: String,
+        key: String,
+        data: ByteArray,
+        contentType: String,
+        credentials: ChatbotStsCredentials,
+        region: String,
+        isMinIO: Boolean,
+    ): Result<Unit>
     suspend fun listSchedules(roomId: String): Result<List<ChatbotSchedule>>
     suspend fun createSchedule(request: ChatbotCreateScheduleRequest): Result<ChatbotCreateScheduleResponse>
     suspend fun updateSchedule(scheduleId: String, request: ChatbotUpdateScheduleRequest): Result<ChatbotCreateScheduleResponse>
@@ -105,4 +124,29 @@ interface ChatbotApiService {
     suspend fun deleteVoiceProfile(voiceProfileId: String): Result<ChatbotDeleteVoiceProfileResponse>
     suspend fun createVoiceShare(request: ChatbotCreateVoiceShareRequest): Result<ChatbotVoiceShare>
     suspend fun importVoiceShare(shareId: String): Result<ChatbotVoiceProfile>
+
+    // Agent runtime environment (sandbox) — agent-api endpoints.
+    suspend fun getAgentSandbox(agentId: String): Result<io.element.android.libraries.chatbot.api.model.agent.AgentSandboxResponse>
+    suspend fun createAgentSandbox(agentId: String): Result<io.element.android.libraries.chatbot.api.model.agent.AgentSandboxStatus>
+    suspend fun cloneAgentSandbox(agentId: String): Result<io.element.android.libraries.chatbot.api.model.agent.AgentSandboxCloneResponse>
+    suspend fun listAgentVault(agentId: String): Result<List<io.element.android.libraries.chatbot.api.model.agent.AgentVaultEntry>>
+    suspend fun cloneAgentVault(agentId: String, keys: List<String>): Result<io.element.android.libraries.chatbot.api.model.agent.AgentVaultCloneResponse>
+
+    // Agent voice config — agent-api endpoints.
+    suspend fun getAgentVoiceConfig(agentId: String): Result<ChatbotAgentVoiceConfigResolution>
+    suspend fun setAgentVoiceConfig(agentId: String, request: ChatbotSetAgentVoiceConfigRequest): Result<ChatbotAgentVoiceConfig>
+    suspend fun deleteAgentVoiceConfig(agentId: String): Result<Unit>
+
+    // Personal vault (secret store) — AI-stream base endpoints.
+    suspend fun listVault(): Result<List<io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem>>
+    suspend fun getVaultValue(key: String): Result<String>
+    suspend fun createVaultEntry(key: String, value: String, description: String?): Result<Unit>
+    suspend fun updateVaultEntry(key: String, value: String, description: String?): Result<Unit>
+    suspend fun deleteVaultEntry(vaultId: String): Result<Unit>
+
+    suspend fun streamAgentMessage(
+        streamId: String,
+        sender: String?,
+        onChunk: suspend (String) -> Unit,
+    ): Result<Unit>
 }

@@ -98,6 +98,7 @@ class FakeMatrixClient(
     private val clearCacheLambda: () -> Unit = { lambdaError() },
     private val userIdServerNameLambda: () -> String = { lambdaError() },
     private val getUrlLambda: (String) -> Result<ByteArray> = { lambdaError() },
+    private val currentAccessTokenLambda: () -> Result<String?> = { Result.success(null) },
     private val canDeactivateAccountResult: () -> Boolean = { lambdaError() },
     private val deactivateAccountResult: (String, Boolean) -> Result<Unit> = { _, _ -> lambdaError() },
     private val currentSlidingSyncVersionLambda: () -> Result<SlidingSyncVersion> = { lambdaError() },
@@ -346,6 +347,10 @@ class FakeMatrixClient(
 
     override suspend fun getUrl(url: String): Result<ByteArray> {
         return getUrlLambda(url)
+    }
+
+    override suspend fun currentAccessToken(): Result<String?> {
+        return currentAccessTokenLambda()
     }
 
     override suspend fun currentSlidingSyncVersion(): Result<SlidingSyncVersion> {
