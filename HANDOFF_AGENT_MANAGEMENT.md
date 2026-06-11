@@ -68,47 +68,209 @@ Debug app id: `network.unseal.android.debug`. Dev/test server: `https://un-serve
   `credits_exhausted` mapped to a friendly message.
 
 ### AI SDK stream lifecycle SDK + Android timeline integration
-- New shared stream data layer in `libraries/agentstream`:
+
+#### Current commits / repos
+- Android branch: `feature/agent-management`.
+  - Latest stream commits: `90daf2068a fix(stream): preserve final parts state`,
+    `10b32d0780 refactor(stream): move snapshot update policy into sdk`.
+- Rust stream SDK repo: `git@pagepeek:unseal-network/agent-stream-sdk.git`,
+  branch `feature/stream-core-types`.
+  - Latest stream commit: `d98e0de fix: coalesce stream part patches in sdk`.
+
+#### Layer ownership
+- **Rust stream SDK** (`agent-stream-sdk`, crate `unseal-agent-stream`) owns the shared data
+  semantics:
+  - SSE frame parsing.
+  - AI SDK / Unseal stream event reduction.
+  - Canonical `parts` state machine.
+  - Raw/normalized event retention.
+  - `StreamSnapshot`, `StreamUpdate`, `PersistedStream` schemas.
+  - Runtime emit policy for part patches: terminal/error/state changes emit immediately;
+    unchanged snapshots are skipped; same-state content patches coalesce by default for 500 ms.
+- **Android SDK wrapper** (`unseal-android/libraries/agentstream`) owns Android-facing lifecycle:
   - Public entrypoint: `AgentStreamClient.getStream(StreamRequest)`.
-  - Owns stream lifecycle: memory hot cache, storage lookup, in-flight de-dupe,
-    async SSE consumption, Rust reducer session feeding, listener fan-out, terminal snapshot
-    persistence, and refresh/cancel cleanup.
-  - Public data contract is `StreamSnapshot(status, parts, rawEvents, error, updatedAtMs)`.
-    UI must render from `snapshot.parts`; `rawEvents` is retained for debug/advanced fallback only.
-  - `StreamPart` covers AI SDK-style text/reasoning/tool/data/source/file/step/error/custom
-    parts. Tool/text states are normalized so UI can be `UI = f(parts)`.
-  - Storage is injected through `StreamStorageProvider`; Android currently provides SQLite-backed
-    persistence via `SQLiteStreamStorageProvider`. Completed snapshots are reused, so timeline
-    re-entry should not re-download or show thinking again.
-  - HTTP/thread resources are injected through `StreamHttpClient` and `StreamTaskRunner`.
-    Android uses `ChatbotStreamHttpClient` plus `CoroutineStreamTaskRunner`; SDK logic stays
-    independent from platform-specific pools and dispatchers.
-- Android client adapters in `features/messages/impl/.../timeline/components/event/AndroidAgentStreamAdapters.kt`:
-  - `AndroidAgentStreamClient` wires the SDK into Metro DI.
-  - `ChatbotStreamHttpClient` calls `ChatbotApiServiceFactory.createForAiStream(matrixClient)`
-    and streams chunks into the SDK without accumulating the full response.
-  - Blank Matrix sender values are sanitized before stream download.
-- Timeline rendering path:
-  - `TimelineItemContentFactory` parses Matrix event `originalJson` first, including top-level
-    `m.stream.start` / `m.stream.complete` events even when Rust Matrix SDK maps them as
-    non-`MessageContent`.
-  - `TimelineItemAiPresenter` now subscribes to `AgentStreamClient.getStream(...)` and maps
-    SDK snapshots with `AiSdkStreamReducer`; it no longer opens SSE, owns a reducer session,
-    or keeps its own in-flight stream cache.
-  - `TimelineItemEventContentView` renders AI content from presenter state, not from the raw
-    event body. Normal messages still fall through to the existing text/media renderers.
-  - Presenter snapshot queue is conflated and terminal snapshots force a final UI update before
-    collection exits, avoiding unbounded backpressure during fast timeline scrolling.
-- Parser edge cases covered:
-  - `m.stream.complete` defaults to non-streaming even without explicit `is_streaming: false`.
-  - Terminal statuses `complete`, `completed`, `done`, `failed`, `error`, `cancelled`, `canceled`
-    are non-streaming; `loading`, `streaming`, `active`, `pending` are streaming.
-- Important tests:
-  - `:libraries:agentstream:testDebugUnitTest`
-  - `:features:messages:impl:testDebugUnitTest --tests '*AiSdkStreamReducerTest' --tests '*AndroidAgentStreamAdaptersTest' --tests '*TimelineItemAiPresenterTest' --tests '*AiMessageContentParserTest' --tests '*TimelineItemContentFactoryTest'`
-  - `:libraries:chatbot:impl:testDebugUnitTest --tests '*ChatbotHttpClientTest'`
-  - `:features:messages:impl:compileDebugKotlin :libraries:chatbot:impl:compileDebugKotlin`
-  - `:app:installFdroidDebug` installed `app-fdroid-arm64-v8a-debug.apk` to USB device `PHK110 - 15`.
+  - Memory hot cache for completed snapshots.
+  - Storage lookup before network.
+  - In-flight stream de-dupe by `streamId`.
+  - Async SSE consumption through injected `StreamHttpClient`.
+  - Background execution through injected `StreamTaskRunner`.
+  - JNI reducer session lifecycle.
+  - Listener fan-out.
+  - Final snapshot memory cache + storage persistence before final publish.
+  - Android-side `StreamSnapshotUpdatePolicy` so UI presenters do not implement part update
+    throttling/skip rules themselves.
+- **Android timeline UI** owns rendering only:
+  - Matrix event parsing finds `streamId` and optional inline `parts`.
+  - `TimelineItemAiPresenter` subscribes to `AgentStreamClient`, applies
+    `StreamSnapshotUpdatePolicy`, maps `StreamSnapshot.parts` to the existing Android
+    `TimelineItemAiContent` model through `AiSdkStreamReducer`.
+  - `TimelineItemAiView` renders `UI = f(parts)`.
+  - UI should not download SSE, run a reducer, or maintain a separate stream cache.
+
+#### Stream SDK public contract used by Android
+- `StreamRequest`
+  - `streamId`: required stream id from Matrix event content.
+  - `sender`: Matrix sender/user id when available; blank values are sanitized before request.
+  - `roomId`, `eventId`: reserved for callers and future storage/debug context.
+  - `includeRawEvents`: Android timeline currently passes `false` for normal UI rendering.
+- `StreamHandle`
+  - `snapshot()`: current snapshot.
+  - `subscribe(listener)`: listener immediately receives the current snapshot, then updates.
+  - `refresh()`: force re-download.
+  - `cancel()`: stop active transport and close native reducer session.
+- `StreamSnapshot`
+  - `status`: `Idle`, `Loading`, `Streaming`, `Completed`, `Failed`, `Cancelled`.
+  - `parts`: canonical render data. Clients render from this list.
+  - `rawEvents`: debug/advanced fallback only, not normal UI.
+  - `error`, `updatedAtMs`, `completedAtMs`.
+- `StreamPart`
+  - Standard-ish AI SDK parts: `Text`, `Reasoning`, `Tool`, `Data`, `Source`, `File`,
+    `Step`, `Error`, `Custom`.
+  - Text/reasoning states: `streaming`, `complete`, `done`.
+  - Tool states: `input-streaming`, `input-available`, `output-available`, `output-error`.
+  - Unknown/custom server payloads remain accessible through `Custom` or raw JSON fields,
+    but normal UI should prefer meaningful typed renderers over showing JSON.
+
+#### Android implementation map
+- SDK module:
+  - `libraries/agentstream/src/main/kotlin/io/element/android/libraries/agentstream/api/StreamModels.kt`
+    defines `StreamRequest`, `StreamSnapshot`, `StreamPart`, status/state enums.
+  - `libraries/agentstream/src/main/kotlin/io/element/android/libraries/agentstream/api/DefaultAgentStreamClient.kt`
+    implements lifecycle, memory cache, storage-first loading, de-dupe, SSE consumption,
+    final persistence, cancellation, and listener fan-out.
+  - `libraries/agentstream/src/main/kotlin/io/element/android/libraries/agentstream/api/StreamSnapshotUpdatePolicy.kt`
+    implements UI update policy: skip unchanged, emit state/terminal immediately, coalesce
+    same-state content patch updates for 500 ms.
+  - `libraries/agentstream/src/main/kotlin/io/element/android/libraries/agentstream/jni/UnsealAgentStreamNative.kt`
+    loads `libunseal_agent_stream.so` and calls the Rust reducer session.
+  - Native libraries are checked in under
+    `libraries/agentstream/src/main/jniLibs/{arm64-v8a,armeabi-v7a,x86_64}/libunseal_agent_stream.so`.
+- Android dependency injection / platform adapters:
+  - `features/messages/impl/.../timeline/components/event/AndroidAgentStreamAdapters.kt`
+    binds `AgentStreamClient`, `StreamHttpClient`, `StreamTaskRunner`, and `StreamStorageProvider`.
+  - `ChatbotStreamHttpClient` calls
+    `ChatbotApiServiceFactory.createForAiStream(matrixClient).streamAgentMessage(...)`.
+    This is important: stream downloads follow the logged-in user's homeserver `.well-known`
+    routing and must not hardcode `api.unseal.network`.
+  - `CoroutineStreamTaskRunner` runs SDK-submitted stream work on `dispatchers.io` inside
+    `@RoomCoroutineScope`.
+  - `SQLiteStreamStorageProvider` persists terminal snapshots in
+    `agent_stream_snapshots.db`, table `agent_stream_snapshots`.
+- Timeline path:
+  - `features/messages/impl/.../factories/event/AiMessageContentParser.kt` parses stream
+    pointers and terminal flags from Matrix event `originalJson`.
+  - `TimelineItemContentFactory` chooses AI stream content before normal text fallback.
+  - `TimelineItemAiPresenter` subscribes to `AgentStreamClient.getStream(...)`.
+  - `AiSdkStreamReducer` maps SDK `StreamPart` values into Android timeline render models.
+  - `TimelineItemAiView` renders text/reasoning/tool cards. Tool cards are extracted above
+    the text flow; multiple tools render as tabs, single tool renders directly.
+
+#### Rust SDK functionality completed
+- Canonical stream schemas and serde coverage.
+- SSE frame parser, including partial frame handling and final flush.
+- Unseal content-envelope unwrapping.
+- AI SDK stream protocol reducer into stable `parts`.
+- Tool state transitions through `input-streaming` / `input-available` /
+  `output-available` / `output-error`.
+- Text/reasoning accumulation and terminal completion.
+- Raw event retention options.
+- Runtime lifecycle with injected transport, persistence, worker runner, resource hints,
+  queued starts, and max active stream tasks.
+- Emit/update policy in Rust runtime:
+  - terminal/status/state changes emit immediately;
+  - identical snapshots skip;
+  - same-state content patches coalesce with defaults:
+    `text_coalesce_ms = 500`, `patch_coalesce_ms = 500`,
+    `text_coalesce_chars = 80`, `patch_coalesce_chars = 80`.
+- Android JNI bridge:
+  - `nativeCreateSession(streamId, includeRawEvents, includeNormalizedEvents)`.
+  - `nativeApplySseChunk(session, chunk)` returns snapshot JSON.
+  - `nativeFinish(session)` flushes parser and returns final snapshot JSON.
+  - `nativeSnapshot(session)`.
+  - `nativeDestroySession(session)`.
+  - `nativeIsAvailable()`.
+
+#### How to build Rust stream SDK for Android
+Prereqs on this machine:
+
+```bash
+export ANDROID_HOME=/usr/local/share/android-commandlinetools
+export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
+rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+cargo install cargo-ndk
+```
+
+Build all Android ABIs from the Rust SDK repo:
+
+```bash
+cd /Users/Ruihan/go/src/unseal-agent-stream-core/.worktrees/stream-core-types
+ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358" \
+cargo ndk \
+  --target aarch64-linux-android \
+  --target armv7-linux-androideabi \
+  --target x86_64-linux-android \
+  --platform 26 \
+  -- build --release -p unseal-agent-stream
+```
+
+Expected outputs:
+
+```text
+target/aarch64-linux-android/release/libunseal_agent_stream.so
+target/armv7-linux-androideabi/release/libunseal_agent_stream.so
+target/x86_64-linux-android/release/libunseal_agent_stream.so
+```
+
+Copy into Android:
+
+```bash
+ANDROID_REPO=/Users/Ruihan/.config/superpowers/worktrees/unseal-android/chatbot-api-service
+SDK_REPO=/Users/Ruihan/go/src/unseal-agent-stream-core/.worktrees/stream-core-types
+
+mkdir -p \
+  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/arm64-v8a" \
+  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/armeabi-v7a" \
+  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/x86_64"
+
+cp "$SDK_REPO/target/aarch64-linux-android/release/libunseal_agent_stream.so" \
+  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/arm64-v8a/libunseal_agent_stream.so"
+cp "$SDK_REPO/target/armv7-linux-androideabi/release/libunseal_agent_stream.so" \
+  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/armeabi-v7a/libunseal_agent_stream.so"
+cp "$SDK_REPO/target/x86_64-linux-android/release/libunseal_agent_stream.so" \
+  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/x86_64/libunseal_agent_stream.so"
+```
+
+Then verify Android can load the JNI library:
+
+```bash
+cd "$ANDROID_REPO"
+./gradlew :libraries:agentstream:testDebugUnitTest
+./gradlew :app:installGplayDebug
+```
+
+Current installed test device: `PHK110 - 15`.
+
+#### Important validation commands
+- Rust SDK:
+  - `cargo test`
+- Android SDK wrapper + timeline:
+  - `./gradlew :libraries:agentstream:testDebugUnitTest :features:messages:impl:testDebugUnitTest --tests '*DefaultAgentStreamClientTest*' --tests '*StreamSnapshotUpdatePolicyTest*' --tests '*TimelineItemAiPresenterTest*'`
+- Broader Android stream/timeline checks:
+  - `./gradlew :features:messages:impl:testDebugUnitTest --tests '*AiSdkStreamReducerTest' --tests '*AndroidAgentStreamAdaptersTest' --tests '*TimelineItemAiPresenterTest' --tests '*AiMessageContentParserTest' --tests '*TimelineItemContentFactoryTest'`
+  - `./gradlew :libraries:chatbot:impl:testDebugUnitTest --tests '*ChatbotHttpClientTest'`
+  - `./gradlew :features:messages:impl:compileDebugKotlin :libraries:chatbot:impl:compileDebugKotlin`
+
+#### Known constraints / next work
+- `StreamSnapshotUpdatePolicy` currently exists in Android wrapper as well as Rust runtime
+  policy. Keep Android policy as the UI-facing guard until the Kotlin layer consumes runtime
+  `StreamUpdate` directly; do not move this logic into timeline presenters.
+- SQLite provider is intentionally simple and app-local. If replacing it with Room or encrypted
+  storage, keep the `StreamStorageProvider` boundary and preserve completed snapshot reuse.
+- Android renderer still needs iOS card parity work by `StreamPart`/tool type. Data should come
+  from `parts`; avoid rendering raw JSON directly to users.
+- Virtual scrolling and visibility policy remain client-owned. The stream SDK provides
+  `getStream`, `subscribe`, `refresh`, and `cancel`; list screens decide when to subscribe
+  or cancel recycled rows.
 
 ### Diagnosed, NOT a bug
 - Clone-owner returns 200 ("Sandbox cloned successfully") and works.
