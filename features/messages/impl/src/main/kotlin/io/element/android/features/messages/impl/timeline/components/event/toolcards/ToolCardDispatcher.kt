@@ -45,6 +45,7 @@ internal fun ToolCard(
     if (gitHubActivityCard(cardType, data, onLinkClick)) return true
     if (gmailDriveCard(cardType, data, onLinkClick)) return true
     if (linearTwitterCard(cardType, data, onLinkClick)) return true
+    if (scheduleMoltbookCard(cardType, data, onLinkClick)) return true
     return GenericListCard(data)
 }
 
