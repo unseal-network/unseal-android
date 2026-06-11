@@ -24,16 +24,21 @@ data class ChatbotWorkingMemoryRequest(
 
 @Serializable
 data class ChatbotRoomAgent(
-    @SerialName("agent_id")
+    // The server returns the agent's Matrix id as `user_id` (not `agent_id`).
+    @SerialName("user_id")
     val agentId: String,
     @SerialName("display_name")
     val displayName: String? = null,
     @SerialName("avatar_url")
     val avatarUrl: String? = null,
+    @SerialName("user_type")
+    val userType: String? = null,
+    val membership: String? = null,
     val mxid: String? = null,
 )
 
 @Serializable
 data class ChatbotGetRoomAgentsResponse(
     val agents: List<ChatbotRoomAgent> = emptyList(),
+    val total: Int = 0,
 )
