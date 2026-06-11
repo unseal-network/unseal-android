@@ -367,7 +367,8 @@ internal val AiToolStreamPart.displayName: String
     get() = title ?: toolName.removePrefix("tool-").replace("_", " ").ifBlank { id }
 
 internal val AiToolStreamPart.isDone: Boolean
-    get() = state == "output-available" || state == "approval-responded"
+    // Mirrors iOS mapState: output-available + approval-requested + approval-responded are "done".
+    get() = state == "output-available" || state == "approval-requested" || state == "approval-responded"
 
 internal val AiToolStreamPart.isError: Boolean
     get() = state == "output-error" || state == "output-denied"

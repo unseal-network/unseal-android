@@ -334,7 +334,9 @@ private fun ToolCallRootCard(
     val selectedPart = parts[selectedIndex]
     val doneCount = parts.count { it.isDone }
     val errorCount = parts.count { it.isError }
-    val callingCount = if (isStreaming) parts.size - doneCount - errorCount else 0
+    // Per-tool state drives "calling" (mirrors iOS, which renders tools by their own ToolState and
+    // does NOT gate on the message-level streaming flag).
+    val callingCount = parts.size - doneCount - errorCount
     val allFinished = callingCount == 0
 
     Surface(
@@ -466,7 +468,7 @@ private fun ToolPartContent(
             )
         }
         when {
-            part.isCalling && isStreaming -> ToolCallingContent(part, allFinished, onLinkClick, onLinkLongClick)
+            part.isCalling -> ToolCallingContent(part, allFinished, onLinkClick, onLinkLongClick)
             part.isError -> ToolErrorContent(part)
             part.output?.isNotBlank() == true -> ToolPayloadCard(part, payload = part.output, onLinkClick, onLinkLongClick)
             part.input?.isNotBlank() == true -> ToolPayloadCard(part, payload = part.input, onLinkClick, onLinkLongClick)
