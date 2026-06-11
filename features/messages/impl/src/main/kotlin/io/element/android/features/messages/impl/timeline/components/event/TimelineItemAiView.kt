@@ -138,9 +138,9 @@ private fun AiStreamPartsView(
         val visibleParts = parts.filterNot { it.isHiddenStreamPart }
         val registeredToolParts = visibleParts.filterIsInstance<AiToolStreamPart>()
             .filter { it.toolName.isRegisteredToolName }
-        registeredToolParts.flatMap { it.toRenderableToolParts() } to visibleParts.filterNot { part ->
-            part is AiToolStreamPart && part.toolName.isRegisteredToolName
-        }
+        // Mirror iOS: only registered tools render (as cards). Unregistered tool parts render
+        // nothing (no generic card), so drop ALL tool parts from the pass-through list.
+        registeredToolParts.flatMap { it.toRenderableToolParts() } to visibleParts.filterNot { it is AiToolStreamPart }
     }
     Column(
         modifier = Modifier.fillMaxWidth(),
