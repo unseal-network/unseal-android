@@ -46,7 +46,7 @@ import org.json.JSONObject
 
 /**
  * Renders the Composio Search family of tool cards in Material 3, mirroring the iOS
- * `ToolCardsIOS/ComposioSearch/*` cards (FlightAlert, HotelBooking, HeadlineList,
+ * `ToolCardsIOS/ComposioSearch` cards (FlightAlert, HotelBooking, HeadlineList,
  * BreakingNews, ImageGrid, ProductList, Finance, EventList, PlaceList, UrlContent).
  *
  * Returns true when [cardType] matched and a card was rendered; false for unknown types

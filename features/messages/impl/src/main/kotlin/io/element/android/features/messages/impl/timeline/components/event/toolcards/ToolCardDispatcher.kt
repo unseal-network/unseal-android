@@ -43,6 +43,8 @@ internal fun ToolCard(
     if (composioSearchCard(cardType, data, onLinkClick)) return true
     if (gitHubPrimaryCard(cardType, data, onLinkClick)) return true
     if (gitHubActivityCard(cardType, data, onLinkClick)) return true
+    if (gmailDriveCard(cardType, data, onLinkClick)) return true
+    if (linearTwitterCard(cardType, data, onLinkClick)) return true
     return GenericListCard(data)
 }
 

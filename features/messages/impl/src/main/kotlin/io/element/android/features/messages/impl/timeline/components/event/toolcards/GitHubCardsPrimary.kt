@@ -38,7 +38,7 @@ import org.json.JSONObject
 
 /**
  * Native Material 3 renderers for the "primary" set of GitHub tool cards, ported field-for-field
- * from the iOS `ToolCardsIOS/GitHub/*` SwiftUI cards. Each card mirrors the iOS field set and
+ * from the iOS `ToolCardsIOS/GitHub` SwiftUI cards. Each card mirrors the iOS field set and
  * layout, expressed with the shared [ToolCardKit] helpers. Lists are capped at [MAX_CARD_ITEMS].
  *
  * Wiring into [ToolCard]/ToolCardDispatcher is done separately by the caller.
