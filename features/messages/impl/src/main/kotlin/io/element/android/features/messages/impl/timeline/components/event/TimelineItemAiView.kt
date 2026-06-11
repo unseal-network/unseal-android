@@ -87,6 +87,18 @@ fun TimelineItemAiView(
                 onLinkClick = onLinkClick,
                 onLinkLongClick = onLinkLongClick,
             )
+        } else if (content.streamId != null) {
+            // Stream message: once we have a streamId the presenter loads the stream — render the
+            // already-known body text if present. We never show the "thinking" placeholder here;
+            // that is only a fallback for non-stream messages with no streamId (mirrors iOS, which
+            // starts loading as soon as a streamId is available).
+            if (content.body.isNotBlank()) {
+                LinkifiedAiText(
+                    text = content.body,
+                    onLinkClick = onLinkClick,
+                    onLinkLongClick = onLinkLongClick,
+                )
+            }
         } else {
             if (content.thinkingSteps.isNotEmpty()) {
                 ThinkingSection(content.thinkingSteps)
