@@ -281,7 +281,18 @@ class DefaultAgentStreamClient(
                 if (!isActiveRunLocked(runId)) {
                     return false
                 }
+                // Terminal Completed is monotonic: once a stream has completed, a stale non-completed
+                // snapshot (e.g. a late streaming chunk or a replayed run) must NOT overwrite it —
+                // otherwise the tool card regresses from done back to "Running tool…".
+                if (currentSnapshot.status == StreamStatus.Completed && snapshot.status != StreamStatus.Completed) {
+                    return false
+                }
                 currentSnapshot = snapshot
+                if (snapshot.status == StreamStatus.Completed) {
+                    // Cache immediately so a re-subscribe returns the completed state instead of
+                    // starting a fresh run that replays the stream from the beginning.
+                    completedCache[snapshot.streamId] = snapshot
+                }
                 listeners.values.toList()
             }
             callbacks.forEach { listener ->
