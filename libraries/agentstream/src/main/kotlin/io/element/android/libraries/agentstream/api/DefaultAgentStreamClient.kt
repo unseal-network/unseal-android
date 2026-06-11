@@ -249,11 +249,15 @@ class DefaultAgentStreamClient(
                     }
                     if (previousSnapshot != null) {
                         val failed = failedSnapshot(request.streamId, throwable, previousSnapshot)
+                        // Only durable (stream-level / non-retryable) failures are persisted. Retryable
+                        // transport errors (network blips, timeouts, 5xx) are shown but never cached, so
+                        // re-opening the stream retries instead of serving a stale failure.
+                        val retryable = (throwable as? StreamTransportException)?.retryable == true
                         if (publishIfActive(runId, failed)) {
                             if (!isActiveRun(runId)) {
                                 return
                             }
-                            if (completedBeforeRefresh == null && !hasCompletedSnapshot(request.streamId)) {
+                            if (!retryable && completedBeforeRefresh == null && !hasCompletedSnapshot(request.streamId)) {
                                 try {
                                     storageProvider.save(failed)
                                 } catch (_: Throwable) {

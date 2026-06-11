@@ -44,6 +44,20 @@ interface StreamHttpClient {
     )
 }
 
+/**
+ * Thrown by a [StreamHttpClient] to classify a stream fetch failure.
+ *
+ * When [retryable] is true (network/transport blips, timeouts, 5xx, rate limiting) the failure is
+ * transient: the client surfaces it to the UI but does NOT persist it, so re-opening the stream
+ * retries. When false (e.g. a 4xx / genuine stream-level error) the failure is durable and is
+ * cached/persisted like a terminal result.
+ */
+class StreamTransportException(
+    message: String,
+    val retryable: Boolean,
+    cause: Throwable? = null,
+) : Exception(message, cause)
+
 interface StreamTaskRunner {
     fun run(
         key: String,

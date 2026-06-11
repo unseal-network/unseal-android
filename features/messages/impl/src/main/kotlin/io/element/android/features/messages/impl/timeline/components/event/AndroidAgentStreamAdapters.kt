@@ -19,12 +19,14 @@ import io.element.android.libraries.agentstream.api.AgentStreamClient
 import io.element.android.libraries.agentstream.api.DefaultAgentStreamClient
 import io.element.android.libraries.agentstream.api.StreamHttpClient
 import io.element.android.libraries.agentstream.api.StreamRequest
+import io.element.android.libraries.agentstream.api.StreamTransportException
 import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.agentstream.api.StreamSnapshotJsonCodec
 import io.element.android.libraries.agentstream.api.StreamStatus
 import io.element.android.libraries.agentstream.api.StreamStorageProvider
 import io.element.android.libraries.agentstream.api.StreamTask
 import io.element.android.libraries.agentstream.api.StreamTaskRunner
+import io.element.android.libraries.chatbot.api.ChatbotApiError
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.di.RoomScope
@@ -67,8 +69,27 @@ class ChatbotStreamHttpClient(
         chatbotApiServiceFactory
             .createForAiStream(matrixClient)
             .streamAgentMessage(request.streamId, request.sender.takeIf { it.isNotBlank() }, onChunk)
-            .getOrThrow()
+            .getOrElse { throwable -> throw throwable.toStreamTransportException() }
     }
+}
+
+/**
+ * Classifies a stream-fetch failure as retryable (transport-level) vs durable (stream-level).
+ * Network blips, timeouts, 5xx and rate limiting are retryable; a definitive 4xx is not.
+ */
+private fun Throwable.toStreamTransportException(): StreamTransportException {
+    val retryable = when (this) {
+        is ChatbotApiError.NetworkError -> true
+        is ChatbotApiError.HttpError -> statusCode >= 500 || statusCode == 408 || statusCode == 429
+        is ChatbotApiError.MissingAccessToken,
+        is ChatbotApiError.InvalidBaseUrl -> true
+        else -> this is java.io.IOException
+    }
+    return StreamTransportException(
+        message = message.orEmpty().ifBlank { "Failed to open stream." },
+        retryable = retryable,
+        cause = this,
+    )
 }
 
 @SingleIn(RoomScope::class)
