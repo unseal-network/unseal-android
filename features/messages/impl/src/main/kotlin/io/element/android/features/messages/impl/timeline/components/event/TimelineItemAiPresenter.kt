@@ -75,11 +75,6 @@ class TimelineItemAiPresenter(
                 return@LaunchedEffect
             }
 
-            if (initialContent.parts.isNotEmpty()) {
-                currentContent = initialContent
-                return@LaunchedEffect
-            }
-
             collectStreamContent(
                 streamId = streamId,
                 fallbackContent = initialContent,

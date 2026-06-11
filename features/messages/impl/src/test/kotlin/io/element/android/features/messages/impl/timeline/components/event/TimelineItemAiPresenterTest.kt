@@ -22,6 +22,7 @@ import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.agentstream.api.StreamStatus
 import io.element.android.libraries.agentstream.api.StreamSubscription
 import io.element.android.libraries.agentstream.api.TextPartState
+import io.element.android.libraries.agentstream.api.ToolPartState
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.tests.testutils.test
 import io.element.android.tests.testutils.testCoroutineDispatchers
@@ -79,11 +80,13 @@ class TimelineItemAiPresenterTest {
     }
 
     @Test
-    fun `present - does not request sdk stream when initial parts are populated`() = runTest {
+    fun `present - subscribes to sdk stream when initial parts are populated`() = runTest {
         val client = FakeAgentStreamClient()
         val content = aTimelineItemAiContent(
             streamId = "stream-1",
-            parts = persistentListOf(AiTextStreamPart(id = "initial", state = "done", text = "Already parsed")),
+            parts = persistentListOf(
+                AiTextStreamPart(id = "initial", state = "streaming", text = "Running tool..."),
+            ),
         )
         val presenter = createPresenter(
             content = content,
@@ -92,10 +95,36 @@ class TimelineItemAiPresenterTest {
         )
 
         presenter.test {
-            val state = awaitItem()
+            assertThat(awaitItem().content).isEqualTo(content)
 
-            assertThat(state.content).isEqualTo(content)
-            assertThat(client.requests).isEmpty()
+            client.handle.emit(
+                snapshot(
+                    streamId = "stream-1",
+                    status = StreamStatus.Completed,
+                    parts = listOf(
+                        StreamPart.Tool(
+                            id = "tool-1",
+                            toolState = ToolPartState.OutputAvailable,
+                            toolName = "mail",
+                        ),
+                        StreamPart.Text(id = "text-1", text = "Done", textState = TextPartState.Complete),
+                    ),
+                )
+            )
+
+            val updated = awaitItem().content
+            assertThat(updated.body).isEqualTo("Done")
+            assertThat(updated.parts.map { it.state }).contains("output-available")
+            assertThat(updated.isStreaming).isFalse()
+            assertThat(client.requests).containsExactly(
+                StreamRequest(
+                    streamId = "stream-1",
+                    sender = "",
+                    roomId = "",
+                    eventId = "",
+                    includeRawEvents = false,
+                )
+            )
 
             cancelAndIgnoreRemainingEvents()
         }

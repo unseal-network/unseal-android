@@ -80,6 +80,7 @@ fun TimelineItemAiView(
         if (content.parts.isNotEmpty()) {
             AiStreamPartsView(
                 parts = content.parts,
+                isStreaming = content.isStreaming,
                 onLinkClick = onLinkClick,
                 onLinkLongClick = onLinkLongClick,
             )
@@ -128,6 +129,7 @@ fun TimelineItemAiView(
 @Composable
 private fun AiStreamPartsView(
     parts: List<AiStreamPart>,
+    isStreaming: Boolean,
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
 ) {
@@ -145,6 +147,7 @@ private fun AiStreamPartsView(
         if (toolParts.isNotEmpty()) {
             ToolCallRootCard(
                 parts = toolParts,
+                isStreaming = isStreaming,
                 onLinkClick = onLinkClick,
                 onLinkLongClick = onLinkLongClick,
             )
@@ -311,6 +314,7 @@ private fun ReasoningPart(part: AiReasoningStreamPart) {
 @Composable
 private fun ToolCallRootCard(
     parts: List<AiToolStreamPart>,
+    isStreaming: Boolean,
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
 ) {
@@ -321,7 +325,7 @@ private fun ToolCallRootCard(
     val selectedPart = parts[selectedIndex]
     val doneCount = parts.count { it.isDone }
     val errorCount = parts.count { it.isError }
-    val callingCount = parts.size - doneCount - errorCount
+    val callingCount = if (isStreaming) parts.size - doneCount - errorCount else 0
     val allFinished = callingCount == 0
 
     Surface(
@@ -372,6 +376,7 @@ private fun ToolCallRootCard(
                 ToolPartContent(
                     part = selectedPart,
                     showTitle = parts.size == 1,
+                    isStreaming = isStreaming,
                     allFinished = allFinished,
                     onLinkClick = onLinkClick,
                     onLinkLongClick = onLinkLongClick,
@@ -422,6 +427,7 @@ private fun ToolSelectionTabs(
 private fun ToolPartContent(
     part: AiToolStreamPart,
     showTitle: Boolean,
+    isStreaming: Boolean,
     allFinished: Boolean,
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
@@ -451,7 +457,7 @@ private fun ToolPartContent(
             )
         }
         when {
-            part.isCalling -> ToolCallingContent(part, allFinished, onLinkClick, onLinkLongClick)
+            part.isCalling && isStreaming -> ToolCallingContent(part, allFinished, onLinkClick, onLinkLongClick)
             part.isError -> ToolErrorContent(part)
             part.output?.isNotBlank() == true -> ToolPayloadCard(part, payload = part.output, onLinkClick, onLinkLongClick)
             part.input?.isNotBlank() == true -> ToolPayloadCard(part, payload = part.input, onLinkClick, onLinkLongClick)
