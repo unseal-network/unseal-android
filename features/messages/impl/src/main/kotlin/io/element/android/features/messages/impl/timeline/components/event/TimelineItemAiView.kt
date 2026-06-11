@@ -134,9 +134,11 @@ private fun AiStreamPartsView(
     onLinkLongClick: (Link) -> Unit,
 ) {
     val (toolParts, nonToolParts) = remember(parts) {
-        val registeredToolParts = parts.filterIsInstance<AiToolStreamPart>()
+        // Mirror iOS ToolGroupUtils.isHiddenPart: internal/noise tool & data parts are not rendered.
+        val visibleParts = parts.filterNot { it.isHiddenStreamPart }
+        val registeredToolParts = visibleParts.filterIsInstance<AiToolStreamPart>()
             .filter { it.toolName.isRegisteredToolName }
-        registeredToolParts.flatMap { it.toRenderableToolParts() } to parts.filterNot { part ->
+        registeredToolParts.flatMap { it.toRenderableToolParts() } to visibleParts.filterNot { part ->
             part is AiToolStreamPart && part.toolName.isRegisteredToolName
         }
     }
@@ -946,6 +948,34 @@ private val TOOL_CARD_REGISTRY = mapOf(
     "updateSchedule" to "updateSchedule",
     "updateScheduleStatus" to "updateScheduleStatus",
 )
+
+// Ported from iOS HideToolNames: internal tool/data/step parts that are never rendered in the UI.
+private val HIDDEN_PART_NAMES = setOf(
+    "tool-information", "tool-requestDeviceAction", "tool-sendMessage", "tool-setTyping",
+    "tool-uploadFile", "tool-getMessages", "tool-getSchedule", "tool-unsealRpcCall",
+    "tool-updateWorkingMemory", "tool-requestVaultAuthorization", "tool-chooseRequest",
+    "tool-deleteSchedule", "tool-listSchedules", "tool-getMessagesTool", "tool-executeCommand",
+    "tool-mastra_workspace_execute_command", "step-start",
+    "data-om-observation-start", "data-om-observation-end", "data-om-status",
+    "data-sandbox-stderr", "data-sandbox-exit", "data-workspace-metadata",
+    "tool-listVaultGrants", "tool-fetch", "tool-getCurrentTime",
+    "tool-mastra_workspace_list_files", "tool-mastra_workspace_write_file",
+    "tool-mastra_workspace_edit_file", "tool-pagePeek", "tool-downloadMessage",
+    "tool-unsealCli", "tool-addToVault", "tool-readRoomMemory", "tool-writeRoomMemory",
+    "tool-skill_read", "tool-skill", "data-evaluation", "data-plan",
+)
+
+/** Mirrors iOS ToolGroupUtils.isHiddenPart — checks the part's wire type against [HIDDEN_PART_NAMES]. */
+private val AiStreamPart.isHiddenStreamPart: Boolean
+    get() = when (this) {
+        is AiToolStreamPart -> {
+            val bare = toolName.removePrefix("tool-")
+            HIDDEN_PART_NAMES.contains(toolName) || HIDDEN_PART_NAMES.contains("tool-$bare")
+        }
+        is AiDataStreamPart -> HIDDEN_PART_NAMES.contains(type)
+        is AiCustomStreamPart -> HIDDEN_PART_NAMES.contains(type)
+        else -> false
+    }
 
 private val IGNORED_TOOL_NAMES = setOf("COMPOSIO_SEARCH_TOOLS")
 private val META_TOOL_NAMES = setOf("COMPOSIO_MULTI_EXECUTE_TOOL")
