@@ -52,6 +52,9 @@ import io.element.android.features.messages.impl.timeline.model.event.AiThinking
 import io.element.android.features.messages.impl.timeline.model.event.AiTextStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiToolCall
 import io.element.android.features.messages.impl.timeline.model.event.AiToolStreamPart
+import io.element.android.features.messages.impl.timeline.components.event.toolcards.ToolCard
+import io.element.android.features.messages.impl.timeline.components.event.toolcards.resolveToolCardType
+import io.element.android.features.messages.impl.timeline.components.event.toolcards.toCardDataJson
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.libraries.androidutils.text.LinkifyHelper
 import io.element.android.libraries.textcomposer.ElementRichTextEditorStyle
@@ -498,12 +501,17 @@ private fun ToolPayloadCard(
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
 ) {
+    // 1. Try the dispatched tool card (iOS ToolCallRootCardAdapter parity). If it renders, done.
+    val cardType = remember(part.toolName) { resolveToolCardType(part.toolName) }
+    val cardData = remember(payload) { payload?.takeIf { it.isNotBlank() }?.toCardDataJson() }
+    if (cardType != null && cardData != null && ToolCard(cardType, cardData)) {
+        return
+    }
+    // 2. Otherwise show the tool result on expand: structured items, else raw (pretty-printed) text,
+    // so the content is never blank. iOS renders rich per-type cards here — UI differs, content holds.
     val model = remember(part.toolName, payload) {
         payload.toToolCardModel(part.toolName)
     }
-    // Always show the tool result on expand. Prefer the structured card items; when the payload
-    // doesn't fit the generic card shape, fall back to the raw (pretty-printed) result text so the
-    // content is never blank. iOS renders rich per-type cards here — UI differs, content parity holds.
     val rawPayload = remember(payload) { payload?.takeIf { it.isNotBlank() }?.prettyPayload() }
     if ((model == null || model.items.isEmpty()) && rawPayload.isNullOrBlank()) return
     Surface(
