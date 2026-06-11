@@ -181,10 +181,14 @@ class DefaultAgentStreamClient(
                 if (!skipStorageLoad) {
                     storageProvider.load(request.streamId)?.let { storedSnapshot ->
                         val snapshot = storedSnapshot.withStreamIdFallback(request.streamId)
-                        if (!publishIfActive(runId, snapshot)) {
-                            return
-                        }
-                        if (snapshot.isTerminal) {
+                        // Only a Completed snapshot is a durable cache hit. Genuine stream-level
+                        // errors arrive as SSE data and are stored as Completed (with an error part),
+                        // so they stay cached. A stored Failed/Cancelled is a transient transport
+                        // failure (network/5xx) — ignore it and re-open the stream so it retries.
+                        if (snapshot.status == StreamStatus.Completed) {
+                            if (!publishIfActive(runId, snapshot)) {
+                                return
+                            }
                             if (isActiveRun(runId)) {
                                 rememberCompleted(snapshot)
                             }
@@ -249,23 +253,15 @@ class DefaultAgentStreamClient(
                     }
                     if (previousSnapshot != null) {
                         val failed = failedSnapshot(request.streamId, throwable, previousSnapshot)
-                        // Only durable (stream-level / non-retryable) failures are persisted. Retryable
-                        // transport errors (network blips, timeouts, 5xx) are shown but never cached, so
-                        // re-opening the stream retries instead of serving a stale failure.
-                        val retryable = (throwable as? StreamTransportException)?.retryable == true
+                        // A thrown failure is transport-level (network blip, timeout, 5xx, HTTP error)
+                        // — never persist it, so re-opening the stream retries instead of serving a
+                        // stale failure. Genuine stream-level errors arrive as SSE data and are stored
+                        // via the Completed path, so they remain cached.
                         if (publishIfActive(runId, failed)) {
                             if (!isActiveRun(runId)) {
                                 return
                             }
-                            if (!retryable && completedBeforeRefresh == null && !hasCompletedSnapshot(request.streamId)) {
-                                try {
-                                    storageProvider.save(failed)
-                                } catch (_: Throwable) {
-                                    // The failed snapshot is already visible; a persistence failure must not keep the stream in flight.
-                                }
-                            } else {
-                                completedBeforeRefresh?.let(::rememberCompleted)
-                            }
+                            completedBeforeRefresh?.let(::rememberCompleted)
                         }
                     }
                 } finally {
