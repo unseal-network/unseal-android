@@ -14,7 +14,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import com.bumble.appyx.core.modality.BuildContext
 import com.bumble.appyx.core.node.Node
-import com.bumble.appyx.core.node.node
 import com.bumble.appyx.core.plugin.Plugin
 import com.bumble.appyx.navmodel.backstack.BackStack
 import com.bumble.appyx.navmodel.backstack.operation.pop
@@ -38,7 +37,8 @@ import io.element.android.features.preferences.impl.notifications.NotificationSe
 import io.element.android.features.preferences.impl.notifications.edit.EditDefaultNotificationSettingNode
 import io.element.android.features.preferences.impl.root.PreferencesRootNode
 import io.element.android.features.preferences.impl.user.editprofile.EditUserProfileNode
-import io.element.android.features.preferences.impl.vault.VaultManagementPlaceholderView
+import io.element.android.features.preferences.impl.vault.VaultManagementNode
+import io.element.android.features.preferences.impl.vault.edit.VaultEditNode
 import io.element.android.features.agentmanagement.api.AgentManagementEntryPoint
 import io.element.android.features.connectors.api.ConnectorsEntryPoint
 import io.element.android.features.skills.api.SkillsEntryPoint
@@ -133,6 +133,9 @@ class PreferencesFlowNode(
 
         @Parcelize
         data object VaultManagement : NavTarget
+
+        @Parcelize
+        data class VaultEdit(val key: String?, val description: String?) : NavTarget
 
         @Parcelize
         data class EditDefaultNotificationSetting(val isOneToOne: Boolean) : NavTarget
@@ -479,8 +482,38 @@ class PreferencesFlowNode(
                     },
                 )
             }
-            NavTarget.VaultManagement -> node(buildContext) { nodeModifier ->
-                VaultManagementPlaceholderView(nodeModifier)
+            NavTarget.VaultManagement -> {
+                val vaultCallback = object : VaultManagementNode.Callback {
+                    override fun onDone() {
+                        if (backstack.canPop()) backstack.pop() else navigateUp()
+                    }
+
+                    override fun onAddEntry() {
+                        backstack.push(NavTarget.VaultEdit(key = null, description = null))
+                    }
+
+                    override fun onEditEntry(item: io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem) {
+                        backstack.push(NavTarget.VaultEdit(key = item.key, description = item.description))
+                    }
+                }
+                createNode<VaultManagementNode>(buildContext, plugins = listOf(vaultCallback))
+            }
+            is NavTarget.VaultEdit -> {
+                val inputs = if (navTarget.key == null) {
+                    VaultEditNode.Inputs.Create
+                } else {
+                    VaultEditNode.Inputs.Edit(navTarget.key, navTarget.description)
+                }
+                val vaultEditCallback = object : VaultEditNode.Callback {
+                    override fun onDone() {
+                        backstack.pop()
+                    }
+
+                    override fun onComplete() {
+                        backstack.pop()
+                    }
+                }
+                createNode<VaultEditNode>(buildContext, plugins = listOf(inputs, vaultEditCallback))
             }
             NavTarget.BlockedUsers -> {
                 createNode<BlockedUsersNode>(buildContext)

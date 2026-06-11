@@ -1,0 +1,104 @@
+/*
+ * Copyright (c) 2026 New Vector Ltd.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
+ * Please see LICENSE files in the repository root for full details.
+ */
+
+package io.element.android.features.preferences.impl.vault
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import dev.zacsweers.metro.Assisted
+import dev.zacsweers.metro.AssistedFactory
+import dev.zacsweers.metro.AssistedInject
+import io.element.android.libraries.architecture.Presenter
+import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
+import io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem
+import io.element.android.libraries.matrix.api.MatrixClient
+import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.launch
+
+@AssistedInject
+class VaultManagementPresenter(
+    @Assisted private val navigator: VaultManagementNavigator,
+    private val matrixClient: MatrixClient,
+    private val chatbotApiServiceFactory: ChatbotApiServiceFactory,
+) : Presenter<VaultManagementState> {
+    @AssistedFactory
+    interface Factory {
+        fun create(navigator: VaultManagementNavigator): VaultManagementPresenter
+    }
+
+    @Composable
+    override fun present(): VaultManagementState {
+        val coroutineScope = rememberCoroutineScope()
+        var items by remember { mutableStateOf(emptyList<ChatbotVaultItem>()) }
+        var isLoading by remember { mutableStateOf(false) }
+        var error by remember { mutableStateOf<String?>(null) }
+        var pendingDelete by remember { mutableStateOf<ChatbotVaultItem?>(null) }
+        var isDeleting by remember { mutableStateOf(false) }
+
+        fun failureMessage(failure: Throwable, fallback: String): String =
+            failure.message ?: failure::class.simpleName ?: fallback
+
+        // Personal vault lives on the AI-stream (homeserver) base URL, mirroring iOS VaultService
+        // which builds its requests against the Matrix homeserver base (api.unseal.network).
+        suspend fun api() = chatbotApiServiceFactory.createForAiStream(matrixClient)
+
+        fun load() {
+            coroutineScope.launch {
+                isLoading = true
+                api().listVault()
+                    .onSuccess {
+                        items = it
+                        error = null
+                    }
+                    .onFailure { error = "加载失败：${failureMessage(it, "未知错误")}" }
+                isLoading = false
+            }
+        }
+
+        fun deleteConfirmed() {
+            val target = pendingDelete ?: return
+            coroutineScope.launch {
+                isDeleting = true
+                // iOS deletes by key (VaultService.deleteVault(key:) forwards the key as the vault id).
+                api().deleteVaultEntry(target.key)
+                    .onSuccess {
+                        pendingDelete = null
+                        error = null
+                        load()
+                    }
+                    .onFailure { error = "删除失败：${failureMessage(it, "未知错误")}" }
+                isDeleting = false
+            }
+        }
+
+        fun handleEvent(event: VaultManagementEvents) {
+            when (event) {
+                VaultManagementEvents.OnAppear -> load()
+                VaultManagementEvents.Refresh -> load()
+                VaultManagementEvents.AddEntry -> navigator.onAddEntry()
+                is VaultManagementEvents.EditEntry -> navigator.onEditEntry(event.item)
+                is VaultManagementEvents.ConfirmDelete -> pendingDelete = event.item
+                VaultManagementEvents.DismissDelete -> pendingDelete = null
+                VaultManagementEvents.DeleteConfirmed -> deleteConfirmed()
+                VaultManagementEvents.ClearError -> error = null
+            }
+        }
+
+        return VaultManagementState(
+            items = items.toImmutableList(),
+            isLoading = isLoading,
+            error = error,
+            pendingDelete = pendingDelete,
+            isDeleting = isDeleting,
+            eventSink = ::handleEvent,
+        )
+    }
+}
