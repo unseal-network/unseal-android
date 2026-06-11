@@ -72,6 +72,12 @@ data class ChatbotDeleteUserSkillResponse(
 @Serializable
 data class ChatbotGetUserSkillResponse(
     val skill: ChatbotUserSkill? = null,
+    @SerialName("presigned_urls")
+    val presignedUrls: List<String>? = null,
+    @SerialName("preupload_urls")
+    val preuploadUrls: List<String>? = null,
+    @SerialName("predelete_urls")
+    val predeleteUrls: List<String>? = null,
 )
 
 @Serializable

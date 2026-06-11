@@ -10,6 +10,7 @@
 package io.element.android.features.skills.impl.detail
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -24,7 +25,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,6 +40,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
@@ -155,19 +156,84 @@ private fun InfoRow(label: String, value: String) {
 private fun SkillReadOnlyContent(state: SkillDetailState) {
     SectionHeader("信息")
     InfoRow("名称", state.title)
-    InfoRow("标识符", state.id)
-    state.skill?.description?.takeIf { it.isNotBlank() }?.let {
-        InfoRow("描述", it)
-    } ?: InfoRow("描述", "暂无描述")
+    state.skill?.description?.takeIf { it.isNotBlank() }?.let { InfoRow("描述", it) }
     state.visibilityLabel?.let { InfoRow("可见性", it) }
     state.skill?.createdAt?.let { InfoRow("创建时间", it) }
-    if (!state.isOwner) {
+
+    val files = state.response?.presignedUrls.orEmpty()
+    if (files.isNotEmpty()) {
+        val uriHandler = LocalUriHandler.current
+        FilesSectionHeader(count = files.size)
+        files.forEachIndexed { index, url ->
+            FileRow(
+                name = fileDisplayName(url, index),
+                onClick = { runCatching { uriHandler.openUri(url) } },
+            )
+        }
+    }
+}
+
+@Composable
+private fun FilesSectionHeader(count: Int) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
         Text(
-            text = "公开市场技能",
+            text = "文件",
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Text(
+            text = count.toString(),
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier
+                .background(MaterialTheme.colorScheme.tertiary, RoundedCornerShape(50))
+                .padding(horizontal = 8.dp, vertical = 2.dp),
         )
     }
+}
+
+@Composable
+private fun FileRow(name: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(
+            imageVector = CompoundIcons.Attachment(),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp),
+        )
+        Text(
+            text = name,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Icon(
+            imageVector = CompoundIcons.ChevronRight(),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+/** Derives a readable file name from a presigned URL (last path segment, decoded). */
+private fun fileDisplayName(url: String, index: Int): String {
+    val path = url.substringBefore('?').substringAfterLast('/')
+    val decoded = runCatching { java.net.URLDecoder.decode(path, "UTF-8") }.getOrDefault(path)
+    return decoded.ifBlank { "文件 ${index + 1}" }
 }
 
 @Composable
@@ -200,14 +266,6 @@ private fun SkillEditForm(state: SkillDetailState) {
                 label = { Text(visibility.displayName()) },
             )
         }
-    }
-    Spacer(Modifier.height(4.dp))
-    Button(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = { state.eventSink(SkillDetailEvents.SaveEditing) },
-        enabled = !state.isSaving,
-    ) {
-        Text(if (state.isSaving) "保存中…" else "保存修改")
     }
 }
 
