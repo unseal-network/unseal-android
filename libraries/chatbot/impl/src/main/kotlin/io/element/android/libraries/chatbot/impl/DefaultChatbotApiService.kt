@@ -49,6 +49,7 @@ import io.element.android.libraries.chatbot.api.model.voices.ChatbotProviderVoic
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceProfile
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceShare
 import io.element.android.libraries.chatbot.api.model.storage.ChatbotPresignedUpload
+import io.element.android.libraries.chatbot.api.model.storage.ChatbotStsCredentials
 import io.element.android.libraries.chatbot.api.model.storage.ChatbotStsTokenRequest
 import io.element.android.libraries.chatbot.api.model.storage.ChatbotStsTokenResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotAgentSkillItem
@@ -76,9 +77,18 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.serializer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import java.io.IOException
 
 internal class DefaultChatbotApiService(
     private val httpClient: ChatbotHttpClient,
+    private val okHttpClient: OkHttpClient,
 ) : ChatbotApiService {
     override suspend fun listAgents(): Result<List<ChatbotAgent>> {
         return httpClient.requestRaw("/chatbot/v1/agents", ChatbotHttpMethod.GET).mapCatching { raw ->
@@ -170,6 +180,61 @@ internal class DefaultChatbotApiService(
 
     override suspend fun getStsToken(scope: String, durationSeconds: Int): Result<ChatbotStsTokenResponse> =
         httpClient.requestJson("/chatbot/v1/storage/sts_token", ChatbotHttpMethod.POST, encode(ChatbotStsTokenRequest(scope, durationSeconds)))
+
+    override suspend fun uploadToS3(
+        endpoint: String,
+        bucket: String,
+        key: String,
+        data: ByteArray,
+        contentType: String,
+        credentials: ChatbotStsCredentials,
+        region: String,
+        isMinIO: Boolean,
+    ): Result<Unit> {
+        val base = endpoint.toHttpUrlOrNull() ?: return Result.failure(ChatbotApiError.InvalidBaseUrl)
+        val objectUrl = if (isMinIO) {
+            // MinIO: PUT {endpoint}/{bucket}/{key}
+            base.newBuilder()
+                .addPathSegment(bucket)
+                .apply { key.split("/").filter { it.isNotEmpty() }.forEach { addPathSegment(it) } }
+                .build()
+        } else {
+            // AWS S3: PUT https://{bucket}.s3.{region}.amazonaws.com/{key}
+            base.newBuilder()
+                .host("$bucket.s3.$region.amazonaws.com")
+                .encodedPath("/")
+                .apply { key.split("/").filter { it.isNotEmpty() }.forEach { addPathSegment(it) } }
+                .build()
+        }
+
+        val signer = AwsV4Signer(
+            accessKeyId = credentials.accessKeyId,
+            secretAccessKey = credentials.secretAccessKey,
+            sessionToken = credentials.sessionToken,
+            region = region,
+            service = "s3",
+        )
+
+        val requestBuilder = Request.Builder()
+            .url(objectUrl)
+            .put(data.toRequestBody(contentType.toMediaTypeOrNull()))
+        signer.sign(requestBuilder, method = "PUT", url = objectUrl, contentType = contentType, body = data)
+        val request = requestBuilder.build()
+
+        return withContext(Dispatchers.IO) {
+            try {
+                okHttpClient.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        Result.success(Unit)
+                    } else {
+                        Result.failure(ChatbotApiError.HttpError(response.code, response.body.string().take(800)))
+                    }
+                }
+            } catch (e: IOException) {
+                Result.failure(ChatbotApiError.NetworkError(e.message.orEmpty(), e))
+            }
+        }
+    }
 
     override suspend fun listSchedules(roomId: String): Result<List<ChatbotSchedule>> =
         httpClient.requestJson<ChatbotListSchedulesResponse>("/chatbot/v1/schedules${ChatbotUrlBuilder.query(mapOf("room_id" to roomId, "viewAll" to "true"))}", ChatbotHttpMethod.GET)

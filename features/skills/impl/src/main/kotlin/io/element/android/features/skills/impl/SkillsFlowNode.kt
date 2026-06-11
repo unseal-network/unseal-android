@@ -21,6 +21,7 @@ import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
 import io.element.android.features.skills.api.SkillsEntryPoint
 import io.element.android.features.skills.impl.agentskills.AgentSkillsNode
+import io.element.android.features.skills.impl.create.SkillCreateNode
 import io.element.android.features.skills.impl.detail.SkillDetailNode
 import io.element.android.features.skills.impl.home.SkillsHomeNode
 import io.element.android.features.skills.impl.marketplace.SkillMarketplaceNode
@@ -82,13 +83,10 @@ class SkillsFlowNode(
                 buildContext = buildContext,
                 plugins = listOf(SkillDetailNode.Inputs(navTarget.id, navTarget.isOwner), detailCallback),
             )
-            NavTarget.Create -> {
-                callback.onCreateSkill()
-                createNode<SkillsHomeNode>(
-                    buildContext = buildContext,
-                    plugins = listOf(homeCallback),
-                )
-            }
+            NavTarget.Create -> createNode<SkillCreateNode>(
+                buildContext = buildContext,
+                plugins = listOf(createCallback),
+            )
             is NavTarget.AgentSkills -> createNode<AgentSkillsNode>(
                 buildContext = buildContext,
                 plugins = listOf(AgentSkillsNode.Inputs(navTarget.botName), agentSkillsCallback),
@@ -110,7 +108,7 @@ class SkillsFlowNode(
     }
 
     fun openCreateSkill() {
-        callback.onCreateSkill()
+        backstack.push(NavTarget.Create)
     }
 
     fun onSkillDeleted(id: String) {
@@ -135,6 +133,17 @@ class SkillsFlowNode(
     private val marketplaceCallback = object : SkillMarketplaceNode.Callback {
         override fun onDone() = closeOrPop()
         override fun onOpenSkill(id: String) = openDetail(id, isOwner = false)
+    }
+
+    private val createCallback = object : SkillCreateNode.Callback {
+        override fun onDone() = closeOrPop()
+        override fun onViewDetail(id: String) {
+            // Replace the create screen with the new skill's detail so back returns to the list.
+            if (backstack.canPop()) {
+                backstack.pop()
+            }
+            openDetail(id, isOwner = true)
+        }
     }
 
     private val detailCallback = object : SkillDetailNode.Callback {

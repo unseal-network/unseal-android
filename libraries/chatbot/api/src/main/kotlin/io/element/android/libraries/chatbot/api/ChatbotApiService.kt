@@ -39,6 +39,7 @@ import io.element.android.libraries.chatbot.api.model.schedules.ChatbotCreateSch
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotSchedule
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotUpdateScheduleRequest
 import io.element.android.libraries.chatbot.api.model.storage.ChatbotPresignedUpload
+import io.element.android.libraries.chatbot.api.model.storage.ChatbotStsCredentials
 import io.element.android.libraries.chatbot.api.model.storage.ChatbotStsTokenResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotCreateUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotDeleteUserSkillResponse
@@ -76,6 +77,21 @@ interface ChatbotApiService {
     suspend fun deleteUserSkill(id: String): Result<ChatbotDeleteUserSkillResponse>
     suspend fun presignedUploadUrls(body: ChatbotJsonObject): Result<List<ChatbotPresignedUpload>>
     suspend fun getStsToken(scope: String, durationSeconds: Int): Result<ChatbotStsTokenResponse>
+
+    /**
+     * Uploads bytes to S3 (or MinIO) using STS temporary credentials and AWS Signature V4.
+     * Mirrors the iOS `ChatbotAPIClient.uploadToS3` flow.
+     */
+    suspend fun uploadToS3(
+        endpoint: String,
+        bucket: String,
+        key: String,
+        data: ByteArray,
+        contentType: String,
+        credentials: ChatbotStsCredentials,
+        region: String,
+        isMinIO: Boolean,
+    ): Result<Unit>
     suspend fun listSchedules(roomId: String): Result<List<ChatbotSchedule>>
     suspend fun createSchedule(request: ChatbotCreateScheduleRequest): Result<ChatbotCreateScheduleResponse>
     suspend fun updateSchedule(scheduleId: String, request: ChatbotUpdateScheduleRequest): Result<ChatbotCreateScheduleResponse>

@@ -35,13 +35,15 @@ class DefaultChatbotApiServiceFactory(
     }
 
     override fun createForBaseUrl(baseUrl: String, matrixClient: MatrixClient): ChatbotApiService {
+        val client = okHttpClient()
         return DefaultChatbotApiService(
             httpClient = ChatbotHttpClient(
                 baseUrl = baseUrl,
                 matrixClient = matrixClient,
-                okHttpClient = okHttpClient(),
+                okHttpClient = client,
                 tokenProvider = tokenProvider,
-            )
+            ),
+            okHttpClient = client,
         )
     }
 }

@@ -30,13 +30,15 @@ class DefaultChatbotApiServiceTest {
     fun setUp() {
         server = MockWebServer()
         server.start()
+        val okHttpClient = OkHttpClient()
         service = DefaultChatbotApiService(
             ChatbotHttpClient(
                 baseUrl = server.url("/").toString(),
                 matrixClient = FakeMatrixClient(),
-                okHttpClient = OkHttpClient(),
+                okHttpClient = okHttpClient,
                 tokenProvider = ChatbotAccessTokenProvider { "mx-token" },
-            )
+            ),
+            okHttpClient = okHttpClient,
         )
     }
 

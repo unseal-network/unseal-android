@@ -78,6 +78,7 @@ class FakeChatbotApiService : ChatbotApiService {
     var getStsTokenResult: (String, Int) -> Result<ChatbotStsTokenResponse> = { _, _ ->
         Result.success(ChatbotStsTokenResponse(ChatbotStsCredentials(accessKeyId = "access", secretAccessKey = "secret")))
     }
+    var uploadToS3Result: (String, String, String) -> Result<Unit> = { _, _, _ -> Result.success(Unit) }
     var listSchedulesResult: (String) -> Result<List<ChatbotSchedule>> = { Result.success(emptyList()) }
     var createScheduleResult: (ChatbotCreateScheduleRequest) -> Result<ChatbotCreateScheduleResponse> = { Result.success(ChatbotCreateScheduleResponse(success = true, ebScheduleId = "schedule")) }
     var updateScheduleResult: (String, ChatbotUpdateScheduleRequest) -> Result<ChatbotCreateScheduleResponse> = { _, _ -> Result.success(ChatbotCreateScheduleResponse(success = true, ebScheduleId = "schedule")) }
@@ -131,6 +132,16 @@ class FakeChatbotApiService : ChatbotApiService {
     override suspend fun deleteUserSkill(id: String) = simulateLongTask { deleteUserSkillResult(id) }
     override suspend fun presignedUploadUrls(body: ChatbotJsonObject) = simulateLongTask { presignedUploadUrlsResult(body) }
     override suspend fun getStsToken(scope: String, durationSeconds: Int) = simulateLongTask { getStsTokenResult(scope, durationSeconds) }
+    override suspend fun uploadToS3(
+        endpoint: String,
+        bucket: String,
+        key: String,
+        data: ByteArray,
+        contentType: String,
+        credentials: io.element.android.libraries.chatbot.api.model.storage.ChatbotStsCredentials,
+        region: String,
+        isMinIO: Boolean,
+    ) = simulateLongTask { uploadToS3Result(endpoint, bucket, key) }
     override suspend fun listSchedules(roomId: String) = simulateLongTask { listSchedulesResult(roomId) }
     override suspend fun createSchedule(request: ChatbotCreateScheduleRequest) = simulateLongTask { createScheduleResult(request) }
     override suspend fun updateSchedule(scheduleId: String, request: ChatbotUpdateScheduleRequest) = simulateLongTask { updateScheduleResult(scheduleId, request) }
