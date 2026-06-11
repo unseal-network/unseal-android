@@ -48,7 +48,10 @@ class AiSdkStreamReducer {
         val mappedParts = snapshot.parts.map { it.toAiStreamPart() }
         val streamParts = mappedParts.withSnapshotErrorIfNeeded(snapshot)
         Timber.tag(TAG).d(
-            "AI stream parts: %s",
+            "AI snapshot stream=%s status=%s isStreaming=%s parts: %s",
+            snapshot.streamId,
+            snapshot.status,
+            (snapshot.status == StreamStatus.Loading || snapshot.status == StreamStatus.Streaming),
             streamParts.joinToString(separator = ", ") { it.safeLogLabel() }
         )
         val textParts = streamParts.filterIsInstance<AiTextStreamPart>()

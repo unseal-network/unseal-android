@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -499,8 +500,12 @@ private fun ToolPayloadCard(
 ) {
     val model = remember(part.toolName, payload) {
         payload.toToolCardModel(part.toolName)
-    } ?: return
-    if (model.items.isEmpty()) return
+    }
+    // Always show the tool result on expand. Prefer the structured card items; when the payload
+    // doesn't fit the generic card shape, fall back to the raw (pretty-printed) result text so the
+    // content is never blank. iOS renders rich per-type cards here — UI differs, content parity holds.
+    val rawPayload = remember(payload) { payload?.takeIf { it.isNotBlank() }?.prettyPayload() }
+    if ((model == null || model.items.isEmpty()) && rawPayload.isNullOrBlank()) return
     Surface(
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
@@ -508,14 +513,27 @@ private fun ToolPayloadCard(
             .fillMaxWidth()
             .heightIn(max = 260.dp),
     ) {
-        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            model.items.take(MAX_RENDERED_ITEMS).forEach { item ->
-                ToolCardItem(item, onLinkClick, onLinkLongClick)
-            }
-            if (model.moreCount > 0) {
+        Column(
+            modifier = Modifier
+                .padding(10.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (model != null && model.items.isNotEmpty()) {
+                model.items.take(MAX_RENDERED_ITEMS).forEach { item ->
+                    ToolCardItem(item, onLinkClick, onLinkLongClick)
+                }
+                if (model.moreCount > 0) {
+                    Text(
+                        text = "+${model.moreCount} more",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else if (!rawPayload.isNullOrBlank()) {
                 Text(
-                    text = "+${model.moreCount} more",
-                    style = MaterialTheme.typography.labelSmall,
+                    text = rawPayload,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

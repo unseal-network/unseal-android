@@ -387,3 +387,17 @@ internal fun String.toDisplayLabel(): String =
 
 internal const val MAX_RENDERED_ITEMS = 5
 internal const val MAX_VALUE_CHARS = 240
+internal const val MAX_RAW_PAYLOAD_CHARS = 4000
+
+/** Pretty-prints a tool payload (JSON if possible) so the full result is readable on expand. */
+internal fun String.prettyPayload(maxChars: Int = MAX_RAW_PAYLOAD_CHARS): String {
+    val trimmed = trim()
+    val pretty = runCatching {
+        when {
+            trimmed.startsWith("{") -> JSONObject(trimmed).toString(2)
+            trimmed.startsWith("[") -> JSONArray(trimmed).toString(2)
+            else -> trimmed
+        }
+    }.getOrDefault(trimmed)
+    return if (pretty.length > maxChars) pretty.take(maxChars) + "\n…" else pretty
+}
