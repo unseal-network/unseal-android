@@ -97,6 +97,7 @@ class AiSdkStreamReducer {
             parts = streamParts.toImmutableList(),
             renderableToolParts = renderableToolParts,
             passthroughParts = passthroughParts,
+            visibleParts = visible.toImmutableList(),
         )
     }
 

@@ -34,6 +34,8 @@ data class TimelineItemAiContent(
     val parts: ImmutableList<AiStreamPart> = persistentListOf(),
     val renderableToolParts: ImmutableList<AiToolStreamPart> = persistentListOf(),
     val passthroughParts: ImmutableList<AiStreamPart> = persistentListOf(),
+    /** Ordered, hidden-filtered parts (tool markers kept) — the render source, mirrors iOS groupedParts. */
+    val visibleParts: ImmutableList<AiStreamPart> = persistentListOf(),
 ) : TimelineItemEventContent, TimelineItemEventMutableContent {
     override val type: String = "TimelineItemAiContent"
 

@@ -79,31 +79,18 @@ fun TimelineItemAiView(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (content.parts.isNotEmpty()) {
+        // Mirror iOS BubbleMessageView: render ONLY the (hidden-filtered, ordered) stream parts.
+        // There is no "thinking_process" concept in iOS — reasoning is a stream part. When parts
+        // haven't loaded yet, fall back to the known body text (never a thinking placeholder).
+        if (content.visibleParts.isNotEmpty()) {
             AiStreamPartsView(
+                visibleParts = content.visibleParts,
                 toolParts = content.renderableToolParts,
-                nonToolParts = content.passthroughParts,
                 isStreaming = content.isStreaming,
                 onLinkClick = onLinkClick,
                 onLinkLongClick = onLinkLongClick,
             )
-        } else if (content.streamId != null) {
-            // Stream message: once we have a streamId the presenter loads the stream — render the
-            // already-known body text if present. We never show the "thinking" placeholder here;
-            // that is only a fallback for non-stream messages with no streamId (mirrors iOS, which
-            // starts loading as soon as a streamId is available).
-            if (content.body.isNotBlank()) {
-                LinkifiedAiText(
-                    text = content.body,
-                    onLinkClick = onLinkClick,
-                    onLinkLongClick = onLinkLongClick,
-                )
-            }
         } else {
-            if (content.thinkingSteps.isNotEmpty()) {
-                ThinkingSection(content.thinkingSteps)
-            }
-            content.toolCalls.forEach { ToolCallCard(it) }
             if (content.body.isNotBlank()) {
                 LinkifiedAiText(
                     text = content.body,
@@ -111,13 +98,9 @@ fun TimelineItemAiView(
                     onLinkLongClick = onLinkLongClick,
                 )
             }
-        }
-        if (content.isStreaming) {
-            Text(
-                text = "…",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (content.isStreaming) {
+                StreamingCursor()
+            }
         }
         if (content.sources.isNotEmpty()) {
             SourcesSection(content.sources)
@@ -143,58 +126,58 @@ fun TimelineItemAiView(
 
 @Composable
 private fun AiStreamPartsView(
+    visibleParts: List<AiStreamPart>,
     toolParts: List<AiToolStreamPart>,
-    nonToolParts: List<AiStreamPart>,
     isStreaming: Boolean,
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
 ) {
+    // Mirror iOS BubbleMessageView: walk the ordered parts; insert ONE ToolCallRootCard at the
+    // first tool part's position; render every other part inline in order; trailing streaming
+    // cursor unless the last part is already a streaming text (which carries its own cursor).
+    val toolCardInserted = toolParts.isNotEmpty()
+    val firstToolIndex = visibleParts.indexOfFirst { it is AiToolStreamPart }
+    val lastIsStreamingText = (visibleParts.lastOrNull() as? AiTextStreamPart)?.state == "streaming"
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (toolParts.isNotEmpty()) {
-            ToolCallRootCard(
-                parts = toolParts,
-                isStreaming = isStreaming,
-                onLinkClick = onLinkClick,
-                onLinkLongClick = onLinkLongClick,
-            )
-        }
-        nonToolParts.forEach { part ->
+        visibleParts.forEachIndexed { index, part ->
             when (part) {
-                is AiTextStreamPart -> TextPart(
-                    part = part,
-                    onLinkClick = onLinkClick,
-                    onLinkLongClick = onLinkLongClick,
-                )
+                is AiToolStreamPart -> {
+                    if (toolCardInserted && index == firstToolIndex) {
+                        ToolCallRootCard(
+                            parts = toolParts,
+                            isStreaming = isStreaming,
+                            onLinkClick = onLinkClick,
+                            onLinkLongClick = onLinkLongClick,
+                        )
+                    }
+                    // Other tool parts are represented by the single root card above.
+                }
+                is AiTextStreamPart -> TextPart(part, onLinkClick, onLinkLongClick)
                 is AiReasoningStreamPart -> ReasoningPart(part)
-                is AiToolStreamPart -> GenericToolPart(
-                    part = part,
-                    onLinkClick = onLinkClick,
-                    onLinkLongClick = onLinkLongClick,
-                )
-                is AiSourceStreamPart -> SourcePart(
-                    part = part,
-                    onLinkClick = onLinkClick,
-                    onLinkLongClick = onLinkLongClick,
-                )
-                is AiFileStreamPart -> FilePart(
-                    part = part,
-                    onLinkClick = onLinkClick,
-                    onLinkLongClick = onLinkLongClick,
-                )
+                is AiSourceStreamPart -> SourcePart(part, onLinkClick, onLinkLongClick)
+                is AiFileStreamPart -> FilePart(part, onLinkClick, onLinkLongClick)
                 is AiErrorStreamPart -> ErrorPart(part)
-                is AiDataStreamPart -> DataPart(
-                    part = part,
-                    onLinkClick = onLinkClick,
-                    onLinkLongClick = onLinkLongClick,
-                    toolCardInserted = toolParts.isNotEmpty(),
-                )
+                is AiDataStreamPart -> DataPart(part, onLinkClick, onLinkLongClick, toolCardInserted)
                 is AiCustomStreamPart -> Unit
             }
         }
+        if (isStreaming && !lastIsStreamingText) {
+            StreamingCursor()
+        }
     }
+}
+
+/** Trailing streaming indicator (iOS StreamingCursor). */
+@Composable
+private fun StreamingCursor() {
+    Text(
+        text = "▍",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable
