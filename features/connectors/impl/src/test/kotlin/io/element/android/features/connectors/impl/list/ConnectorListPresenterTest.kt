@@ -10,8 +10,10 @@ package io.element.android.features.connectors.impl.list
 import app.cash.turbine.TurbineTestContext
 import com.google.common.truth.Truth.assertThat
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotInitiateConnectionResponse
+import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListToolkitCategoriesResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListToolkitsResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotToolkit
+import io.element.android.libraries.chatbot.api.model.connectors.ChatbotToolkitCategory
 import io.element.android.libraries.chatbot.test.FakeChatbotApiService
 import io.element.android.libraries.chatbot.test.FakeChatbotApiServiceFactory
 import io.element.android.libraries.chatbot.test.aChatbotToolkit
@@ -66,6 +68,51 @@ class ConnectorListPresenterTest {
             loaded.eventSink(ConnectorListEvents.SearchChanged("  gmail  "))
             awaitStateWhere { !it.isLoading && it.searchQuery == "  gmail  " && searches.size == 2 }
             assertThat(searches).containsExactly(null, "gmail").inOrder()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - loads categories on appear`() = runTest {
+        val service = FakeChatbotApiService().apply {
+            listToolkitsResult = { _, _, _, _ -> Result.success(ChatbotListToolkitsResponse(items = listOf(toolkit("gmail")))) }
+            listToolkitCategoriesResult = { _, _ ->
+                Result.success(ChatbotListToolkitCategoriesResponse(items = listOf(ChatbotToolkitCategory(id = "comms", name = "Communication"))))
+            }
+        }
+        val presenter = createPresenter(service = service)
+
+        presenter.test {
+            awaitItem().eventSink(ConnectorListEvents.OnAppear)
+            val loaded = awaitStateWhere { it.categories.isNotEmpty() }
+            assertThat(loaded.categories.single().id).isEqualTo("comms")
+            assertThat(loaded.selectedCategoryId).isEmpty()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `event - select category reloads with category forwarded to api`() = runTest {
+        val categoriesSent = mutableListOf<String?>()
+        val service = FakeChatbotApiService().apply {
+            listToolkitsResult = { _, category, _, _ ->
+                categoriesSent += category
+                Result.success(ChatbotListToolkitsResponse(items = listOf(toolkit("gmail"))))
+            }
+        }
+        val presenter = createPresenter(service = service)
+
+        presenter.test {
+            awaitItem().eventSink(ConnectorListEvents.OnAppear)
+            val loaded = awaitStateWhere { !it.isLoading && it.toolkits.isNotEmpty() }
+            loaded.eventSink(ConnectorListEvents.SelectCategory("comms"))
+            val filtered = awaitStateWhere { it.selectedCategoryId == "comms" && categoriesSent.size == 2 }
+            assertThat(filtered.selectedCategoryId).isEqualTo("comms")
+            assertThat(categoriesSent).containsExactly(null, "comms").inOrder()
+            // Selecting "All" again clears the filter back to null.
+            filtered.eventSink(ConnectorListEvents.SelectCategory(""))
+            awaitStateWhere { it.selectedCategoryId.isEmpty() && categoriesSent.size == 3 }
+            assertThat(categoriesSent).containsExactly(null, "comms", null).inOrder()
             cancelAndIgnoreRemainingEvents()
         }
     }

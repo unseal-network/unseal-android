@@ -26,12 +26,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -43,6 +45,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -53,13 +58,17 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
 import coil3.compose.AsyncImagePainter
 import coil3.compose.SubcomposeAsyncImage
 import coil3.compose.SubcomposeAsyncImageContent
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotToolkit
+import io.element.android.libraries.chatbot.api.model.connectors.ChatbotToolkitCategory
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
+import io.element.android.libraries.designsystem.utils.OnLifecycleEvent
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 
@@ -70,6 +79,20 @@ fun ConnectorListView(
 ) {
     LaunchedEffect(Unit) {
         state.eventSink(ConnectorListEvents.OnAppear)
+    }
+    // Mirror iOS observeAppForeground()/OAuth callback: reload toolkits whenever the screen
+    // returns to the foreground, so a toolkit connected in the external browser shows as
+    // connected on return. This is a silent refresh (the skeleton only shows when the list is
+    // still empty). Skip the first ON_RESUME so it does not double up with OnAppear's initial load.
+    var skipInitialResume by remember { mutableStateOf(true) }
+    OnLifecycleEvent { _, event ->
+        if (event == Lifecycle.Event.ON_RESUME) {
+            if (skipInitialResume) {
+                skipInitialResume = false
+            } else {
+                state.eventSink(ConnectorListEvents.Refresh)
+            }
+        }
     }
     Scaffold(
         modifier = modifier,
@@ -105,6 +128,11 @@ fun ConnectorListView(
                 },
                 singleLine = true,
                 shape = RoundedCornerShape(28.dp),
+            )
+            CategoryFilterRow(
+                categories = state.categories,
+                selectedCategoryId = state.selectedCategoryId,
+                onSelect = { state.eventSink(ConnectorListEvents.SelectCategory(it)) },
             )
             state.error?.let { error ->
                 ErrorBanner(error = error, onDismiss = { state.eventSink(ConnectorListEvents.ClearError) })
@@ -154,6 +182,41 @@ fun ConnectorListView(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Horizontal category-chip row mirroring the iOS ConnectorListScreen categoryFilter:
+ * an "All" chip (empty id) followed by one chip per category. Selecting a chip drives
+ * [ConnectorListState.selectedCategoryId] and reloads toolkits with that category.
+ * Hidden when there are no categories, matching iOS where the row only shows API-provided ones.
+ */
+@Composable
+private fun CategoryFilterRow(
+    categories: ImmutableList<ChatbotToolkitCategory>,
+    selectedCategoryId: String,
+    onSelect: (String) -> Unit,
+) {
+    if (categories.isEmpty()) return
+    LazyRow(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        item {
+            FilterChip(
+                selected = selectedCategoryId.isEmpty(),
+                onClick = { onSelect("") },
+                label = { Text("全部") },
+            )
+        }
+        items(categories, key = { it.id }) { category ->
+            FilterChip(
+                selected = selectedCategoryId == category.id,
+                onClick = { onSelect(category.id) },
+                label = { Text(category.name) },
+            )
         }
     }
 }
@@ -330,6 +393,7 @@ internal class ConnectorListStateProvider : PreviewParameterProvider<ConnectorLi
     override val values: Sequence<ConnectorListState>
         get() = sequenceOf(
             aConnectorListState(),
+            aConnectorListState(selectedCategoryId = "communication"),
             aConnectorListState(isLoading = true, toolkits = persistentListOf()),
             aConnectorListState(toolkits = persistentListOf()),
             aConnectorListState(error = "Failed to load connectors"),
@@ -337,11 +401,15 @@ internal class ConnectorListStateProvider : PreviewParameterProvider<ConnectorLi
 }
 
 private fun aConnectorListState(
-    toolkits: kotlinx.collections.immutable.ImmutableList<ChatbotToolkit> = aSampleToolkits(),
+    toolkits: ImmutableList<ChatbotToolkit> = aSampleToolkits(),
+    categories: ImmutableList<ChatbotToolkitCategory> = aSampleCategories(),
+    selectedCategoryId: String = "",
     isLoading: Boolean = false,
     error: String? = null,
 ) = ConnectorListState(
     toolkits = toolkits,
+    categories = categories,
+    selectedCategoryId = selectedCategoryId,
     searchQuery = "",
     isLoading = isLoading,
     isLoadingMore = false,
@@ -355,6 +423,12 @@ private fun aSampleToolkits() = persistentListOf(
     ChatbotToolkit(name = "GitHub", slug = "github", description = "Connect repositories, issues and pull requests.", connected = false),
     ChatbotToolkit(name = "Slack", slug = "slack", description = "Send and read messages in your workspace.", connected = true),
     ChatbotToolkit(name = "Google Calendar", slug = "googlecalendar", description = "Manage events and reminders.", connected = false),
+).toImmutableList()
+
+private fun aSampleCategories() = persistentListOf(
+    ChatbotToolkitCategory(id = "productivity", name = "Productivity"),
+    ChatbotToolkitCategory(id = "communication", name = "Communication"),
+    ChatbotToolkitCategory(id = "developer-tools", name = "Developer Tools"),
 ).toImmutableList()
 
 @PreviewsDayNight

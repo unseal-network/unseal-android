@@ -8,10 +8,14 @@
 package io.element.android.features.connectors.impl.list
 
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotToolkit
+import io.element.android.libraries.chatbot.api.model.connectors.ChatbotToolkitCategory
 import kotlinx.collections.immutable.ImmutableList
 
 data class ConnectorListState(
     val toolkits: ImmutableList<ChatbotToolkit>,
+    val categories: ImmutableList<ChatbotToolkitCategory>,
+    // Mirror iOS `selectedCategoryID`: empty string means the "All" chip is selected.
+    val selectedCategoryId: String,
     val searchQuery: String,
     val isLoading: Boolean,
     val isLoadingMore: Boolean,

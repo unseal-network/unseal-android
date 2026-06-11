@@ -21,6 +21,7 @@ import dev.zacsweers.metro.AssistedInject
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotToolkit
+import io.element.android.libraries.chatbot.api.model.connectors.ChatbotToolkitCategory
 import io.element.android.libraries.matrix.api.MatrixClient
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.FlowPreview
@@ -30,6 +31,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
 private const val PAGE_SIZE = 20
+private const val CATEGORY_PAGE_SIZE = 50
 
 // Mirror iOS: only query the API when the search text is at least this long,
 // debounced to avoid a request on every keystroke.
@@ -53,6 +55,9 @@ class ConnectorListPresenter(
         val coroutineScope = rememberCoroutineScope()
         var hasLoadedOnce by remember { mutableStateOf(false) }
         var toolkits by remember { mutableStateOf(emptyList<ChatbotToolkit>()) }
+        var categories by remember { mutableStateOf(emptyList<ChatbotToolkitCategory>()) }
+        // Mirror iOS `selectedCategoryID`: empty string means the "All" chip is selected.
+        var selectedCategoryId by remember { mutableStateOf("") }
         var searchQuery by remember { mutableStateOf("") }
         var isLoading by remember { mutableStateOf(false) }
         var isLoadingMore by remember { mutableStateOf(false) }
@@ -72,11 +77,21 @@ class ConnectorListPresenter(
             return if (trimmed.length >= MIN_SEARCH_LENGTH) trimmed else null
         }
 
+        // Mirror iOS: empty selection ("All") maps to null so no category filter is sent.
+        fun categoryParam(): String? = selectedCategoryId.takeIf { it.isNotEmpty() }
+
+        // Mirror iOS loadCategories(): populate the chip row from the dedicated
+        // toolkit-categories endpoint. Failures are swallowed so the list still renders.
+        fun loadCategories() = coroutineScope.launch {
+            api().listToolkitCategories(cursor = null, limit = CATEGORY_PAGE_SIZE)
+                .onSuccess { categories = it.items }
+        }
+
         fun loadToolkits() = coroutineScope.launch {
             isLoading = true
             api().listToolkits(
                 search = searchParam(),
-                category = null,
+                category = categoryParam(),
                 cursor = null,
                 limit = PAGE_SIZE,
             )
@@ -97,7 +112,7 @@ class ConnectorListPresenter(
             isLoadingMore = true
             api().listToolkits(
                 search = searchParam(),
-                category = null,
+                category = categoryParam(),
                 cursor = cursor,
                 limit = PAGE_SIZE,
             )
@@ -130,12 +145,20 @@ class ConnectorListPresenter(
             when (event) {
                 ConnectorListEvents.OnAppear -> if (!hasLoadedOnce) {
                     hasLoadedOnce = true
+                    loadCategories()
                     loadToolkits()
                 }
+                // Silent refresh (e.g. on resume / after returning from the connect flow):
+                // re-fetch without clearing the existing list so the skeleton is not shown again.
                 ConnectorListEvents.Refresh -> loadToolkits()
                 is ConnectorListEvents.SearchChanged -> {
                     // Just update the query; the debounced effect below triggers the actual load.
                     searchQuery = event.query
+                }
+                is ConnectorListEvents.SelectCategory -> {
+                    // Mirror iOS: update the selection then reload toolkits with the new category.
+                    selectedCategoryId = event.categoryId
+                    loadToolkits()
                 }
                 ConnectorListEvents.LoadMore -> loadMore()
                 is ConnectorListEvents.Connect -> connect(event.toolkit)
@@ -157,6 +180,8 @@ class ConnectorListPresenter(
 
         return ConnectorListState(
             toolkits = toolkits.toImmutableList(),
+            categories = categories.toImmutableList(),
+            selectedCategoryId = selectedCategoryId,
             searchQuery = searchQuery,
             isLoading = isLoading,
             isLoadingMore = isLoadingMore,

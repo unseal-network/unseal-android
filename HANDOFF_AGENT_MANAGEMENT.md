@@ -28,7 +28,10 @@ Debug app id: `network.unseal.android.debug`. Dev/test server: `https://un-serve
 - **Agent-api** (`createForUnsealApi`, `.well-known` `org.unseal.api.base_url`, fallback
   `https://agent-api.unseal.network`, `/api/agent/*`): sandbox, vault clone, voice-config.
   This is iOS's `makeEnvironmentAPIClient()`.
-- **AI-stream** (`createForAiStream`, `https://api.unseal.network`): personal `/chatbot/v1/vault`.
+- **AI-stream** (`createForAiStream(matrixClient)`): uses the logged-in Matrix user's
+  homeserver server name and `.well-known` resolution, then opens `/chatbot/v1/agent/streams/{streamId}`.
+  Do **not** hardcode `api.unseal.network` for stream downloads; the stream host must follow
+  the same homeserver routing as the logged-in account.
 
 ## Completed
 
@@ -63,6 +66,49 @@ Debug app id: `network.unseal.android.debug`. Dev/test server: `https://un-serve
 - **Error visibility**: `ChatbotApiError.HttpError` now includes the redacted server body;
   `ChatbotHttpClient` logs every non-2xx as `Timber.w("Chatbot HTTP <code> <method> <path> -> <body>")`;
   `credits_exhausted` mapped to a friendly message.
+
+### AI SDK stream lifecycle SDK + Android timeline integration
+- New shared stream data layer in `libraries/agentstream`:
+  - Public entrypoint: `AgentStreamClient.getStream(StreamRequest)`.
+  - Owns stream lifecycle: memory hot cache, storage lookup, in-flight de-dupe,
+    async SSE consumption, Rust reducer session feeding, listener fan-out, terminal snapshot
+    persistence, and refresh/cancel cleanup.
+  - Public data contract is `StreamSnapshot(status, parts, rawEvents, error, updatedAtMs)`.
+    UI must render from `snapshot.parts`; `rawEvents` is retained for debug/advanced fallback only.
+  - `StreamPart` covers AI SDK-style text/reasoning/tool/data/source/file/step/error/custom
+    parts. Tool/text states are normalized so UI can be `UI = f(parts)`.
+  - Storage is injected through `StreamStorageProvider`; Android currently provides SQLite-backed
+    persistence via `SQLiteStreamStorageProvider`. Completed snapshots are reused, so timeline
+    re-entry should not re-download or show thinking again.
+  - HTTP/thread resources are injected through `StreamHttpClient` and `StreamTaskRunner`.
+    Android uses `ChatbotStreamHttpClient` plus `CoroutineStreamTaskRunner`; SDK logic stays
+    independent from platform-specific pools and dispatchers.
+- Android client adapters in `features/messages/impl/.../timeline/components/event/AndroidAgentStreamAdapters.kt`:
+  - `AndroidAgentStreamClient` wires the SDK into Metro DI.
+  - `ChatbotStreamHttpClient` calls `ChatbotApiServiceFactory.createForAiStream(matrixClient)`
+    and streams chunks into the SDK without accumulating the full response.
+  - Blank Matrix sender values are sanitized before stream download.
+- Timeline rendering path:
+  - `TimelineItemContentFactory` parses Matrix event `originalJson` first, including top-level
+    `m.stream.start` / `m.stream.complete` events even when Rust Matrix SDK maps them as
+    non-`MessageContent`.
+  - `TimelineItemAiPresenter` now subscribes to `AgentStreamClient.getStream(...)` and maps
+    SDK snapshots with `AiSdkStreamReducer`; it no longer opens SSE, owns a reducer session,
+    or keeps its own in-flight stream cache.
+  - `TimelineItemEventContentView` renders AI content from presenter state, not from the raw
+    event body. Normal messages still fall through to the existing text/media renderers.
+  - Presenter snapshot queue is conflated and terminal snapshots force a final UI update before
+    collection exits, avoiding unbounded backpressure during fast timeline scrolling.
+- Parser edge cases covered:
+  - `m.stream.complete` defaults to non-streaming even without explicit `is_streaming: false`.
+  - Terminal statuses `complete`, `completed`, `done`, `failed`, `error`, `cancelled`, `canceled`
+    are non-streaming; `loading`, `streaming`, `active`, `pending` are streaming.
+- Important tests:
+  - `:libraries:agentstream:testDebugUnitTest`
+  - `:features:messages:impl:testDebugUnitTest --tests '*AiSdkStreamReducerTest' --tests '*AndroidAgentStreamAdaptersTest' --tests '*TimelineItemAiPresenterTest' --tests '*AiMessageContentParserTest' --tests '*TimelineItemContentFactoryTest'`
+  - `:libraries:chatbot:impl:testDebugUnitTest --tests '*ChatbotHttpClientTest'`
+  - `:features:messages:impl:compileDebugKotlin :libraries:chatbot:impl:compileDebugKotlin`
+  - `:app:installFdroidDebug` installed `app-fdroid-arm64-v8a-debug.apk` to USB device `PHK110 - 15`.
 
 ### Diagnosed, NOT a bug
 - Clone-owner returns 200 ("Sandbox cloned successfully") and works.
