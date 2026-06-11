@@ -90,6 +90,8 @@ class TimelineItemAiPresenter(
         fallbackContent: TimelineItemAiContent,
         updateContent: suspend (TimelineItemAiContent) -> Unit,
     ) {
+        // Map snapshots (JSON → parts) off the main thread; only the state write hops to main.
+        withContext(dispatchers.io) {
         val handle = agentStreamClient.getStream(
             StreamRequest(
                 streamId = streamId,
@@ -150,6 +152,7 @@ class TimelineItemAiPresenter(
         } finally {
             subscription.cancel()
             snapshots.close()
+        }
         }
     }
 }

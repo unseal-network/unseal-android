@@ -1123,12 +1123,13 @@ private fun LinkifiedAiText(
     onLinkLongClick: (Link) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val linkifiedText = remember(text) { LinkifyHelper.linkify(text) }
     CompositionLocalProvider(
         LocalContentColor provides ElementTheme.colors.textPrimary,
         LocalTextStyle provides ElementTheme.typography.fontBodyMdRegular,
     ) {
         EditorStyledText(
-            text = LinkifyHelper.linkify(text),
+            text = linkifiedText,
             onLinkClickedListener = onLinkClick,
             onLinkLongClickedListener = onLinkLongClick,
             style = ElementRichTextEditorStyle.textStyle(),

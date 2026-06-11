@@ -31,6 +31,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,6 +49,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -87,6 +89,8 @@ fun VoiceLibraryView(
     LaunchedEffect(state.lastShareId) {
         state.lastShareId?.let { clipboardManager.setText(AnnotatedString(it)) }
     }
+
+    val previewController = rememberVoicePreviewController()
 
     Scaffold(
         modifier = modifier,
@@ -138,10 +142,12 @@ fun VoiceLibraryView(
                 isRefreshing = state.isLoading,
                 onRefresh = { state.eventSink(VoiceLibraryEvents.Refresh) },
             ) {
-                when {
-                    state.isLoading -> LoadingState()
-                    state.selectedTab == VoiceLibraryTab.Mine -> MyVoices(state)
-                    else -> PublicVoices(state)
+                CompositionLocalProvider(LocalVoicePreviewController provides previewController) {
+                    when {
+                        state.isLoading -> LoadingState()
+                        state.selectedTab == VoiceLibraryTab.Mine -> MyVoices(state)
+                        else -> PublicVoices(state)
+                    }
                 }
             }
         }
@@ -456,23 +462,36 @@ private fun CatalogRow(state: VoiceLibraryState, voice: ChatbotProviderVoice) {
 }
 
 /**
- * Preview affordance mirroring iOS. The Android feature does not yet expose a preview-playback
- * event, so this renders the play/pause control's resting (paused) state when a preview URL exists
- * and a disabled "unavailable" state otherwise. No media player is introduced here.
+ * Preview affordance mirroring iOS `togglePreview`: streams the preview URL with a shared
+ * MediaPlayer and shows play / pause / loading per row.
  */
 @Composable
 private fun PreviewControl(previewUrl: String?) {
     val hasPreview = !previewUrl.isNullOrBlank()
-    IconButton(enabled = false, onClick = {}) {
-        Icon(
-            imageVector = if (hasPreview) CompoundIcons.Play() else CompoundIcons.VolumeOff(),
-            contentDescription = if (hasPreview) "试听语音" else "暂无试听",
-            tint = if (hasPreview) {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-            },
-        )
+    val controller = LocalVoicePreviewController.current
+    val isPlaying = hasPreview && controller?.playingUrl == previewUrl
+    val isLoading = hasPreview && controller?.loadingUrl == previewUrl
+    IconButton(
+        enabled = hasPreview && controller != null,
+        onClick = { previewUrl?.let { controller?.toggle(it) } },
+    ) {
+        if (isLoading) {
+            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+        } else {
+            Icon(
+                imageVector = when {
+                    !hasPreview -> CompoundIcons.VolumeOff()
+                    isPlaying -> CompoundIcons.Pause()
+                    else -> CompoundIcons.Play()
+                },
+                contentDescription = if (hasPreview) "试听语音" else "暂无试听",
+                tint = if (hasPreview) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                },
+            )
+        }
     }
 }
 
