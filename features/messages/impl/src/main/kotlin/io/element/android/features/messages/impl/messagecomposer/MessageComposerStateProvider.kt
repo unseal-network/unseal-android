@@ -9,6 +9,7 @@
 package io.element.android.features.messages.impl.messagecomposer
 
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
+import io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerState
 import io.element.android.libraries.architecture.AsyncAction
 import io.element.android.libraries.textcomposer.mentions.ResolvedSuggestion
 import io.element.android.libraries.textcomposer.model.MessageComposerMode
@@ -34,6 +35,7 @@ fun aMessageComposerState(
     canShareLocation: Boolean = true,
     suggestions: ImmutableList<ResolvedSuggestion> = persistentListOf(),
     slashCommandAction: AsyncAction<Unit> = AsyncAction.Uninitialized,
+    gamePickerState: GamePickerState? = null,
     eventSink: (MessageComposerEvent) -> Unit = {},
 ) = MessageComposerState(
     textEditorState = textEditorState,
@@ -46,5 +48,6 @@ fun aMessageComposerState(
     resolveMentionDisplay = { _, _ -> TextDisplay.Plain },
     resolveAtRoomMentionDisplay = { TextDisplay.Plain },
     slashCommandAction = slashCommandAction,
+    gamePickerState = gamePickerState,
     eventSink = eventSink,
 )

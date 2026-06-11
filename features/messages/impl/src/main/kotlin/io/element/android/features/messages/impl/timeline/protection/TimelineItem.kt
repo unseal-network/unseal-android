@@ -26,6 +26,7 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemStateEventContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemStickerContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemGameContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemUnknownContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVideoContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVoiceContent
@@ -59,6 +60,7 @@ fun TimelineItem.mustBeProtected(): Boolean {
                     is TimelineItemNoticeContent,
                     is TimelineItemTextContent,
                     TimelineItemUnknownContent,
+                    is TimelineItemGameContent,
                     is TimelineItemVoiceContent -> false
                 }
             }

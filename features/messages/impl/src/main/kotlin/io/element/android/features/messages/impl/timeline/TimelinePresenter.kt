@@ -248,6 +248,11 @@ class TimelinePresenter(
                 TimelineEvent.VerifyDeviceForRoomKeyRecovery -> {
                     roomKeyRecoveryTimelineRunner.verifyCurrentSession()
                 }
+                is TimelineEvent.OpenGame -> {
+                    // Phase 1: MiniApp runtime not yet implemented — log only.
+                    // Phase 2: navigator.navigateToGame(event.gameId, event.gameRoomId, room.roomId.value)
+                    Timber.tag(tag).d("OpenGame: gameId=%d gameRoomId=%s", event.gameId, event.gameRoomId)
+                }
             }
         }
 

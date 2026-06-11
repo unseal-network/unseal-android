@@ -64,6 +64,7 @@ import io.element.android.features.messages.impl.timeline.a11y.a11yReactionActio
 import io.element.android.features.messages.impl.timeline.components.MessageShieldView
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemGameContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAudioContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemFileContent
@@ -287,6 +288,7 @@ private fun MessageSummary(
     when (event.content) {
         is TimelineItemTextBasedContent,
         is TimelineItemAiContent,
+        is TimelineItemGameContent,
         is TimelineItemStateContent,
         is TimelineItemEncryptedContent,
         is TimelineItemRedactedContent,

@@ -9,6 +9,7 @@
 package io.element.android.features.messages.impl.messagecomposer
 
 import androidx.compose.runtime.Stable
+import io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerState
 import io.element.android.libraries.architecture.AsyncAction
 import io.element.android.libraries.textcomposer.mentions.ResolvedSuggestion
 import io.element.android.libraries.textcomposer.model.MessageComposerMode
@@ -28,5 +29,7 @@ data class MessageComposerState(
     val resolveMentionDisplay: (String, String) -> TextDisplay,
     val resolveAtRoomMentionDisplay: () -> TextDisplay,
     val slashCommandAction: AsyncAction<Unit>,
+    /** Non-null when the game picker bottom sheet should be shown. */
+    val gamePickerState: GamePickerState?,
     val eventSink: (MessageComposerEvent) -> Unit,
 )

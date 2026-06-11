@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.messages.impl.R
+import io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerBottomSheet
 import io.element.android.libraries.androidutils.ui.hideKeyboard
 import io.element.android.libraries.designsystem.components.list.ListItemContent
 import io.element.android.libraries.designsystem.preview.ElementPreview
@@ -86,6 +87,15 @@ internal fun AttachmentsBottomSheet(
             )
         }
     }
+
+    // Game picker bottom sheet — shown after the attachment menu has been dismissed.
+    val gamePickerState = state.gamePickerState
+    if (gamePickerState != null) {
+        GamePickerBottomSheet(
+            state = gamePickerState,
+            onDismiss = { state.eventSink(MessageComposerEvent.DismissGamePicker) },
+        )
+    }
 }
 
 @Composable
@@ -138,6 +148,11 @@ private fun AttachmentSourcePickerMenu(
             },
             leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.Polls())),
             headlineContent = { Text(stringResource(R.string.screen_room_attachment_source_poll)) },
+        )
+        ListItem(
+            modifier = Modifier.clickable { state.eventSink(MessageComposerEvent.ShowGamePicker) },
+            leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.Play())),
+            headlineContent = { Text(stringResource(R.string.screen_room_attachment_source_game)) },
         )
         if (enableTextFormatting) {
             ListItem(

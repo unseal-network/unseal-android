@@ -24,6 +24,7 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemStateEventContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemStickerContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextBasedContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemGameContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemUnknownContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVideoContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVoiceContent
@@ -63,6 +64,7 @@ internal fun TimelineItem.Event.canBeGrouped(): Boolean {
         is TimelineItemVoiceContent,
         TimelineItemRedactedContent,
         TimelineItemUnknownContent,
+        is TimelineItemGameContent,
         is TimelineItemLegacyCallInviteContent,
         is TimelineItemRtcNotificationContent -> false
         is TimelineItemProfileChangeContent,

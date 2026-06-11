@@ -49,6 +49,7 @@ import timber.log.Timber
 class TimelineItemContentFactory(
     private val messageFactory: TimelineItemContentMessageFactory,
     private val aiMessageContentParser: AiMessageContentParser,
+    private val gameMessageContentParser: GameMessageContentParser,
     private val redactedMessageFactory: TimelineItemContentRedactedFactory,
     private val stickerFactory: TimelineItemContentStickerFactory,
     private val pollFactory: TimelineItemContentPollFactory,
@@ -86,6 +87,23 @@ class TimelineItemContentFactory(
             )
             return aiContent
         }
+
+        // Game invite messages use custom fields not exposed by the typed SDK.
+        // Parse from the original JSON before falling back to OtherMessageType → plain text.
+        if (itemContent is MessageContent) {
+            gameMessageContentParser.parse(
+                originalJson = originalJson,
+                senderUserId = eventTimelineItem.sender,
+            )?.let { gameContent ->
+                Timber.tag("TimelineItemContentFactory").d(
+                    "Game message parsed: gameId=%d gameRoomId=%s",
+                    gameContent.gameId,
+                    gameContent.gameRoomId,
+                )
+                return gameContent
+            }
+        }
+
         return create(
             itemContent = eventTimelineItem.content,
             eventId = eventTimelineItem.eventId,

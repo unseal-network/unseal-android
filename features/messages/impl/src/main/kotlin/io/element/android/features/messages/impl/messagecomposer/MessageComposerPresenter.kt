@@ -37,6 +37,8 @@ import io.element.android.features.messages.impl.attachments.Attachment
 import io.element.android.features.messages.impl.attachments.Attachment.Media
 import io.element.android.features.messages.impl.attachments.preview.error.sendAttachmentError
 import io.element.android.features.messages.impl.draft.ComposerDraftService
+import io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerPresenter
+import io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerState
 import io.element.android.features.messages.impl.messagecomposer.suggestions.RoomAliasSuggestionsDataSource
 import io.element.android.features.messages.impl.messagecomposer.suggestions.SuggestionsProcessor
 import io.element.android.features.messages.impl.timeline.TimelineController
@@ -132,6 +134,7 @@ class MessageComposerPresenter(
     private val mediaOptimizationConfigProvider: MediaOptimizationConfigProvider,
     private val notificationConversationService: NotificationConversationService,
     private val slashCommandService: SlashCommandService,
+    private val gamePickerPresenter: GamePickerPresenter,
 ) : Presenter<MessageComposerState> {
     @AssistedFactory
     interface Factory {
@@ -191,6 +194,8 @@ class MessageComposerPresenter(
             mutableStateOf(false)
         }
         var showAttachmentSourcePicker: Boolean by remember { mutableStateOf(false) }
+        var showGamePicker: Boolean by remember { mutableStateOf(false) }
+        val gamePickerState: GamePickerState? = if (showGamePicker) gamePickerPresenter.present() else null
 
         val sendTypingNotifications by remember {
             sessionPreferencesStore.isSendTypingNotificationsEnabled()
@@ -374,6 +379,13 @@ class MessageComposerPresenter(
                 MessageComposerEvent.ClearSlashError -> {
                     slashCommandAction.value = AsyncAction.Uninitialized
                 }
+                MessageComposerEvent.ShowGamePicker -> {
+                    showAttachmentSourcePicker = false
+                    showGamePicker = true
+                }
+                MessageComposerEvent.DismissGamePicker -> {
+                    showGamePicker = false
+                }
             }
         }
 
@@ -406,6 +418,7 @@ class MessageComposerPresenter(
             resolveMentionDisplay = resolveMentionDisplay,
             resolveAtRoomMentionDisplay = resolveAtRoomMentionDisplay,
             slashCommandAction = slashCommandAction.value,
+            gamePickerState = gamePickerState,
             eventSink = ::handleEvent,
         )
     }

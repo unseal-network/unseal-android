@@ -62,4 +62,11 @@ sealed interface TimelineEvent {
     ) : TimelineItemPollEvent
 
     data object StopLiveLocationShare : TimelineItemEvent
+
+    /**
+     * User tapped the game card in the timeline.
+     * Phase 1: no-op (MiniApp runtime not yet implemented).
+     * Phase 2: navigator.navigateToGame(gameId, gameRoomId, meetRoomId).
+     */
+    data class OpenGame(val gameId: Int, val gameRoomId: String) : TimelineItemEvent
 }

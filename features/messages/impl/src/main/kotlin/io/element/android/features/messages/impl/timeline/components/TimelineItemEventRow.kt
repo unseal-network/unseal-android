@@ -70,6 +70,7 @@ import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.timeline.model.TimelineItemGroupPosition
 import io.element.android.features.messages.impl.timeline.model.TimelineItemThreadInfo
 import io.element.android.features.messages.impl.timeline.model.bubble.BubbleState
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemGameContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemImageContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemPollContent
@@ -172,7 +173,12 @@ fun TimelineItemEventRow(
             onLinkLongClick = onLinkLongClick,
             eventSink = eventSink,
             modifier = contentModifier,
-            onContentLayoutChange = onContentLayoutChange
+            onContentLayoutChange = onContentLayoutChange,
+            // Game cards embed the timestamp inside the card itself (inline with the action row)
+            // so no separate timestamp row is rendered by the bubble layout system.
+            gameCardTimestampSlot = {
+                TimelineEventTimestampView(event = event, eventSink = eventSink)
+            },
         )
     },
 ) {
@@ -787,13 +793,17 @@ private fun MessageEventBubbleContent(
             if (shouldHide) TimestampPosition.Hidden else TimestampPosition.Overlay
         }
         is TimelineItemPollContent -> TimestampPosition.Below
+        // Game cards render the timestamp inline inside the card itself — suppress the external one
+        is TimelineItemGameContent -> TimestampPosition.Hidden
         else -> TimestampPosition.Default
     }
     val paddingBehaviour = when (event.content) {
         is TimelineItemImageContent -> if (event.content.showCaption) ContentPadding.CaptionedMedia else ContentPadding.Media
         is TimelineItemVideoContent -> if (event.content.showCaption) ContentPadding.CaptionedMedia else ContentPadding.Media
         is TimelineItemStickerContent,
-        is TimelineItemLocationContent -> ContentPadding.Media
+        is TimelineItemLocationContent,
+        // Game card has its own internal padding — no extra bubble padding needed
+        is TimelineItemGameContent -> ContentPadding.Media
         else -> ContentPadding.Textual
     }
     CommonLayout(
