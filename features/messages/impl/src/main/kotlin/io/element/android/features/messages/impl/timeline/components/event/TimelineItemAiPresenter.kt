@@ -25,6 +25,7 @@ import io.element.android.features.messages.impl.timeline.di.TimelineItemPresent
 import io.element.android.features.messages.impl.timeline.factories.event.AiSdkStreamReducer
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.libraries.agentstream.api.AgentStreamClient
+import io.element.android.libraries.agentstream.api.StreamPart
 import io.element.android.libraries.agentstream.api.StreamRequest
 import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.architecture.Presenter
@@ -32,6 +33,8 @@ import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.di.RoomScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.max
 
 @BindingContainer
 @ContributesTo(RoomScope::class)
@@ -101,15 +104,14 @@ class TimelineItemAiPresenter(
                 includeRawEvents = false,
             )
         )
-        val snapshots = Channel<StreamSnapshot>(Channel.CONFLATED)
-        var lastEmittedAtMs = 0L
+        val snapshots = Channel<StreamSnapshot>(Channel.UNLIMITED)
+        var lastEmittedSnapshot: StreamSnapshot? = null
+        var pendingPatchSnapshot: StreamSnapshot? = null
+        var lastPatchEmittedAtMs = 0L
 
-        suspend fun emit(snapshot: StreamSnapshot, force: Boolean = false) {
-            val now = System.currentTimeMillis()
-            if (!force && now - lastEmittedAtMs < STREAM_UPDATE_THROTTLE_MS) {
-                return
-            }
-            lastEmittedAtMs = now
+        suspend fun emit(snapshot: StreamSnapshot) {
+            lastEmittedSnapshot = snapshot
+            lastPatchEmittedAtMs = System.currentTimeMillis()
             val updated = aiSdkStreamReducer.mapSnapshot(
                 snapshot = snapshot,
                 isEdited = fallbackContent.isEdited,
@@ -120,13 +122,51 @@ class TimelineItemAiPresenter(
             }
         }
 
+        suspend fun flushPendingPatch() {
+            val snapshot = pendingPatchSnapshot ?: return
+            pendingPatchSnapshot = null
+            if (!snapshot.hasSameContentAs(lastEmittedSnapshot)) {
+                emit(snapshot)
+            }
+        }
+
+        suspend fun handleSnapshot(snapshot: StreamSnapshot): Boolean {
+            if (snapshot.parts.isEmpty() && !snapshot.isTerminal && snapshot.error == null) {
+                return false
+            }
+            if (snapshot.hasSameContentAs(lastEmittedSnapshot)) {
+                return false
+            }
+            val hasStateChange = !snapshot.hasSameStateAs(lastEmittedSnapshot)
+            if (snapshot.isTerminal || hasStateChange) {
+                pendingPatchSnapshot = null
+                emit(snapshot)
+                return snapshot.isTerminal
+            }
+            pendingPatchSnapshot = snapshot
+            return false
+        }
+
         val subscription = handle.subscribe { snapshot ->
             snapshots.trySend(snapshot)
         }
         try {
-            for (snapshot in snapshots) {
-                emit(snapshot, force = snapshot.isTerminal)
-                if (snapshot.isTerminal) {
+            while (true) {
+                val timeoutMs = pendingPatchSnapshot?.let {
+                    max(0L, STREAM_PATCH_UPDATE_COALESCE_MS - (System.currentTimeMillis() - lastPatchEmittedAtMs))
+                }
+                val snapshot = if (timeoutMs == null) {
+                    snapshots.receiveCatching().getOrNull()
+                } else {
+                    withTimeoutOrNull(timeoutMs) {
+                        snapshots.receiveCatching().getOrNull()
+                    }
+                }
+                if (snapshot == null) {
+                    flushPendingPatch()
+                    continue
+                }
+                if (handleSnapshot(snapshot)) {
                     break
                 }
             }
@@ -137,6 +177,82 @@ class TimelineItemAiPresenter(
     }
 
     private companion object {
-        const val STREAM_UPDATE_THROTTLE_MS = 80L
+        const val STREAM_PATCH_UPDATE_COALESCE_MS = 500L
     }
 }
+
+private fun StreamSnapshot.hasSameStateAs(other: StreamSnapshot?): Boolean {
+    return stateSignature() == other?.stateSignature()
+}
+
+private fun StreamSnapshot.hasSameContentAs(other: StreamSnapshot?): Boolean {
+    return contentSignature() == other?.contentSignature()
+}
+
+private fun StreamSnapshot.stateSignature(): SnapshotStateSignature {
+    return SnapshotStateSignature(
+        status = status.name,
+        parts = parts.map { part ->
+            PartStateSignature(
+                id = part.id,
+                type = part.type,
+                state = part.state,
+                toolName = (part as? StreamPart.Tool)?.toolName,
+                toolCallId = (part as? StreamPart.Tool)?.toolCallId,
+            )
+        },
+        error = error?.message,
+    )
+}
+
+private fun StreamSnapshot.contentSignature(): SnapshotContentSignature {
+    return SnapshotContentSignature(
+        status = status.name,
+        parts = parts.map { part ->
+            PartContentSignature(
+                id = part.id,
+                type = part.type,
+                state = part.state,
+                content = when (part) {
+                    is StreamPart.Text -> part.text
+                    is StreamPart.Reasoning -> part.text
+                    is StreamPart.Tool -> listOf(part.input, part.rawInput, part.output, part.error).joinToString()
+                    is StreamPart.Data -> part.data.toString()
+                    is StreamPart.Source -> listOf(part.sourceType, part.title, part.url, part.payload).joinToString()
+                    is StreamPart.File -> listOf(part.mediaType, part.filename, part.url, part.data).joinToString()
+                    is StreamPart.Step -> listOf(part.title, part.payload).joinToString()
+                    is StreamPart.Error -> part.error.toString()
+                    is StreamPart.Custom -> part.payload.toString()
+                },
+            )
+        },
+        error = error?.message,
+    )
+}
+
+private data class SnapshotStateSignature(
+    val status: String,
+    val parts: List<PartStateSignature>,
+    val error: String?,
+)
+
+private data class PartStateSignature(
+    val id: String,
+    val type: String,
+    val state: String?,
+    val toolName: String?,
+    val toolCallId: String?,
+)
+
+private data class SnapshotContentSignature(
+    val status: String,
+    val parts: List<PartContentSignature>,
+    val error: String?,
+)
+
+private data class PartContentSignature(
+    val id: String,
+    val type: String,
+    val state: String?,
+    val content: String,
+)

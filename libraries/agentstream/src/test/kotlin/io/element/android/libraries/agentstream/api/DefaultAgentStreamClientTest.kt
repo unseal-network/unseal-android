@@ -107,10 +107,10 @@ class DefaultAgentStreamClientTest {
     }
 
     @Test
-    fun `completed callback cancellation prevents stale final snapshot cache and save`() = runTest {
+    fun `completed callback cancellation keeps final snapshot cached and saved`() = runTest {
         val storage = FakeStreamStorageProvider()
         val http = FakeStreamHttpClient(
-            chunks = listOf(streamingJson("stream-1", "stale")),
+            chunks = listOf(streamingJson("stream-1", "final")),
         )
         val client = createClient(storage = storage, http = http)
         val handle = client.getStream(request("stream-1"))
@@ -125,18 +125,18 @@ class DefaultAgentStreamClientTest {
         advanceUntilIdle()
 
         assertEquals(StreamStatus.Completed, snapshots.last().status)
-        assertEquals("stale", snapshots.last().text())
-        assertTrue(storage.savedSnapshots.isEmpty())
+        assertEquals("final", snapshots.last().text())
+        assertEquals(listOf("final"), storage.savedSnapshots.map { it.text() })
 
         http.chunks = listOf(streamingJson("stream-1", "fresh"))
         val followingSnapshots = mutableListOf<StreamSnapshot>()
         client.getStream(request("stream-1")).subscribe { followingSnapshots += it }
         advanceUntilIdle()
 
-        assertEquals(2, http.openCount)
+        assertEquals(1, http.openCount)
         assertEquals(StreamStatus.Completed, followingSnapshots.last().status)
-        assertEquals("fresh", followingSnapshots.last().text())
-        assertEquals(listOf("fresh"), storage.savedSnapshots.map { it.text() })
+        assertEquals("final", followingSnapshots.last().text())
+        assertEquals(listOf("final"), storage.savedSnapshots.map { it.text() })
     }
 
     @Test

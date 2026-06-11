@@ -224,9 +224,6 @@ class DefaultAgentStreamClient(
                         .parseOrFailed(activeSession.finish(), request.streamId)
                         .withStreamIdFallback(request.streamId)
                         .asCompleted(clock())
-                    if (!publishIfActive(runId, finalSnapshot)) {
-                        return
-                    }
                     if (!isActiveRun(runId)) {
                         return
                     }
@@ -237,6 +234,9 @@ class DefaultAgentStreamClient(
                         throw throwable
                     } catch (_: Throwable) {
                         // Completion is already terminal for the UI; persistence can retry on a future path.
+                    }
+                    if (!publishIfActive(runId, finalSnapshot)) {
+                        return
                     }
                     finishInFlight(runId)
                 }

@@ -27,9 +27,14 @@ import io.element.android.tests.testutils.test
 import io.element.android.tests.testutils.testCoroutineDispatchers
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class TimelineItemAiPresenterTest {
     @Test
     fun `present - uses sdk stream id and maps subscribed snapshots`() = runTest {
@@ -166,6 +171,66 @@ class TimelineItemAiPresenterTest {
             assertThat(updated.body).isEqualTo("final")
             assertThat(updated.isStreaming).isFalse()
             assertThat(client.handle.cancelledSubscriptions).isEqualTo(1)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - coalesces same-state content patches and emits state changes immediately`() = runTest {
+        val client = FakeAgentStreamClient()
+        val presenter = createPresenter(
+            content = aTimelineItemAiContent(streamId = "stream-1"),
+            agentStreamClient = client,
+            dispatchers = testCoroutineDispatchers(),
+        )
+
+        presenter.test {
+            assertThat(awaitItem().content.body).isEmpty()
+            advanceUntilIdle()
+
+            client.handle.emit(
+                snapshot(
+                    streamId = "stream-1",
+                    status = StreamStatus.Streaming,
+                    parts = listOf(
+                        StreamPart.Text(id = "text-1", text = "Hel", textState = TextPartState.Streaming),
+                    ),
+                )
+            )
+            runCurrent()
+            assertThat(awaitItem().content.body).isEqualTo("Hel")
+
+            client.handle.emit(
+                snapshot(
+                    streamId = "stream-1",
+                    status = StreamStatus.Streaming,
+                    parts = listOf(
+                        StreamPart.Text(id = "text-1", text = "Hello", textState = TextPartState.Streaming),
+                    ),
+                )
+            )
+            runCurrent()
+            expectNoEvents()
+
+            advanceTimeBy(500)
+            advanceUntilIdle()
+            assertThat(awaitItem().content.body).isEqualTo("Hello")
+
+            client.handle.emit(
+                snapshot(
+                    streamId = "stream-1",
+                    status = StreamStatus.Completed,
+                    parts = listOf(
+                        StreamPart.Text(id = "text-1", text = "Hello!", textState = TextPartState.Complete),
+                    ),
+                )
+            )
+            runCurrent()
+
+            val completed = awaitItem().content
+            assertThat(completed.body).isEqualTo("Hello!")
+            assertThat(completed.isStreaming).isFalse()
 
             cancelAndIgnoreRemainingEvents()
         }
