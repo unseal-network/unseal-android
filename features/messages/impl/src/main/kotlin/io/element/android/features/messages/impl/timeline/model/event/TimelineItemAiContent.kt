@@ -32,6 +32,8 @@ data class TimelineItemAiContent(
     val sources: ImmutableList<AiSource>,
     val quickActions: ImmutableList<AiQuickAction>,
     val parts: ImmutableList<AiStreamPart> = persistentListOf(),
+    val renderableToolParts: ImmutableList<AiToolStreamPart> = persistentListOf(),
+    val passthroughParts: ImmutableList<AiStreamPart> = persistentListOf(),
 ) : TimelineItemEventContent, TimelineItemEventMutableContent {
     override val type: String = "TimelineItemAiContent"
 

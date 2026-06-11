@@ -8,6 +8,9 @@
 package io.element.android.features.messages.impl.timeline.factories.event
 
 import dev.zacsweers.metro.Inject
+import io.element.android.features.messages.impl.timeline.components.event.isHiddenStreamPart
+import io.element.android.features.messages.impl.timeline.components.event.isRegisteredToolName
+import io.element.android.features.messages.impl.timeline.components.event.toRenderableToolParts
 import io.element.android.features.messages.impl.timeline.model.event.AiCustomStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiDataStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiErrorStreamPart
@@ -52,6 +55,18 @@ class AiSdkStreamReducer {
         val reasoningParts = streamParts.filterIsInstance<AiReasoningStreamPart>()
         val toolParts = streamParts.filterIsInstance<AiToolStreamPart>()
 
+        // Mirror iOS ToolCallRootCardAdapter: parse/expand tool parts off the Compose thread so the
+        // view only renders precomputed lists.
+        // Mirror iOS ToolGroupUtils.isHiddenPart: internal/noise tool & data parts are not rendered.
+        val visible = streamParts.filterNot { it.isHiddenStreamPart }
+        // Mirror iOS: only registered tools render (as cards). Unregistered tool parts render
+        // nothing (no generic card), so drop ALL tool parts from the pass-through list.
+        val renderableToolParts = visible.filterIsInstance<AiToolStreamPart>()
+            .filter { it.toolName.isRegisteredToolName }
+            .flatMap { it.toRenderableToolParts() }
+            .toImmutableList()
+        val passthroughParts = visible.filterNot { it is AiToolStreamPart }.toImmutableList()
+
         return TimelineItemAiContent(
             body = textParts.joinToString(separator = "\n\n") { it.text },
             isEdited = isEdited,
@@ -77,6 +92,8 @@ class AiSdkStreamReducer {
             sources = emptyList<AiSource>().toImmutableList(),
             quickActions = emptyList<AiQuickAction>().toImmutableList(),
             parts = streamParts.toImmutableList(),
+            renderableToolParts = renderableToolParts,
+            passthroughParts = passthroughParts,
         )
     }
 
