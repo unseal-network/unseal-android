@@ -220,7 +220,10 @@ enum class ToolPartState(val wireValue: String) {
     InputStreaming("input-streaming"),
     InputAvailable("input-available"),
     OutputAvailable("output-available"),
+    ApprovalRequested("approval-requested"),
+    ApprovalResponded("approval-responded"),
     OutputError("output-error"),
+    OutputDenied("output-denied"),
     ;
 
     companion object {
