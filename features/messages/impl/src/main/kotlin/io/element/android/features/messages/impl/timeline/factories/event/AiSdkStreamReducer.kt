@@ -62,15 +62,21 @@ class AiSdkStreamReducer {
         // view only renders precomputed lists.
         // Mirror iOS ToolGroupUtils.isHiddenPart: internal/noise tool & data parts are not rendered.
         val visible = streamParts.filterNot { it.isHiddenStreamPart }
-        // Mirror iOS: only registered tools render (as cards). Unregistered tool parts render
-        // nothing (no generic card), so drop ALL tool parts from the pass-through list.
-        val renderableToolParts = visible.filterIsInstance<AiToolStreamPart>()
+        val visibleToolCandidates = visible.filterIsInstance<AiToolStreamPart>()
             .filter { it.toolName.isRegisteredToolName }
-            .let { ToolCallRootCardAdapter.renderableToolParts(it) }
+        val firstToolPartIndex = visible.indexOfFirst { part ->
+            part is AiToolStreamPart && part.toolName.isRegisteredToolName
+        }.takeIf { it >= 0 }
+        val renderableToolParts = ToolCallRootCardAdapter.renderableToolParts(visibleToolCandidates)
             .toImmutableList()
-        val toolCardEntries = ToolCallRootCardAdapter.toolCallEntries(visible.filterIsInstance<AiToolStreamPart>())
+        val toolCardEntries = ToolCallRootCardAdapter.toolCallEntries(visibleToolCandidates)
             .toImmutableList()
-        val passthroughParts = visible.filterNot { it is AiToolStreamPart }.toImmutableList()
+        val passthroughParts = visible.filterNot { part ->
+            part is AiToolStreamPart && part.toolName.isRegisteredToolName
+        }.toImmutableList()
+        val lastPartIsStreamingText = visible.lastOrNull().let { part ->
+            part is AiTextStreamPart && part.state == STREAMING_TEXT_STATE
+        }
 
         return TimelineItemAiContent(
             body = textParts.joinToString(separator = "\n\n") { it.text },
@@ -116,6 +122,8 @@ class AiSdkStreamReducer {
             toolCardEntries = toolCardEntries,
             passthroughParts = passthroughParts,
             visibleParts = visible.toImmutableList(),
+            firstToolPartIndex = firstToolPartIndex,
+            lastPartIsStreamingText = lastPartIsStreamingText,
         )
     }
 
@@ -223,6 +231,7 @@ class AiSdkStreamReducer {
         const val DEFAULT_DONE_STATE = "done"
         const val DEFAULT_ERROR_STATE = "error"
         const val DEFAULT_STREAM_ERROR_MESSAGE = "Stream error"
+        const val STREAMING_TEXT_STATE = "streaming"
     }
 }
 

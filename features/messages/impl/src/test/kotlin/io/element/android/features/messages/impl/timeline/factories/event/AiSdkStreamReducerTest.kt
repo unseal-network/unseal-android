@@ -220,6 +220,32 @@ class AiSdkStreamReducerTest {
     }
 
     @Test
+    fun `reducer inserts one tool root card at first registered tool candidate`() {
+        val snapshot = snapshot(
+            status = StreamStatus.Streaming,
+            parts = listOf(
+                StreamPart.Text(id = "text-before", text = "Before", textState = "done"),
+                StreamPart.Tool(id = "ignored", toolState = "input-available", toolName = "COMPOSIO_SEARCH_TOOLS"),
+                StreamPart.Tool(
+                    id = "gmail",
+                    toolState = "output-available",
+                    toolName = "GMAIL_FETCH_EMAILS",
+                    output = Json.parseToJsonElement("""{"successful":true,"data":{"messages":[{"subject":"Hello"}]}}"""),
+                ),
+                StreamPart.Text(id = "text-after", text = "After", textState = "streaming"),
+            ),
+        )
+
+        val result = reducer.mapSnapshot(snapshot, isEdited = false, sender = null)
+
+        assertThat(result.visibleParts.map { it.id }).containsExactly("text-before", "ignored", "gmail", "text-after").inOrder()
+        assertThat(result.toolCardEntries).hasSize(1)
+        assertThat(result.firstToolPartIndex).isEqualTo(1)
+        assertThat(result.passthroughParts.map { it.id }).containsExactly("text-before", "text-after").inOrder()
+        assertThat(result.lastPartIsStreamingText).isTrue()
+    }
+
+    @Test
     fun `transitional parseSnapshot uses sdk parser`() {
         val snapshotJson = """
             {
