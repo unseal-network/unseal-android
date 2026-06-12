@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -36,9 +37,14 @@ import org.json.JSONObject
 @Composable
 internal fun ToolCard(
     cardType: String,
-    data: JSONObject,
+    rawData: JSONObject,
     onLinkClick: () -> Unit = {},
 ): Boolean {
+    // Map the raw tool response into the props each card expects (iOS CardTransforms parity).
+    val data = CardTransforms.transform(rawData, cardType)
+    // If the transform produced no renderable content, let the caller fall back to the raw payload
+    // instead of a card claiming success while drawing nothing.
+    if (!data.hasRenderableContent()) return false
     // Bespoke per-category cards first (iOS ToolCardsIOS parity); generic list renderer last.
     if (composioSearchCard(cardType, data, onLinkClick)) return true
     if (gitHubPrimaryCard(cardType, data, onLinkClick)) return true
@@ -47,6 +53,20 @@ internal fun ToolCard(
     if (linearTwitterCard(cardType, data, onLinkClick)) return true
     if (scheduleMoltbookCard(cardType, data, onLinkClick)) return true
     return GenericListCard(data)
+}
+
+/** True if the (possibly transformed) payload has any non-empty array or a title/summary field. */
+private fun JSONObject.hasRenderableContent(): Boolean {
+    val keys = keys()
+    while (keys.hasNext()) {
+        when (val v = opt(keys.next())) {
+            is JSONArray -> if (v.length() > 0) return true
+            is JSONObject -> if (v.length() > 0) return true
+            is String -> if (v.isNotBlank()) return true
+            is Number, is Boolean -> return true
+        }
+    }
+    return false
 }
 
 private val LIST_KEYS = arrayOf(
