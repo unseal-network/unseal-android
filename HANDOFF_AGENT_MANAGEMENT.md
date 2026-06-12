@@ -232,3 +232,38 @@ cp "$SDK_REPO/target/aarch64-linux-android/release/libunseal_agent_stream.so"   
 cp "$SDK_REPO/target/armv7-linux-androideabi/release/libunseal_agent_stream.so" "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/armeabi-v7a/"
 cp "$SDK_REPO/target/x86_64-linux-android/release/libunseal_agent_stream.so"    "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/x86_64/"
 ```
+
+## AI SDK Stream Render Parity Status
+
+The Android AI stream renderer now treats Stream SDK as the only stream data source. Stream SDK owns SSE parsing, terminal part normalization, cache/store writes, background execution, and lifecycle dedupe. Android messages code consumes SDK `StreamSnapshot` values and converts them with `AiSdkStreamReducer`.
+
+Important files:
+
+- `libraries/agentstream/src/main/kotlin/io/element/android/libraries/agentstream/api/`
+- `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/factories/event/AiSdkStreamReducer.kt`
+- `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/factories/event/AiStreamHandleStore.kt`
+- `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/components/event/toolcards/`
+- `features/messages/impl/src/test/resources/toolcards/ios_tool_card_manifest.json`
+
+Rules for follow-up work:
+
+- Do not reimplement SSE fetching in `features/messages`.
+- Do not mutate SDK part states in Android reducer or Compose.
+- Add every new iOS tool card mapping to the checked-in manifest and fixture matrix.
+- Keep tool card JSON transforms outside Compose.
+- Normal list recycling cancels only UI subscriptions, not SDK background stream completion.
+
+Current Android render flow:
+
+1. Timeline event exposes a `streamId`.
+2. `TimelineItemAiPresenter` asks `AiStreamHandleStore` to bind a `StreamRequest`.
+3. `AiStreamHandleStore` dedupes SDK handles by stream id and keeps background streams alive across Compose recycling.
+4. `StreamSnapshotUpdatePolicy` coalesces patch-only updates and emits state changes immediately.
+5. `AiSdkStreamReducer` maps SDK parts into `TimelineItemAiContent`, including `toolCardEntries`, `firstToolPartIndex`, and terminal stream metadata.
+6. `TimelineItemAiView` renders from `TimelineItemAiContent` only. `ToolCallRootCard` consumes precomputed `AiToolCardEntry` values instead of reparsing tool stream parts.
+
+Verification on this branch:
+
+- `./gradlew :libraries:agentstream:testDebugUnitTest` passed.
+- `./gradlew :features:messages:impl:compileDebugKotlin` passed.
+- `./gradlew :features:messages:impl:testDebugUnitTest` completed 575 tests with one flaky unrelated `MessagesViewTest > live location banner is hidden when current room is not sharing`; rerunning that single test passed.
