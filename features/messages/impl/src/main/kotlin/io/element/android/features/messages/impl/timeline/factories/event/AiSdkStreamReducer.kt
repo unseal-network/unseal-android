@@ -46,6 +46,7 @@ class AiSdkStreamReducer {
         sender: String?,
     ): TimelineItemAiContent {
         val mappedParts = snapshot.parts.map { it.toAiStreamPart() }
+            .finalizeIfCompleted(snapshot)
         val streamParts = mappedParts.withSnapshotErrorIfNeeded(snapshot)
         Timber.tag(TAG).d(
             "AI snapshot stream=%s status=%s isStreaming=%s parts: %s",
@@ -186,6 +187,32 @@ class AiSdkStreamReducer {
         }
     }
 
+    /**
+     * Mirrors iOS: when the SDK stream reaches its terminal `Completed` state, every part is
+     * finalized — a completed stream cannot have a part still "streaming"/"calling". Coercing the
+     * states here (before the renderable lists are computed) makes:
+     *  - reasoning parts render "Thought" instead of a stuck "Thinking…",
+     *  - tool parts stop showing "Running tool…",
+     *  - sub-agent / multi-execute parts become `isDone`, so their results expand into cards.
+     *
+     * It also repairs persisted snapshots loaded on room re-entry, which may have been stored with
+     * in-progress part states. Failed/Cancelled streams are left untouched (their parts may
+     * legitimately be incomplete).
+     */
+    private fun List<AiStreamPart>.finalizeIfCompleted(snapshot: StreamSnapshot): List<AiStreamPart> {
+        if (snapshot.status != StreamStatus.Completed) {
+            return this
+        }
+        return map { part ->
+            when (part) {
+                is AiReasoningStreamPart -> if (part.state == "done") part else part.copy(state = "done")
+                is AiTextStreamPart -> if (part.state == "done") part else part.copy(state = "done")
+                is AiToolStreamPart -> if (part.state in FINALIZED_TOOL_STATES) part else part.copy(state = "output-available")
+                else -> part
+            }
+        }
+    }
+
     private fun List<AiStreamPart>.withSnapshotErrorIfNeeded(snapshot: StreamSnapshot): List<AiStreamPart> {
         val hasSnapshotError = snapshot.status == StreamStatus.Failed || snapshot.error != null
         if (!hasSnapshotError || any { it is AiErrorStreamPart }) {
@@ -205,6 +232,15 @@ class AiSdkStreamReducer {
         const val DEFAULT_DONE_STATE = "done"
         const val DEFAULT_ERROR_STATE = "error"
         const val DEFAULT_STREAM_ERROR_MESSAGE = "Stream error"
+        // Tool states already considered terminal (done/error per AiToolCardLogic). Anything else on
+        // a Completed stream is coerced to "output-available".
+        val FINALIZED_TOOL_STATES = setOf(
+            "output-available",
+            "approval-requested",
+            "approval-responded",
+            "output-error",
+            "output-denied",
+        )
     }
 }
 

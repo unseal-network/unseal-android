@@ -20,6 +20,7 @@ import io.element.android.libraries.agentstream.api.DefaultAgentStreamClient
 import io.element.android.libraries.agentstream.api.StreamHttpClient
 import io.element.android.libraries.agentstream.api.StreamRequest
 import io.element.android.libraries.agentstream.api.StreamTransportException
+import timber.log.Timber
 import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.agentstream.api.StreamSnapshotJsonCodec
 import io.element.android.libraries.agentstream.api.StreamStatus
@@ -66,9 +67,18 @@ class ChatbotStreamHttpClient(
         request: StreamRequest,
         onChunk: suspend (String) -> Unit,
     ) {
+        Timber.tag("AiStreamDbg").d("HTTP openStream START stream=%s sender=%s", request.streamId, request.sender)
+        var chunks = 0
+        var bytes = 0
         chatbotApiServiceFactory
             .createForAiStream(matrixClient)
-            .streamAgentMessage(request.streamId, request.sender.takeIf { it.isNotBlank() }, onChunk)
+            .streamAgentMessage(request.streamId, request.sender.takeIf { it.isNotBlank() }) { chunk ->
+                chunks++
+                bytes += chunk.length
+                onChunk(chunk)
+            }
+            .onSuccess { Timber.tag("AiStreamDbg").d("HTTP openStream DONE stream=%s chunks=%d bytes=%d (connection closed)", request.streamId, chunks, bytes) }
+            .onFailure { Timber.tag("AiStreamDbg").w(it, "HTTP openStream FAILED stream=%s chunks=%d bytes=%d", request.streamId, chunks, bytes) }
             .getOrElse { throwable -> throw throwable.toStreamTransportException() }
     }
 }

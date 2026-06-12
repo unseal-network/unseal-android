@@ -33,6 +33,7 @@ import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.di.RoomScope
 import kotlinx.coroutines.channels.Channel
+import timber.log.Timber
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -101,6 +102,7 @@ class TimelineItemAiPresenter(
                 includeRawEvents = false,
             )
         )
+        Timber.tag(DBG).d("getStream stream=%s initialStatus=%s initialParts=%d", streamId, handle.snapshot().status, handle.snapshot().parts.size)
         val snapshots = Channel<StreamSnapshot>(Channel.UNLIMITED)
         val updatePolicy = StreamSnapshotUpdatePolicy()
 
@@ -122,6 +124,7 @@ class TimelineItemAiPresenter(
         }
 
         val subscription = handle.subscribe { snapshot ->
+            Timber.tag(DBG).d("recv stream=%s status=%s parts=%d", streamId, snapshot.status, snapshot.parts.size)
             snapshots.trySend(snapshot)
         }
         try {
@@ -140,19 +143,26 @@ class TimelineItemAiPresenter(
                 }
                 when (val decision = updatePolicy.accept(snapshot, System.currentTimeMillis())) {
                     is StreamSnapshotUpdateDecision.Emit -> {
+                        Timber.tag(DBG).d("EMIT stream=%s status=%s parts=%d terminal=%s", streamId, decision.snapshot.status, decision.snapshot.parts.size, decision.snapshot.isTerminal)
                         emit(decision.snapshot)
                         if (decision.snapshot.isTerminal) {
+                            Timber.tag(DBG).d("TERMINAL break stream=%s status=%s", streamId, decision.snapshot.status)
                             break
                         }
                     }
                     StreamSnapshotUpdateDecision.Pending,
-                    StreamSnapshotUpdateDecision.Skip -> Unit
+                    StreamSnapshotUpdateDecision.Skip -> Timber.tag(DBG).d("%s stream=%s status=%s", decision::class.simpleName, streamId, snapshot.status)
                 }
             }
         } finally {
+            Timber.tag(DBG).d("collect END stream=%s", streamId)
             subscription.cancel()
             snapshots.close()
         }
         }
+    }
+
+    private companion object {
+        const val DBG = "AiStreamDbg"
     }
 }
