@@ -29,8 +29,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil3.compose.SubcomposeAsyncImage
-import io.element.android.features.messages.impl.timeline.components.event.META_TOOL_NAMES
-import io.element.android.features.messages.impl.timeline.components.event.TOOL_CARD_REGISTRY
+import io.element.android.features.messages.impl.timeline.components.event.toolcards.META_TOOL_NAMES
+import io.element.android.features.messages.impl.timeline.components.event.toolcards.TOOL_CARD_REGISTRY
 import org.json.JSONArray
 import org.json.JSONObject
 

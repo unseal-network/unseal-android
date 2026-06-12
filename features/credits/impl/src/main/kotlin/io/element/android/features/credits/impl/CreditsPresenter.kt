@@ -76,7 +76,11 @@ class CreditsPresenter(
             return throwable.message ?: throwable::class.simpleName ?: throwable.toString()
         }
 
+        // Credits (balance/ledger/daily-usage) live on the agent-api (/api/credits/*); analytics
+        // tokens live on the homeserver (/chatbot/v1/analytics/tokens) — mirror iOS, which uses two
+        // separate clients. Using the agent-api client for analytics 404s.
         suspend fun api() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
+        suspend fun homeserverApi() = chatbotApiServiceFactory.createForHomeserver(matrixClient)
 
         suspend fun loadBalance(service: ChatbotApiService) {
             isBalanceLoading = true
@@ -141,7 +145,10 @@ class CreditsPresenter(
             coroutineScope.launch { loadBalance(service) }
             coroutineScope.launch { loadLedger(service) }
             coroutineScope.launch { loadDailyUsage(service, dailyUsageRange) }
-            coroutineScope.launch { loadAnalytics(service, analyticsPeriod) }
+            coroutineScope.launch {
+                val homeserver = runCatching { homeserverApi() }.getOrNull() ?: return@launch
+                loadAnalytics(homeserver, analyticsPeriod)
+            }
         }
 
         fun loadMoreTransactions() = coroutineScope.launch {
@@ -179,7 +186,7 @@ class CreditsPresenter(
                     if (analyticsPeriod != event.period) {
                         analyticsPeriod = event.period
                         isAnalyticsLoading = true
-                        coroutineScope.launch { loadAnalytics(api(), event.period) }
+                        coroutineScope.launch { loadAnalytics(homeserverApi(), event.period) }
                     }
                 }
                 CreditsEvents.LoadMoreTransactions -> loadMoreTransactions()

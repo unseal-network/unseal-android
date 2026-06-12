@@ -9,8 +9,8 @@ package io.element.android.features.messages.impl.timeline.factories.event
 
 import dev.zacsweers.metro.Inject
 import io.element.android.features.messages.impl.timeline.components.event.isHiddenStreamPart
-import io.element.android.features.messages.impl.timeline.components.event.isRegisteredToolName
 import io.element.android.features.messages.impl.timeline.components.event.toRenderableToolParts
+import io.element.android.features.messages.impl.timeline.components.event.toolcards.isRegisteredToolName
 import io.element.android.features.messages.impl.timeline.model.event.AiCustomStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiDataStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiErrorStreamPart

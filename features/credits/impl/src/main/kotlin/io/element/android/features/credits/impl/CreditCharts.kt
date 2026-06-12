@@ -157,6 +157,9 @@ internal fun <T> CreditPillPicker(
     selected: T,
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
+    // Compact pills for the right-side range/period selectors (mirrors iOS bodyXS sizing); keeps the
+    // usage-card header on one line so labels like "全部" don't wrap to two lines.
+    compact: Boolean = false,
 ) {
     Row(
         modifier = modifier
@@ -171,14 +174,16 @@ internal fun <T> CreditPillPicker(
                     .clip(CircleShape)
                     .background(if (isSelected) MaterialTheme.colorScheme.surface else Color.Transparent)
                     .clickable { onSelect(value) }
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    .padding(horizontal = if (compact) 10.dp else 12.dp, vertical = if (compact) 5.dp else 6.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.labelMedium,
+                    style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium,
                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    softWrap = false,
                 )
             }
         }

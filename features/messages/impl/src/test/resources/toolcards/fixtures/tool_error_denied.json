@@ -1,0 +1,12 @@
+{
+  "toolName": "GMAIL_FETCH_EMAILS",
+  "state": "output-denied",
+  "input": { "query": "newer_than:1d" },
+  "errorText": "User denied Gmail access",
+  "expected": {
+    "_cardType": "composeEmail",
+    "entryName": "Emails",
+    "entryState": "error",
+    "containsText": "User denied Gmail access"
+  }
+}

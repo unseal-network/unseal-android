@@ -1,0 +1,14 @@
+{
+  "cardType": "moltbookRegister",
+  "payload": {
+    "title": "Register Moltbook account",
+    "status": "Action required",
+    "url": "https://moltbook.example/register"
+  },
+  "expected": {
+    "_cardType": "moltbookRegister",
+    "displayOnly": true,
+    "containsText": "Register Moltbook account",
+    "disabledReason": "Open on iOS or web to complete this action"
+  }
+}
