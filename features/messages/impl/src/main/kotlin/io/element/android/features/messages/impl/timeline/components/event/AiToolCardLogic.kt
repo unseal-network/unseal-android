@@ -364,7 +364,11 @@ internal fun toolStateLabel(state: String): String =
     }
 
 internal val AiToolStreamPart.displayName: String
-    get() = title ?: toolName.removePrefix("tool-").replace("_", " ").ifBlank { id }
+    get() {
+        val raw = title?.takeIf { it.isNotBlank() } ?: toolName.removePrefix("tool-")
+        // Humanise ALL-CAPS / snake_case tool slugs; leave already-readable titles untouched.
+        return (if (raw == raw.uppercase() || raw.contains('_')) raw.toDisplayLabel() else raw).ifBlank { id }
+    }
 
 internal val AiToolStreamPart.isDone: Boolean
     // Mirrors iOS mapState: output-available + approval-requested + approval-responded are "done".
@@ -384,7 +388,9 @@ internal fun String.toDisplayLabel(): String =
         .replace("-", " ")
         .split(" ")
         .filter { it.isNotBlank() }
-        .joinToString(" ") { word -> word.replaceFirstChar { it.uppercaseChar() } }
+        // Title-case each word (lowercase the rest) so SCREAMING_SNAKE tool slugs like
+        // GITHUB_FIND_REPOSITORIES render as "Github Find Repositories", not "GITHUB FIND ...".
+        .joinToString(" ") { word -> word.lowercase().replaceFirstChar { it.uppercaseChar() } }
 
 internal const val MAX_RENDERED_ITEMS = 5
 internal const val MAX_VALUE_CHARS = 240

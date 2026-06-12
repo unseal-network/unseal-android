@@ -20,8 +20,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.border
+import androidx.compose.ui.layout.onSizeChanged
+import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.PriorityHigh
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.CircularProgressIndicator
@@ -74,9 +84,23 @@ fun TimelineItemAiView(
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
     modifier: Modifier = Modifier,
+    onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit = {},
 ) {
     Column(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            // Report the body as full-width so the bubble's ContentAvoidingLayout places the
+            // timestamp / "edited" marker on its own row below, never overlapping the content.
+            .onSizeChanged { size ->
+                onContentLayoutChange(
+                    ContentAvoidingLayoutData(
+                        contentWidth = size.width,
+                        contentHeight = size.height,
+                        nonOverlappingContentWidth = size.width,
+                        nonOverlappingContentHeight = size.height,
+                    )
+                )
+            },
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         // Mirror iOS BubbleMessageView: render ONLY the (hidden-filtered, ordered) stream parts.
@@ -332,7 +356,8 @@ private fun ToolCallRootCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { expanded = !expanded }
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 ToolProgressIndicator(
@@ -343,15 +368,17 @@ private fun ToolCallRootCard(
                 )
                 Text(
                     text = if (parts.size == 1) selectedPart.displayName else "Tool Calls",
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
                 if (doneCount > 0) {
-                    CountPill(label = "✓", count = doneCount, color = Color(0xFF2E7D32))
+                    CountPill(icon = Icons.Filled.Check, count = doneCount, color = Color(0xFF2E7D32))
                 }
                 if (errorCount > 0) {
-                    CountPill(label = "!", count = errorCount, color = MaterialTheme.colorScheme.error)
+                    CountPill(icon = Icons.Filled.PriorityHigh, count = errorCount, color = MaterialTheme.colorScheme.error)
                 }
                 Text(
                     text = if (expanded) "⌄" else "›",
@@ -369,7 +396,6 @@ private fun ToolCallRootCard(
                 }
                 ToolPartContent(
                     part = selectedPart,
-                    showTitle = parts.size == 1,
                     isStreaming = isStreaming,
                     allFinished = allFinished,
                     onLinkClick = onLinkClick,
@@ -420,36 +446,15 @@ private fun ToolSelectionTabs(
 @Composable
 private fun ToolPartContent(
     part: AiToolStreamPart,
-    showTitle: Boolean,
     isStreaming: Boolean,
     allFinished: Boolean,
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Mirror iOS: the tool name lives only in the header; the body shows the card content
+    // (or a shimmer/state line while calling), never a repeated title.
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (showTitle) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ToolStateDot(part.state)
-                Text(
-                    text = part.displayName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = toolStateLabel(part.state),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        } else {
-            Text(
-                text = toolStateLabel(part.state),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
         when {
             part.isCalling -> ToolCallingContent(part, allFinished, onLinkClick, onLinkLongClick)
             part.isError -> ToolErrorContent(part)
@@ -683,24 +688,27 @@ private fun ToolProgressIndicator(
     errorCount: Int,
     isCalling: Boolean,
 ) {
-    Box(modifier = Modifier.size(22.dp)) {
+    // Thin progress ring + check/error glyph, mirroring iOS ToolProgressRing (no big filled disc).
+    Box(modifier = Modifier.size(20.dp), contentAlignment = Alignment.Center) {
         if (isCalling) {
             CircularProgressIndicator(
-                strokeWidth = 2.dp,
-                modifier = Modifier.size(22.dp),
+                strokeWidth = 1.5.dp,
+                modifier = Modifier.size(20.dp),
                 color = MaterialTheme.colorScheme.primary,
             )
         } else {
-            Surface(
-                shape = CircleShape,
-                color = if (errorCount > 0) MaterialTheme.colorScheme.errorContainer else Color(0xFFE3F6E8),
-                modifier = Modifier.size(22.dp),
+            val ringColor = if (errorCount > 0) MaterialTheme.colorScheme.error else Color(0xFF2E7D32)
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .border(1.5.dp, ringColor, CircleShape),
+                contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = if (errorCount > 0) "!" else "✓",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (errorCount > 0) MaterialTheme.colorScheme.onErrorContainer else Color(0xFF2E7D32),
-                    modifier = Modifier.padding(4.dp),
+                Icon(
+                    imageVector = if (errorCount > 0) Icons.Filled.PriorityHigh else Icons.Filled.Check,
+                    contentDescription = null,
+                    tint = ringColor,
+                    modifier = Modifier.size(12.dp),
                 )
             }
         }
@@ -708,9 +716,12 @@ private fun ToolProgressIndicator(
 }
 
 @Composable
-private fun CountPill(label: String, count: Int, color: Color) {
-    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(text = label, style = MaterialTheme.typography.labelSmall, color = color)
+private fun CountPill(icon: ImageVector, count: Int, color: Color) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(imageVector = icon, contentDescription = null, tint = color, modifier = Modifier.size(13.dp))
         Text(
             text = count.toString(),
             style = MaterialTheme.typography.labelSmall,
