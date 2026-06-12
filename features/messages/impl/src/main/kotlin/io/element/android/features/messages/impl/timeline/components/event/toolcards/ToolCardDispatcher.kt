@@ -44,7 +44,7 @@ internal fun ToolCard(
     val data = CardTransforms.transform(rawData, cardType)
     // If the transform produced no renderable content, let the caller fall back to the raw payload
     // instead of a card claiming success while drawing nothing.
-    if (!data.hasRenderableContent()) return false
+    if (!data.hasRenderableContent() || !data.hasCardContentFor(cardType)) return false
     // Bespoke per-category cards first (iOS ToolCardsIOS parity); generic list renderer last.
     if (composioSearchCard(cardType, data, onLinkClick)) return true
     if (gitHubPrimaryCard(cardType, data, onLinkClick)) return true
@@ -72,7 +72,47 @@ private fun JSONObject.hasRenderableContent(): Boolean {
 private val LIST_KEYS = arrayOf(
     "headlines", "items", "results", "products", "issues", "repositories", "repos",
     "messages", "posts", "events", "places", "files", "flights", "hotels", "notifications",
+    "data",
 )
+
+internal fun JSONObject.hasCardContentFor(cardType: String): Boolean {
+    return when (cardType) {
+        "composeEmail" -> hasSingleEmailContent()
+        "fileAttachment" -> cardObjects("files").isNotEmpty()
+        "githubIssue", "linearIssue" -> cardString("title", "name", "number", "id").isNullOrBlank().not()
+        "githubIssuesList", "linearIssuesList" -> cardObjects("items", "issues", "pull_requests").isNotEmpty()
+        "repoList" -> cardObjects("repositories", "repos", "items").isNotEmpty()
+        "release" -> cardString("name", "tagName", "tag_name", "title").isNullOrBlank().not()
+        "orgsList" -> cardObjects("organizations", "orgs", "items").isNotEmpty()
+        "contributors" -> cardObjects("contributors", "items").isNotEmpty()
+        "checkRuns" -> cardObjects("checkRuns", "check_runs", "items").isNotEmpty()
+        "commentThread" -> cardObjects("comments", "items").isNotEmpty()
+        "commitComparison" -> cardObjects("commits", "files").isNotEmpty() || cardString("status").isNullOrBlank().not()
+        "deployments" -> cardObjects("deployments", "items").isNotEmpty()
+        "notifications" -> cardObjects("notifications", "items").isNotEmpty()
+        "secretAlerts" -> cardObjects("alerts", "secretAlerts", "items").isNotEmpty()
+        "workflows" -> cardObjects("workflows", "items").isNotEmpty()
+        "flightAlert" -> cardObjects("flights").isNotEmpty()
+        "hotelBooking" -> cardObjects("hotels").isNotEmpty()
+        "headlineList", "breakingNews" -> cardObjects("headlines", "items", "results", "news_results", "organic_results", "data").isNotEmpty()
+        "imageGrid" -> cardObjects("images", "items", "data").isNotEmpty()
+        "productList" -> cardObjects("products", "items", "data").isNotEmpty()
+        "finance" -> cardObjects("quotes", "items").isNotEmpty() || cardString("symbol", "ticker", "price").isNullOrBlank().not()
+        "eventList" -> cardObjects("events", "items", "data").isNotEmpty()
+        "placeList" -> cardObjects("places", "items", "data").isNotEmpty()
+        "urlContent" -> cardObjects("results", "items", "data").isNotEmpty() || cardString("title", "url", "content", "text").isNullOrBlank().not()
+        "socialPostFeed" -> cardObjects("posts", "tweets", "items", "data").isNotEmpty()
+        "createSchedule", "updateSchedule", "updateScheduleStatus" -> cardString("name", "title", "scheduleId", "schedule_id", "status").isNullOrBlank().not()
+        "moltbookRegister" -> cardString("title", "name", "status").isNullOrBlank().not()
+        else -> true
+    }
+}
+
+private fun JSONObject.hasSingleEmailContent(): Boolean {
+    return cardString("subject", "body", "date", "snippet").isNullOrBlank().not() ||
+        optJSONObject("from") != null ||
+        cardObjects("to", "cc", "bcc").isNotEmpty()
+}
 
 /** Renders a payload's primary array as a divided list of title/subtitle/source/thumbnail rows. */
 @Composable

@@ -35,6 +35,7 @@ data class TimelineItemAiContent(
     val quickActions: ImmutableList<AiQuickAction>,
     val parts: ImmutableList<AiStreamPart> = persistentListOf(),
     val renderableToolParts: ImmutableList<AiToolStreamPart> = persistentListOf(),
+    val toolCardEntries: ImmutableList<AiToolCardEntry> = persistentListOf(),
     val passthroughParts: ImmutableList<AiStreamPart> = persistentListOf(),
     /** Ordered, hidden-filtered parts (tool markers kept) — the render source, mirrors iOS groupedParts. */
     val visibleParts: ImmutableList<AiStreamPart> = persistentListOf(),
@@ -76,6 +77,16 @@ data class AiToolStreamPart(
     val errorText: String?,
     val rawInput: String? = null,
 ) : AiStreamPart
+
+@Immutable
+data class AiToolCardEntry(
+    val id: String,
+    val name: String,
+    /** Mirrors iOS CardToolState: "calling", "done", or "error". */
+    val state: String,
+    /** JSON object string matching iOS ToolCallEntry.props, including `_cardType`. */
+    val props: String,
+)
 
 @Immutable
 data class AiSourceStreamPart(

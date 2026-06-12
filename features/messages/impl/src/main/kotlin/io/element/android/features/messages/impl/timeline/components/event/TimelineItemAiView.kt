@@ -537,13 +537,21 @@ private fun ToolPartContent(
         when {
             part.isCalling -> ToolCallingContent(part, allFinished, onLinkClick, onLinkLongClick)
             part.isError -> ToolErrorContent(part)
-            part.output?.isNotBlank() == true -> ToolPayloadCard(part, payload = part.output, onLinkClick, onLinkLongClick)
-            part.input?.isNotBlank() == true -> ToolPayloadCard(part, payload = part.input, onLinkClick, onLinkLongClick)
-            else -> Text(
-                text = if (part.isDone) "Completed" else "Waiting for tool output.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            else -> {
+                val rendered = ToolPayloadCandidates(
+                    part = part,
+                    payloads = listOf(part.output, part.input, part.rawInput),
+                    onLinkClick = onLinkClick,
+                    onLinkLongClick = onLinkLongClick,
+                )
+                if (!rendered) {
+                    Text(
+                        text = if (part.isDone) "Completed" else "Waiting for tool output.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
     }
 }
@@ -556,7 +564,19 @@ private fun ToolCallingContent(
     onLinkLongClick: (Link) -> Unit,
 ) {
     if (part.input?.isNotBlank() == true) {
-        ToolPayloadCard(part, payload = part.input, onLinkClick, onLinkLongClick)
+        val rendered = ToolPayloadCandidates(
+            part = part,
+            payloads = listOf(part.input, part.rawInput),
+            onLinkClick = onLinkClick,
+            onLinkLongClick = onLinkLongClick,
+        )
+        if (!rendered) {
+            Text(
+                text = if (allFinished) "Waiting for tool output." else "Running tool…",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     } else {
         Text(
             text = if (allFinished) "Waiting for tool output." else "Running tool…",
@@ -576,25 +596,43 @@ private fun ToolErrorContent(part: AiToolStreamPart) {
 }
 
 @Composable
-private fun ToolPayloadCard(
+private fun ToolPayloadCandidates(
     part: AiToolStreamPart,
-    payload: String?,
+    payloads: List<String?>,
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
-) {
+): Boolean {
+    val distinctPayloads = payloads
+        .mapNotNull { it?.takeIf { value -> value.isNotBlank() } }
+        .distinct()
+    for (payload in distinctPayloads) {
+        if (ToolPayloadCard(part, payload = payload, onLinkClick, onLinkLongClick)) {
+            return true
+        }
+    }
+    return false
+}
+
+@Composable
+private fun ToolPayloadCard(
+    part: AiToolStreamPart,
+    payload: String,
+    onLinkClick: (Link) -> Unit,
+    onLinkLongClick: (Link) -> Unit,
+): Boolean {
     // 1. Try the dispatched tool card (iOS ToolCallRootCardAdapter parity). If it renders, done.
     val cardType = remember(part.toolName) { resolveToolCardType(part.toolName) }
-    val cardData = remember(payload) { payload?.takeIf { it.isNotBlank() }?.toCardDataJson() }
+    val cardData = remember(payload) { payload.toCardDataJson() }
     if (cardType != null && cardData != null && ToolCard(cardType, cardData)) {
-        return
+        return true
     }
     // 2. Otherwise show the tool result on expand: structured items, else raw (pretty-printed) text,
     // so the content is never blank. iOS renders rich per-type cards here — UI differs, content holds.
     val model = remember(part.toolName, payload) {
         payload.toToolCardModel(part.toolName)
     }
-    val rawPayload = remember(payload) { payload?.takeIf { it.isNotBlank() }?.prettyPayload() }
-    if ((model == null || model.items.isEmpty()) && rawPayload.isNullOrBlank()) return
+    val rawPayload = remember(payload) { payload.prettyPayload() }
+    if ((model == null || model.items.isEmpty()) && rawPayload.isBlank()) return false
     Surface(
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
@@ -628,6 +666,7 @@ private fun ToolPayloadCard(
             }
         }
     }
+    return true
 }
 
 @Composable

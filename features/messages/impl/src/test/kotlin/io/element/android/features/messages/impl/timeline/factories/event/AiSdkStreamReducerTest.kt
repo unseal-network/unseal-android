@@ -134,6 +134,30 @@ class AiSdkStreamReducerTest {
     }
 
     @Test
+    fun `completed tool keeps input for ui fallback when output has no card content`() {
+        val snapshot = snapshot(
+            parts = listOf(
+                StreamPart.Tool(
+                    id = "call-1",
+                    toolState = "input-available",
+                    toolName = "GMAIL_FETCH_EMAILS",
+                    input = Json.parseToJsonElement("""{"query":"from:alice@example.com"}"""),
+                    rawInput = JsonPrimitive("Find Alice emails"),
+                    output = Json.parseToJsonElement("""{"successful":true}"""),
+                ),
+            ),
+        )
+
+        val result = reducer.mapSnapshot(snapshot, isEdited = false, sender = null)
+
+        val tool = result.parts.single() as AiToolStreamPart
+        assertThat(tool.state).isEqualTo("output-available")
+        assertThat(tool.input).contains("alice@example.com")
+        assertThat(tool.rawInput).isEqualTo("Find Alice emails")
+        assertThat(tool.output).contains("successful")
+    }
+
+    @Test
     fun `failed snapshot with top-level error maps to error part`() {
         val snapshot = snapshot(
             streamId = "",
