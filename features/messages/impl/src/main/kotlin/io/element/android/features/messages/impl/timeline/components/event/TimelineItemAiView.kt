@@ -66,6 +66,7 @@ import io.element.android.features.messages.impl.timeline.model.event.AiSourceSt
 import io.element.android.features.messages.impl.timeline.model.event.AiStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiThinkingStep
 import io.element.android.features.messages.impl.timeline.model.event.AiTextStreamPart
+import io.element.android.features.messages.impl.timeline.model.event.AiToolCardEntry
 import io.element.android.features.messages.impl.timeline.model.event.AiToolCall
 import io.element.android.features.messages.impl.timeline.model.event.AiToolStreamPart
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.ToolCard
@@ -76,6 +77,7 @@ import io.element.android.libraries.androidutils.text.LinkifyHelper
 import io.element.android.libraries.textcomposer.ElementRichTextEditorStyle
 import io.element.android.wysiwyg.compose.EditorStyledText
 import io.element.android.wysiwyg.link.Link
+import org.json.JSONObject
 
 /**
  * Native (degraded) renderer for [TimelineItemAiContent]. Composes the AI stream sub-parts that
@@ -115,7 +117,9 @@ fun TimelineItemAiView(
         if (content.visibleParts.isNotEmpty()) {
             AiStreamPartsView(
                 visibleParts = content.visibleParts,
-                toolParts = content.renderableToolParts,
+                toolCardEntries = content.toolCardEntries,
+                firstToolPartIndex = content.firstToolPartIndex,
+                lastPartIsStreamingText = content.lastPartIsStreamingText,
                 isStreaming = content.isStreaming,
                 onLinkClick = onLinkClick,
                 onLinkLongClick = onLinkLongClick,
@@ -164,7 +168,9 @@ fun TimelineItemAiView(
 @Composable
 private fun AiStreamPartsView(
     visibleParts: List<AiStreamPart>,
-    toolParts: List<AiToolStreamPart>,
+    toolCardEntries: List<AiToolCardEntry>,
+    firstToolPartIndex: Int?,
+    lastPartIsStreamingText: Boolean,
     isStreaming: Boolean,
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
@@ -172,9 +178,7 @@ private fun AiStreamPartsView(
     // Mirror iOS BubbleMessageView: walk the ordered parts; insert ONE ToolCallRootCard at the
     // first tool part's position; render every other part inline in order; trailing streaming
     // cursor unless the last part is already a streaming text (which carries its own cursor).
-    val toolCardInserted = toolParts.isNotEmpty()
-    val firstToolIndex = visibleParts.indexOfFirst { it is AiToolStreamPart }
-    val lastIsStreamingText = (visibleParts.lastOrNull() as? AiTextStreamPart)?.state == "streaming"
+    val toolCardInserted = toolCardEntries.isNotEmpty()
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -182,9 +186,9 @@ private fun AiStreamPartsView(
         visibleParts.forEachIndexed { index, part ->
             when (part) {
                 is AiToolStreamPart -> {
-                    if (toolCardInserted && index == firstToolIndex) {
+                    if (toolCardInserted && index == firstToolPartIndex) {
                         ToolCallRootCard(
-                            parts = toolParts,
+                            entries = toolCardEntries,
                             isStreaming = isStreaming,
                             onLinkClick = onLinkClick,
                             onLinkLongClick = onLinkLongClick,
@@ -201,7 +205,7 @@ private fun AiStreamPartsView(
                 is AiCustomStreamPart -> Unit
             }
         }
-        if (isStreaming && !lastIsStreamingText) {
+        if (isStreaming && !lastPartIsStreamingText) {
             StreamingCursor()
         }
     }
@@ -408,21 +412,21 @@ private fun ReasoningPart(part: AiReasoningStreamPart) {
 
 @Composable
 private fun ToolCallRootCard(
-    parts: List<AiToolStreamPart>,
+    entries: List<AiToolCardEntry>,
     isStreaming: Boolean,
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
 ) {
-    if (parts.isEmpty()) return
-    var selectedIndex by remember(parts.joinToString(separator = "|") { it.id }) { mutableStateOf(parts.lastIndex) }
-    var expanded by remember(parts.first().id) { mutableStateOf(true) }
-    if (selectedIndex !in parts.indices) selectedIndex = parts.lastIndex
-    val selectedPart = parts[selectedIndex]
-    val doneCount = parts.count { it.isDone }
-    val errorCount = parts.count { it.isError }
+    if (entries.isEmpty()) return
+    var selectedIndex by remember(entries.joinToString(separator = "|") { it.id }) { mutableStateOf(entries.lastIndex) }
+    var expanded by remember(entries.first().id) { mutableStateOf(true) }
+    if (selectedIndex !in entries.indices) selectedIndex = entries.lastIndex
+    val selectedEntry = entries[selectedIndex]
+    val doneCount = entries.count { it.state == "done" }
+    val errorCount = entries.count { it.state == "error" }
     // Per-tool state drives "calling" (mirrors iOS, which renders tools by their own ToolState and
     // does NOT gate on the message-level streaming flag).
-    val callingCount = parts.size - doneCount - errorCount
+    val callingCount = entries.size - doneCount - errorCount
     val allFinished = callingCount == 0
 
     Surface(
@@ -440,13 +444,13 @@ private fun ToolCallRootCard(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 ToolProgressIndicator(
-                    total = parts.size,
+                    total = entries.size,
                     doneCount = doneCount,
                     errorCount = errorCount,
                     isCalling = callingCount > 0,
                 )
                 Text(
-                    text = if (parts.size == 1) selectedPart.displayName else "Tool Calls",
+                    text = if (entries.size == 1) selectedEntry.name else "Tool Calls",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
@@ -466,15 +470,15 @@ private fun ToolCallRootCard(
                 )
             }
             if (expanded) {
-                if (parts.size > 1) {
+                if (entries.size > 1) {
                     ToolSelectionTabs(
-                        parts = parts,
+                        entries = entries,
                         selectedIndex = selectedIndex,
                         onSelected = { selectedIndex = it },
                     )
                 }
-                ToolPartContent(
-                    part = selectedPart,
+                ToolEntryContent(
+                    entry = selectedEntry,
                     isStreaming = isStreaming,
                     allFinished = allFinished,
                     onLinkClick = onLinkClick,
@@ -488,7 +492,7 @@ private fun ToolCallRootCard(
 
 @Composable
 private fun ToolSelectionTabs(
-    parts: List<AiToolStreamPart>,
+    entries: List<AiToolCardEntry>,
     selectedIndex: Int,
     onSelected: (Int) -> Unit,
 ) {
@@ -499,7 +503,7 @@ private fun ToolSelectionTabs(
             .padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        parts.forEachIndexed { index, part ->
+        entries.forEachIndexed { index, entry ->
             val isSelected = index == selectedIndex
             Surface(
                 shape = RoundedCornerShape(18.dp),
@@ -510,9 +514,9 @@ private fun ToolSelectionTabs(
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    ToolStateDot(part.state)
+                    ToolStateDot(entry.state)
                     Text(
-                        text = part.displayName,
+                        text = entry.name,
                         style = MaterialTheme.typography.labelMedium,
                         color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -520,6 +524,74 @@ private fun ToolSelectionTabs(
             }
         }
     }
+}
+
+@Composable
+private fun ToolEntryContent(
+    entry: AiToolCardEntry,
+    isStreaming: Boolean,
+    allFinished: Boolean,
+    onLinkClick: (Link) -> Unit,
+    onLinkLongClick: (Link) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        when (entry.state) {
+            "calling" -> ToolCallingEntryContent(entry, allFinished)
+            "error" -> {
+                val props = remember(entry.props) { runCatching { JSONObject(entry.props) }.getOrNull() ?: JSONObject() }
+                Text(
+                    text = props.optString("errorText").takeIf { it.isNotBlank() } ?: "Tool call failed.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            else -> {
+                val rendered = ToolEntryPayloadCard(
+                    entry = entry,
+                    onLinkClick = onLinkClick,
+                    onLinkLongClick = onLinkLongClick,
+                )
+                if (!rendered) {
+                    Text(
+                        text = if (isStreaming) "Waiting for tool output." else "Completed",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolCallingEntryContent(
+    entry: AiToolCardEntry,
+    allFinished: Boolean,
+) {
+    val rendered = ToolEntryPayloadCard(
+        entry = entry,
+        onLinkClick = {},
+        onLinkLongClick = {},
+    )
+    if (!rendered) {
+        Text(
+            text = if (allFinished) "Waiting for tool output." else "Running tool…",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun ToolEntryPayloadCard(
+    entry: AiToolCardEntry,
+    onLinkClick: (Link) -> Unit,
+    onLinkLongClick: (Link) -> Unit,
+): Boolean {
+    val props = remember(entry.props) { runCatching { JSONObject(entry.props) }.getOrNull() ?: JSONObject() }
+    val cardType = props.optString("_cardType").takeIf { it.isNotBlank() } ?: "generic"
+    return ToolCard(cardType = cardType, rawData = props, onLinkClick = {})
 }
 
 @Composable

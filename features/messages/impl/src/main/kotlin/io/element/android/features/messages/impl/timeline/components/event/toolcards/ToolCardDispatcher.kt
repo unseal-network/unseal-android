@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.dp
 import org.json.JSONArray
 import org.json.JSONObject
 
+internal val TOOL_CARD_DISPATCHER_CARD_TYPES = ROOT_DISPATCH_CARD_TYPES + STANDALONE_SUSPENDED_CARD_TYPES
+
 /**
  * Dispatches a parsed tool payload to a specific Material 3 card by [cardType], mirroring the iOS
  * ToolCallRootCardAdapter `_cardType` dispatch. Returns true if a card rendered; false lets the
