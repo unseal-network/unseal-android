@@ -20,6 +20,7 @@ import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.agentstream.api.StreamStatus
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
+import org.json.JSONObject
 import org.junit.Test
 
 class AiSdkStreamReducerTest {
@@ -243,6 +244,101 @@ class AiSdkStreamReducerTest {
         assertThat(result.firstToolPartIndex).isEqualTo(1)
         assertThat(result.passthroughParts.map { it.id }).containsExactly("text-before", "text-after").inOrder()
         assertThat(result.lastPartIsStreamingText).isTrue()
+    }
+
+    @Test
+    fun `schedule create tool props mirror ios friendly cron formatting`() {
+        val snapshot = snapshot(
+            parts = listOf(
+                StreamPart.Tool(
+                    id = "schedule-1",
+                    toolState = "input-available",
+                    toolName = "createSchedule",
+                    input = Json.parseToJsonElement(
+                        """
+                        {
+                          "name": " Daily sync ",
+                          "cron": "0 9 * * *",
+                          "timezone": "Asia/Shanghai",
+                          "action": "Send a summary"
+                        }
+                        """.trimIndent(),
+                    ),
+                ),
+            ),
+        )
+
+        val result = reducer.mapSnapshot(snapshot, isEdited = false, sender = null)
+        val props = JSONObject(result.toolCardEntries.single().props)
+
+        assertThat(result.toolCardEntries.single().state).isEqualTo("calling")
+        assertThat(props.getString("_cardType")).isEqualTo("createSchedule")
+        assertThat(props.getString("name")).isEqualTo("Daily sync")
+        assertThat(props.getString("cadence")).isEqualTo("Every day at 09:00")
+        assertThat(props.getBoolean("cadenceProvided")).isTrue()
+        assertThat(props.getString("timezone")).isEqualTo("Asia/Shanghai")
+        assertThat(props.getString("action")).isEqualTo("Send a summary")
+    }
+
+    @Test
+    fun `schedule status tool props mirror ios names summary formatting`() {
+        val snapshot = snapshot(
+            parts = listOf(
+                StreamPart.Tool(
+                    id = "schedule-status-1",
+                    toolState = "input-available",
+                    toolName = "updateScheduleStatus",
+                    input = Json.parseToJsonElement(
+                        """
+                        {
+                          "names": [" Morning report ", "Inbox sweep"],
+                          "status": "disabled"
+                        }
+                        """.trimIndent(),
+                    ),
+                ),
+            ),
+        )
+
+        val result = reducer.mapSnapshot(snapshot, isEdited = false, sender = null)
+        val props = JSONObject(result.toolCardEntries.single().props)
+
+        assertThat(props.getString("_cardType")).isEqualTo("updateScheduleStatus")
+        assertThat(props.getString("summary")).isEqualTo("2 schedules")
+        assertThat(props.getJSONArray("names").getString(0)).isEqualTo("Morning report")
+        assertThat(props.getJSONArray("names").getString(1)).isEqualTo("Inbox sweep")
+        assertThat(props.getBoolean("isEnable")).isFalse()
+    }
+
+    @Test
+    fun `schedule update without action mirrors ios empty action fallback`() {
+        val snapshot = snapshot(
+            parts = listOf(
+                StreamPart.Tool(
+                    id = "schedule-update-1",
+                    toolState = "input-available",
+                    toolName = "updateSchedule",
+                    input = Json.parseToJsonElement(
+                        """
+                        {
+                          "name": " Morning report ",
+                          "cron": "30 8 * * 1-5"
+                        }
+                        """.trimIndent(),
+                    ),
+                ),
+            ),
+        )
+
+        val result = reducer.mapSnapshot(snapshot, isEdited = false, sender = null)
+        val props = JSONObject(result.toolCardEntries.single().props)
+
+        assertThat(props.getString("_cardType")).isEqualTo("updateSchedule")
+        assertThat(props.getString("name")).isEqualTo("Morning report")
+        assertThat(props.getString("cadence")).isEqualTo("Every weekday at 08:30")
+        assertThat(props.getBoolean("cadenceChanged")).isTrue()
+        assertThat(props.getString("timezone")).isEmpty()
+        assertThat(props.getString("action")).isEmpty()
     }
 
     @Test

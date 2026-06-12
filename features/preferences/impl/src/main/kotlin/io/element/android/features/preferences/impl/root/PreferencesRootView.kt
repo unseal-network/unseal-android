@@ -135,17 +135,21 @@ fun PreferencesRootView(
                     )
                 }
             }
-            // 'AI Assistant' section (right after the profile, mirroring iOS)
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SettingsSectionHeader(
-                    title = stringResource(id = R.string.screen_preferences_ai_assistant_section_title),
-                )
-                CreditBalanceCard(
-                    loadState = state.creditBalanceLoadState,
-                    onOpenCreditsTopUp = onOpenCreditsTopUp,
-                    onOpenCreditsBilling = onOpenCreditsBilling,
-                    onOpenCreditsUsage = onOpenCreditsUsage,
-                )
+            // 'AI Assistant' section (right after the profile, mirroring iOS). The billing card and
+            // the agent-rows card are spaced like every other settings card (20.dp); only the
+            // section header hugs the billing card (8.dp).
+            Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingsSectionHeader(
+                        title = stringResource(id = R.string.screen_preferences_ai_assistant_section_title),
+                    )
+                    CreditBalanceCard(
+                        loadState = state.creditBalanceLoadState,
+                        onOpenCreditsTopUp = onOpenCreditsTopUp,
+                        onOpenCreditsBilling = onOpenCreditsBilling,
+                        onOpenCreditsUsage = onOpenCreditsUsage,
+                    )
+                }
                 SettingsCard {
                     AiAssistantRows(
                         onOpenAgentManagement = onOpenAgentManagement,

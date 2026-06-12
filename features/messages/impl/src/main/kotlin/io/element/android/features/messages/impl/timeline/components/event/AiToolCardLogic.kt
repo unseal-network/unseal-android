@@ -19,6 +19,7 @@ import io.element.android.features.messages.impl.timeline.components.event.toolc
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.TOOL_CARD_REGISTRY
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.TOOL_CARD_REGISTRY_WITH_DISPLAY
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.errorProps
+import io.element.android.features.messages.impl.timeline.components.event.toolcards.isRegisteredToolName
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -453,29 +454,28 @@ private fun scheduleProps(cardType: String, input: String?): JSONObject {
     val props = JSONObject().put("_cardType", cardType)
     when (cardType) {
         "createSchedule" -> {
-            val cron = schedule.str("cron")
-            props.put("name", schedule.str("name")?.takeIf { it.isNotBlank() } ?: "Unnamed schedule")
-            props.put("cadence", cron ?: "No schedule rule")
+            val cron = schedule.formatScheduleCron()
+            props.put("name", schedule.scheduleName())
+            props.put("cadence", cron?.friendly ?: "No schedule rule")
             props.put("cadenceProvided", cron != null)
             props.put("timezone", schedule.str("timezone") ?: "UTC")
             props.put("action", schedule.str("action") ?: "")
         }
         "updateSchedule" -> {
-            val cron = schedule.str("cron")
-            props.put("name", schedule.str("name")?.takeIf { it.isNotBlank() } ?: "Unnamed schedule")
-            props.put("cadence", cron ?: "Schedule updated")
+            val cron = schedule.formatScheduleCron()
+            props.put("name", schedule.scheduleName())
+            props.put("cadence", cron?.friendly ?: "Schedule updated")
             props.put("cadenceChanged", cron != null)
             props.put("timezone", schedule.str("timezone") ?: "")
             props.put("action", schedule.str("action") ?: "")
         }
         "updateScheduleStatus" -> {
-            val names = JSONArray()
-            schedule.optJSONArray("names")?.let { arr ->
-                for (i in 0 until arr.length()) names.put(arr.optString(i))
-            } ?: schedule.str("name")?.let { names.put(it) }
-            props.put("summary", if (names.length() == 0) "schedule" else names.optString(0))
-            props.put("names", names)
-            props.put("isEnable", schedule.str("status") == "enabled" || schedule.optBoolean("isEnable", true))
+            val names = schedule.scheduleNames()
+            props.put("summary", formatScheduleNamesLabel(names))
+            val namesJson = JSONArray()
+            names.forEach { namesJson.put(it) }
+            props.put("names", namesJson)
+            props.put("isEnable", schedule.str("status") == "enabled")
         }
     }
     return props
@@ -483,7 +483,156 @@ private fun scheduleProps(cardType: String, input: String?): JSONObject {
 
 /** First non-blank string value for [key] (mirrors the CardTransforms `str` helper). */
 private fun org.json.JSONObject.str(key: String): String? =
-    if (has(key) && !isNull(key)) optString(key).takeIf { it.isNotBlank() } else null
+    if (has(key) && !isNull(key)) optString(key).trim().takeIf { it.isNotBlank() } else null
+
+private data class ScheduleCronFormat(
+    val friendly: String,
+)
+
+private fun JSONObject.scheduleName(): String = str("name") ?: "Unnamed schedule"
+
+private fun JSONObject.scheduleNames(): List<String> {
+    optJSONArray("names")?.let { arr ->
+        return (0 until arr.length())
+            .mapNotNull { index -> arr.optString(index).trim().takeIf { it.isNotBlank() } }
+            .takeIf { it.isNotEmpty() }
+            ?: emptyList()
+    }
+    return str("name")?.let { listOf(it) } ?: emptyList()
+}
+
+private fun formatScheduleNamesLabel(names: List<String>): String =
+    when (names.size) {
+        0 -> "Unnamed schedule"
+        1 -> names[0]
+        else -> "${names.size} schedules"
+    }
+
+private fun JSONObject.formatScheduleCron(): ScheduleCronFormat? {
+    val raw = str("cron") ?: return null
+    return ScheduleCronFormat(friendly = cronToReadableText(raw))
+}
+
+private fun cronToReadableText(raw: String): String {
+    val normalized = stripEventBridgeCronWrapper(raw.trim())
+    return formatStandardCron(normalized)
+        ?: formatSimpleEventBridgeCron(normalized)
+        ?: formatIntervalCron(normalized)
+        ?: "Custom schedule"
+}
+
+private fun stripEventBridgeCronWrapper(cron: String): String {
+    val match = Regex("^cron\\((.*)\\)$", RegexOption.IGNORE_CASE).matchEntire(cron)
+    return match?.groupValues?.getOrNull(1)?.trim() ?: cron
+}
+
+private fun formatIntervalCron(cron: String): String? {
+    val fields = cron.split(Regex("\\s+")).filter { it.isNotBlank() }
+    if (fields.size != 5 && fields.size != 6) return null
+    val minute = fields[0]
+    val hour = fields[1]
+    if (minute.startsWith("*/") && (hour == "*" || hour == "?")) {
+        val n = minute.removePrefix("*/").toIntOrNull()?.takeIf { it > 0 } ?: return null
+        return if (n == 1) "Every minute" else "Every $n minutes"
+    }
+    if (hour.startsWith("*/")) {
+        val n = hour.removePrefix("*/").toIntOrNull()?.takeIf { it > 0 } ?: return null
+        val base = if (n == 1) "Every hour" else "Every $n hours"
+        val m = minute.toIntOrNull()
+        return if (m != null && m > 0) "$base at :${minute.pad2()}" else base
+    }
+    if (hour == "*") {
+        if (minute == "*") return "Every minute"
+        val m = minute.toIntOrNull()
+        if (m != null) return if (m > 0) "Every hour at :${minute.pad2()}" else "Every hour"
+    }
+    return null
+}
+
+private fun formatStandardCron(cron: String): String? {
+    val fields = cron.split(Regex("\\s+")).filter { it.isNotBlank() }
+    if (fields.size != 5) return null
+    val minute = fields[0]
+    val hour = fields[1]
+    val dom = fields[2]
+    val month = fields[3]
+    val dow = fields[4]
+    if (minute.toIntOrNull() == null || hour.toIntOrNull() == null) return null
+    val timeText = "${hour.pad2()}:${minute.pad2()}"
+    if (dom == "*" && month == "*" && dow == "*") return "Every day at $timeText"
+    if (dom == "*" && month == "*" && dow != "*") {
+        if (dow.contains("-")) {
+            val parts = dow.split("-")
+            if (parts.size == 2) {
+                val start = parts[0].toIntOrNull()
+                val end = parts[1].toIntOrNull()
+                if (start == 1 && end == 5) return "Every weekday at $timeText"
+                if (start == 6 && end == 7) return "Every weekend at $timeText"
+            }
+        }
+        val days = dow.split(",").joinToString(", ") { normalizeDowToken(it.trim()) }
+        return "Every $days at $timeText"
+    }
+    if (dom != "*" && month == "*" && dow == "*") return "Every month on day $dom at $timeText"
+    if (dom != "*" && month != "*" && dow == "*") return "Every year on ${monthText(month)} $dom at $timeText"
+    return null
+}
+
+private fun formatSimpleEventBridgeCron(cron: String): String? {
+    val fields = cron.split(Regex("\\s+")).filter { it.isNotBlank() }
+    if (fields.size != 6) return null
+    val minute = fields[0]
+    val hour = fields[1]
+    val dayOfMonth = fields[2]
+    val month = fields[3]
+    val dayOfWeek = fields[4]
+    val year = fields[5]
+    if (minute.toIntOrNull() == null || hour.toIntOrNull() == null) return null
+    val timeText = "${hour.pad2()}:${minute.pad2()}"
+    if (dayOfMonth == "*" && month == "*" && (dayOfWeek == "?" || dayOfWeek == "*") && year == "*") {
+        return "Every day at $timeText"
+    }
+    if (dayOfMonth == "?" && month == "*" && year == "*" && dayOfWeek != "*" && dayOfWeek != "?") {
+        val days = dayOfWeek.split(",").joinToString(" / ") { normalizeDowToken(it.trim()) }
+        return "Every $days at $timeText"
+    }
+    if (dayOfMonth != "*" && dayOfMonth != "?" && month == "*" && (dayOfWeek == "?" || dayOfWeek == "*") && year == "*") {
+        return "Every month on day $dayOfMonth at $timeText"
+    }
+    if (dayOfMonth != "*" && dayOfMonth != "?" && month != "*" && month != "?" && (dayOfWeek == "?" || dayOfWeek == "*") && year == "*") {
+        return "Every year on month $month, day $dayOfMonth at $timeText"
+    }
+    return null
+}
+
+private fun String.pad2(): String = toIntOrNull()?.let { "%02d".format(it) } ?: this
+
+private fun monthText(month: String): String = when (month.uppercase()) {
+    "1", "JAN" -> "January"
+    "2", "FEB" -> "February"
+    "3", "MAR" -> "March"
+    "4", "APR" -> "April"
+    "5", "MAY" -> "May"
+    "6", "JUN" -> "June"
+    "7", "JUL" -> "July"
+    "8", "AUG" -> "August"
+    "9", "SEP" -> "September"
+    "10", "OCT" -> "October"
+    "11", "NOV" -> "November"
+    "12", "DEC" -> "December"
+    else -> month
+}
+
+private fun normalizeDowToken(token: String): String = when (token.uppercase()) {
+    "SUN" -> "Sunday"
+    "MON" -> "Monday"
+    "TUE" -> "Tuesday"
+    "WED" -> "Wednesday"
+    "THU" -> "Thursday"
+    "FRI" -> "Friday"
+    "SAT" -> "Saturday"
+    else -> token
+}
 
 /** Boolean value for [key], or null when absent/null (coerces "true"/"false" strings). */
 private fun org.json.JSONObject.optBooleanOrNull(key: String): Boolean? = when {
@@ -570,6 +719,8 @@ internal val AiToolStreamPart.isError: Boolean
 
 internal val AiToolStreamPart.isCalling: Boolean
     get() = !isDone && !isError
+
+internal fun AiToolStreamPart.allowsRawPayloadFallback(): Boolean = !toolName.isRegisteredToolName
 
 internal fun String.looksLikeRawJson(): Boolean =
     (startsWith("{") && endsWith("}")) || (startsWith("[") && endsWith("]"))

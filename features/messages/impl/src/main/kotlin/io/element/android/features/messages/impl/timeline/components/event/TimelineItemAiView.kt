@@ -21,7 +21,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -79,6 +81,8 @@ import io.element.android.libraries.textcomposer.ElementRichTextEditorStyle
 import io.element.android.wysiwyg.compose.EditorStyledText
 import io.element.android.wysiwyg.link.Link
 import org.json.JSONObject
+
+private val ToolCallContentMaxHeight = 260.dp
 
 /**
  * Native (degraded) renderer for [TimelineItemAiContent]. Composes the AI stream sub-parts that
@@ -478,13 +482,12 @@ private fun ToolCallRootCard(
                         onSelected = { selectedIndex = it },
                     )
                 }
-                ToolEntryContent(
+                ToolEntryContentViewport(
                     entry = selectedEntry,
                     isStreaming = isStreaming,
                     allFinished = allFinished,
                     onLinkClick = onLinkClick,
                     onLinkLongClick = onLinkLongClick,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                 )
             }
         }
@@ -523,6 +526,38 @@ private fun ToolSelectionTabs(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ToolEntryContentViewport(
+    entry: AiToolCardEntry,
+    isStreaming: Boolean,
+    allFinished: Boolean,
+    onLinkClick: (Link) -> Unit,
+    onLinkLongClick: (Link) -> Unit,
+) {
+    val scrollState = remember(entry.id) { androidx.compose.foundation.ScrollState(0) }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(ToolCallContentMaxHeight)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState),
+        ) {
+            ToolEntryContent(
+                entry = entry,
+                isStreaming = isStreaming,
+                allFinished = allFinished,
+                onLinkClick = onLinkClick,
+                onLinkLongClick = onLinkLongClick,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
@@ -698,6 +733,9 @@ private fun ToolPayloadCard(
     val cardData = remember(payload) { payload.toCardDataJson() }
     if (cardType != null && cardData != null && ToolCard(cardType, cardData)) {
         return true
+    }
+    if (!part.allowsRawPayloadFallback()) {
+        return false
     }
     // 2. Otherwise show the tool result on expand: structured items, else raw (pretty-printed) text,
     // so the content is never blank. iOS renders rich per-type cards here — UI differs, content holds.
