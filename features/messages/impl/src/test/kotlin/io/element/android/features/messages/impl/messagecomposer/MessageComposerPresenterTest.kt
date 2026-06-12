@@ -26,12 +26,14 @@ import io.element.android.features.messages.impl.MessagesNavigator
 import io.element.android.features.messages.impl.attachments.Attachment
 import io.element.android.features.messages.impl.draft.ComposerDraftService
 import io.element.android.features.messages.impl.draft.FakeComposerDraftService
+import io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerPresenter
 import io.element.android.features.messages.impl.messagecomposer.suggestions.SuggestionsProcessor
 import io.element.android.features.messages.impl.timeline.TimelineController
 import io.element.android.features.messages.impl.utils.FakeMentionSpanFormatter
 import io.element.android.features.messages.impl.utils.FakeTextPillificationHelper
 import io.element.android.features.messages.impl.utils.TextPillificationHelper
 import io.element.android.libraries.architecture.AsyncAction
+import io.element.android.libraries.chatbot.api.ChatbotBaseUrlResolver
 import io.element.android.libraries.core.mimetype.MimeTypes
 import io.element.android.libraries.designsystem.utils.snackbar.SnackbarDispatcher
 import io.element.android.libraries.matrix.api.core.EventId
@@ -64,6 +66,7 @@ import io.element.android.libraries.matrix.test.A_USER_ID
 import io.element.android.libraries.matrix.test.A_USER_ID_2
 import io.element.android.libraries.matrix.test.A_USER_ID_3
 import io.element.android.libraries.matrix.test.A_USER_ID_4
+import io.element.android.libraries.matrix.test.FakeMatrixClient
 import io.element.android.libraries.matrix.test.media.FakeMediaUploadHandler
 import io.element.android.libraries.matrix.test.permalink.FakePermalinkBuilder
 import io.element.android.libraries.matrix.test.permalink.FakePermalinkParser
@@ -116,6 +119,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import okhttp3.OkHttpClient
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -1574,6 +1578,12 @@ class MessageComposerPresenterTest {
         mediaOptimizationConfigProvider = mediaOptimizationConfigProvider,
         notificationConversationService = notificationConversationService,
         slashCommandService = slashCommandService,
+        gamePickerPresenter = GamePickerPresenter(
+            matrixClient = FakeMatrixClient(),
+            room = room,
+            baseUrlResolver = FakeChatbotBaseUrlResolver,
+            okHttpClient = { OkHttpClient() },
+        ),
     ).apply {
         isTesting = true
         showTextFormatting = isRichTextEditorEnabled
@@ -1583,6 +1593,12 @@ class MessageComposerPresenterTest {
         skipItems(1)
         return awaitItem()
     }
+}
+
+private object FakeChatbotBaseUrlResolver : ChatbotBaseUrlResolver {
+    override suspend fun resolveUnsealApiBaseUrl(serverName: String?): String = "https://keepsecret.io"
+
+    override suspend fun resolveHomeserverBaseUrl(serverName: String?): String = "https://keepsecret.io"
 }
 
 fun anEditMode(

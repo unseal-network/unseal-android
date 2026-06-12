@@ -185,7 +185,7 @@ private fun AiToolStreamPart.expandMultiExecuteEntries(): List<AiToolCardEntry> 
             AiToolCardEntry(
                 id = "${id}_$slug",
                 name = registry.displayName,
-                state = CARD_STATE_CALLING,
+                state = cardState,
                 props = JSONObject().put("_cardType", registry.cardType).toString(),
             )
         }

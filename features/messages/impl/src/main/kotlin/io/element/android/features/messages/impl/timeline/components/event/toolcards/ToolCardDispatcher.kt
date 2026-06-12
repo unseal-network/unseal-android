@@ -44,6 +44,15 @@ internal fun ToolCard(
 ): Boolean {
     // Map the raw tool response into the props each card expects (iOS CardTransforms parity).
     val data = CardTransforms.transform(rawData, cardType)
+    return ToolCardFinalProps(cardType = cardType, data = data, onLinkClick = onLinkClick)
+}
+
+@Composable
+internal fun ToolCardFinalProps(
+    cardType: String,
+    data: JSONObject,
+    onLinkClick: () -> Unit = {},
+): Boolean {
     // If the transform produced no renderable content, let the caller fall back to the raw payload
     // instead of a card claiming success while drawing nothing.
     if (!data.hasRenderableContent() || !data.hasCardContentFor(cardType)) return false

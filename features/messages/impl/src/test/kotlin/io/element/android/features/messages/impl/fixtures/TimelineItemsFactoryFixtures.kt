@@ -12,6 +12,7 @@ import io.element.android.features.messages.impl.messagesummary.FakeMessageSumma
 import io.element.android.features.messages.impl.timeline.factories.TimelineItemsFactory
 import io.element.android.features.messages.impl.timeline.factories.TimelineItemsFactoryConfig
 import io.element.android.features.messages.impl.timeline.factories.event.AiMessageContentParser
+import io.element.android.features.messages.impl.timeline.factories.event.GameMessageContentParser
 import io.element.android.features.messages.impl.timeline.factories.event.TimelineItemContentFactory
 import io.element.android.features.messages.impl.timeline.factories.event.TimelineItemContentFailedToParseMessageFactory
 import io.element.android.features.messages.impl.timeline.factories.event.TimelineItemContentFailedToParseStateFactory
@@ -62,6 +63,7 @@ internal fun aTimelineItemContentFactory(
         textPillificationHelper = FakeTextPillificationHelper(),
     ),
     aiMessageContentParser = AiMessageContentParser(),
+    gameMessageContentParser = GameMessageContentParser(),
     redactedMessageFactory = TimelineItemContentRedactedFactory(),
     stickerFactory = TimelineItemContentStickerFactory(
         fileSizeFormatter = FakeFileSizeFormatter(),

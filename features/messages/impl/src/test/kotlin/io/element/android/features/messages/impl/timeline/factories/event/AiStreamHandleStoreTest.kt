@@ -20,6 +20,9 @@ import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.agentstream.api.StreamStatus
 import io.element.android.libraries.agentstream.api.StreamSubscription
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class AiStreamHandleStoreTest {
     @Test
@@ -58,26 +61,77 @@ class AiStreamHandleStoreTest {
 
         assertThat(client.handle.refreshCount).isEqualTo(1)
     }
-}
 
-private class FakeAgentStreamClient : AgentStreamClient {
-    val requests = mutableListOf<StreamRequest>()
-    val handle = FakeStreamHandle()
+    @Test
+    fun `failed handle is not reused on next bind`() {
+        val client = FakeAgentStreamClient(
+            handles = ArrayDeque(
+                listOf(
+                    FakeStreamHandle(status = StreamStatus.Failed),
+                    FakeStreamHandle(status = StreamStatus.Loading),
+                )
+            )
+        )
+        val store = AiStreamHandleStore(client)
+        val request = StreamRequest("stream-1", "@a:b", "!room:b", "event-1")
 
-    override fun getStream(request: StreamRequest): StreamHandle {
-        requests += request
-        return handle
+        store.bind(request) { }.close()
+        store.bind(request) { }.close()
+
+        assertThat(client.requests).hasSize(2)
+    }
+
+    @Test
+    fun `concurrent binds for same stream id reuse one sdk handle`() {
+        val client = FakeAgentStreamClient()
+        val store = AiStreamHandleStore(client)
+        val request = StreamRequest(streamId = "stream-1", sender = "@a:b", roomId = "!room:b", eventId = "event-1")
+        val ready = CountDownLatch(8)
+        val start = CountDownLatch(1)
+        val executor = Executors.newFixedThreadPool(8)
+
+        repeat(8) {
+            executor.execute {
+                ready.countDown()
+                start.await(1, TimeUnit.SECONDS)
+                store.bind(request) { }.close()
+            }
+        }
+        ready.await(1, TimeUnit.SECONDS)
+        start.countDown()
+        executor.shutdown()
+        executor.awaitTermination(5, TimeUnit.SECONDS)
+
+        assertThat(client.requests).hasSize(1)
     }
 }
 
-private class FakeStreamHandle : StreamHandle {
+private class FakeAgentStreamClient(
+    private val handles: ArrayDeque<FakeStreamHandle> = ArrayDeque(listOf(FakeStreamHandle())),
+) : AgentStreamClient {
+    val requests = mutableListOf<StreamRequest>()
+    val handle: FakeStreamHandle
+        get() = issuedHandles.first()
+    private val issuedHandles = mutableListOf<FakeStreamHandle>()
+
+    override fun getStream(request: StreamRequest): StreamHandle {
+        return synchronized(handles) {
+            requests += request
+            (handles.removeFirstOrNull() ?: FakeStreamHandle()).also { issuedHandles += it }
+        }
+    }
+}
+
+private class FakeStreamHandle(
+    private val status: StreamStatus = StreamStatus.Completed,
+) : StreamHandle {
     var refreshCount = 0
     var cancelCount = 0
     var subscriptionCancelCount = 0
     private val current = StreamSnapshot(
         schemaVersion = AGENT_STREAM_SCHEMA_VERSION,
         streamId = "stream-1",
-        status = StreamStatus.Completed,
+        status = status,
         parts = emptyList<StreamPart>(),
         rawEvents = emptyList<RawStreamEvent>(),
         updatedAtMs = 1L,

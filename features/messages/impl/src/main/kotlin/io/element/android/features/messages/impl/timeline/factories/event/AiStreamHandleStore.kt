@@ -14,6 +14,7 @@ import io.element.android.libraries.agentstream.api.StreamHandle
 import io.element.android.libraries.agentstream.api.StreamListener
 import io.element.android.libraries.agentstream.api.StreamRequest
 import io.element.android.libraries.agentstream.api.StreamSnapshot
+import io.element.android.libraries.agentstream.api.StreamStatus
 import io.element.android.libraries.agentstream.api.StreamSubscription
 import io.element.android.libraries.di.RoomScope
 import java.io.Closeable
@@ -24,12 +25,19 @@ class AiStreamHandleStore(
     private val client: AgentStreamClient,
 ) {
     private val handles = linkedMapOf<String, StreamHandle>()
+    private val lock = Any()
 
     fun bind(
         request: StreamRequest,
         onSnapshot: (StreamSnapshot) -> Unit,
     ): Binding {
-        val handle = handles.getOrPut(request.streamId) { client.getStream(request) }
+        val handle = synchronized(lock) {
+            val cached = handles[request.streamId]
+            if (cached != null && cached.snapshot().status.isRetryableTerminalCache()) {
+                handles.remove(request.streamId)
+            }
+            handles.getOrPut(request.streamId) { client.getStream(request) }
+        }
         onSnapshot(handle.snapshot())
         val subscription = handle.subscribe(StreamListener { snapshot -> onSnapshot(snapshot) })
         return Binding(
@@ -39,11 +47,11 @@ class AiStreamHandleStore(
     }
 
     fun refresh(streamId: String) {
-        handles[streamId]?.refresh()
+        synchronized(lock) { handles[streamId] }?.refresh()
     }
 
     fun cancelStream(streamId: String) {
-        handles.remove(streamId)?.cancel()
+        synchronized(lock) { handles.remove(streamId) }?.cancel()
     }
 
     class Binding(
@@ -54,4 +62,8 @@ class AiStreamHandleStore(
             subscription.cancel()
         }
     }
+}
+
+private fun StreamStatus.isRetryableTerminalCache(): Boolean {
+    return this == StreamStatus.Failed || this == StreamStatus.Cancelled
 }

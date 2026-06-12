@@ -70,6 +70,7 @@ import io.element.android.features.messages.impl.timeline.model.event.AiToolCard
 import io.element.android.features.messages.impl.timeline.model.event.AiToolCall
 import io.element.android.features.messages.impl.timeline.model.event.AiToolStreamPart
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.ToolCard
+import io.element.android.features.messages.impl.timeline.components.event.toolcards.ToolCardFinalProps
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.resolveToolCardType
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.toCardDataJson
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
@@ -591,7 +592,7 @@ private fun ToolEntryPayloadCard(
 ): Boolean {
     val props = remember(entry.props) { runCatching { JSONObject(entry.props) }.getOrNull() ?: JSONObject() }
     val cardType = props.optString("_cardType").takeIf { it.isNotBlank() } ?: "generic"
-    return ToolCard(cardType = cardType, rawData = props, onLinkClick = {})
+    return ToolCardFinalProps(cardType = cardType, data = props, onLinkClick = {})
 }
 
 @Composable

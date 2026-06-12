@@ -57,6 +57,25 @@ class ToolCallRootCardAdapterTest {
     }
 
     @Test
+    fun `multi execute terminal fallback entries inherit terminal state`() {
+        val part = AiToolStreamPart(
+            id = "multi-1",
+            state = "output-available",
+            toolName = "COMPOSIO_MULTI_EXECUTE_TOOL",
+            title = null,
+            input = """{"tools":[{"tool_slug":"GMAIL_FETCH_EMAILS"},{"tool_slug":"GOOGLEDRIVE_FIND_FILE"}]}""",
+            rawInput = null,
+            output = null,
+            errorText = null,
+        )
+
+        val entries = ToolCallRootCardAdapter.toolCallEntries(listOf(part))
+
+        assertThat(entries.map { it.name }).containsExactly("Emails", "Files").inOrder()
+        assertThat(entries.map { it.state }).containsExactly("done", "done")
+    }
+
+    @Test
     fun `sub agent calling creates generic calling entry`() {
         val part = AiToolStreamPart(
             id = "agent-1",
