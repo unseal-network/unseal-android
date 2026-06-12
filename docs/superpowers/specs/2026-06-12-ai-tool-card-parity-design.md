@@ -1,11 +1,12 @@
-# AI SDK Tool Card Parity Design
+# AI SDK Room Render Parity Design
 
 ## 背景
 
-Android 当前已经能渲染 AI SDK stream parts，但 tool card 的数据处理和 iOS 不完全一致。iOS 的关键不是单个 SwiftUI card，而是 `ToolCallRootCardAdapter` 先把 `ToolUIPart[]` 统一转换成 `ToolCallEntry[]`，每个 entry 都带稳定的 `id/name/state/props`，其中 `props["_cardType"]` 决定具体卡片。Android 需要先复刻这层数据结构和转换规则，再做 Compose UI parity。
+Android 当前已经能渲染 AI SDK stream parts，但 stream/markdown/tool card 的数据处理、UI 编排和 iOS 不完全一致。iOS 的关键不是单个 SwiftUI card，而是 Room 页面、Timeline、AI parts 编排、Markdown、Tool card adapter 分层清楚。Android 需要先复刻这些渲染依赖的架构，再逐步做 Compose UI parity。
 
 本设计的目标是：
 
+- 第一轮先完成完整 stream renderer：把 stream parts 统一转换为 text/markdown/tool cards/source/file/error/loading 等可渲染模型，保证顺畅、不阻塞主线程、不让 timeline 卡顿。
 - iOS 与 Android 在 stream parts -> tool card entry 的逻辑上保持一致。
 - UI 组件只消费统一后的 props，不再直接猜 `input/output/rawInput`。
 - Android UI 可以使用 Compose/Material/Element DesignSystem 组件，但 props schema、状态语义、展开/分组行为与 iOS 对齐。
@@ -18,6 +19,12 @@ Android 当前已经能渲染 AI SDK stream parts，但 tool card 的数据处�
 - `unseal-agent-ios/ToolCardsIOS/Sources/ToolCardsIOS/SharedComponents.swift`
 - `unseal-agent-ios/ToolCardsIOS/Sources/ToolCardsIOS/LiquidGlass.swift`
 - `unseal-agent-ios/ToolCardsIOS/Sources/ToolCardsIOS/CardHelpers.swift`
+- `unseal-ios/ElementX/Sources/Screens/RoomScreen/View/RoomScreen.swift`
+- `unseal-ios/ElementX/Sources/Screens/Timeline/View/TimelineView.swift`
+- `unseal-ios/ElementX/Sources/Screens/Timeline/TimelineTableViewController.swift`
+- `unseal-ios/ElementX/Sources/Screens/RoomScreen/ComposerToolbar/View/ComposerToolbar.swift`
+- `unseal-agent-ios/UnsealUI/Views/BubbleMessageView.swift`
+- `unseal-ios/ElementX/Sources/Screens/Timeline/View/TimelineItemViews/AIMessage/AIMessageTimelineView.swift`
 
 ## Android 目标位置
 
@@ -26,6 +33,201 @@ Android 当前已经能渲染 AI SDK stream parts，但 tool card 的数据处�
 - `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/model/event/TimelineItemAiContent.kt`
 - `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/components/event/TimelineItemAiView.kt`
 - `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/components/event/toolcards/`
+- `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/MessagesView.kt`
+- `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/TimelineView.kt`
+- `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/messagecomposer/MessageComposerView.kt`
+- `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/components/TimelineItemEventRow.kt`
+- `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/components/MessageEventBubble.kt`
+
+## iOS Stream Render 链路
+
+iOS 的 AI stream render 是一条连续链路，不是 markdown 和 tool card 两套独立逻辑：
+
+```text
+SSE chunks
+  -> AgentParser.parse(chunk:)
+  -> UIMessage.parts
+  -> BubbleMessageView
+       ToolGroupUtils.groupMessageParts(parts)
+       TextUIPart -> MarkdownRenderView
+       ToolUIPart[] -> ToolCallRootCardView
+       DataUIPart -> suspended/error/json-render fallback
+  -> ToolCallRootCardAdapter.toolCallEntries(from:)
+  -> ToolCallRootCard(entries:)
+```
+
+关键代码对应：
+
+- `AgentParser.swift`：`text-start/text-delta/text-end` 更新 `TextUIPart`；`tool-input-* / tool-output-*` 更新同一个 `ToolUIPart`；`finishStep` 会把活跃 text/reasoning 标记为 done。
+- `BubbleMessageView.swift`：先调用 `ToolGroupUtils.groupMessageParts(message.parts)`；registered tool parts 在第一个 tool part 位置合并成一个 `ToolCallRootCardView`；text part 交给 `MarkdownRenderView`；当 tool root card 已渲染时跳过重复的 json-render spec。
+- `ToolCallRootCardAdapter.swift`：把 `ToolUIPart[]` 转成 `ToolCallEntry[]`，负责 registry、state mapping、props extraction、`CardTransforms`、multi-execute 展开、sub-agent 展开。
+- `SwiftMarkdownView.swift`/`MarkdownRenderView`：负责 markdown 的基础视觉和可点击文本，不负责 stream 状态机。
+
+因此 Android 第一轮必须迁移的是这条链路里的数据处理边界：
+
+- `Stream SDK` 负责 SSE 状态机，把 patch 合并成 parts/snapshot。
+- Android reducer/presenter 负责把 snapshot 转成 `TimelineItemAiContent`，其中包含 `visibleParts`、`markdownBlocks`、`toolCardEntries`、terminal/error/loading 状态。
+- Compose 只负责 `UI=f(TimelineItemAiContent)`，不能在 card 内重新猜 raw JSON、重新跑 stream 逻辑、重新请求网络或读 SQLite。
+
+为什么 P0 必须包含 tool cards：
+
+- tool call 是 stream part 的一种；如果 P0 只渲染 markdown，Android 就会丢掉 iOS `ToolCallRootCardAdapter` 的 state mapping 和 props 清洗。
+- running 卡住通常不是“卡片样式没做完”，而是 `ToolUIPart.state -> ToolCallEntry.state -> UI state` 这条链没有完整更新。
+- timeline 卡顿通常来自滚动时在 Composable 里重复 parse stream/tool JSON、重复加载 stream、图片尺寸不稳定；iOS 已经把 group/registry 工作 hoist 到 render 前，Android 也要在 reducer/presenter 层预计算。
+
+为什么 P0 暂不做 Room shell/Composer/Terminal：
+
+- 这些属于 Room 外层交互，不决定 stream parts 是否正确变成 markdown/tool cards。
+- 先做它们会掩盖核心问题：stream 完成后 parts 是否 terminal、tool entry 是否 done/error、markdown 是否缓存、tool card 是否有 props。
+- P0 仍然要求真实 timeline 中顺畅渲染；只是 top chrome、composer skill picker、terminal panel 的完整 parity 放到后续。
+
+## Room UI 迁移分期
+
+这次 Room UI 迁移不能一次性把 iOS Room 全量搬到 Android，否则 stream/markdown 的性能问题会被大量 UI 差异掩盖。迁移分为三轮：
+
+### P0：完整 Stream Render + Markdown Render + Tool Cards
+
+第一轮完成 AI message 的完整 stream render 主链路，让真实 stream 在 Android timeline 中稳定、顺畅、可读。这里的 `stream render` 明确包含 tool parts 到 tool cards 的转换与展示：tool call 是 stream part 的一种，不能被当作 P1 的附加功能。
+
+范围包括：
+
+- Stream SDK snapshot -> `TimelineItemAiContent` 的数据层对齐。
+- AI parts 编排对齐 iOS `BubbleMessageView`：
+  - hidden part 过滤。
+  - text/reasoning/tool/data/source/file 按原始顺序渲染。
+  - tool parts 在第一个 registered tool part 位置合并为 `ToolCallRootCard`。
+  - streaming cursor 与 completed finalize 状态一致。
+- Tool card 数据处理对齐 iOS：
+  - Android `ToolCallRootCardAdapter` 对齐 iOS `ToolCallRootCardAdapter.swift`。
+  - `AiToolCardEntry` 固定为 tool card UI 的唯一输入。
+  - adapter 负责 registry、state mapping、extract props、transform props、multi-execute、sub-agent、schedule props。
+  - `ToolCardDispatcher` 只消费 adapter 产物，通过 `_cardType` 分发，不再从原始 part 猜 card type。
+  - 所有已注册 iOS card 在 Android 有对应 render path；第一轮不允许把可理解的 tool payload 展示成 envelope/raw JSON。
+- Tool card UI 对齐 iOS 的基础交互：
+  - `ToolCallRootCard` header/progress/count/tabs/展开收起。
+  - 单个 tool 时直接展示内容，不强制显示 tab。
+  - 多个 tool 时 tab 可切换，状态图标和数量随 entry state 更新。
+  - input available、output available、running、error、completed 状态必须驱动 UI。
+- Markdown render 对齐 iOS `MarkdownView`/`SwiftMarkdownView` 的基础能力：
+  - paragraph、heading、list、blockquote、inline code、code block、link。
+  - URL 可点击。
+  - markdown parse 缓存，避免 timeline 滚动时重复 parse。
+  - 组件尺寸稳定，不能因为 stream patch 导致整行反复 remeasure。
+- Timeline 性能保护：
+  - AI parts、markdown AST、tool entry props 在 presenter/reducer 层预计算。
+  - Composable 内不能对完整 stream JSON 做重复 parse。
+  - stream patch 合并后再刷新 UI；状态变化立即刷新，纯文本 delta 可以节流。
+  - LazyColumn item 使用 stable key 和 contentType。
+  - 图片和 card 占位必须有固定尺寸，避免滚动中 layout 抖动。
+- 基础 UI 只迁移 stream/markdown 必需部分：
+  - AI bubble layout。
+  - Markdown text/code block/link。
+  - loading cursor。
+  - empty/error fallback。
+  - ToolCallRootCard 与已注册 tool cards 的可用 UI。
+
+P0 不包括：
+
+- Room shell 的完整视觉 parity。
+- JsonRender server-driven UI 的完整交互；但 P0 不能丢 part，需要输出稳定、可解释的 fallback card。
+- Suspended approval 的完整交互；但 P0 不能丢 part，需要输出稳定、可解释的 fallback card。
+- Composer skill picker。
+- Room top toolbar 完整迁移。
+- Terminal panel。
+
+### P1：Room Shell + 高级 Stream UI
+
+第二轮在 P0 完整 stream renderer 的基础上，迁移更完整的 Room 容器能力与高级 stream UI：
+
+- Room top chrome、bottom chrome、floating date、pinned banner、scroll-to-bottom。
+- JsonRender server-driven UI 的完整交互。
+- Suspended approval/tool action cards 的完整交互。
+- Tool card 视觉细节进一步贴近 iOS，包括 shared components、image、chip、empty/error state 的细节。
+
+### P2：Composer + Agent Room 完整功能
+
+第三轮迁移更完整的 Composer 与 Agent Room 功能：
+
+- Composer 的 selected skill rail、skill picker、mention suggestion、agent chat mode。
+- Terminal panel、schedule 入口、room toolbar expanded tools。
+- Voice message / attachment / media preview 与 iOS 交互细节 parity。
+
+## iOS Room 页面结构
+
+iOS Room 页面分层如下：
+
+```text
+RoomScreen
+  background
+  TimelineView
+    TimelineViewRepresentable
+      TimelineTableViewController
+  top chrome overlay
+    room toolbar
+    pinned/knock banners
+    floating date badge
+  bottom safeAreaInset
+    RoomScreenFooterView
+    ComposerToolbar
+  overlays
+    scroll-to-bottom
+    terminal panel
+    media preview
+    sheets/menus/reactions/read receipts
+```
+
+Android 不需要完全照搬 UIKit table，但需要复刻这些布局约束：
+
+- Timeline 内容必须感知 top chrome 与 composer 高度，不能被覆盖。
+- Stream/markdown 渲染必须运行在 timeline item 内，不应该由 Room shell 直接处理。
+- Room shell 只负责 inset、overlay、footer、composer、scroll affordance。
+- Timeline item 渲染层只消费已经预计算的 render model。
+
+## P0 Stream/Markdown/Tool Card 架构
+
+P0 的 Android 数据流：
+
+```text
+Stream SDK
+  -> StreamSnapshot
+  -> AiSdkStreamReducer
+  -> TimelineItemAiContent
+       visibleParts
+       markdownBlocks
+       toolCardEntries
+       renderState
+       terminal/error state
+  -> TimelineItemAiView
+       AI bubble
+       MarkdownBody
+       ToolCallRootCard
+       StreamingCursor
+```
+
+`TimelineItemAiContent` 在 P0 需要显式表达：
+
+- `visibleParts`：已过滤 hidden parts，按 iOS `BubbleMessageView` 顺序。
+- `textBlocks` 或 markdown block model：避免 Composable 内重复拼接和 parse。
+- `toolCardEntries`：由 `ToolCallRootCardAdapter` 生成，作为 `ToolCallRootCard` 的唯一输入。
+- `isStreaming` / `isTerminal`：驱动 cursor、loading、empty、error。
+- `renderVersion` 或等价稳定字段：stream patch 合并后让 Compose 识别必要更新。
+- `streamId`：用于缓存 key。
+
+Markdown renderer 要求：
+
+- Presenter/reducer 层生成稳定 markdown 字符串。
+- UI 层使用缓存后的 markdown render state。
+- code block 使用固定 padding、monospace、可横向滚动。
+- link 点击复用现有 `onLinkClick`。
+- 长 markdown 不在主线程做重 parse。
+
+性能验收：
+
+- 同一条 completed stream 重新进入 room 时不重新显示 thinking/running。
+- 快速滚动经过多个 AI message 时，不触发每个 visible item 重拉 stream。
+- 对已经有 snapshot 的 stream，优先读 memory/store，再决定是否请求网络。
+- UI 每次 stream patch 更新只刷新对应 message item。
+- Composable 内不得执行完整 stream JSON parse、网络请求、SQLite 读写。
 
 ## 统一数据结构
 
@@ -161,26 +363,82 @@ Sub-agent:
 
 ## 执行顺序
 
-1. 清理当前 Android tool card 数据入口，避免 `TimelineItemAiView` 直接根据 `input/output/rawInput` 猜卡片内容。
-2. 实现 Android `ToolCallRootCardAdapter` parity：registry、state mapping、extract props、transform props、multi-execute、sub-agent、schedule props。
-3. 给 adapter 加单元测试：直接 tool、multi execute calling/done、sub-agent nested multi、schedule input、Gmail fetch list。
-4. 改 `AiSdkStreamReducer` 输出 `toolCardEntries`，并保留 `renderableToolParts` 直到 UI 迁移完成。
-5. 改 `ToolCallRootCard` 只消费 `AiToolCardEntry`。
-6. 改 `ToolCardDispatcher` 只接收 `props`，通过 `_cardType` 分发，不再从原始 part 猜 card type。
-7. 逐卡核对 props schema；先修数据，再修 UI。
-8. 最后做 UI parity：root card、header/progress/tabs、shared components、单卡 UI。
-9. 用真实 stream snapshot 回放测试，确认每个 entry 的 props 与 iOS 等价。
-10. 真机验证 timeline 性能：稳定 key、固定尺寸、图片缓存、避免每次 recomposition 重新 parse JSON。
+### P0 执行顺序
 
-## 验收标准
+1. 读取 iOS `BubbleMessageView`、`AIMessageTimelineView`、`MarkdownView`/`SwiftMarkdownView`，确认 parts 编排与 markdown 基础能力。
+2. 读取 iOS `ToolCallRootCardAdapter`、`ToolCallRootCard`、`CardTransforms`、`ToolCardsIOS` 已注册 card，确认 tool part -> card entry -> props -> UI 的完整链路。
+3. 清理 Android AI message 渲染入口，把 stream snapshot 转换、parts 过滤、markdown 拼接/缓存、tool entry 生成从 Composable 移到 reducer/presenter 层。
+4. 固定 `TimelineItemAiContent` 的 P0 render model：`visibleParts`、markdown 文本/缓存 key、`toolCardEntries`、`isStreaming`、`isTerminal`、`streamId`、error/empty 状态。
+5. 实现 Android `ToolCallRootCardAdapter` parity：registry、state mapping、extract props、transform props、multi-execute、sub-agent、schedule props。
+6. 给 adapter 加单元测试：直接 tool、multi execute calling/done、sub-agent nested multi、schedule input、Gmail fetch list。
+7. 改 `TimelineItemAiView` 为纯 `UI=f(renderModel)`：
+   - text/reasoning/source/file/data 按顺序渲染。
+   - markdown 用统一 `MarkdownBody`。
+   - tool parts 合并为 `ToolCallRootCard`，只消费 `toolCardEntries`。
+   - `ToolCardDispatcher` 只接收 `props`，通过 `_cardType` 分发，不再从原始 part 猜 card type。
+   - streaming cursor 和 completed finalize 状态正确。
+8. 做 root card UI：header/progress/count/tabs/展开收起/shared components；单 tool 直接显示内容，多 tool 支持 tab 切换。
+9. 逐卡核对 props schema；先修数据，再修 UI，确保可理解 payload 不展示为 envelope/raw JSON。
+10. 优化 Markdown：
+   - markdown parse cache。
+   - code block 固定尺寸/横向滚动。
+   - link click。
+   - 长文本不阻塞主线程。
+11. 优化 Timeline：
+   - LazyColumn stable key/contentType。
+   - stream snapshot 读 memory/store 优先。
+   - 已 completed 的 stream 不重复拉取、不重复进入 loading。
+   - stream patch 节流与状态变更立即刷新。
+12. 增加测试：
+   - reducer parts 编排测试。
+   - completed stream finalize 测试。
+   - markdown cache/render model 测试。
+   - tool entries 数量/state/props parity 测试。
+   - 真实 stream snapshot 回放测试。
+13. 真机验收：
+   - 多条 AI stream 快速上下滑动不卡顿。
+   - 进入 room 不重新闪 thinking/running。
+   - URL 可点击。
+   - markdown/code block 正常显示。
+   - tool card 可展开、可切换 tab、可看到 tool call 做了什么。
 
+### P1 执行顺序
+
+1. 迁移 Room shell：top chrome、bottom composer chrome、floating date、pinned banner、scroll-to-bottom。
+2. 补齐 JsonRender server-driven UI 的完整交互。
+3. 补齐 Suspended approval/tool action cards 的完整交互。
+4. 细化 tool card 视觉 parity：image/chip/list/empty/error/loading 的 spacing、颜色、尺寸、点击态。
+5. 做 Room shell 与高级 stream UI 真机 parity 验收。
+
+### P2 执行顺序
+
+1. 迁移 Composer agent 相关功能：selected skill rail、skill picker、agent chat mode、device target。
+2. 迁移 terminal panel、schedule 入口、toolbar expanded tools。
+3. 迁移 voice message / attachment / media preview。
+4. 做完整 Room 真机 parity 验收。
+
+## P0 验收标准
+
+- Stream snapshot 到 AI timeline item 的数据转换不依赖 Composable 内 JSON parse。
+- 同一条 stream 在 iOS 和 Android 的 visible parts 顺序一致。
+- Text/reasoning/source/file/data 的基础渲染顺序与 iOS `BubbleMessageView` 一致。
 - 同一条 stream 在 iOS 和 Android 生成相同数量的 tool entries。
-- 每个 entry 的 `id/name/state/_cardType` 一致。
-- 每个 entry 的 props 字段与 iOS `ToolCallRootCardAdapter` 产物一致，允许 JSON key 顺序不同。
+- 每个 tool entry 的 `id/name/state/_cardType` 一致。
+- 每个 tool entry 的 props 字段与 iOS `ToolCallRootCardAdapter` 产物一致，允许 JSON key 顺序不同。
 - Android UI 不再展示无意义 envelope JSON。
 - 展开 tool card 可以看到 tool call 做了什么；没有可渲染数据时显示明确空态或错误态，而不是空白。
-- URL 行可点击。
 - 多 tool card tab 可切换。
 - Completed stream 不再显示 running tool。
+- Completed stream 不再显示 thinking/running。
+- 已完成 stream 重新进入 room 时直接显示最终内容，不先显示 loading。
+- Markdown 支持 paragraph、heading、list、blockquote、inline code、code block、link。
+- URL 行可点击。
+- 快速滚动 20 条包含 AI markdown/stream 的消息，UI 不明显掉帧。
+- Stream patch 更新只刷新对应 AI message item。
+- Composable 内不得执行完整 stream JSON parse、tool props 转换、网络请求、SQLite 读写。
 - timeline 滚动时不因 tool card JSON parse 或图片加载反复阻塞主线程。
 
+## P1/P2 验收标准
+
+- Room top/bottom chrome 不遮挡 timeline。
+- Composer agent skill / device mode 的发送逻辑与 iOS 一致。
