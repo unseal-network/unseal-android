@@ -18,6 +18,7 @@ import io.element.android.features.messages.impl.timeline.components.event.toolc
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.META_TOOL_NAMES
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.TOOL_CARD_REGISTRY
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.TOOL_CARD_REGISTRY_WITH_DISPLAY
+import io.element.android.features.messages.impl.timeline.components.event.toolcards.errorProps
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -104,14 +105,16 @@ internal fun AiToolStreamPart.toToolCardEntries(): List<AiToolCardEntry> {
     if (normalizedToolName.startsWith("agent-")) return expandSubAgentEntries()
     val registry = TOOL_CARD_REGISTRY_WITH_DISPLAY[normalizedToolName] ?: return emptyList()
     val cardState = state.toCardToolState()
-    val props = if (registry.cardType.isScheduleCardType()) {
-        scheduleProps(cardType = registry.cardType, input = input)
-    } else {
-        JSONObject().put("_cardType", registry.cardType).also { props ->
-            if (cardState == CARD_STATE_DONE) {
-                val raw = extractProps(output)
-                val transformed = CardTransforms.transform(raw, registry.cardType)
-                transformed.copyInto(props)
+    val props = when {
+        cardState == CARD_STATE_ERROR -> errorProps(registry.cardType, errorText)
+        registry.cardType.isScheduleCardType() -> scheduleProps(cardType = registry.cardType, input = input)
+        else -> {
+            JSONObject().put("_cardType", registry.cardType).also { props ->
+                if (cardState == CARD_STATE_DONE) {
+                    val raw = extractProps(output)
+                    val transformed = CardTransforms.transform(raw, registry.cardType)
+                    transformed.copyInto(props)
+                }
             }
         }
     }

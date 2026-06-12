@@ -92,6 +92,7 @@ dependencies {
     implementation(projects.features.roommembermoderation.api)
 
     testCommonDependencies(libs, true)
+    testImplementation(libs.org.json)
     testImplementation(projects.libraries.matrix.test)
     testImplementation(projects.libraries.chatbot.test)
     testImplementation(projects.libraries.dateformatter.test)

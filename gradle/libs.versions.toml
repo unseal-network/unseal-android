@@ -37,6 +37,7 @@ roborazzi = "1.63.0"
 # Jetbrain
 datetime = "0.8.0"
 serialization_json = "1.11.0"
+org_json = "20250517"
 
 #other
 coil = "3.4.0"
@@ -197,6 +198,7 @@ markdown_renderer_m3 = { module = "com.mikepenz:multiplatform-markdown-renderer-
 markdown_renderer_coil3 = { module = "com.mikepenz:multiplatform-markdown-renderer-coil3", version.ref = "markdown_renderer" }
 datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "datetime" }
 serialization_json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization_json" }
+org_json = { module = "org.json:json", version.ref = "org_json" }
 kotlinx_collections_immutable = "org.jetbrains.kotlinx:kotlinx-collections-immutable:0.4.0"
 showkase = { module = "com.airbnb.android:showkase", version.ref = "showkase" }
 showkase_processor = { module = "com.airbnb.android:showkase-processor", version.ref = "showkase" }

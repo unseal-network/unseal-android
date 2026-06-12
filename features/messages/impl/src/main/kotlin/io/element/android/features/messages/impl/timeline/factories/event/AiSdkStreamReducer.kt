@@ -9,7 +9,7 @@ package io.element.android.features.messages.impl.timeline.factories.event
 
 import dev.zacsweers.metro.Inject
 import io.element.android.features.messages.impl.timeline.components.event.isHiddenStreamPart
-import io.element.android.features.messages.impl.timeline.components.event.toRenderableToolParts
+import io.element.android.features.messages.impl.timeline.components.event.toolcards.ToolCallRootCardAdapter
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.isRegisteredToolName
 import io.element.android.features.messages.impl.timeline.model.event.AiCustomStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiDataStreamPart
@@ -66,7 +66,9 @@ class AiSdkStreamReducer {
         // nothing (no generic card), so drop ALL tool parts from the pass-through list.
         val renderableToolParts = visible.filterIsInstance<AiToolStreamPart>()
             .filter { it.toolName.isRegisteredToolName }
-            .flatMap { it.toRenderableToolParts() }
+            .let { ToolCallRootCardAdapter.renderableToolParts(it) }
+            .toImmutableList()
+        val toolCardEntries = ToolCallRootCardAdapter.toolCallEntries(visible.filterIsInstance<AiToolStreamPart>())
             .toImmutableList()
         val passthroughParts = visible.filterNot { it is AiToolStreamPart }.toImmutableList()
 
@@ -99,6 +101,7 @@ class AiSdkStreamReducer {
             quickActions = emptyList<AiQuickAction>().toImmutableList(),
             parts = streamParts.toImmutableList(),
             renderableToolParts = renderableToolParts,
+            toolCardEntries = toolCardEntries,
             passthroughParts = passthroughParts,
             visibleParts = visible.toImmutableList(),
         )
