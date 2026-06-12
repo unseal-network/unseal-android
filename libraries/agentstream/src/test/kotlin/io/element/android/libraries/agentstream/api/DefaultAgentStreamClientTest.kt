@@ -381,6 +381,53 @@ class DefaultAgentStreamClientTest {
     }
 
     @Test
+    fun `late listener immediately receives current snapshot`() = runTest {
+        val http = FakeStreamHttpClient(chunks = listOf(streamingJson("stream-1", "ready")))
+        val client = createClient(http = http)
+        val handle = client.getStream(request("stream-1"))
+        advanceUntilIdle()
+        val lateSnapshots = mutableListOf<StreamSnapshot>()
+
+        handle.subscribe { lateSnapshots += it }
+
+        assertEquals(StreamStatus.Completed, lateSnapshots.single().status)
+        assertEquals("ready", lateSnapshots.single().text())
+    }
+
+    @Test
+    fun `subscription cancel does not cancel background completion or store save`() = runTest {
+        val storage = FakeStreamStorageProvider()
+        val http = FakeStreamHttpClient(chunks = listOf(streamingJson("stream-1", "final")))
+        val client = createClient(storage = storage, http = http)
+        val handle = client.getStream(request("stream-1"))
+        val subscription = handle.subscribe { }
+
+        subscription.cancel()
+        advanceUntilIdle()
+
+        assertEquals(StreamStatus.Completed, handle.snapshot().status)
+        assertEquals("final", handle.snapshot().text())
+        assertEquals("final", storage.savedSnapshots.single().text())
+    }
+
+    @Test
+    fun `retryable failure does not persist over existing completed store`() = runTest {
+        val completed = completedSnapshot("stream-1", "stored")
+        val storage = FakeStreamStorageProvider(loadResult = null).apply {
+            savedSnapshots += completed
+        }
+        val http = FakeStreamHttpClient(error = StreamTransportException("timeout", retryable = true))
+        val client = createClient(storage = storage, http = http)
+        val snapshots = mutableListOf<StreamSnapshot>()
+
+        client.getStream(request("stream-1")).subscribe { snapshots += it }
+        advanceUntilIdle()
+
+        assertEquals(StreamStatus.Failed, snapshots.last().status)
+        assertEquals(listOf(completed), storage.savedSnapshots)
+    }
+
+    @Test
     fun `cancel publishes cancelled and cancels task and session if still running`() = runTest {
         val release = CompletableDeferred<Unit>()
         val factory = FakeStreamReducerSessionFactory()
