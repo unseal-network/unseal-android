@@ -75,6 +75,9 @@ class AiSdkStreamReducer {
             body = textParts.joinToString(separator = "\n\n") { it.text },
             isEdited = isEdited,
             isStreaming = snapshot.status == StreamStatus.Loading || snapshot.status == StreamStatus.Streaming,
+            isTerminal = snapshot.status == StreamStatus.Completed ||
+                snapshot.status == StreamStatus.Failed ||
+                snapshot.status == StreamStatus.Cancelled,
             streamId = snapshot.streamId,
             sender = sender,
             thinkingSteps = reasoningParts.mapIndexed { index, part ->

@@ -7,6 +7,11 @@
 
 package io.element.android.features.messages.impl.timeline.components.event
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -28,6 +33,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PriorityHigh
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.Icon
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -114,16 +120,23 @@ fun TimelineItemAiView(
                 onLinkClick = onLinkClick,
                 onLinkLongClick = onLinkLongClick,
             )
-        } else {
-            if (content.body.isNotBlank()) {
-                MarkdownBody(
-                    text = content.body,
-                    isStreaming = content.isStreaming,
-                    onLinkClick = onLinkClick,
-                )
-            }
+        } else if (content.body.isNotBlank()) {
+            MarkdownBody(
+                text = content.body,
+                isStreaming = content.isStreaming,
+                onLinkClick = onLinkClick,
+            )
             if (content.isStreaming) {
                 StreamingCursor()
+            }
+        } else {
+            // Nothing renderable: keep a loading state while the stream is still in flight,
+            // but once it reaches a terminal status with no content show a failure card
+            // instead of an empty bubble.
+            if (content.isTerminal) {
+                AiUnavailableCard()
+            } else {
+                AiLoadingIndicator()
             }
         }
         if (content.sources.isNotEmpty()) {
@@ -202,6 +215,72 @@ private fun StreamingCursor() {
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+}
+
+/** Three pulsing dots shown while a stream is still in flight but has no renderable content yet. */
+@Composable
+private fun AiLoadingIndicator() {
+    val transition = rememberInfiniteTransition(label = "ai-loading")
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(vertical = 6.dp),
+    ) {
+        repeat(3) { index ->
+            val alpha by transition.animateFloat(
+                initialValue = 0.25f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 600, delayMillis = index * 160),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+                label = "ai-dot-$index",
+            )
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha),
+                        shape = CircleShape,
+                    ),
+            )
+        }
+    }
+}
+
+/** Shown when a stream reaches a terminal status but produced no renderable content. */
+@Composable
+private fun AiUnavailableCard() {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.ErrorOutline,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = "消息内容加载失败",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "该回复没有可显示的内容，请稍后重试。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
 }
 
 @Composable

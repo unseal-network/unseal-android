@@ -25,6 +25,8 @@ data class TimelineItemAiContent(
     val body: String,
     override val isEdited: Boolean,
     val isStreaming: Boolean,
+    /** True once the stream reached a terminal status (Completed/Failed/Cancelled). */
+    val isTerminal: Boolean = false,
     val streamId: String? = null,
     val sender: String? = null,
     val thinkingSteps: ImmutableList<AiThinkingStep>,
