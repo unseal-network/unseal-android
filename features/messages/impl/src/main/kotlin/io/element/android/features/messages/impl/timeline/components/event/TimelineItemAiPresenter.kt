@@ -22,9 +22,9 @@ import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.IntoMap
 import io.element.android.features.messages.impl.timeline.di.TimelineItemEventContentKey
 import io.element.android.features.messages.impl.timeline.di.TimelineItemPresenterFactory
+import io.element.android.features.messages.impl.timeline.factories.event.AiStreamHandleStore
 import io.element.android.features.messages.impl.timeline.factories.event.AiSdkStreamReducer
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
-import io.element.android.libraries.agentstream.api.AgentStreamClient
 import io.element.android.libraries.agentstream.api.StreamRequest
 import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.agentstream.api.StreamSnapshotUpdateDecision
@@ -53,7 +53,7 @@ data class TimelineItemAiState(
 @AssistedInject
 class TimelineItemAiPresenter(
     @Assisted private val content: TimelineItemAiContent,
-    private val agentStreamClient: AgentStreamClient,
+    private val aiStreamHandleStore: AiStreamHandleStore,
     private val aiSdkStreamReducer: AiSdkStreamReducer,
     private val dispatchers: CoroutineDispatchers,
 ) : Presenter<TimelineItemAiState> {
@@ -93,72 +93,70 @@ class TimelineItemAiPresenter(
     ) {
         // Map snapshots (JSON → parts) off the main thread; only the state write hops to main.
         withContext(dispatchers.io) {
-        val handle = agentStreamClient.getStream(
-            StreamRequest(
-                streamId = streamId,
-                sender = fallbackContent.sender.orEmpty(),
-                roomId = "",
-                eventId = "",
-                includeRawEvents = false,
-            )
-        )
-        Timber.tag(DBG).d("getStream stream=%s initialStatus=%s initialParts=%d", streamId, handle.snapshot().status, handle.snapshot().parts.size)
-        val snapshots = Channel<StreamSnapshot>(Channel.UNLIMITED)
-        val updatePolicy = StreamSnapshotUpdatePolicy()
+            val snapshots = Channel<StreamSnapshot>(Channel.UNLIMITED)
+            val updatePolicy = StreamSnapshotUpdatePolicy()
 
-        suspend fun emit(snapshot: StreamSnapshot) {
-            val updated = aiSdkStreamReducer.mapSnapshot(
-                snapshot = snapshot,
-                isEdited = fallbackContent.isEdited,
-                sender = fallbackContent.sender,
-            )
-            withContext(dispatchers.main) {
-                updateContent(updated)
+            suspend fun emit(snapshot: StreamSnapshot) {
+                val updated = aiSdkStreamReducer.mapSnapshot(
+                    snapshot = snapshot,
+                    isEdited = fallbackContent.isEdited,
+                    sender = fallbackContent.sender,
+                )
+                withContext(dispatchers.main) {
+                    updateContent(updated)
+                }
             }
-        }
 
-        suspend fun flushPendingPatch() {
-            updatePolicy.flushPending(System.currentTimeMillis())?.let { snapshot ->
-                emit(snapshot)
+            suspend fun flushPendingPatch() {
+                updatePolicy.flushPending(System.currentTimeMillis())?.let { snapshot ->
+                    emit(snapshot)
+                }
             }
-        }
 
-        val subscription = handle.subscribe { snapshot ->
-            Timber.tag(DBG).d("recv stream=%s status=%s parts=%d", streamId, snapshot.status, snapshot.parts.size)
-            snapshots.trySend(snapshot)
-        }
-        try {
-            while (true) {
-                val timeoutMs = updatePolicy.nextFlushDelayMs(System.currentTimeMillis())
-                val snapshot = if (timeoutMs == null) {
-                    snapshots.receiveCatching().getOrNull()
-                } else {
-                    withTimeoutOrNull(timeoutMs) {
+            val binding = aiStreamHandleStore.bind(
+                request = StreamRequest(
+                    streamId = streamId,
+                    sender = fallbackContent.sender.orEmpty(),
+                    roomId = "",
+                    eventId = "",
+                    includeRawEvents = false,
+                ),
+            ) { snapshot ->
+                Timber.tag(DBG).d("recv stream=%s status=%s parts=%d", streamId, snapshot.status, snapshot.parts.size)
+                snapshots.trySend(snapshot)
+            }
+            try {
+                while (true) {
+                    val timeoutMs = updatePolicy.nextFlushDelayMs(System.currentTimeMillis())
+                    val snapshot = if (timeoutMs == null) {
                         snapshots.receiveCatching().getOrNull()
-                    }
-                }
-                if (snapshot == null) {
-                    flushPendingPatch()
-                    continue
-                }
-                when (val decision = updatePolicy.accept(snapshot, System.currentTimeMillis())) {
-                    is StreamSnapshotUpdateDecision.Emit -> {
-                        Timber.tag(DBG).d("EMIT stream=%s status=%s parts=%d terminal=%s", streamId, decision.snapshot.status, decision.snapshot.parts.size, decision.snapshot.isTerminal)
-                        emit(decision.snapshot)
-                        if (decision.snapshot.isTerminal) {
-                            Timber.tag(DBG).d("TERMINAL break stream=%s status=%s", streamId, decision.snapshot.status)
-                            break
+                    } else {
+                        withTimeoutOrNull(timeoutMs) {
+                            snapshots.receiveCatching().getOrNull()
                         }
                     }
-                    StreamSnapshotUpdateDecision.Pending,
-                    StreamSnapshotUpdateDecision.Skip -> Timber.tag(DBG).d("%s stream=%s status=%s", decision::class.simpleName, streamId, snapshot.status)
+                    if (snapshot == null) {
+                        flushPendingPatch()
+                        continue
+                    }
+                    when (val decision = updatePolicy.accept(snapshot, System.currentTimeMillis())) {
+                        is StreamSnapshotUpdateDecision.Emit -> {
+                            Timber.tag(DBG).d("EMIT stream=%s status=%s parts=%d terminal=%s", streamId, decision.snapshot.status, decision.snapshot.parts.size, decision.snapshot.isTerminal)
+                            emit(decision.snapshot)
+                            if (decision.snapshot.isTerminal) {
+                                Timber.tag(DBG).d("TERMINAL break stream=%s status=%s", streamId, decision.snapshot.status)
+                                break
+                            }
+                        }
+                        StreamSnapshotUpdateDecision.Pending,
+                        StreamSnapshotUpdateDecision.Skip -> Timber.tag(DBG).d("%s stream=%s status=%s", decision::class.simpleName, streamId, snapshot.status)
+                    }
                 }
+            } finally {
+                Timber.tag(DBG).d("collect END stream=%s", streamId)
+                binding.close()
+                snapshots.close()
             }
-        } finally {
-            Timber.tag(DBG).d("collect END stream=%s", streamId)
-            subscription.cancel()
-            snapshots.close()
-        }
         }
     }
 

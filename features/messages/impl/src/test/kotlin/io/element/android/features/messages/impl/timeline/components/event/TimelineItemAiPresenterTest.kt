@@ -8,6 +8,7 @@
 package io.element.android.features.messages.impl.timeline.components.event
 
 import com.google.common.truth.Truth.assertThat
+import io.element.android.features.messages.impl.timeline.factories.event.AiStreamHandleStore
 import io.element.android.features.messages.impl.timeline.factories.event.AiSdkStreamReducer
 import io.element.android.features.messages.impl.timeline.model.event.AiStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiTextStreamPart
@@ -306,7 +307,7 @@ class TimelineItemAiPresenterTest {
     ): TimelineItemAiPresenter {
         return TimelineItemAiPresenter(
             content = content,
-            agentStreamClient = agentStreamClient,
+            aiStreamHandleStore = AiStreamHandleStore(agentStreamClient),
             aiSdkStreamReducer = AiSdkStreamReducer(),
             dispatchers = dispatchers,
         )
