@@ -40,6 +40,7 @@ serialization_json = "1.11.0"
 
 #other
 coil = "3.4.0"
+markdown_renderer = "0.41.0"
 # Rollback to 1.0.4, 1.0.5 has this issue: https://github.com/airbnb/Showkase/issues/420
 showkase = "1.0.5"
 # There is some custom logic in `RootFlowNode` that may break because it reuses some Appyx internal APIs.
@@ -192,6 +193,8 @@ coil_compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" 
 coil_gif = { module = "io.coil-kt.coil3:coil-gif", version.ref = "coil" }
 coil_svg = { module = "io.coil-kt.coil3:coil-svg", version.ref = "coil" }
 coil_test = { module = "io.coil-kt.coil3:coil-test", version.ref = "coil" }
+markdown_renderer_m3 = { module = "com.mikepenz:multiplatform-markdown-renderer-m3", version.ref = "markdown_renderer" }
+markdown_renderer_coil3 = { module = "com.mikepenz:multiplatform-markdown-renderer-coil3", version.ref = "markdown_renderer" }
 datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "datetime" }
 serialization_json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization_json" }
 kotlinx_collections_immutable = "org.jetbrains.kotlinx:kotlinx-collections-immutable:0.4.0"

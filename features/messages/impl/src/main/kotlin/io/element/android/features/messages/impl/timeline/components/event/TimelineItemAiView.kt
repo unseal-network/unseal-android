@@ -92,10 +92,10 @@ fun TimelineItemAiView(
             )
         } else {
             if (content.body.isNotBlank()) {
-                LinkifiedAiText(
+                MarkdownBody(
                     text = content.body,
+                    isStreaming = content.isStreaming,
                     onLinkClick = onLinkClick,
-                    onLinkLongClick = onLinkLongClick,
                 )
             }
             if (content.isStreaming) {
@@ -264,10 +264,10 @@ private fun TextPart(
     onLinkLongClick: (Link) -> Unit,
 ) {
     if (part.text.isNotBlank()) {
-        LinkifiedAiText(
+        MarkdownBody(
             text = part.text,
+            isStreaming = part.state == "streaming",
             onLinkClick = onLinkClick,
-            onLinkLongClick = onLinkLongClick,
         )
     }
 }
