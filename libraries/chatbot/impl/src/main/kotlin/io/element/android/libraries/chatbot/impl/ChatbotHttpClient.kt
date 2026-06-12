@@ -88,7 +88,9 @@ internal class ChatbotHttpClient(
                     if (!response.isSuccessful) {
                         val responseBody = response.body.string()
                         val redacted = ChatbotRedactor.redact(responseBody)
-                        Timber.w("Chatbot HTTP %d %s %s -> %s", response.code, method.name, url.encodedPath, redacted.take(800))
+                        // Log the FULL url (host + path) so base-URL routing issues (e.g. credits
+                        // resolving to the wrong agent-api host -> 404) are visible, not just the path.
+                        Timber.w("Chatbot HTTP %d %s %s -> %s", response.code, method.name, url, redacted.take(800))
                         return@withContext Result.failure(ChatbotApiError.HttpError(response.code, redacted))
                     }
                     val responseBody = if (onChunk == null) {
