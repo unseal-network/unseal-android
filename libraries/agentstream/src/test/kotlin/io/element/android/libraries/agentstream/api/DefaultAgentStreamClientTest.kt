@@ -102,8 +102,41 @@ class DefaultAgentStreamClientTest {
         val finalSnapshot = snapshots.last()
         assertEquals(StreamStatus.Completed, finalSnapshot.status)
         assertEquals("hi", finalSnapshot.text())
-        assertEquals(TextPartState.Complete.wireValue, (finalSnapshot.parts.single() as StreamPart.Text).textState)
+        assertEquals(TextPartState.Done.wireValue, (finalSnapshot.parts.single() as StreamPart.Text).textState)
         assertEquals(finalSnapshot, storage.savedSnapshots.single())
+    }
+
+    @Test
+    fun `completed stream normalizes active text reasoning and tool states before save`() = runTest {
+        val storage = FakeStreamStorageProvider()
+        val http = FakeStreamHttpClient(
+            chunks = listOf(
+                """
+                {
+                  "schemaVersion": 1,
+                  "streamId": "stream-1",
+                  "status": "streaming",
+                  "parts": [
+                    { "type": "text", "id": "text-1", "state": "streaming", "text": "hello" },
+                    { "type": "reasoning", "id": "reason-1", "state": "streaming", "text": "thinking" },
+                    { "type": "tool-GMAIL_FETCH_EMAILS", "id": "tool-1", "state": "input-available", "input": { "query": "from:alice" } }
+                  ]
+                }
+                """.trimIndent()
+            ),
+        )
+        val client = createClient(storage = storage, http = http)
+        val snapshots = mutableListOf<StreamSnapshot>()
+
+        client.getStream(request("stream-1")).subscribe { snapshots += it }
+        advanceUntilIdle()
+
+        val completed = snapshots.last()
+        assertEquals(StreamStatus.Completed, completed.status)
+        assertEquals("done", (completed.parts[0] as StreamPart.Text).textState)
+        assertEquals("done", (completed.parts[1] as StreamPart.Reasoning).reasoningState)
+        assertEquals("output-available", (completed.parts[2] as StreamPart.Tool).toolState)
+        assertEquals(completed, storage.savedSnapshots.single())
     }
 
     @Test
@@ -514,7 +547,7 @@ class DefaultAgentStreamClientTest {
         schemaVersion = AGENT_STREAM_SCHEMA_VERSION,
         streamId = streamId,
         status = StreamStatus.Completed,
-        parts = listOf(StreamPart.Text("text", text, TextPartState.Complete)),
+        parts = listOf(StreamPart.Text("text", text, TextPartState.Done)),
         rawEvents = emptyList(),
         updatedAtMs = 1L,
         completedAtMs = 1L,

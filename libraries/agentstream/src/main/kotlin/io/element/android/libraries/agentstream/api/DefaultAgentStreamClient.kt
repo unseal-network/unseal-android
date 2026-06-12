@@ -180,7 +180,9 @@ class DefaultAgentStreamClient(
             try {
                 if (!skipStorageLoad) {
                     storageProvider.load(request.streamId)?.let { storedSnapshot ->
-                        val snapshot = storedSnapshot.withStreamIdFallback(request.streamId)
+                        val snapshot = storedSnapshot
+                            .withStreamIdFallback(request.streamId)
+                            .normalizedForTerminalPublish()
                         // Only a Completed snapshot is a durable cache hit. Genuine stream-level
                         // errors arrive as SSE data and are stored as Completed (with an error part),
                         // so they stay cached. A stored Failed/Cancelled is a transient transport
@@ -228,6 +230,7 @@ class DefaultAgentStreamClient(
                         .parseOrFailed(activeSession.finish(), request.streamId)
                         .withStreamIdFallback(request.streamId)
                         .asCompleted(clock())
+                        .normalizedForTerminalPublish()
                     if (!isActiveRun(runId)) {
                         return
                     }
@@ -277,6 +280,7 @@ class DefaultAgentStreamClient(
         }
 
         private fun publishIfActive(runId: Long, snapshot: StreamSnapshot): Boolean {
+            val snapshotToPublish = snapshot.normalizedForTerminalPublish()
             val callbacks = synchronized(lock) {
                 if (!isActiveRunLocked(runId)) {
                     return false
@@ -284,37 +288,34 @@ class DefaultAgentStreamClient(
                 // Terminal Completed is monotonic: once a stream has completed, a stale non-completed
                 // snapshot (e.g. a late streaming chunk or a replayed run) must NOT overwrite it —
                 // otherwise the tool card regresses from done back to "Running tool…".
-                if (currentSnapshot.status == StreamStatus.Completed && snapshot.status != StreamStatus.Completed) {
+                if (currentSnapshot.status == StreamStatus.Completed && snapshotToPublish.status != StreamStatus.Completed) {
                     return false
                 }
-                currentSnapshot = snapshot
-                if (snapshot.status == StreamStatus.Completed) {
-                    // Cache immediately so a re-subscribe returns the completed state instead of
-                    // starting a fresh run that replays the stream from the beginning.
-                    completedCache[snapshot.streamId] = snapshot
-                }
+                currentSnapshot = snapshotToPublish
                 listeners.values.toList()
             }
             callbacks.forEach { listener ->
-                listener.onSnapshot(snapshot)
+                listener.onSnapshot(snapshotToPublish)
             }
             return true
         }
 
         private fun publish(snapshot: StreamSnapshot) {
+            val snapshotToPublish = snapshot.normalizedForTerminalPublish()
             val callbacks = synchronized(lock) {
-                currentSnapshot = snapshot
+                currentSnapshot = snapshotToPublish
                 listeners.values.toList()
             }
             callbacks.forEach { listener ->
-                listener.onSnapshot(snapshot)
+                listener.onSnapshot(snapshotToPublish)
             }
         }
 
         private fun rememberCompleted(snapshot: StreamSnapshot) {
-            if (snapshot.status == StreamStatus.Completed) {
+            val normalized = snapshot.normalizedForTerminalPublish()
+            if (normalized.status == StreamStatus.Completed) {
                 synchronized(lock) {
-                    completedCache[snapshot.streamId] = snapshot
+                    completedCache[normalized.streamId] = normalized
                 }
             }
         }
@@ -424,17 +425,22 @@ class DefaultAgentStreamClient(
     private fun StreamSnapshot.asCompleted(now: Long): StreamSnapshot {
         return copy(
             status = StreamStatus.Completed,
-            parts = parts.map { it.asCompletedPart() },
             updatedAtMs = now,
             completedAtMs = completedAtMs ?: now,
             error = null,
         )
     }
 
-    private fun StreamPart.asCompletedPart(): StreamPart {
+    private fun StreamSnapshot.normalizedForTerminalPublish(): StreamSnapshot {
+        if (status != StreamStatus.Completed) return this
+        return copy(parts = parts.map { it.normalizedCompletedPart() })
+    }
+
+    private fun StreamPart.normalizedCompletedPart(): StreamPart {
         return when (this) {
-            is StreamPart.Text -> copy(textState = TextPartState.Complete.wireValue)
-            is StreamPart.Reasoning -> copy(reasoningState = TextPartState.Complete.wireValue)
+            is StreamPart.Text -> if (textState == TextPartState.Done.wireValue) this else copy(textState = TextPartState.Done.wireValue)
+            is StreamPart.Reasoning -> if (reasoningState == TextPartState.Done.wireValue) this else copy(reasoningState = TextPartState.Done.wireValue)
+            is StreamPart.Tool -> if (toolState in TERMINAL_TOOL_STATES) this else copy(toolState = ToolPartState.OutputAvailable.wireValue)
             else -> this
         }
     }
@@ -442,5 +448,12 @@ class DefaultAgentStreamClient(
     private companion object {
         private const val MAX_MEMORY_ENTRIES = 128
         private const val CACHE_LOAD_FACTOR = 0.75f
+        private val TERMINAL_TOOL_STATES = setOf(
+            ToolPartState.OutputAvailable.wireValue,
+            ToolPartState.ApprovalRequested.wireValue,
+            ToolPartState.ApprovalResponded.wireValue,
+            ToolPartState.OutputError.wireValue,
+            ToolPartState.OutputDenied.wireValue,
+        )
     }
 }

@@ -134,8 +134,9 @@ class AiSdkStreamReducerTest {
     }
 
     @Test
-    fun `completed tool keeps input for ui fallback when output has no card content`() {
+    fun `reducer does not mutate sdk part states for completed snapshots`() {
         val snapshot = snapshot(
+            status = StreamStatus.Completed,
             parts = listOf(
                 StreamPart.Tool(
                     id = "call-1",
@@ -151,7 +152,7 @@ class AiSdkStreamReducerTest {
         val result = reducer.mapSnapshot(snapshot, isEdited = false, sender = null)
 
         val tool = result.parts.single() as AiToolStreamPart
-        assertThat(tool.state).isEqualTo("output-available")
+        assertThat(tool.state).isEqualTo("input-available")
         assertThat(tool.input).contains("alice@example.com")
         assertThat(tool.rawInput).isEqualTo("Find Alice emails")
         assertThat(tool.output).contains("successful")
