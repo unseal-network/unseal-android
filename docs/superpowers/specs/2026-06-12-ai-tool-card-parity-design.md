@@ -340,44 +340,67 @@ P0 必须完成完整 stream renderer：
 | URL button/link | `LocalUriHandler`/timeline link handler | 所有 URL 可点击 |
 | Empty/error/loading | Material/Element components | 不空白、不暴露 raw JSON |
 
-## Tool Card 类型清单
+## Tool Card 全量清单
 
-Android 必须和 iOS `ToolCardRegistry.mapping` 对齐，并为每个 cardType 提供 Android render path。
+Android 必须覆盖 iOS 已有 card。这里分三类，不混在一起：
 
-| cardType | iOS 文件 | Android 目标 |
-| --- | --- | --- |
-| `flightAlert` | `ComposioSearch/FlightAlertCard.swift` | `ComposioSearchCards.kt` |
-| `hotelBooking` | `ComposioSearch/HotelBookingCard.swift` | `ComposioSearchCards.kt` |
-| `headlineList` | `ComposioSearch/HeadlineListCard.swift` | `ComposioSearchCards.kt` |
-| `breakingNews` | `ComposioSearch/BreakingNewsCard.swift` | `ComposioSearchCards.kt` |
-| `imageGrid` | `ComposioSearch/ImageGridCard.swift` | `ComposioSearchCards.kt` |
-| `productList` | `ComposioSearch/ProductListCard.swift` | `ComposioSearchCards.kt` |
-| `finance` | `ComposioSearch/FinanceCard.swift` | `ComposioSearchCards.kt` |
-| `eventList` | `ComposioSearch/EventCard.swift` | `ComposioSearchCards.kt` |
-| `placeList` | `ComposioSearch/PlaceCard.swift` | `ComposioSearchCards.kt` |
-| `urlContent` | `ComposioSearch/UrlContentCard.swift` | `ComposioSearchCards.kt` |
-| `checkRuns` | `GitHub/GitHubCheckRunsCard.swift` | `GitHubCardsActivity.kt` |
-| `commentThread` | `GitHub/CommentThreadCard.swift` | `GitHubCardsActivity.kt` |
-| `commitComparison` | `GitHub/GitHubCommitComparisonCard.swift` | `GitHubCardsActivity.kt` |
-| `contributors` | `GitHub/GitHubContributorsCard.swift` | `GitHubCardsPrimary.kt` |
-| `deployments` | `GitHub/GitHubDeploymentsCard.swift` | `GitHubCardsActivity.kt` |
-| `githubIssue` | `GitHub/GitHubIssueCard.swift` | `GitHubCardsPrimary.kt` |
-| `githubIssuesList` | `GitHub/GitHubIssuesListCard.swift` | `GitHubCardsPrimary.kt` |
-| `notifications` | `GitHub/GitHubNotificationsCard.swift` | `GitHubCardsActivity.kt` |
-| `orgsList` | `GitHub/GitHubOrgsListCard.swift` | `GitHubCardsPrimary.kt` |
-| `release` | `GitHub/GitHubReleaseCard.swift` | `GitHubCardsPrimary.kt` |
-| `repoList` | `GitHub/GitHubRepoListCard.swift` | `GitHubCardsPrimary.kt` |
-| `secretAlerts` | `GitHub/GitHubSecretAlertsCard.swift` | `GitHubCardsActivity.kt` |
-| `workflows` | `GitHub/GitHubWorkflowsCard.swift` | `GitHubCardsActivity.kt` |
-| `composeEmail` | `Gmail/ComposeEmailCard.swift` | `GmailDriveCards.kt` |
-| `fileAttachment` | `GoogleDrive/FileAttachmentCard.swift` | `GmailDriveCards.kt` |
-| `linearIssue` | `Linear/LinearIssueCard.swift` | `LinearTwitterCards.kt` |
-| `linearIssuesList` | `Linear/LinearIssuesListCard.swift` | `LinearTwitterCards.kt` |
-| `socialPostFeed` | `Twitter/SocialPostFeedCard.swift` | `LinearTwitterCards.kt` |
-| `createSchedule` | `Schedule/ScheduleCards.swift` | `ScheduleMoltbookCards.kt` |
-| `updateSchedule` | `Schedule/ScheduleCards.swift` | `ScheduleMoltbookCards.kt` |
-| `updateScheduleStatus` | `Schedule/ScheduleCards.swift` | `ScheduleMoltbookCards.kt` |
-| `moltbookRegister` | `Moltbook/MoltbookRegisterCard.swift` | `ScheduleMoltbookCards.kt` |
+- Root dispatch card：iOS `ToolCallRootCard.cardContent(for:)` switch 中显式支持的 `_cardType`。
+- Registry-mapped card：iOS `ToolCardRegistry.mapping` 可从真实 toolName 映射出来的 `_cardType`。这些必须参与 `ToolUIPart[] -> ToolCallEntry[]` parity 测试。
+- Standalone/suspended card：存在于 ToolCardsIOS，但不一定通过 root dispatch 出现。Android 仍需要迁移到对应 data/suspended render path，不能遗漏。
+
+每个 root dispatch card 都必须有 Android render path、props parity test、真实或 fixture snapshot 验收。`generic` 虽然不是独立 Swift 文件，但 iOS root card 有 `genericContent(entry.props)` fallback，Android 也必须有等价 fallback，且 fallback 只能展示可读摘要，不能展示 envelope/raw JSON。
+
+### Root Dispatch Cards
+
+| cardType | iOS 文件 | Registry mapped | Android 目标 |
+| --- | --- | --- | --- |
+| `checkRuns` | `GitHub/GitHubCheckRunsCard.swift` | yes | `GitHubCardsActivity.kt` |
+| `commentThread` | `GitHub/CommentThreadCard.swift` | yes | `GitHubCardsActivity.kt` |
+| `commitComparison` | `GitHub/GitHubCommitComparisonCard.swift` | yes | `GitHubCardsActivity.kt` |
+| `contributors` | `GitHub/GitHubContributorsCard.swift` | yes | `GitHubCardsPrimary.kt` |
+| `deployments` | `GitHub/GitHubDeploymentsCard.swift` | yes | `GitHubCardsActivity.kt` |
+| `githubIssue` | `GitHub/GitHubIssueCard.swift` | yes | `GitHubCardsPrimary.kt` |
+| `notifications` | `GitHub/GitHubNotificationsCard.swift` | yes | `GitHubCardsActivity.kt` |
+| `orgsList` | `GitHub/GitHubOrgsListCard.swift` | yes | `GitHubCardsPrimary.kt` |
+| `release` | `GitHub/GitHubReleaseCard.swift` | yes | `GitHubCardsPrimary.kt` |
+| `repoList` | `GitHub/GitHubRepoListCard.swift` | yes | `GitHubCardsPrimary.kt` |
+| `secretAlerts` | `GitHub/GitHubSecretAlertsCard.swift` | yes | `GitHubCardsActivity.kt` |
+| `workflows` | `GitHub/GitHubWorkflowsCard.swift` | yes | `GitHubCardsActivity.kt` |
+| `githubIssuesList` | `GitHub/GitHubIssuesListCard.swift` | yes | `GitHubCardsPrimary.kt` |
+| `breakingNews` | `ComposioSearch/BreakingNewsCard.swift` | no, but CardTransforms/root dispatch supports it | `ComposioSearchCards.kt` |
+| `flightAlert` | `ComposioSearch/FlightAlertCard.swift` | yes | `ComposioSearchCards.kt` |
+| `headlineList` | `ComposioSearch/HeadlineListCard.swift` | yes | `ComposioSearchCards.kt` |
+| `imageGrid` | `ComposioSearch/ImageGridCard.swift` | yes | `ComposioSearchCards.kt` |
+| `productList` | `ComposioSearch/ProductListCard.swift` | yes | `ComposioSearchCards.kt` |
+| `finance` | `ComposioSearch/FinanceCard.swift` | yes | `ComposioSearchCards.kt` |
+| `eventList` | `ComposioSearch/EventCard.swift` | yes | `ComposioSearchCards.kt` |
+| `placeList` | `ComposioSearch/PlaceCard.swift` | yes | `ComposioSearchCards.kt` |
+| `urlContent` | `ComposioSearch/UrlContentCard.swift` | yes | `ComposioSearchCards.kt` |
+| `hotelBooking` | `ComposioSearch/HotelBookingCard.swift` | yes | `ComposioSearchCards.kt` |
+| `linearIssue` | `Linear/LinearIssueCard.swift` | yes | `LinearTwitterCards.kt` |
+| `linearIssuesList` | `Linear/LinearIssuesListCard.swift` | yes | `LinearTwitterCards.kt` |
+| `composeEmail` | `Gmail/ComposeEmailCard.swift` | yes | `GmailDriveCards.kt` |
+| `fileAttachment` | `GoogleDrive/FileAttachmentCard.swift` | yes | `GmailDriveCards.kt` |
+| `socialPostFeed` | `Twitter/SocialPostFeedCard.swift` | yes | `LinearTwitterCards.kt` |
+| `createSchedule` | `Schedule/ScheduleCards.swift` | yes | `ScheduleMoltbookCards.kt` |
+| `updateSchedule` | `Schedule/ScheduleCards.swift` | yes | `ScheduleMoltbookCards.kt` |
+| `updateScheduleStatus` | `Schedule/ScheduleCards.swift` | yes | `ScheduleMoltbookCards.kt` |
+| `generic` | `ToolCallRootCard.genericContent` | sub-agent calling / fallback | `GenericToolCard` fallback |
+
+### Standalone / Suspended Cards
+
+| Card | iOS 文件 | Android 目标 | 要求 |
+| --- | --- | --- | --- |
+| `moltbookRegister` | `Moltbook/MoltbookRegisterCard.swift` | `ScheduleMoltbookCards.kt` or suspended data card path | 不属于 root dispatch switch；必须通过 suspended/data render path 迁移 |
+
+### Card Coverage Requirements
+
+- Android test 必须自动比较 iOS registry cardType set 和 Android registry cardType set。
+- Android test 必须覆盖 root dispatch cardType set，确保每个 `_cardType` 都有 render path。
+- Android test 必须覆盖 standalone/suspended card 清单，确保不会因为不在 root dispatch 中而遗漏。
+- `breakingNews` 当前不是 registry-mapped card，但 iOS root dispatch 和 `CardTransforms` 支持，Android 也必须保留。
+- `generic` 是 root fallback，不参与 registry mapping，但必须作为 sub-agent calling/fallback 的可读 UI。
+- 验收不能只看“有文件/有函数”；必须用 props fixture 或真实 stream snapshot 确认 card 内容可读、URL 可点、空态明确、无 raw JSON。
 
 ## 性能要求
 
