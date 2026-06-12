@@ -42,12 +42,68 @@ iOS stream lifecycle 只作为行为说明，不作为 Android 获取实现参�
 
 Android 目标位置：
 
+- `libraries/agentstream/src/main/kotlin/io/element/android/libraries/agentstream/api/AgentStreamClient.kt`
+- `libraries/agentstream/src/main/kotlin/io/element/android/libraries/agentstream/api/StreamModels.kt`
+- `libraries/agentstream/src/main/kotlin/io/element/android/libraries/agentstream/api/DefaultAgentStreamClient.kt`
+- `libraries/agentstream/src/main/kotlin/io/element/android/libraries/agentstream/api/StreamSnapshotUpdatePolicy.kt`
 - `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/factories/event/AiSdkStreamReducer.kt`
 - `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/model/event/TimelineItemAiContent.kt`
 - `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/components/event/TimelineItemAiView.kt`
 - `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/components/event/AiToolCardLogic.kt`
 - `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/components/event/toolcards/`
 - Stream SDK Android binding/dependency wiring
+
+## Stream SDK 前置条件
+
+开始 Android UI 迁移前，`libraries/agentstream` 必须作为可消费的 Android SDK wrapper 存在并通过 smoke test。不能在 messages/timeline 内临时实现 stream 获取或 SSE 消费。
+
+SDK artifact/API：
+
+- Android module: `libraries/agentstream`
+- Package: `io.element.android.libraries.agentstream.api`
+- Public entry: `AgentStreamClient.getStream(request: StreamRequest): StreamHandle`
+- Snapshot source of truth: `StreamSnapshot` from `StreamModels.kt`
+- Part source of truth: `StreamPart` sealed interface from `StreamModels.kt`
+- Providers: `StreamStorageProvider`, `StreamHttpClient`, `StreamTaskRunner`, `StreamReducerSessionFactory`
+- Lifecycle implementation: `DefaultAgentStreamClient`
+
+Required SDK contract:
+
+```kotlin
+data class StreamSnapshot(
+    val schemaVersion: Int,
+    val streamId: String,
+    val status: StreamStatus,
+    val parts: List<StreamPart>,
+    val rawEvents: List<RawStreamEvent>,
+    val updatedAtMs: Long,
+    val completedAtMs: Long?,
+    val error: StreamError?,
+)
+```
+
+Android render code must not define another stream snapshot model. It may only define an adapter from SDK `StreamSnapshot`/`StreamPart` to `TimelineItemAiContent`.
+
+SDK readiness gate:
+
+- `AgentStreamClient.getStream()` returns a `StreamHandle` with current snapshot and listener replay.
+- Multiple `getStream()` calls for the same `streamId` dedupe to one lifecycle.
+- Completed memory/store snapshot is emitted without opening network.
+- Live SSE stream emits `Loading/Streaming/Completed` snapshots.
+- Stream completion saves final snapshot through `StreamStorageProvider`.
+- Listener cancellation does not cancel background completion by default.
+- `StreamHttpClient` owns auth, homeserver/unseal base URL, connection pool, and request construction.
+- `StreamTaskRunner` owns background execution resources.
+- SDK state machine normalizes terminal parts; completed streams must not leave active text/reasoning/tool states that force UI to show running.
+- Tool states needed by render parity are represented by SDK `StreamPart.Tool.toolState`, including `input-streaming`, `input-available`, `output-available`, `approval-requested`, `approval-responded`, `output-error`, and `output-denied`. If the SDK currently lacks some states, SDK must be extended before Android UI parity work depends on them.
+
+Smoke tests required before UI migration:
+
+- Completed snapshot from storage: no network call, first listener receives completed snapshot.
+- Live stream: chunks produce text/tool parts and final completed snapshot.
+- In-flight dedupe: two listeners for one `streamId` receive the same lifecycle updates.
+- Failed transient fetch does not overwrite an existing completed snapshot.
+- Offscreen unsubscribe does not prevent final store write.
 
 ## iOS 架构
 
@@ -100,7 +156,7 @@ iOS `AgentParser` 的关键行为：
 - `finishStep` 会把 active text/reasoning finalize 为 done。
 - 每次 `write()` 都发布当前 `UIMessage.parts` snapshot。
 
-Android 的等价状态机必须在 Stream SDK 内完成。Android UI 或 reducer 不能靠猜测修补 SSE chunk，只能消费 Stream SDK 产出的 parts/snapshot。若 completed stream 里还有错误的 running/input 状态，应修 Stream SDK 状态机或 reducer finalize 规则，而不是在 Compose card 里兜底。
+Android 的等价状态机必须在 Stream SDK 内完成。Android UI 或 reducer 不能靠猜测修补 SSE chunk，只能消费 Stream SDK 产出的 parts/snapshot。若 completed stream 里还有错误的 running/input 状态，必须修 Stream SDK 状态机；Android reducer 只能生成非破坏性的 display flags，不能修改 SDK part state。
 
 ### iOS Parts Model
 
@@ -128,35 +184,13 @@ ToolUIPart {
 }
 ```
 
-Android 等价结构：
+Android 不定义另一个等价 `StreamSnapshot`。SDK `StreamSnapshot` 是唯一 stream model，Android render 层只定义从 SDK parts 到 UI render model 的 adapter：
 
 ```kotlin
-data class StreamSnapshot(
-    val id: String,
-    val parts: List<AiStreamPart>,
-    val isTerminal: Boolean,
-    val metadata: Map<String, Any?> = emptyMap(),
-    val rawEvents: List<RawStreamEvent> = emptyList(),
-)
-
-sealed interface AiStreamPart {
-    val id: String
-    val state: String
-}
-
-data class AiToolStreamPart(
-    override val id: String,      // toolCallId
-    override val state: String,   // AI SDK tool state
-    val toolName: String,
-    val title: String?,
-    val input: String?,
-    val output: String?,
-    val rawInput: String?,
-    val errorText: String?,
-) : AiStreamPart
+StreamSnapshot -> AiSdkStreamReducer -> TimelineItemAiContent
 ```
 
-Android 可以用 JSON string 表达 iOS `Any` payload，但字段语义必须一致。
+`TimelineItemAiContent` may contain Android UI models such as `visibleParts`, `markdownBlocks`, and `toolCardEntries`, but it must preserve SDK fields needed for incremental rendering: `streamId`, `status`, `schemaVersion`, `updatedAtMs`, `completedAtMs`, `error`, and a `renderVersion` derived from snapshot updates. Payload conversion may turn SDK `JsonElement` into Android JSON/string props only inside reducer/adapter code, never inside Composables.
 
 ### iOS Render Orchestration
 
@@ -174,14 +208,17 @@ iOS `BubbleMessageView` 的渲染编排：
   - tool root card 已渲染时跳过 json-render spec，避免重复 UI。
   - 如果 stream 正在进行且最后 part 不是 streaming text，显示独立 cursor。
 
-Android 必须采用同样编排：
+Android 必须采用同样编排。Exact candidate algorithm:
 
-- reducer/presenter 预计算 `visibleParts`、`firstToolPartIndex`、`toolCardEntries`、`lastPartIsStreamingText`。
-- `TimelineItemAiView` 按 `visibleParts` 顺序渲染。
-- 在第一个 registered tool part 位置插入一个 `ToolCallRootCard(entries = toolCardEntries)`。
-- 不在每个 tool part 原位置重复渲染。
-- text part 统一走 Android markdown renderer。
+- reducer/presenter converts SDK `snapshot.parts` into `visibleParts` by applying the same hidden-part rules as `ToolGroupUtils.isHiddenPart`.
+- Tool candidate means any SDK `StreamPart.Tool` whose normalized tool name is accepted by iOS `ToolCardRegistry.isRegistered`: registry-mapped tool, meta tool, ignored tool, or sub-agent.
+- `toolCardEntries` are produced by the Android `ToolCallRootCardAdapter` parity function. Ignored tools and unsupported tools may produce zero entries.
+- `firstToolPartIndex` is the index of the first visible tool candidate in `visibleParts`, not the first entry. This preserves iOS insertion position even when some tools later produce zero entries.
+- If `toolCardEntries` is non-empty, insert one `ToolCallRootCard(entries)` at `firstToolPartIndex` and skip rendering all tool candidate parts in their original positions.
+- If tool candidates exist but `toolCardEntries` is empty, no root card is inserted; unregistered non-hidden tools may use a readable fallback, but ignored/hidden tools render nothing.
+- text part 统一走 Android markdown renderer.
 - data/json-render/suspended/error 可以先 fallback，但不能和 tool root card 重复展示。
+- `lastPartIsStreamingText` derives from SDK `StreamPart.Text.textState == streaming`; it controls inline vs standalone cursor only and must not mutate SDK state.
 
 ### iOS Tool Card Adapter
 
@@ -203,7 +240,7 @@ ToolCallEntry {
 Android 等价：
 
 ```kotlin
-AiToolStreamPart[] -> toolCallEntries(from:) -> List<AiToolCardEntry>
+List<StreamPart.Tool> -> toolCallEntries(from:) -> List<AiToolCardEntry>
 
 data class AiToolCardEntry(
     val id: String,
@@ -262,12 +299,12 @@ Android 固定数据流：
 ```text
 Matrix timeline event
   -> streamId
-  -> Stream SDK getStream(streamId)
+  -> AgentStreamClient.getStream(StreamRequest)
        memory cache
        injected store provider
        injected HTTP/SSE provider
        injected runner/thread provider
-  -> StreamSnapshot(parts, terminal state, raw events)
+  -> SDK StreamSnapshot(schemaVersion, streamId, status, parts, rawEvents, updatedAtMs, completedAtMs, error)
   -> AiSdkStreamReducer
        hidden filtering
        visible part ordering
@@ -293,10 +330,24 @@ Android 分层对应：
 | --- | --- | --- |
 | Stream lifecycle | Stream SDK | 只能通过 Stream SDK 获取/缓存 stream |
 | SSE parser/state machine | Stream SDK | 输出 stable parts/snapshot |
-| Parts model | `StreamSnapshot` + `AiStreamPart` | 字段语义对齐 iOS parts |
+| Parts model | SDK `StreamSnapshot` + SDK `StreamPart` | SDK schema 是唯一源头；Android 不另建 stream model |
 | Render orchestration | `AiSdkStreamReducer` + presenter | 预计算 visible parts、markdown、tool entries |
 | Tool card adapter | Kotlin adapter logic | 对齐 iOS `ToolCallRootCardAdapter` |
 | UI components | Compose/Material/Element | 只消费 render model，不做数据逻辑 |
+
+## Android Stream Handle Ownership
+
+Android timeline must not call `getStream` independently from every Composable. A presenter or room-scoped stream binding layer owns SDK handles:
+
+- Key: `streamId`.
+- On first visible/bound timeline item, call `AgentStreamClient.getStream(StreamRequest)`.
+- Reuse the same `StreamHandle` for all binders/listeners with the same `streamId`.
+- Immediately read `handle.snapshot()` to render replayed state.
+- Subscribe listener on bind; cancel only the listener subscription on unbind/offscreen.
+- Do not call `handle.cancel()` on normal offscreen recycling. Background stream completion and store save must continue.
+- Use `handle.refresh()` only for explicit user/client retry or stale completed snapshot refresh.
+- Presenter converts each SDK `StreamSnapshot` to `TimelineItemAiContent`; Composable receives only render state.
+- Completed load-only behavior: when SDK emits `StreamStatus.Completed`, presenter must not trigger a new stream unless explicit refresh is requested.
 
 ## 本轮 P0 范围
 
@@ -321,6 +372,7 @@ P0 必须完成完整 stream renderer：
 - Text part 进入 markdown renderer，支持 paragraph、heading、list、blockquote、inline code、code block、link、table/task list 的基础展示。
 - URL 可点击并复用 timeline link handler。
 - Source/file/data/error parts 不丢失；暂未完整交互的 data part 必须有可解释 fallback。
+- `moltbookRegister` / suspended data card P0 behavior: render a display-only card with clear disabled/unsupported action state if full approval/action wiring is not implemented. It must not be blank and must not show raw JSON. Full interactive approval remains later scope.
 - UI 不展示 envelope/raw JSON 作为正常用户内容。
 
 ## UI 组件替换表
@@ -395,18 +447,50 @@ Android 必须覆盖 iOS 已有 card。这里分三类，不混在一起：
 
 ### Card Coverage Requirements
 
-- Android test 必须自动比较 iOS registry cardType set 和 Android registry cardType set。
+- Add a checked-in golden manifest, generated from iOS source or manually reviewed against iOS, for:
+  - `ToolCardRegistry.mapping` toolName -> cardType/displayName.
+  - Root dispatch `_cardType` set from `ToolCallRootCard.cardContent`.
+  - Standalone/suspended card set.
+- Android test 必须比较 Android registry against this manifest, not scrape iOS source at test time.
 - Android test 必须覆盖 root dispatch cardType set，确保每个 `_cardType` 都有 render path。
 - Android test 必须覆盖 standalone/suspended card 清单，确保不会因为不在 root dispatch 中而遗漏。
 - `breakingNews` 当前不是 registry-mapped card，但 iOS root dispatch 和 `CardTransforms` 支持，Android 也必须保留。
 - `generic` 是 root fallback，不参与 registry mapping，但必须作为 sub-agent calling/fallback 的可读 UI。
 - 验收不能只看“有文件/有函数”；必须用 props fixture 或真实 stream snapshot 确认 card 内容可读、URL 可点、空态明确、无 raw JSON。
 
+## Card Fixture Matrix
+
+每个 cardType 必须有 fixture，不允许只靠真实流人工观察。
+
+Fixture fields:
+
+- `toolName` or source `_cardType`.
+- input fixture when card reads input, especially schedule.
+- output fixture before transform.
+- expected `_cardType`.
+- expected normalized props after `CardTransforms`.
+- empty fixture and expected empty state.
+- error/denied fixture and expected error state.
+- URL fields and expected click target.
+- image fields and expected fixed-size rendering rule.
+
+Minimum fixture coverage:
+
+- One fixture per root dispatch cardType.
+- One fixture per registry-mapped toolName group when multiple toolNames map to the same cardType.
+- Multi-execute calling and done fixtures.
+- Sub-agent calling, direct inner tool, and nested multi-execute fixtures.
+- Schedule input/args fixtures.
+- Gmail fetch emails list fixture.
+- `generic` fallback fixture.
+- `moltbookRegister` suspended/display-only fixture.
+
 ## 性能要求
 
 - Stream SDK 请求、SSE 消费、store 读写、JSON decode 必须在后台执行。
 - Composable 内不得执行完整 stream JSON parse、tool props transform、网络请求、SQLite/store 读写。
 - Markdown parse/cache 必须在 reducer/presenter 或稳定缓存层完成，不能在滚动中的 Composable 反复解析整段内容。
+- Markdown renderer must define behavior for incomplete streaming markdown, hard breaks, nested lists, HTML/sanitization, code block language labels, table overflow, and timeline link routing.
 - Lazy timeline item 必须使用 stable key/contentType。
 - Stream patch 只刷新对应 AI message item。
 - 状态变化立即刷新；纯文本 delta 或无状态变化 patch 可以合并，目标 500ms 内批量刷新。
@@ -414,6 +498,8 @@ Android 必须覆盖 iOS 已有 card。这里分三类，不混在一起：
 - Tool card 图片、列表、代码块必须有稳定尺寸或约束，避免滚动 remeasure 抖动。
 - 已离屏 item 可以停止 UI 订阅，但不能取消 Stream SDK 后台完成和 store 写入。
 - 虚拟滚动和并发加载策略由 Android timeline 客户端决定；Stream SDK 提供 API 和状态，不介入 UI 列表调度。
+- Manual performance target: on the test device class used for release smoke testing, scroll through at least 20 AI messages containing markdown, 10 tool root cards, and image/list cards without visible multi-second stalls; no completed stream should reopen network during the run.
+- If benchmark tooling is available, add frame timing capture and keep janky frames under the product team's accepted threshold for message timeline scrolling.
 
 ## 禁止项
 
@@ -425,6 +511,7 @@ Android 必须覆盖 iOS 已有 card。这里分三类，不混在一起：
 - 禁止因为 Android UI 组件不同而改变 props schema、part 顺序或状态语义。
 - 禁止用“先显示占位，后续再做 tool card”作为 P0 完成标准。
 - 禁止 completed stream 继续显示 thinking/running/running tool。
+- 禁止 Android reducer 修改 SDK part state 来“修复”终态；终态归一化属于 SDK。
 
 ## 验收标准
 
@@ -435,7 +522,8 @@ Android 必须覆盖 iOS 已有 card。这里分三类，不混在一起：
 - 每个 tool entry 的 `id/name/state/_cardType` 一致。
 - 每个 tool entry 的 props 与 iOS `ToolCallRootCardAdapter` 产物一致，允许 JSON key 顺序不同。
 - `COMPOSIO_MULTI_EXECUTE_TOOL`、sub-agent、schedule 的展开结果与 iOS 一致。
-- Completed stream 中不再存在会导致 UI 显示 running 的 active text/reasoning/tool 状态。
+- Completed stream 中不再存在会导致 UI 显示 running 的 active text/reasoning/tool 状态；如果存在，必须修 SDK 状态机。
+- Error/denied tool parts render from `errorText` / SDK `StreamError` / partial props with a readable error card, not raw JSON.
 
 UI 验收：
 
@@ -456,7 +544,7 @@ UI 验收：
 
 性能验收：
 
-- 快速滚动 20 条包含 AI markdown/tool cards 的消息，UI 不明显掉帧。
+- Release/smoke 设备快速滚动至少 20 条包含 AI markdown/tool cards 的消息，不出现肉眼可见的多秒停顿；若项目已有 frame benchmark，记录并满足产品接受的 timeline jank 阈值。
 - 已 completed stream 快速进出视口不会重复拉流。
 - Stream patch 更新只刷新对应 AI message item。
 - tool card JSON transform、图片加载、markdown parse 不在滚动中的 Composable 反复执行。
