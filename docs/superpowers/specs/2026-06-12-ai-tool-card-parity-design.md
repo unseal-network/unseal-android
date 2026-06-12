@@ -39,6 +39,413 @@ Android 当前已经能渲染 AI SDK stream parts，但 stream/markdown/tool car
 - `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/components/TimelineItemEventRow.kt`
 - `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/components/MessageEventBubble.kt`
 
+## iOS 当前实现架构
+
+iOS 的实现分为六层：stream lifecycle、SSE parser/state machine、message parts model、render orchestration、tool card adapter、SwiftUI render components。Android 必须采用同样的架构边界，只替换最后一层 UI 组件。
+
+```text
+Room timeline event
+  -> IContent.streamId
+  -> StreamModel
+       memory cache fast path
+       SQLite/AgentMessageDB background load
+       SSEClient live stream fallback
+       onComplete save to DB + memory cache
+  -> AgentParser
+       SSE chunk -> UIMessage.parts patch
+       active text/reasoning/tool state
+       finishStep/finalize
+  -> UIMessage
+       parts: [TextUIPart, ReasoningUIPart, ToolUIPart, DynamicToolUIPart,
+               DataUIPart, FileUIPart, SourceUrlUIPart, SourceDocumentUIPart]
+  -> BubbleMessageView
+       ToolGroupUtils.groupMessageParts(parts)
+       TextUIPart -> MarkdownRenderView
+       ToolUIPart[] -> ToolCallRootCardView
+       DataUIPart -> suspended/error/json-render fallback
+       StreamingCursor
+  -> ToolCallRootCardAdapter
+       ToolUIPart[] -> ToolCallEntry[]
+       registry/state/props/transforms/multi/sub-agent/schedule
+  -> SwiftUI components
+       MarkdownRenderView
+       ToolCallRootCard
+       ToolCardsIOS cards
+       SharedComponents
+```
+
+### iOS Stream Lifecycle 层
+
+对应代码：
+
+- `unseal-agent-ios/UnsealUI/Services/StreamModel.swift`
+- `AgentMessageDB.shared.loadMessage(streamId:)`
+- `AgentMessageDB.shared.saveAgent(streamId:agent:)`
+- `StreamPayloadCache`
+- `SSEClient`
+
+iOS 行为：
+
+- timeline cell 拿到 `content.streamId` 后创建 `StreamModel`。
+- `StreamModel.startSSE()` 先查进程内 `StreamPayloadCache`，命中时同步发布，避免 cell 复用时闪 loading。
+- 内存未命中时，`Task.detached` 后台读 SQLite/`AgentMessageDB` 并 JSON decode，不能阻塞主线程滚动。
+- DB 中存在非空 `UIMessage.parts` 时发布 `agentMessage` 并写入内存 cache。
+- DB 无可用内容时才调用 `beginStreaming(streamId:)` 打开 SSE。
+- SSE 过程中 `onMessage(UIMessage, from:)` 发布 deep copy snapshot。
+- `onComplete(UIMessage?, from:)` 把最终 `UIMessage` 保存到 DB，并写入 `StreamPayloadCache`。
+
+这个层次在 Android 必须对应为：
+
+- stream id 进入统一 Stream SDK `getStream(streamId)`。
+- Stream SDK 先读 memory/store，再决定是否请求 SSE。
+- SSE 消费、store 读取、store 写入都在后台执行。
+- UI 只订阅 snapshot，不直接控制 SSEClient 或 SQLite。
+
+### iOS SSE Parser / State Machine 层
+
+对应代码：
+
+- `unseal-agent-ios/UnsealUI/Services/Agent/AgentParser.swift`
+
+iOS 行为：
+
+- `text-start` 新建 `TextUIPart(text: "", state: streaming)` 并 append 到 `UIMessage.parts`。
+- `text-delta` 根据 id 找 active text part，累加 text。
+- `text-end` 把 text part state 置为 done 并从 active map 移除。
+- reasoning 与 text 同构：start/delta/end 维护 `ReasoningUIPart`。
+- `tool-input-start` 创建 partial tool call，记录 `toolCallId/toolName/index/dynamic/title`。
+- tool input delta/available 更新同一个 `ToolUIPart` 或 `DynamicToolUIPart`，状态进入 input streaming/input available。
+- `tool-output-available` 按 `toolCallId` 找原 tool part，保留 input，写入 output，状态进入 output available。
+- `tool-output-error` 保留 input/rawInput，写入 errorText，状态进入 output error。
+- `finishStep` 会把所有 active text/reasoning 标记为 done，避免 stream 结束后仍显示 streaming cursor。
+- `write()` 每次把当前 `UIMessage.parts` snapshot 发给上层。
+
+这个层次在 Android 必须由 Stream SDK 负责，而不是 Compose UI 负责。Android 不应该在 UI 层修正 part state；如果 UI 看到 completed stream 中还有 input/running 状态，应回到 Stream SDK/reducer 修状态机。
+
+### iOS Message Parts 数据结构层
+
+对应代码：
+
+- `unseal-agent-ios/UnsealAgent/StreamModels/UIMessage.swift`
+- `unseal-agent-ios/UnsealAgent/StreamModels/ToolUIPart.swift`
+- `unseal-agent-ios/UnsealAgent/StreamModels/DynamicToolUIPart.swift`
+
+iOS 核心结构：
+
+```swift
+UIMessage {
+  id: String
+  parts: [Any]
+  metadata: [String: Any]?
+}
+
+ToolUIPart {
+  type: PartType
+  toolCallId: String
+  state: ToolState
+  title: String?
+  input: Any?
+  output: Any?
+  rawInput: Any?
+  errorText: String?
+  providerExecuted: Bool?
+  preliminary: Bool?
+  callProviderMetadata: [String: Any]?
+}
+```
+
+iOS 序列化规则：
+
+- `UIMessage.from(dict:)` 从 DB JSON 还原 parts。
+- `type.hasPrefix("tool-")` 还原为 `ToolUIPart`。
+- `type == "dynamic-tool"` 还原为 `DynamicToolUIPart`。
+- `type.hasPrefix("data-")` 还原为 `DataUIPart`。
+- text/reasoning/file/source 分别还原为对应 part。
+- `toJsonString()` 保存最终 parts 到 DB，hidden tool names 不落入可见 JSON。
+
+Android 必须有等价结构：
+
+```kotlin
+StreamSnapshot {
+  id: String
+  parts: List<AiStreamPart>
+  metadata: Map<String, Any>?
+  isTerminal: Boolean
+  rawEvents: List<RawStreamEvent>
+}
+
+AiToolStreamPart {
+  id: String              // toolCallId
+  state: String           // AI SDK state
+  toolName: String
+  title: String?
+  input: String?
+  output: String?
+  rawInput: String?
+  errorText: String?
+}
+```
+
+Android 可以用 Kotlin data class / JSON string 表达 `Any` payload，但字段语义不能改变。
+
+### iOS Render Orchestration 层
+
+对应代码：
+
+- `unseal-agent-ios/UnsealUI/Views/BubbleMessageView.swift`
+- `unseal-agent-ios/UnsealUI/Views/UIParts/Utils/ToolGroupUtils.swift`
+- `unseal-agent-ios/UnsealAgent/Views/MarkdownView.swift`
+
+iOS 行为：
+
+- `BubbleMessageView` 每次 render 先局部计算：
+  - `groupedParts = ToolGroupUtils.groupMessageParts(message.parts)`
+  - `registeredToolParts = groupedParts.compactMap { ToolUIPart }.filter { ToolCardRegistry.isRegistered(...) }`
+  - `toolCardInserted = !registeredToolParts.isEmpty`
+  - `firstToolPartIndex = groupedParts.firstIndex { $0 is ToolUIPart }`
+  - `lastPartIsStreamingText = (groupedParts.last as? TextUIPart)?.state == .streaming`
+- 遍历 `groupedParts`：
+  - 如果当前 part 是 tool part，并且是第一个 tool part 位置，插入一个 `ToolCallRootCardView(toolParts: registeredToolParts)`。
+  - 其他 tool part 被跳过，避免多个 tool cards 重复渲染。
+  - text part 交给 `MarkdownRenderView(content:isStreaming:)`。
+  - reasoning part 交给 `ReasoningView`。
+  - data suspended/error/json-render 走对应 data view。
+  - tool root card 已存在时跳过 json-render spec，避免重复 UI。
+  - 如果 stream 正在进行且最后一个 part 不是 streaming text，显示独立 `StreamingCursor`。
+
+Android 必须采用同样的 render orchestration：
+
+- reducer/presenter 预计算 `visibleParts`、`registeredToolParts/toolCardEntries`、`firstToolPartIndex`、`lastPartIsStreamingText`。
+- `TimelineItemAiView` 按 `visibleParts` 顺序渲染。
+- 在第一个 registered tool part 位置插入一个 `ToolCallRootCard(entries = toolCardEntries)`。
+- 不在每个 tool part 原位置重复渲染 tool card。
+- text part 统一走 Android markdown renderer。
+- data/json-render/suspended/error 可以先 fallback，但必须避免和 tool root card 重复展示。
+
+### iOS Tool Card Adapter 层
+
+对应代码：
+
+- `unseal-agent-ios/UnsealUI/Views/UIParts/ToolParts/ToolCallRootCardAdapter.swift`
+- `unseal-agent-ios/ToolCardsIOS/Sources/ToolCardsIOS/CardTransforms.swift`
+
+iOS 行为：
+
+- `ToolCardRegistry.mapping` 定义 toolName -> `(cardType, displayName)`。
+- `metaTools` 只包含 `COMPOSIO_MULTI_EXECUTE_TOOL`。
+- `ignoredTools` 包含不渲染工具。
+- `isSubAgent` 用 `agent-` 前缀识别子 agent。
+- `toolName(from:)` 优先取 `title`，否则从 `type.rawValue` 去掉 `tool-`。
+- `mapState` 把 AI SDK tool state 转成 `CardToolState.calling/done/error`。
+- `toolCallEntries(from:)` 对每个 registered `ToolUIPart`：
+  - ignored tool 返回空。
+  - meta tool 调 `expandMultiExecute`。
+  - sub-agent 调 `expandSubAgent`。
+  - direct tool 走 registry，生成一个 `ToolCallEntry`。
+- direct tool props：
+  - schedule card 从 input 生成 props。
+  - 其他 card 初始化 `{ "_cardType": cardType }`。
+  - 只有 state done 时从 output 提取业务数据。
+  - `extractProps` 优先 `output.data`，否则使用 output object 并移除 `error/successful/logId`。
+  - 最后经过 `CardTransforms.transform(raw, cardType)`。
+- multi-execute：
+  - calling 阶段从 `input.tools[].tool_slug` 去重生成 calling entries。
+  - done/error 阶段从 `output.data.results[]` 按 slug 分组，合并 array 字段，再 transform。
+- sub-agent：
+  - calling 阶段显示 generic agent entry。
+  - done/error 阶段读取 `output.subAgentToolResults[]`，内部 direct tool 普通展开，内部 multi-execute 二次展开。
+
+Android 必须把这层实现为纯 Kotlin adapter/reducer 逻辑，不能散落到 Compose card 内。
+
+### iOS UI Component 层
+
+对应代码：
+
+- `unseal-agent-ios/ToolCardsIOS/Sources/ToolCardsIOS/ToolCallRootCard.swift`
+- `unseal-agent-ios/ToolCardsIOS/Sources/ToolCardsIOS/SharedComponents.swift`
+- `unseal-agent-ios/ToolCardsIOS/Sources/ToolCardsIOS/LiquidGlass.swift`
+- `unseal-agent-ios/ToolCardsIOS/Sources/ToolCardsIOS/CardHelpers.swift`
+- `unseal-agent-ios/UnsealAgent/Views/MarkdownView.swift`
+
+iOS UI 只消费 adapter 后的数据：
+
+```swift
+ToolCallRootCard(entries: [ToolCallEntry])
+MarkdownRenderView(content: String, isUserMessage: Bool, isStreaming: Bool)
+```
+
+Android 可以替换 UI 组件，但输入必须同构：
+
+```kotlin
+ToolCallRootCard(entries: List<AiToolCardEntry>)
+MarkdownBody(markdownBlocks or textRenderModel)
+```
+
+这意味着 Android Compose card 可以使用 Material 3、Element DesignSystem、Coil、FlowRow 等原生能力，但不能改变上游数据结构和状态语义。
+
+## Android 对齐架构
+
+Android 目标架构必须和 iOS 分层一一对应：
+
+| iOS 层 | iOS 代码 | Android 对齐层 | Android 代码/目标 |
+| --- | --- | --- | --- |
+| Stream lifecycle | `StreamModel` + `StreamPayloadCache` + `AgentMessageDB` + `SSEClient` | Stream SDK lifecycle + injected store/http/runner providers | Stream SDK `getStream(streamId)`，memory/store/network fallback |
+| SSE parser/state machine | `AgentParser` | Stream SDK parser/state machine | Rust/Kotlin binding 输出 `StreamSnapshot.parts` |
+| Message parts model | `UIMessage` + `ToolUIPart` | `StreamSnapshot` + `AiStreamPart` | `AiTextStreamPart` / `AiToolStreamPart` / data/source/file |
+| Render orchestration | `BubbleMessageView` + `ToolGroupUtils` | reducer/presenter + `TimelineItemAiView` | `visibleParts`、`firstToolPartIndex`、`toolCardEntries` |
+| Tool card adapter | `ToolCallRootCardAdapter` + `CardTransforms` | Kotlin adapter logic | `AiToolStreamPart[] -> AiToolCardEntry[]` |
+| Markdown UI | `MarkdownRenderView` | Android markdown renderer | `MarkdownBody` |
+| Tool card UI | `ToolCallRootCard` + ToolCardsIOS | Compose card components | `ToolCallRootCard` + per-card Compose implementation |
+
+Android 数据流必须固定为：
+
+```text
+Matrix timeline event
+  -> streamId
+  -> Stream SDK getStream(streamId)
+       memory cache
+       injected store provider
+       injected HTTP/SSE provider
+       injected runner/thread provider
+  -> StreamSnapshot(parts, terminal state, raw events)
+  -> AiSdkStreamReducer
+       hidden filtering
+       markdown render model
+       registered tool filtering
+       ToolCallRootCardAdapter parity
+       source/file/data/error fallback model
+  -> TimelineItemAiContent
+  -> TimelineItemAiView
+       Android native MarkdownBody
+       Android native ToolCallRootCard
+       Android native per-card components
+```
+
+Android 允许差异：
+
+- SwiftUI 替换为 Compose。
+- iOS Liquid Glass 替换为 Material/Element surface、border、shadow。
+- iOS image loader 替换为 Coil。
+- iOS layout primitives 替换为 Compose `Column`/`Row`/`FlowRow`/`LazyColumn`。
+- 视觉细节可以分阶段贴近，但 state、props、顺序、去重、缓存、完成状态不能分叉。
+
+Android 不允许差异：
+
+- 不能改变 `ToolCallEntry/AiToolCardEntry` 的语义。
+- 不能在 UI card 内重新解析 raw tool payload 来决定业务逻辑。
+- 不能把 iOS adapter 的 registry/state/props/transform 逻辑拆成 Android 每张卡各自实现。
+- 不能把 completed stream 渲染成 running/thinking。
+- 不能为了 Android UI 简化而丢弃 data/source/file/error parts。
+
+## 本轮功能要求
+
+这轮修改的目标不是重新设计 Android AI 渲染，也不是只做一个看起来像卡片的 Compose UI。目标是把 iOS 已经稳定的 AI stream render 逻辑迁移到 Android：**数据处理逻辑一致，UI 组件实现可以按 Android 平台替换**。
+
+### 必须交付
+
+1. Stream SDK 生命周期接入
+   - Android timeline 中遇到 stream id 时，统一通过 Stream SDK 获取 stream snapshot。
+   - 如果内存或 store 已经有 completed snapshot，直接渲染最终 parts，不重新显示 thinking/running。
+   - 如果没有 snapshot，后台异步请求 stream；请求、消费 SSE、写入 store 都不能阻塞主线程。
+   - Stream SDK 输出的 parts/state 是唯一可信数据源；Android UI 不直接解析 SSE 原始 chunk。
+   - Stream 完成后由 Stream SDK 触发 store provider 写入；Android 客户端只注入 store provider，不在 UI 层自行写 SQLite。
+
+2. Parts 状态机对齐
+   - SSE patch 必须合并成稳定的 parts 数组，语义对齐 iOS `AgentParser` 产物。
+   - text/reasoning 支持 start/delta/end，end 后状态进入 done。
+   - tool 支持 input streaming/input available/output available/output error/output denied/approval requested/approval responded。
+   - stream 完成时仍处于 active 的 text/reasoning/tool 必须 finalize，不能长期停留在 running/input 状态。
+   - 更新节流规则：状态变化立即通知 UI；只有文本 delta 或无状态变化的 patch 可以合并，目标 500ms 内批量刷新。
+
+3. Render model 对齐
+   - Android reducer/presenter 必须把 Stream SDK snapshot 转成 `TimelineItemAiContent`。
+   - `TimelineItemAiContent` 必须包含 `visibleParts`、`markdownBlocks` 或等价 markdown render model、`toolCardEntries`、`isStreaming`、`isTerminal`、`streamId`、error/empty 状态。
+   - `visibleParts` 负责保留 iOS `BubbleMessageView` 的渲染顺序：text/reasoning/tool/data/source/file 按原始顺序，hidden parts 被过滤。
+   - `toolCardEntries` 是 tool card UI 的唯一输入。
+   - `markdownBlocks` 或等价 render model 是 markdown UI 的唯一输入。
+
+4. Tool card 数据逻辑对齐
+   - Android 必须实现 iOS `ToolCallRootCardAdapter` 等价逻辑。
+   - `ToolCardRegistry.mapping`、`metaTools`、`ignoredTools`、sub-agent 识别规则必须和 iOS 一致。
+   - `ToolUIPart[] -> ToolCallEntry[]` 在 Android 对齐为 `AiToolStreamPart[] -> AiToolCardEntry[]`。
+   - 每个 `AiToolCardEntry` 必须包含稳定 `id/name/state/props`，且 `props` 必须包含 `_cardType`。
+   - state mapping 必须和 iOS `mapState` 一致：input 状态为 calling，output/approval 成功状态为 done，error/denied 为 error。
+   - props 提取必须和 iOS 一致：优先 `output.data`，否则使用 output object 并移除 envelope 字段，再走 `CardTransforms`。
+   - `COMPOSIO_MULTI_EXECUTE_TOOL` 必须展开成多个真实 tool entries，不能作为一个普通 tool card 渲染。
+   - sub-agent 必须展开内部 tool results；内部 multi-execute 需要二次展开。
+   - schedule card 必须从 input/args 生成 props，和 iOS `scheduleProps` 语义一致。
+
+5. Markdown render 对齐
+   - Text part 进入 Android markdown renderer，而不是普通纯文本。
+   - Markdown 支持 paragraph、heading、list、blockquote、inline code、code block、link、table/task list 的基础展示。
+   - URL 必须可点击，并复用 timeline 现有 link handler。
+   - Markdown parse/cache 必须在 reducer/presenter 或稳定缓存层完成，不能在滚动中的 Composable 里重复解析整段内容。
+   - streaming text cursor 跟随最后一个 streaming text；非 text streaming 时显示独立 cursor，语义对齐 iOS `BubbleMessageView`。
+
+6. Stream render UI 对齐
+   - Android `TimelineItemAiView` 必须是 `UI=f(TimelineItemAiContent)`。
+   - Tool parts 在第一个 registered tool part 位置合并渲染为一个 `ToolCallRootCard`。
+   - 如果只有一个 tool entry，root card 直接显示内容，不强制显示 tab。
+   - 如果有多个 tool entries，root card 显示 tabs，tab 可切换。
+   - Root card header/progress/count/展开收起/state icon 必须用 `AiToolCardEntry.state` 驱动。
+   - Card 内容必须展示 tool call 做了什么；禁止把用户不可读的 envelope/raw JSON 当作主要 UI。
+   - 没有可渲染数据时显示明确空态或错误态，不能空白。
+
+7. Android UI 组件替换规则
+   - iOS SwiftUI 组件不需要逐像素复刻，但 Android 替代组件必须消费相同语义 props。
+   - `ToolCallRootCard` 用 Compose `Surface`/`Column`/tabs/progress 实现。
+   - `ToolProgressRing` 用 Compose `Canvas` 或 `CircularProgressIndicator` 实现。
+   - `CachedAsyncImage` 用 Coil，必须固定尺寸并复用缓存。
+   - `FlowLayout` 用 Compose `FlowRow`。
+   - `DividedList` 用 `Column` + `HorizontalDivider`。
+   - chip、button、URL、empty/error/loading 组件可以使用 Material 3 或 Element DesignSystem，但字段、状态、点击语义必须和 iOS 对齐。
+
+8. Timeline 性能要求
+   - Composable 内不得执行完整 stream JSON parse、tool props 转换、网络请求、SQLite 读写。
+   - Lazy timeline item 必须使用 stable key/contentType，stream 更新只刷新对应 AI message item。
+   - Tool card 图片、列表、代码块必须有稳定尺寸或约束，避免滚动 remeasure 抖动。
+   - 快速滚动时不能为已 completed stream 重复启动网络请求。
+   - 已离屏 item 可以停止 UI 订阅，但不能取消已在后台完成的 Stream SDK store 写入。
+   - 并发加载由客户端 timeline 策略控制；Stream SDK 提供 API 和状态，不介入虚拟滚动决策。
+
+9. 真实数据验收
+   - 必须用真实 keepsecret stream snapshot 回放验证，不只用手写 mock。
+   - 至少覆盖：单 text stream、text + single tool、text + multi tool、Gmail fetch emails、sub-agent nested multi-execute、schedule tool、tool error。
+   - 对同一条真实 stream，iOS 与 Android 生成的 visible part 顺序、tool entry 数量、entry state、entry `_cardType` 必须一致。
+   - 对同一条真实 stream，Android 重新进入 room 后必须直接显示 completed 内容，不闪回 thinking/running。
+
+### 禁止实现方式
+
+- 禁止在 `TimelineItemAiView` 或具体 card composable 中根据 `input/output/rawInput` 重新猜业务逻辑。
+- 禁止把 raw JSON/envelope JSON 作为正常用户可见内容。
+- 禁止让 Android 维护一套和 iOS 不同的 tool registry、state mapping 或 CardTransforms 语义。
+- 禁止在 UI 层发起 stream 下载、SQLite 写入或完整 JSON parse。
+- 禁止用“先显示占位，后续再做 tool card”作为 P0 完成标准；tool card 是 stream render 的一部分。
+- 禁止因为 Android UI 组件不同而改变 props schema 或状态语义。
+
+### 本轮完成定义
+
+本轮完成时，Android 对 AI stream 的主链路应满足：
+
+```text
+Matrix event stream_id
+  -> Stream SDK getStream(stream_id)
+  -> StreamSnapshot(parts, terminal state, raw events)
+  -> AiSdkStreamReducer
+  -> TimelineItemAiContent(
+       visibleParts,
+       markdownBlocks,
+       toolCardEntries,
+       isStreaming/isTerminal/error
+     )
+  -> TimelineItemAiView
+       MarkdownBody
+       ToolCallRootCard
+       Source/File/Data/Error/Fallback cards
+```
+
+其中 `Stream SDK + reducer + adapter` 是统一数据逻辑，必须与 iOS 行为对齐；`TimelineItemAiView + Compose cards` 是 Android UI 替代实现，只允许在组件实现和视觉细节上有平台差异。
+
 ## iOS Stream Render 链路
 
 iOS 的 AI stream render 是一条连续链路，不是 markdown 和 tool card 两套独立逻辑：
