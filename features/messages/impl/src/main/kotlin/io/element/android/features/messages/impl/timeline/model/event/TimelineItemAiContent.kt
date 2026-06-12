@@ -28,6 +28,12 @@ data class TimelineItemAiContent(
     /** True once the stream reached a terminal status (Completed/Failed/Cancelled). */
     val isTerminal: Boolean = false,
     val streamId: String? = null,
+    val schemaVersion: Int = 1,
+    val streamStatus: String? = null,
+    val updatedAtMs: Long? = null,
+    val completedAtMs: Long? = null,
+    val streamError: String? = null,
+    val renderVersion: String? = null,
     val sender: String? = null,
     val thinkingSteps: ImmutableList<AiThinkingStep>,
     val toolCalls: ImmutableList<AiToolCall>,
@@ -39,6 +45,8 @@ data class TimelineItemAiContent(
     val passthroughParts: ImmutableList<AiStreamPart> = persistentListOf(),
     /** Ordered, hidden-filtered parts (tool markers kept) — the render source, mirrors iOS groupedParts. */
     val visibleParts: ImmutableList<AiStreamPart> = persistentListOf(),
+    val firstToolPartIndex: Int? = null,
+    val lastPartIsStreamingText: Boolean = false,
 ) : TimelineItemEventContent, TimelineItemEventMutableContent {
     override val type: String = "TimelineItemAiContent"
 

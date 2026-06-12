@@ -80,6 +80,18 @@ class AiSdkStreamReducer {
                 snapshot.status == StreamStatus.Failed ||
                 snapshot.status == StreamStatus.Cancelled,
             streamId = snapshot.streamId,
+            schemaVersion = snapshot.schemaVersion,
+            streamStatus = snapshot.status.name,
+            updatedAtMs = snapshot.updatedAtMs,
+            completedAtMs = snapshot.completedAtMs,
+            streamError = snapshot.error?.message,
+            renderVersion = listOf(
+                snapshot.streamId,
+                snapshot.schemaVersion.toString(),
+                snapshot.updatedAtMs.toString(),
+                snapshot.completedAtMs?.toString().orEmpty(),
+                snapshot.status.name,
+            ).joinToString(":"),
             sender = sender,
             thinkingSteps = reasoningParts.mapIndexed { index, part ->
                 AiThinkingStep(

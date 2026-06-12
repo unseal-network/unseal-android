@@ -197,6 +197,29 @@ class AiSdkStreamReducerTest {
     }
 
     @Test
+    fun `render model preserves sdk snapshot metadata`() {
+        val snapshot = StreamSnapshot(
+            schemaVersion = AGENT_STREAM_SCHEMA_VERSION,
+            streamId = "stream-meta",
+            status = StreamStatus.Completed,
+            parts = listOf(StreamPart.Text(id = "text-1", text = "Done", textState = "done")),
+            rawEvents = emptyList(),
+            updatedAtMs = 42L,
+            completedAtMs = 64L,
+            error = null,
+        )
+
+        val result = reducer.mapSnapshot(snapshot, isEdited = false, sender = "@alice:example.org")
+
+        assertThat(result.streamId).isEqualTo("stream-meta")
+        assertThat(result.schemaVersion).isEqualTo(AGENT_STREAM_SCHEMA_VERSION)
+        assertThat(result.streamStatus).isEqualTo(StreamStatus.Completed.name)
+        assertThat(result.updatedAtMs).isEqualTo(42L)
+        assertThat(result.completedAtMs).isEqualTo(64L)
+        assertThat(result.renderVersion).isEqualTo("stream-meta:1:42:64:Completed")
+    }
+
+    @Test
     fun `transitional parseSnapshot uses sdk parser`() {
         val snapshotJson = """
             {
