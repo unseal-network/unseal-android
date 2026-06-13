@@ -38,6 +38,7 @@ import io.element.android.features.messages.impl.link.LinkState
 import io.element.android.features.messages.impl.messagecomposer.MessageComposerEvent
 import io.element.android.features.messages.impl.messagecomposer.MessageComposerState
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerState
+import io.element.android.features.messages.impl.roomdata.RoomMenuReducer
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContextLoader
 import io.element.android.features.messages.impl.timeline.MarkAsFullyRead
@@ -345,6 +346,12 @@ class MessagesPresenter(
             }
         }
 
+        val threads = Threads(
+            hasThreads = canOpenThreadList && threadsList.isNotEmpty(),
+            // TODO calculate this properly based on the thread list and the read state of each thread
+            hasUnreadThreads = false,
+        )
+
         return MessagesState(
             roomId = room.roomId,
             roomName = roomInfo.name,
@@ -368,17 +375,18 @@ class MessagesPresenter(
             roomCallState = roomCallState,
             roomScheduleBadgeState = roomScheduleBadgeState,
             roomUnsealContext = roomUnsealContextState.value,
+            roomMenu = RoomMenuReducer.reduce(
+                roomUnsealContext = roomUnsealContextState.value,
+                hasThreads = threads.hasThreads,
+                isThreadTimeline = timelineState.timelineMode is Timeline.Mode.Thread,
+            ),
             appName = buildMeta.applicationName,
             pinnedMessagesBannerState = pinnedMessagesBannerState,
             dmUserVerificationState = dmUserVerificationState,
             roomMemberModerationState = roomMemberModerationState,
             topBarSharedHistoryIcon = topBarSharedHistoryIcon,
             successorRoom = roomInfo.successorRoom,
-            threads = Threads(
-                hasThreads = canOpenThreadList && threadsList.isNotEmpty(),
-                // TODO calculate this properly based on the thread list and the read state of each thread
-                hasUnreadThreads = false,
-            ),
+            threads = threads,
             showLiveLocationShareBanner = isCurrentlySharingLiveLocationInRoom && timelineState.timelineMode !is Timeline.Mode.Thread,
             eventSink = ::handleEvent,
         )

@@ -32,7 +32,9 @@ import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.messages.impl.MessagesMenuActions
 import io.element.android.features.messages.impl.SharedHistoryIcon
-import io.element.android.features.messages.impl.aRoomScheduleBadgeState
+import io.element.android.features.messages.impl.roomdata.RoomMenuRenderModel
+import io.element.android.features.messages.impl.roomdata.RoomScheduleMenuBadge
+import io.element.android.features.messages.impl.roomdata.RoomTopbarAction
 import io.element.android.features.roomcall.api.RoomCallState
 import io.element.android.features.roomcall.api.aStandByCallState
 import io.element.android.features.roomcall.api.anOngoingCallState
@@ -186,6 +188,7 @@ internal fun MessagesViewTopBarPreview() = ElementPreview {
         dmUserIdentityState: IdentityState? = null,
         sharedHistoryIcon: SharedHistoryIcon = SharedHistoryIcon.NONE,
         displayThreads: Boolean = false,
+        displaySchedules: Boolean = false,
     ) = MessagesViewTopBar(
         roomName = roomName,
         roomAvatar = roomAvatar,
@@ -196,10 +199,21 @@ internal fun MessagesViewTopBarPreview() = ElementPreview {
         onRoomDetailsClick = {},
         onBackClick = {},
         menuActions = {
+            val roomMenu = RoomMenuRenderModel(
+                topbarActions = buildList {
+                    if (displayThreads) add(RoomTopbarAction.Threads)
+                    if (displaySchedules) add(RoomTopbarAction.Schedules)
+                },
+                scheduleBadge = RoomScheduleMenuBadge(
+                    activeScheduleCount = 2,
+                    isLoading = false,
+                    error = null,
+                ).takeIf { displaySchedules },
+                deviceAgent = null,
+            )
             MessagesMenuActions(
                 roomCallState = roomCallState,
-                roomScheduleBadgeState = aRoomScheduleBadgeState(),
-                displayThreads = displayThreads,
+                roomMenu = roomMenu,
                 onJoinCallClick = {},
                 onRoomSchedulesClick = {},
                 onThreadsListClick = {},
@@ -248,6 +262,7 @@ internal fun MessagesViewTopBarPreview() = ElementPreview {
         HorizontalDivider()
         AMessagesViewTopBar(
             displayThreads = true,
+            displaySchedules = true,
         )
     }
 }

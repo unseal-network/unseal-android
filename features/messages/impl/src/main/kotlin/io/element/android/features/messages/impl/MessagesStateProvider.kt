@@ -23,6 +23,7 @@ import io.element.android.features.messages.impl.messagecomposer.MessageComposer
 import io.element.android.features.messages.impl.messagecomposer.aMessageComposerState
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerState
 import io.element.android.features.messages.impl.pinned.banner.aLoadedPinnedMessagesBannerState
+import io.element.android.features.messages.impl.roomdata.RoomMenuRenderModel
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
 import io.element.android.features.messages.impl.timeline.TimelineState
 import io.element.android.features.messages.impl.timeline.aTimelineItemList
@@ -123,6 +124,7 @@ fun aMessagesState(
     roomCallState: RoomCallState = aStandByCallState(),
     roomScheduleBadgeState: RoomScheduleBadgeState = aRoomScheduleBadgeState(),
     roomUnsealContext: AsyncData<RoomUnsealContext> = AsyncData.Uninitialized,
+    roomMenu: RoomMenuRenderModel = RoomMenuRenderModel.Empty,
     pinnedMessagesBannerState: PinnedMessagesBannerState = aLoadedPinnedMessagesBannerState(),
     dmUserVerificationState: IdentityState? = null,
     roomMemberModerationState: RoomMemberModerationState = aRoomMemberModerationState(),
@@ -157,6 +159,7 @@ fun aMessagesState(
     roomCallState = roomCallState,
     roomScheduleBadgeState = roomScheduleBadgeState,
     roomUnsealContext = roomUnsealContext,
+    roomMenu = roomMenu,
     appName = "Element",
     pinnedMessagesBannerState = pinnedMessagesBannerState,
     dmUserVerificationState = dmUserVerificationState,

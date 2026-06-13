@@ -75,6 +75,8 @@ import io.element.android.features.messages.impl.messagecomposer.suggestions.Sug
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerState
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerView
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerViewDefaults
+import io.element.android.features.messages.impl.roomdata.RoomMenuRenderModel
+import io.element.android.features.messages.impl.roomdata.RoomTopbarAction
 import io.element.android.features.messages.impl.timeline.FOCUS_ON_PINNED_EVENT_DEBOUNCE_DURATION_IN_MILLIS
 import io.element.android.features.messages.impl.timeline.TimelineEvent
 import io.element.android.features.messages.impl.timeline.TimelineView
@@ -98,7 +100,6 @@ import io.element.android.features.messages.impl.topbars.ThreadTopBar
 import io.element.android.features.messages.impl.voicemessages.composer.VoiceMessagePermissionRationaleDialog
 import io.element.android.features.messages.impl.voicemessages.composer.VoiceMessageSendingFailedDialog
 import io.element.android.features.roomcall.api.RoomCallState
-import io.element.android.features.roomschedules.api.room.RoomScheduleBadgeState
 import io.element.android.libraries.androidutils.ui.hideKeyboard
 import io.element.android.libraries.designsystem.atomic.molecules.ComposerAlertMolecule
 import io.element.android.libraries.designsystem.components.ExpandableBottomSheetLayout
@@ -244,9 +245,8 @@ fun MessagesView(
                             onRoomDetailsClick = { hidingKeyboard { onRoomDetailsClick() } },
                             menuActions = {
                                 MessagesMenuActions(
-                                    displayThreads = state.timelineState.timelineMode !is Timeline.Mode.Thread && state.threads.hasThreads,
+                                    roomMenu = state.roomMenu,
                                     roomCallState = state.roomCallState,
-                                    roomScheduleBadgeState = state.roomScheduleBadgeState,
                                     onJoinCallClick = onJoinCallClick,
                                     onRoomSchedulesClick = onRoomSchedulesClick,
                                     onThreadsListClick = onThreadsListClick
@@ -420,14 +420,13 @@ fun MessagesView(
 
 @Composable
 internal fun RowScope.MessagesMenuActions(
-    displayThreads: Boolean,
+    roomMenu: RoomMenuRenderModel,
     roomCallState: RoomCallState,
-    roomScheduleBadgeState: RoomScheduleBadgeState,
     onJoinCallClick: (isAudioCall: Boolean) -> Unit,
     onRoomSchedulesClick: () -> Unit,
     onThreadsListClick: () -> Unit,
 ) {
-    if (displayThreads) {
+    if (roomMenu.hasTopbarAction(RoomTopbarAction.Threads)) {
         Icon(
             modifier = Modifier.clickable(enabled = true, onClick = onThreadsListClick),
             imageVector = CompoundIcons.ThreadsSolid(),
@@ -435,12 +434,12 @@ internal fun RowScope.MessagesMenuActions(
         )
         Spacer(Modifier.width(8.dp))
     }
-    if (roomScheduleBadgeState.isVisible) {
+    roomMenu.scheduleBadge?.let { scheduleBadge ->
         BadgedBox(
             badge = {
-                if (roomScheduleBadgeState.activeScheduleCount > 0) {
+                if (scheduleBadge.activeScheduleCount > 0) {
                     Badge {
-                        Text(roomScheduleBadgeState.activeScheduleCount.toString())
+                        Text(scheduleBadge.activeScheduleCount.toString())
                     }
                 }
             }
