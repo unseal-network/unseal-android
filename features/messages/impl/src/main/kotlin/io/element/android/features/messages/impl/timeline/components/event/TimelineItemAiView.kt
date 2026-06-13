@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -93,7 +94,7 @@ import io.element.android.wysiwyg.compose.EditorStyledText
 import io.element.android.wysiwyg.link.Link
 import org.json.JSONObject
 
-private val ToolCallContentMaxHeight = 260.dp
+private val ToolCallContentMaxHeight = 360.dp
 
 /**
  * Native (degraded) renderer for [TimelineItemAiContent]. Composes the AI stream sub-parts that
@@ -620,7 +621,7 @@ private fun ToolEntryContentViewport(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(ToolCallContentMaxHeight)
+            .heightIn(max = ToolCallContentMaxHeight)
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         Column(

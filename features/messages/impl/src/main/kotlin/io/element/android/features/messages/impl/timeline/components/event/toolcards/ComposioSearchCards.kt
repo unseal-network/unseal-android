@@ -760,12 +760,11 @@ private fun ImageGridCard(data: JSONObject, onLinkClick: () -> Unit) {
 @Composable
 private fun ProductListCard(data: JSONObject, onLinkClick: () -> Unit) {
     val all = data.cardObjects("products")
-    ToolCardSurface {
-        ToolCardHeader(title = "Shopping", count = all.size)
-        if (all.isEmpty()) {
-            MetaText("No products found")
-            return@ToolCardSurface
-        }
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
+    ) {
+        if (all.isEmpty()) return
         DividedList(all.take(MAX_ITEMS)) { ProductRow(it, onLinkClick) }
     }
 }
@@ -782,23 +781,27 @@ private fun ProductRow(product: JSONObject, onLinkClick: () -> Unit) {
     val action = openLinkAction(url, onLinkClick)
 
     Row(
-        modifier = Modifier.fillMaxWidth().clickableIfLink(action).padding(horizontal = 4.dp, vertical = 10.dp),
+        modifier = Modifier.fillMaxWidth().clickableIfLink(action).padding(vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.Top,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        CardRemoteImage(url = thumb, modifier = Modifier.size(50.dp), corner = 8)
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        CardRemoteImage(url = thumb, modifier = Modifier.size(58.dp), corner = 9)
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 source?.let {
                     Text(
@@ -807,7 +810,6 @@ private fun ProductRow(product: JSONObject, onLinkClick: () -> Unit) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
                     )
                 }
                 rating?.let {
@@ -826,11 +828,11 @@ private fun ProductRow(product: JSONObject, onLinkClick: () -> Unit) {
                         )
                         if (reviews != null && reviews > 0) {
                             Text(
-                                text = "($reviews)",
+                                text = "(${reviews.compactCount()})",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+                                overflow = TextOverflow.Clip,
                             )
                         }
                     }
@@ -838,14 +840,19 @@ private fun ProductRow(product: JSONObject, onLinkClick: () -> Unit) {
             }
         }
         price?.let {
-            Text(
-                text = it,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                color = ShoppingPriceColor,
-                maxLines = 1,
-                overflow = TextOverflow.Clip,
-            )
+            Box(
+                modifier = Modifier.width(92.dp),
+                contentAlignment = Alignment.TopEnd,
+            ) {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = ShoppingPriceColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
@@ -1580,6 +1587,14 @@ private fun String.containsAny(vararg needles: String): Boolean {
 }
 
 private fun Double.roundedInt(): Int = roundToInt()
+
+private fun Int.compactCount(): String = when {
+    this >= 1_000_000 -> "%.1fM".format(this / 1_000_000.0).trimTrailingZero()
+    this >= 1_000 -> "%.1fK".format(this / 1_000.0).trimTrailingZero()
+    else -> toString()
+}
+
+private fun String.trimTrailingZero(): String = replace(".0", "")
 
 // MARK: - Events (eventList)
 
