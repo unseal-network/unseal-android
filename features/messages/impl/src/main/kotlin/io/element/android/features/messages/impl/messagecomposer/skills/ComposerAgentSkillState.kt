@@ -154,6 +154,10 @@ object ComposerAgentSkillReducer {
         return targets.any { it.mxid !in selectedAgentMxids }
     }
 
+    fun hasRuntimeVisibleSkillCandidates(candidates: List<ComposerAgentSkillCandidate>): Boolean {
+        return candidates.any { it.runtimeVisible }
+    }
+
     fun visibleSkillCandidates(
         candidates: List<ComposerAgentSkillCandidate>,
         selectedSkills: List<ComposerSelectedAgentSkill>,
@@ -163,6 +167,46 @@ object ComposerAgentSkillReducer {
         return candidates.filter { candidate ->
             "${candidate.agent.mxid}::${candidate.skillName}" !in selectedIds &&
                 (activeAgentMxid == null || candidate.agent.mxid == activeAgentMxid)
+        }
+    }
+
+    fun catalogAgentDescriptors(
+        targets: List<ComposerAgentDescriptor>,
+        knownAgents: Map<String, ComposerAgentDescriptor>,
+        isDirectRoom: Boolean,
+    ): List<ComposerAgentDescriptor> {
+        val descriptorsByMxid = knownAgents.toMutableMap()
+        targets.forEach { target ->
+            descriptorsByMxid[target.mxid] = target
+        }
+        if (isDirectRoom && descriptorsByMxid.isEmpty()) {
+            targets.forEach { target ->
+                descriptorsByMxid[target.mxid] = target
+            }
+        }
+        return descriptorsByMxid.values.sortedWith(compareBy<ComposerAgentDescriptor> { it.label }.thenBy { it.mxid })
+    }
+
+    fun skillCatalogAgentIds(targets: List<ComposerAgentDescriptor>): List<String> {
+        return targets.map { it.mxid }.distinct().sorted()
+    }
+
+    fun targetByRelationAgentId(targets: List<ComposerAgentDescriptor>): Map<String, ComposerAgentDescriptor> {
+        return buildMap {
+            targets.forEach { target ->
+                put(target.agentId, target)
+                put(target.mxid, target)
+                agentLocalpart(target.mxid)?.let { localpart ->
+                    put(localpart, target)
+                }
+            }
+        }
+    }
+
+    fun legacyAgentSkillLookupIds(target: ComposerAgentDescriptor): List<String> {
+        return buildList {
+            add(target.agentId)
+            agentLocalpart(target.mxid)?.takeIf { it !in this }?.let(::add)
         }
     }
 
@@ -226,4 +270,10 @@ object ComposerAgentSkillReducer {
         )
     }
 
+    private fun agentLocalpart(mxid: String): String? {
+        if (!mxid.startsWith("@")) return null
+        val colonIndex = mxid.indexOf(':')
+        if (colonIndex <= 1) return null
+        return mxid.substring(startIndex = 1, endIndex = colonIndex)
+    }
 }

@@ -424,12 +424,11 @@ Current composer data flow:
 2. Mention suggestions combine Matrix members, room aliases, slash commands, and `RoomUnsealContext`.
 3. `ComposerSuggestionReducer` marks agent members with an Agent badge from enriched room members.
 4. `ComposerAgentSkillReducer` derives iOS-style agent descriptors from room members plus account agent data, preferring account `displayName/botName` and falling back to Matrix members.
-5. `MessageComposerState.agentSkillState` exposes known agent mxids, direct-room skill targets, selected skills, and candidate metadata for the future skill picker UI.
+5. `ComposerAgentSkillCatalogLoader` mirrors iOS skill loading: room-agent runtime skill catalog first using the current session user as `runtimeOwnerUserId`, then legacy installed skills as fallback. Legacy lookup tries the target mxid and then the mxid localpart.
+6. `MessageComposerState.agentSkillState` exposes known agent mxids, direct-room skill targets, loaded candidates, selected skills, loading/error status, and candidate metadata for the future skill picker UI.
 
 Pending composer parity:
 
-- Runtime room-agent skill catalog loading from the Unseal API.
-- Legacy installed skill fallback loading.
 - Skill picker UI and send/insert behavior.
 - Mentioned-agent target extraction from composer mentions.
 
@@ -444,3 +443,4 @@ Verification on this branch:
   - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.timeline.factories.event.AiSdkStreamReducerTest'`
   - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.timeline.components.event.TimelineItemAiPresenterTest'`
   - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillReducerTest'`
+  - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.messagecomposer.skills.*'`

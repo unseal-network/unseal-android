@@ -592,7 +592,7 @@ Steps:
 - [x] Add agent badge support.
 - [x] Use enriched room members for `@` suggestions.
 - [x] Use room-agent descriptors for skill target resolution.
-- [ ] Prefer room-agent runtime skill API, fallback legacy agent skills.
+- [x] Prefer room-agent runtime skill API, fallback legacy agent skills.
 - [ ] Commit with `feat(messages): align composer agent suggestions with ios`.
 
 ### Task 6: Stabilize Timeline and Stream Render Models

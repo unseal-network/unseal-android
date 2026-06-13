@@ -39,6 +39,8 @@ import io.element.android.features.messages.impl.attachments.preview.error.sendA
 import io.element.android.features.messages.impl.draft.ComposerDraftService
 import io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerPresenter
 import io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerState
+import io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillCandidate
+import io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillCatalogLoader
 import io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillReducer
 import io.element.android.features.messages.impl.messagecomposer.suggestions.ComposerSuggestionReducer
 import io.element.android.features.messages.impl.messagecomposer.suggestions.ComposerSuggestionRenderModel
@@ -92,6 +94,7 @@ import io.element.android.services.analyticsproviders.api.trackers.captureIntera
 import io.element.android.wysiwyg.compose.RichTextEditorState
 import io.element.android.wysiwyg.display.TextDisplay
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -136,6 +139,7 @@ class MessageComposerPresenter(
     private val pillificationHelper: TextPillificationHelper,
     private val suggestionsProcessor: SuggestionsProcessor,
     private val roomUnsealContextStore: RoomUnsealContextStore,
+    private val composerAgentSkillCatalogLoader: ComposerAgentSkillCatalogLoader,
     private val mediaOptimizationConfigProvider: MediaOptimizationConfigProvider,
     private val notificationConversationService: NotificationConversationService,
     private val slashCommandService: SlashCommandService,
@@ -220,13 +224,41 @@ class MessageComposerPresenter(
         val suggestions = remember { mutableStateListOf<ResolvedSuggestion>() }
         val suggestionRenderModels = remember { mutableStateListOf<ComposerSuggestionRenderModel>() }
         val roomUnsealContextState by roomUnsealContextStore.context.collectAsState()
-        val agentSkillState = remember(roomUnsealContextState, roomInfo.isDm, room.sessionId) {
+        val baseAgentSkillState = remember(roomUnsealContextState, roomInfo.isDm, room.sessionId) {
             ComposerAgentSkillReducer.stateFromContext(
                 context = roomUnsealContextState.dataOrNull(),
                 currentUserId = room.sessionId.value,
                 isDirectRoom = roomInfo.isDm,
             )
         }
+        var agentSkillCandidates by remember { mutableStateOf<ImmutableList<ComposerAgentSkillCandidate>>(persistentListOf()) }
+        var agentSkillCatalogError by remember { mutableStateOf<String?>(null) }
+        var isAgentSkillCatalogLoading by remember { mutableStateOf(false) }
+        LaunchedEffect(roomUnsealContextState, baseAgentSkillState.targets, roomInfo.isDm, room.sessionId) {
+            val context = roomUnsealContextState.dataOrNull()
+            if (context == null || baseAgentSkillState.targets.isEmpty()) {
+                agentSkillCandidates = persistentListOf()
+                agentSkillCatalogError = null
+                isAgentSkillCatalogLoading = false
+                return@LaunchedEffect
+            }
+            isAgentSkillCatalogLoading = true
+            agentSkillCatalogError = null
+            val result = composerAgentSkillCatalogLoader.load(
+                context = context,
+                targets = baseAgentSkillState.targets,
+                currentUserId = room.sessionId.value,
+                isDirectRoom = roomInfo.isDm,
+            )
+            agentSkillCandidates = result.candidates.toImmutableList()
+            agentSkillCatalogError = result.error
+            isAgentSkillCatalogLoading = false
+        }
+        val agentSkillState = baseAgentSkillState.copy(
+            candidates = agentSkillCandidates,
+            isCatalogLoading = isAgentSkillCatalogLoading,
+            error = agentSkillCatalogError,
+        )
         ResolveSuggestionsEffect(suggestions, suggestionRenderModels)
 
         LaunchedEffect(Unit) {
