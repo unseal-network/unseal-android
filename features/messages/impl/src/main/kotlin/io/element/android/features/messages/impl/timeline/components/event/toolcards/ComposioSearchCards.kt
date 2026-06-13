@@ -430,6 +430,12 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
                 }
             }
         }
+        if (galleryUrls.size > 1) {
+            HotelImageStrip(
+                urls = galleryUrls,
+                onClick = { showGallery = true },
+            )
+        }
     }
     if (showGallery) {
         HotelImageDialog(
@@ -437,6 +443,30 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
             title = name,
             onDismiss = { showGallery = false },
         )
+    }
+}
+
+@Composable
+private fun HotelImageStrip(
+    urls: List<String>,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(bottom = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        urls.take(8).forEach { url ->
+            CardRemoteImage(
+                url = url,
+                modifier = Modifier
+                    .size(width = 74.dp, height = 54.dp)
+                    .clickable(onClick = onClick),
+                corner = 8,
+            )
+        }
     }
 }
 
@@ -1694,6 +1724,12 @@ private fun PlaceRow(place: JSONObject, onLinkClick: () -> Unit) {
             imageCount = galleryUrls.size,
             onClick = if (galleryUrls.isNotEmpty()) ({ showGallery = true }) else null,
         )
+        if (galleryUrls.size > 1) {
+            HotelImageStrip(
+                urls = galleryUrls,
+                onClick = { showGallery = true },
+            )
+        }
         Text(name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
         val tail = listOfNotNull(reviews?.let { "$it reviews" }, price, type).joinToString("  ·  ")
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
