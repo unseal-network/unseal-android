@@ -340,83 +340,6 @@ private fun AiUnavailableCard() {
 }
 
 @Composable
-private fun GenericToolPart(
-    part: AiToolStreamPart,
-    onLinkClick: (Link) -> Unit,
-    onLinkLongClick: (Link) -> Unit,
-) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ToolStateDot(part.state)
-                Text(
-                    text = part.displayName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = toolStateLabel(part.state),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            part.errorText?.takeIf { it.isNotBlank() }?.let { errorText ->
-                Text(
-                    text = errorText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-            GenericToolPayloadSection("Output", part.output, onLinkClick, onLinkLongClick)
-            GenericToolPayloadSection("Input", part.input, onLinkClick, onLinkLongClick)
-            if (part.rawInput != part.input) {
-                GenericToolPayloadSection("Raw input", part.rawInput, onLinkClick, onLinkLongClick)
-            }
-            if (part.output.isNullOrBlank() && part.input.isNullOrBlank() && part.rawInput.isNullOrBlank() && part.errorText.isNullOrBlank()) {
-                Text(
-                    text = if (part.isDone) "Completed" else "Waiting for tool output.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun GenericToolPayloadSection(
-    label: String,
-    payload: String?,
-    onLinkClick: (Link) -> Unit,
-    onLinkLongClick: (Link) -> Unit,
-) {
-    if (payload.isNullOrBlank()) return
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            LinkifiedAiText(
-                text = payload.take(MAX_VALUE_CHARS),
-                onLinkClick = onLinkClick,
-                onLinkLongClick = onLinkLongClick,
-            )
-        }
-    }
-}
-
-@Composable
 private fun TextPart(
     part: AiTextStreamPart,
     onLinkClick: (Link) -> Unit,
@@ -843,13 +766,12 @@ private fun ToolPayloadCard(
     if (!part.allowsRawPayloadFallback()) {
         return false
     }
-    // 2. Otherwise show the tool result on expand: structured items, else raw (pretty-printed) text,
-    // so the content is never blank. iOS renders rich per-type cards here — UI differs, content holds.
+    // 2. Otherwise show only structured, user-readable items. Raw payloads remain available through
+    // the stream snapshot/debug path, but the room timeline should not expose JSON to end users.
     val model = remember(part.toolName, payload) {
         payload.toToolCardModel(part.toolName)
     }
-    val rawPayload = remember(payload) { payload.prettyPayload() }
-    if ((model == null || model.items.isEmpty()) && rawPayload.isBlank()) return false
+    if (model == null || model.items.isEmpty()) return false
     Surface(
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
@@ -859,21 +781,13 @@ private fun ToolPayloadCard(
             modifier = Modifier.padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (model != null && model.items.isNotEmpty()) {
-                model.items.take(MAX_RENDERED_ITEMS).forEach { item ->
-                    ToolCardItem(item, onLinkClick, onLinkLongClick)
-                }
-                if (model.moreCount > 0) {
-                    Text(
-                        text = "+${model.moreCount} more",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            } else if (!rawPayload.isNullOrBlank()) {
+            model.items.take(MAX_RENDERED_ITEMS).forEach { item ->
+                ToolCardItem(item, onLinkClick, onLinkLongClick)
+            }
+            if (model.moreCount > 0) {
                 Text(
-                    text = rawPayload,
-                    style = MaterialTheme.typography.bodySmall,
+                    text = "+${model.moreCount} more",
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
