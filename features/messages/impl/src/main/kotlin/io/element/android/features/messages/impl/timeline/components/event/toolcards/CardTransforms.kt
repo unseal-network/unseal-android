@@ -236,7 +236,11 @@ internal object CardTransforms {
             item.intOrNull("reviews")?.let { p.put("reviews", it) }
             val address = joinStrings(item.opt("address"))
             address?.let { p.put("address", it) }
-            item.firstImageUrl()?.let { p.put("thumbnail", it) }
+            val imageUrls = item.imageUrls()
+            imageUrls.firstOrNull()?.let { p.put("thumbnail", it) }
+            if (imageUrls.isNotEmpty()) {
+                p.put("imageUrls", JSONArray().also { urls -> imageUrls.forEach(urls::put) })
+            }
             item.str("price")?.let { p.put("price", it) }
             item.str("open_state")?.let { p.put("openState", it) }
             item.str("phone")?.let { p.put("phone", it) }
@@ -558,23 +562,30 @@ internal object CardTransforms {
     }
 
     private fun JSONObject.firstImageUrl(): String? {
-        (str("thumbnail") ?: str("image") ?: str("imageUrl") ?: str("photo"))?.let { return it }
+        return imageUrls().firstOrNull()
+    }
+
+    private fun JSONObject.imageUrls(): List<String> {
+        val urls = mutableListOf<String>()
+        listOf("thumbnail", "image", "imageUrl", "photo").forEach { key ->
+            str(key)?.takeIf { it.isNotBlank() }?.let(urls::add)
+        }
         listOf("images", "photos", "photo_images").forEach { key ->
             val array = optJSONArray(key) ?: return@forEach
             for (index in 0 until array.length()) {
                 when (val item = array.opt(index)) {
-                    is String -> if (item.isNotBlank()) return item
+                    is String -> if (item.isNotBlank()) urls.add(item)
                     is JSONObject -> {
                         (item.str("thumbnail")
                             ?: item.str("original_image")
                             ?: item.str("original")
                             ?: item.str("url")
-                            ?: item.str("imageUrl"))?.let { return it }
+                            ?: item.str("imageUrl"))?.let(urls::add)
                     }
                 }
             }
         }
-        return null
+        return urls.distinct()
     }
 
     private fun JSONObject.hasAny(vararg keys: String): Boolean = keys.any { has(it) && !isNull(it) }

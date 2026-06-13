@@ -26,6 +26,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -297,7 +299,7 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.Top,
         ) {
             Box {
@@ -337,7 +339,7 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
@@ -408,7 +410,7 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
                 Column(
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.spacedBy(2.dp),
-                    modifier = Modifier.width(66.dp),
+                    modifier = Modifier.width(72.dp),
                 ) {
                     Text(
                         text = price,
@@ -451,18 +453,17 @@ private fun HotelImageStrip(
     urls: List<String>,
     onClick: () -> Unit,
 ) {
-    Row(
+    LazyRow(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
             .padding(bottom = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        urls.take(8).forEach { url ->
+        items(urls.take(8), key = { it }) { url ->
             CardRemoteImage(
                 url = url,
                 modifier = Modifier
-                    .size(width = 74.dp, height = 54.dp)
+                    .size(width = 92.dp, height = 66.dp)
                     .clickable(onClick = onClick),
                 corner = 8,
             )

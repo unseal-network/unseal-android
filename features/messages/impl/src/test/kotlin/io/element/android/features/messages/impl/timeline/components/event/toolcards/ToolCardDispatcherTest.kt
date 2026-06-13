@@ -263,7 +263,7 @@ class ToolCardDispatcherTest {
     }
 
     @Test
-    fun `places payload preserves thumbnail address rating review count and map url`() {
+    fun `places payload preserves image gallery address rating review count and map url`() {
         val payload = JSONObject(
             """
             {
@@ -275,7 +275,10 @@ class ToolCardDispatcherTest {
                     "rating": 4.5,
                     "reviews": 148,
                     "address": "The Bund No.18, Shanghai",
-                    "thumbnail": "https://example.com/bund.png",
+                    "images": [
+                      { "thumbnail": "https://example.com/bund.png", "original_image": "https://example.com/bund-large.png" },
+                      "https://example.com/bund-side.png"
+                    ],
                     "gps_coordinates": { "latitude": 31.239, "longitude": 121.489 }
                   }
                 ]
@@ -290,6 +293,7 @@ class ToolCardDispatcherTest {
         assertThat(transformed.hasCardContentFor("placeList")).isTrue()
         assertThat(place.cardString("name")).isEqualTo("Mr&Mrs Bund")
         assertThat(place.cardString("thumbnail")).isEqualTo("https://example.com/bund.png")
+        assertThat(place.optJSONArray("imageUrls")?.length()).isEqualTo(2)
         assertThat(place.cardString("address")).isEqualTo("The Bund No.18, Shanghai")
         assertThat(place.optDouble("rating")).isEqualTo(4.5)
         assertThat(place.optInt("reviews")).isEqualTo(148)
