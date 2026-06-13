@@ -304,7 +304,7 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
                 CardRemoteImage(
                     url = primaryImageUrl,
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(64.dp)
                         .then(if (galleryUrls.isNotEmpty()) Modifier.clickable { showGallery = true } else Modifier),
                     corner = 8,
                 )
@@ -1675,18 +1675,25 @@ private fun PlaceRow(place: JSONObject, onLinkClick: () -> Unit) {
     val type = place.cardString("type")
     val address = place.cardString("address")
     val price = place.cardString("price")
-    val thumb = place.cardString("thumbnail")
+    val thumb = place.cardString("thumbnail", "imageUrl", "image")
+    val imageUrls = place.cardStrings("imageUrls", "images")
+    val galleryUrls = if (imageUrls.isNotEmpty()) imageUrls else listOfNotNull(thumb)
     val rating = place.cardString("rating")
     val reviews = place.cardInt("reviews")
     val openState = place.cardString("openState")
     val url = place.cardString("url")
     val action = openLinkAction(url, onLinkClick)
+    var showGallery by remember(imageUrls.joinToString("|"), thumb) { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxWidth().clickableIfLink(action),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        PlaceBanner(thumb)
+        PlaceBanner(
+            thumb = thumb,
+            imageCount = galleryUrls.size,
+            onClick = if (galleryUrls.isNotEmpty()) ({ showGallery = true }) else null,
+        )
         Text(name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
         val tail = listOfNotNull(reviews?.let { "$it reviews" }, price, type).joinToString("  ·  ")
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1707,10 +1714,21 @@ private fun PlaceRow(place: JSONObject, onLinkClick: () -> Unit) {
             }
         }
     }
+    if (showGallery) {
+        HotelImageDialog(
+            urls = galleryUrls,
+            title = name,
+            onDismiss = { showGallery = false },
+        )
+    }
 }
 
 @Composable
-private fun PlaceBanner(thumb: String?) {
+private fun PlaceBanner(
+    thumb: String?,
+    imageCount: Int,
+    onClick: (() -> Unit)?,
+) {
     if (thumb.isNullOrBlank()) {
         Box(
             modifier = Modifier
@@ -1729,7 +1747,27 @@ private fun PlaceBanner(thumb: String?) {
             Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = Color.White.copy(alpha = 0.82f), modifier = Modifier.size(34.dp))
         }
     } else {
-        CardRemoteImage(url = thumb, modifier = Modifier.fillMaxWidth().height(132.dp), corner = 16)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(132.dp)
+                .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
+        ) {
+            CardRemoteImage(url = thumb, modifier = Modifier.fillMaxWidth().height(132.dp), corner = 16)
+            if (imageCount > 1) {
+                Text(
+                    text = imageCount.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(8.dp)
+                        .background(Color.Black.copy(alpha = 0.50f), RoundedCornerShape(5.dp))
+                        .padding(horizontal = 5.dp, vertical = 2.dp),
+                )
+            }
+        }
     }
 }
 
