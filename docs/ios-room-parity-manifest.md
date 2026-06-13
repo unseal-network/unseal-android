@@ -10,7 +10,7 @@ This document is the implementation checklist for Android room parity. iOS is th
 | Room agents | `ClientProxy.loadRoomAgents(roomId:)`, `JoinedRoomProxy.updateMembers()` | `GET /chatbot/v1/rooms/{roomId}/agents` | `ChatbotApiService.getRoomAgents(roomId)` exists | `RoomUnsealContext.roomAgents` | Not loaded once for the room; composer/topbar cannot share enriched state. |
 | Member enrichment | `RoomAgentMemberEnricher.swift` | Matrix `RoomMember` + `ChatbotRoomAgent` | Android uses raw `RoomMembersState`; schedule badge separately compares all agents | `RoomMemberRender`, `RoomAgentDescriptor` | Android does not consistently know which members are agents. |
 | Agent-in-room detection | `RoomScreenViewModel.loadActiveScheduleCount()` | `listAgents()` + `roomProxy.membersPublisher` | `RoomScheduleBadgePresenter` repeats `listAgents()` + members | `RoomUnsealContext.hasAgentInRoom` | Logic duplicated and not available to composer/menu/timeline. |
-| Device agent detection | `RoomScreenViewModel.loadActiveScheduleCount()` | Agent metadata `agent_kind=device`, `bound_device_id` | No shared room state | `RoomUnsealContext.deviceAgentInRoom` | Terminal/device-agent topbar state cannot be derived centrally. |
+| Device agent detection | `RoomScreenViewModel.loadActiveScheduleCount()` | Agent metadata `agent_kind=device`, `bound_device_id` | `RoomUnsealContext.deviceAgentInRoom` | `RoomUnsealContext.deviceAgentInRoom` | Implemented for shared room state. |
 | Schedule count | `RoomScreenViewModel.loadActiveScheduleCount()` | `listSchedules(roomId)`, `schedule.isEnabled` | `RoomScheduleBadgePresenter` | `RoomUnsealContext.activeScheduleCount` | Badge owns network requests; should consume room context. |
 | Room working memory | `ChatbotAPIClient.getRoomWorkingMemory(roomId:)` | `/chatbot/v1/rooms/{roomId}/working-memory` | API exists | `RoomUnsealContext.workingMemory` | Not surfaced in room context/menu. |
 | Webhook triggers | `ChatbotAPIClient.listWebhookTriggers(... roomId ...)` | roomId-filtered triggers | API exists | `RoomUnsealContext.webhookTriggers` | Room menu cannot show trigger state from shared context. |
@@ -25,6 +25,7 @@ This document is the implementation checklist for Android room parity. iOS is th
 | Direct agent slash trigger | `ComposerToolbarViewModel.updateDirectAgentSkillPickerForSlashTrigger()` | Direct rooms resolve first active agent member | Existing slash command service | `ComposerAgentSkillState` | Android slash flow is not connected to room-agent skill state. |
 | Runtime skill catalog | `loadRoomAgentSkillCatalogs` | Prefer `listRoomAgentSkills(roomId, agentId, runtimeOwnerUserId)` | API exists; feature screens use it elsewhere | `ComposerAgentSkillState.skillsByAgent` | Room composer needs the iOS loading/fallback order. |
 | Legacy skill fallback | `legacyInstalledSkillCandidates` | Fallback to `listAgentSkills(botName)` | API exists | `ComposerAgentSkillState.legacyFallback` | Not wired into composer room flow. |
+| Device-agent chat send | `RoomScreen.isAgentChatMode`, `AgentChatModeMemoryCache`, `TimelineViewModel.sendAgentChatMessage` | Toggle is process-memory per room; normal/reply sends use raw `m.room.message` with top-level `device_id`, plus optional `skills` | `MessagesPresenter`, `AgentChatModeMemoryCache`, `MessageComposerPresenter` | active target `boundDeviceId`, raw message `device_id` | Implemented and unit tested for normal/reply payload shape. |
 
 ## P0 Stream / Timeline Workflow
 
@@ -59,9 +60,10 @@ This document is the implementation checklist for Android room parity. iOS is th
 
 | Feature | iOS behavior | Android current source | Target model | Gap |
 |---|---|---|---|---|
-| Topbar actions | Call, video, schedules, terminal, device-agent chat, room settings | `MessagesView`, navigation/menu code | `RoomMenuRenderModel.topbarActions` | Actions must be derived from room context. |
+| Topbar actions | Call, video, schedules, terminal, device-agent chat, room settings | `MessagesView`, `RoomMenuRenderModel` | `RoomMenuRenderModel.topbarActions` + active state | Schedules and device-agent chat are derived from room context; terminal has no Android D2D client yet and currently shows unsupported feedback. |
+| Remote terminal | `RoomScreen.unsealTerminalPanel`, `UnsealTerminalPanelView`, `ClientProxy.openUnsealRemoteTerminal/sendUnsealRemoteTerminalInput/resize/close`, `UnsealD2DTarget.deviceId` | iOS opens a panel and talks to the bound device agent over D2D terminal messages | No Android D2D terminal client/entry point found | Future `RoomTerminalRenderModel` + D2D client facade | Missing bottom-layer client, panel, session lifecycle, resize/input/close handling. Do not pretend the button is functional until this is implemented. |
 | Attachment menu | iOS order/content/icons | Android bottom sheet | `RoomMenuRenderModel.attachmentActions` | Keep bottom sheet if needed, but align data/order. |
-| Long press menu | Reply/thread/pin/report/view source/select/translate/save/share/save media | Existing action list | `RoomMenuRenderModel.messageActions` | Missing iOS actions and ordering. |
+| Long press menu | `TimelineItemMenuActionProvider`, `TimelineItemMenuAction` | Reply/thread/pin/report/view source/select/translate/save/share/save media | Existing `ActionListPresenter`, `MessageActionMenuRenderModel` | `MessageActionMenuRenderModel` | Android has a render model and existing reply/thread/forward/edit/copy/pin/report/source/remove actions. Missing bottom-layer support for iOS-only select text, translate, saved messages, and media share/save. |
 | Link handling | Links in markdown/cards open correctly | Mixed | Link action model | Ensure cards do not swallow URL taps. |
 | Read receipts/reactions | iOS room behavior | Existing Element Android behavior | Menu/action model | P1 after stream/markdown. |
 

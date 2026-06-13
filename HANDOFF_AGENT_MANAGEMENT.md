@@ -187,7 +187,7 @@ Device-agent chat mode 也由 `MessagesPresenter` 管理：
 - `RoomMenuRenderModel.isDeviceAgentChatActive` 给 topbar 展示 active 状态。
 - `MessagesEvent.ToggleDeviceAgentChat` 切换目标设备，并通过 `MessageComposerEvent.SetAgentChatTargetDeviceId` 同步到 composer。
 - `MessageComposerPresenter` 发送 normal/reply 消息时，如果存在 target device，就走 `JoinedRoom.sendRawRoomMessage`，顶层注入 `"device_id": boundDeviceId`；如果同时选择 skill，也同时保留顶层 `skills`。这对齐 iOS `TimelineViewModel.sendAgentChatMessage`。
-- `MessagesEvent.OpenDeviceAgentTerminal` 目前已经进入事件层并记录日志，真实 terminal destination 仍需接 navigator/node。
+- `MessagesEvent.OpenDeviceAgentTerminal` 目前已经进入事件层并记录日志，同时弹出 unsupported snackbar。真实 terminal destination 仍缺 Android D2D terminal client/panel，不要把它当作已完成能力。
 
 ### RoomUnsealContext 共享 store
 

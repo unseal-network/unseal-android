@@ -347,6 +347,9 @@ class MessagesPresenter(
                 }
                 is MessagesEvent.OpenDeviceAgentTerminal -> {
                     Timber.i("Device agent terminal requested for boundDeviceId=${event.deviceAgent.boundDeviceId}")
+                    coroutineScope.launch {
+                        snackbarDispatcher.post(SnackbarMessage(CommonStrings.common_unsupported_event))
+                    }
                 }
                 is MessagesEvent.MarkAsFullyReadAndExit -> if (!markingAsReadAndExiting.getAndSet(true)) {
                     coroutineScope.launch {
