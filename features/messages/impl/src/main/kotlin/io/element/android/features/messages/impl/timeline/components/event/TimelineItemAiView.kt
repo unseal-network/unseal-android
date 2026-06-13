@@ -831,19 +831,10 @@ private fun DataPart(
         "data-tool-call-suspended" -> SuspendedToolCard(part.payload)
         "data-ui-spec", "data-json-render", "data-spec" -> {
             if (!toolCardInserted) {
-                part.payload.toToolCardModel(part.type)?.let { model ->
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            model.items.take(MAX_RENDERED_ITEMS).forEach { item ->
-                                ToolCardItem(item, onLinkClick, onLinkLongClick)
-                            }
-                        }
-                    }
-                }
+                JsonSpecRender(
+                    payload = part.payload,
+                    onLinkClick = onLinkClick,
+                )
             }
         }
         else -> Unit
