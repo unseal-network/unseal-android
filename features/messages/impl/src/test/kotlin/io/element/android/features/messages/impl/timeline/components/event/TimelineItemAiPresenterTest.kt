@@ -349,6 +349,47 @@ class TimelineItemAiPresenterTest {
         }
     }
 
+    @Test
+    fun `present - terminal cached content does not rebind sdk stream after recycled timeline item rebinds`() = runTest {
+        val client = FakeAgentStreamClient(
+            initialSnapshot = snapshot(
+                streamId = "stream-1",
+                status = StreamStatus.Loading,
+            )
+        )
+        val contentCache = AiStreamContentCache().apply {
+            put(
+                AiSdkStreamReducer().mapSnapshot(
+                    snapshot = snapshot(
+                        streamId = "stream-1",
+                        status = StreamStatus.Completed,
+                        parts = listOf(
+                            StreamPart.Text(id = "text-1", text = "cached final", textState = TextPartState.Complete),
+                        ),
+                    ),
+                    isEdited = false,
+                    sender = "@bot:keepsecret.io",
+                )
+            )
+        }
+        val presenter = createPresenter(
+            content = aTimelineItemAiContent(streamId = "stream-1", sender = "@bot:keepsecret.io"),
+            agentStreamClient = client,
+            streamContentCache = contentCache,
+            dispatchers = testCoroutineDispatchers(useUnconfinedTestDispatcher = true),
+        )
+
+        presenter.test {
+            val initial = awaitItem().content
+
+            assertThat(initial.body).isEqualTo("cached final")
+            assertThat(initial.isStreaming).isFalse()
+            assertThat(client.requests).isEmpty()
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     private fun createPresenter(
         content: TimelineItemAiContent,
         agentStreamClient: AgentStreamClient = FakeAgentStreamClient(),

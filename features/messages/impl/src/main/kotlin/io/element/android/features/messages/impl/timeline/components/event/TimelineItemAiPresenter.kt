@@ -68,17 +68,21 @@ class TimelineItemAiPresenter(
     override fun present(): TimelineItemAiState {
         val initialContent = content
         val streamId = initialContent.streamId
+        val cachedContent = remember(streamId, initialContent.parts) {
+            streamId?.let(aiStreamContentCache::get)
+        }
         var currentContent by remember(streamId, initialContent.parts) {
             mutableStateOf(
-                streamId
-                    ?.let(aiStreamContentCache::get)
-                    ?: initialContent
+                cachedContent ?: initialContent
             )
         }
 
         LaunchedEffect(streamId, initialContent.parts) {
             if (streamId == null) {
                 currentContent = initialContent
+                return@LaunchedEffect
+            }
+            if ((cachedContent ?: initialContent).isTerminalRenderableStream(streamId)) {
                 return@LaunchedEffect
             }
 
@@ -176,4 +180,10 @@ class TimelineItemAiPresenter(
         const val DBG = "AiStreamDbg"
         const val STREAMING_TEXT_PATCH_COALESCE_MS = 120L
     }
+}
+
+private fun TimelineItemAiContent.isTerminalRenderableStream(streamId: String): Boolean {
+    return this.streamId == streamId &&
+        isTerminal &&
+        (hasRichParts || body.isNotBlank())
 }
