@@ -39,6 +39,7 @@ import io.element.android.features.messages.impl.attachments.preview.error.sendA
 import io.element.android.features.messages.impl.draft.ComposerDraftService
 import io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerPresenter
 import io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerState
+import io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillReducer
 import io.element.android.features.messages.impl.messagecomposer.suggestions.ComposerSuggestionReducer
 import io.element.android.features.messages.impl.messagecomposer.suggestions.ComposerSuggestionRenderModel
 import io.element.android.features.messages.impl.messagecomposer.suggestions.RoomAliasSuggestionsDataSource
@@ -218,6 +219,14 @@ class MessageComposerPresenter(
 
         val suggestions = remember { mutableStateListOf<ResolvedSuggestion>() }
         val suggestionRenderModels = remember { mutableStateListOf<ComposerSuggestionRenderModel>() }
+        val roomUnsealContextState by roomUnsealContextStore.context.collectAsState()
+        val agentSkillState = remember(roomUnsealContextState, roomInfo.isDm, room.sessionId) {
+            ComposerAgentSkillReducer.stateFromContext(
+                context = roomUnsealContextState.dataOrNull(),
+                currentUserId = room.sessionId.value,
+                isDirectRoom = roomInfo.isDm,
+            )
+        }
         ResolveSuggestionsEffect(suggestions, suggestionRenderModels)
 
         LaunchedEffect(Unit) {
@@ -425,6 +434,7 @@ class MessageComposerPresenter(
             canShareLocation = canShareLocation.value,
             suggestions = suggestions.toImmutableList(),
             suggestionRenderModels = suggestionRenderModels.toImmutableList(),
+            agentSkillState = agentSkillState,
             resolveMentionDisplay = resolveMentionDisplay,
             resolveAtRoomMentionDisplay = resolveAtRoomMentionDisplay,
             slashCommandAction = slashCommandAction.value,

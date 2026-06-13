@@ -10,6 +10,7 @@ package io.element.android.features.messages.impl.messagecomposer
 
 import androidx.compose.runtime.Stable
 import io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerState
+import io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillState
 import io.element.android.features.messages.impl.messagecomposer.suggestions.ComposerSuggestionRenderModel
 import io.element.android.libraries.architecture.AsyncAction
 import io.element.android.libraries.textcomposer.mentions.ResolvedSuggestion
@@ -28,6 +29,7 @@ data class MessageComposerState(
     val canShareLocation: Boolean,
     val suggestions: ImmutableList<ResolvedSuggestion>,
     val suggestionRenderModels: ImmutableList<ComposerSuggestionRenderModel>,
+    val agentSkillState: ComposerAgentSkillState,
     val resolveMentionDisplay: (String, String) -> TextDisplay,
     val resolveAtRoomMentionDisplay: () -> TextDisplay,
     val slashCommandAction: AsyncAction<Unit>,

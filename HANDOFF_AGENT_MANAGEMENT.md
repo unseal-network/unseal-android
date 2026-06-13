@@ -406,6 +406,33 @@ Current Android render flow:
 7. `TimelineItemAiView` renders from `TimelineItemAiContent` only. `ToolCallRootCard` consumes precomputed `ToolCallRootRenderModel` / `AiToolCardEntry` values instead of reparsing tool stream parts.
 8. If `AiStreamContentCache` already has terminal renderable content, `TimelineItemAiPresenter` skips SDK rebind for recycled cells.
 
+## Room Data / Composer Parity Status
+
+Room-level Unseal data now flows through `RoomUnsealContextStore` in the messages scope. Both room chrome and composer data models should consume that shared context rather than each feature fetching schedules/agents/members independently.
+
+Important files:
+
+- `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/roomdata/RoomUnsealContextStore.kt`
+- `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/roomdata/RoomUnsealContextLoader.kt`
+- `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/roomdata/RoomMenuRenderModel.kt`
+- `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/messagecomposer/suggestions/ComposerSuggestionRenderModel.kt`
+- `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/messagecomposer/skills/ComposerAgentSkillState.kt`
+
+Current composer data flow:
+
+1. `MessageComposerPresenter` asks `RoomUnsealContextStore.refresh()` when the composer is presented.
+2. Mention suggestions combine Matrix members, room aliases, slash commands, and `RoomUnsealContext`.
+3. `ComposerSuggestionReducer` marks agent members with an Agent badge from enriched room members.
+4. `ComposerAgentSkillReducer` derives iOS-style agent descriptors from room members plus account agent data, preferring account `displayName/botName` and falling back to Matrix members.
+5. `MessageComposerState.agentSkillState` exposes known agent mxids, direct-room skill targets, selected skills, and candidate metadata for the future skill picker UI.
+
+Pending composer parity:
+
+- Runtime room-agent skill catalog loading from the Unseal API.
+- Legacy installed skill fallback loading.
+- Skill picker UI and send/insert behavior.
+- Mentioned-agent target extraction from composer mentions.
+
 Verification on this branch:
 
 - `./gradlew :libraries:agentstream:testDebugUnitTest` passed.
@@ -416,3 +443,4 @@ Verification on this branch:
   - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.timeline.model.TimelinePresentationReducerTest'`
   - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.timeline.factories.event.AiSdkStreamReducerTest'`
   - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.timeline.components.event.TimelineItemAiPresenterTest'`
+  - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillReducerTest'`

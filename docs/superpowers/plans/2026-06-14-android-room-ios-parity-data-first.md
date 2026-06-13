@@ -588,10 +588,10 @@ Steps:
 
 Steps:
 
-- [ ] Add `ComposerSuggestionRenderModel`.
-- [ ] Add agent badge support.
-- [ ] Use enriched room members for `@` suggestions.
-- [ ] Use room-agent descriptors for skill target resolution.
+- [x] Add `ComposerSuggestionRenderModel`.
+- [x] Add agent badge support.
+- [x] Use enriched room members for `@` suggestions.
+- [x] Use room-agent descriptors for skill target resolution.
 - [ ] Prefer room-agent runtime skill API, fallback legacy agent skills.
 - [ ] Commit with `feat(messages): align composer agent suggestions with ios`.
 
@@ -611,7 +611,7 @@ Steps:
 - [x] Ensure completed cached streams render completed state immediately.
 - [ ] Ensure no Compose card parses raw stream JSON.
 - [x] Run stream render tests.
-- [x] Commit with `feat(messages): add ai stream render model` (`125bdae949`) and `fix(messages): avoid rebinding completed stream cache` (`2b9ea29e3d`).
+- [x] Commit with `feat(messages): add ai stream render model` (`125bdae949`), `fix(messages): avoid rebinding completed stream cache` (`2b9ea29e3d`), and `feat(messages): add tool root render model` (`bd6a6e2180`).
 
 ### Task 7: Timeline Layout Parity
 
