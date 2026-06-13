@@ -259,7 +259,36 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
   - 新增 `ComposerAgentSkillPickerView`，直接消费 `ComposerAgentSkillState`。
   - 支持 agent target 切换、可见 skill 候选列表、已选 skill chip、移除已选 skill。
   - `MessagesView` 在 composer 上方展示 skill picker，事件回到 presenter/reducer；UI 不请求接口。
+- `2bb65bb771` `feat(messages): refresh room context on config changes`
+  - `JoinedRoomLoadedFlowNode` 新增 room config change flow，RoomDetails / RoomSchedules 的配置变更会通知 Messages。
+  - `MessagesPresenter` 收到后 `roomUnsealContextStore.refresh(force = true)`，避免 schedule/webhook/working-memory 变更后 topbar/menu 读旧数据。
+- `7b9051682a` `feat(messages): refresh room context when members change`
+  - `RoomMembersState.roomUnsealMemberSignature()` 用成员 userId/displayName/avatar/membership 生成签名。
+  - 成员变化后刷新同一份 `RoomUnsealContextStore`，让 agent membership / mention / room chrome 数据追上 Matrix members。
+- `a15d80abdb` `feat(messages): expose room config summaries in menu model`
+  - `RoomMenuRenderModel` 增加 `webhookSummary` 与 `workingMemory`，数据来自 `RoomUnsealContext`。
+  - 当前仅建模和测试，UI 不应在 Compose 中重新请求/解析 webhook 或 memory。
+- `48d1f6e12c` `refactor(messages): resolve room agents through room data client`
+  - `RoomAgentResolver` 改为通过 `RoomUnsealDataClient.getRoomAgents(roomId)` 查 agent MXID。
+  - room key / recovery 相关逻辑不再自己创建 Chatbot API client。
+- `ae3ba58aa2` `feat(messages): refresh room context on mention trigger`
+  - `MessageComposerPresenter` 在 `@` mention trigger 首次激活时 force refresh shared context，对齐 iOS mention 输入时刷新成员/agent 语义。
+  - 后续同一个 mention query 的文本变化不会重复刷新，避免输入时连续打 API。
+- `614f38cb50` `test(roomdetails): cover webhook config change callback`
+  - 测试锁定 RoomDetails 内 WebhookTriggers 的 `onTriggersChanged()` 会转成 `onRoomConfigChanged()`。
 - 当前未提交 checkpoint：无。请继续保持小步提交。
+
+### Room 数据流当前边界
+
+- **Room 页面读数据**：Messages / Composer 统一消费 `RoomUnsealContextStore`。
+- **请求入口**：`DefaultRoomUnsealDataClient` 只用 `ChatbotApiServiceFactory.createForHomeserver(matrixClient)`，跟随登录 homeserver / `.well-known`，不要在 room 功能里硬编码 agent-api 或 `api.unseal.network`。
+- **刷新触发**：
+  - 初次进入 room：Messages 和 Composer 都可调用 shared store，store 自身有 in-flight guard。
+  - app resume：Messages force refresh。
+  - members 变化：Messages 根据 member signature force refresh。
+  - schedules/webhooks/working-memory 变化：RoomDetails/RoomSchedules 通过 appnav 的 `roomConfigChangeRequests` 通知 Messages force refresh。
+  - mention 开始：Composer force refresh 一次，用于追上最新 agent/member。
+- **UI 约束**：Compose 只能消费 render model/context，不要在 card、composer、topbar、action sheet 里直接调用 Chatbot API 或重新 parse room-agent JSON。
 
 ### 后续执行顺序
 

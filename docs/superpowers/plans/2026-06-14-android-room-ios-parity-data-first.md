@@ -607,7 +607,9 @@ Steps:
 - [x] Use room-agent descriptors for skill target resolution.
 - [x] Prefer room-agent runtime skill API, fallback legacy agent skills.
 - [x] Extract mentioned agent targets from the active composer mention state.
+- [x] Refresh shared `RoomUnsealContextStore` when a user mention trigger starts, matching iOS member refresh behavior.
 - [x] Commit with `feat(messages): align composer agent suggestions with ios` (`9e1ed5a615`) and `feat(messages): target mentioned agents for skills`.
+- [x] Commit mention-trigger refresh with `feat(messages): refresh room context on mention trigger` (`ae3ba58aa2`).
 
 ### Task 6: Stabilize Timeline and Stream Render Models
 
@@ -675,6 +677,26 @@ Steps:
 - [x] Add memoization by raw tool payload/card type for tool props transforms.
 - [x] Run relevant unit tests.
 - [x] Commit with `fix(messages): render completed stream cache before binding` (`607f491732`) and `perf(messages): memoize tool card prop transforms` (`f22937d679`).
+
+### Task 9.1: Room Context Refresh and API Ownership Hardening
+
+**Files:**
+
+- Modify: `MessagesPresenter.kt`
+- Modify: `MessageComposerPresenter.kt`
+- Modify: `RoomDetailsFlowNode.kt` / entry point tests
+- Modify: `RoomAgentResolver.kt`
+- Test: appnav, messages roomdata/composer, roomdetails tests.
+
+Steps:
+
+- [x] Emit `roomConfigChangeRequests` from room details / schedules mutations into Messages.
+- [x] Refresh `RoomUnsealContextStore` when room member signatures change.
+- [x] Refresh `RoomUnsealContextStore` when mention suggestions start.
+- [x] Route room key agent lookup through `RoomUnsealDataClient`, not a direct `ChatbotApiServiceFactory`.
+- [x] Surface webhook and working memory summaries in `RoomMenuRenderModel` for future UI consumers.
+- [x] Add roomdetails test proving webhook trigger changes call `onRoomConfigChanged()`.
+- [x] Commits: `2bb65bb771`, `7b9051682a`, `a15d80abdb`, `48d1f6e12c`, `ae3ba58aa2`, `614f38cb50`.
 
 ### Task 10: Manual Device Acceptance
 
