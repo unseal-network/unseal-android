@@ -9,6 +9,7 @@ package io.element.android.features.messages.impl.timeline.factories.event
 
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.messages.impl.timeline.model.event.AiErrorStreamPart
+import io.element.android.features.messages.impl.timeline.model.event.AiStreamCursorMode
 import io.element.android.features.messages.impl.timeline.model.event.AiReasoningStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiSourceStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiTextStreamPart
@@ -104,6 +105,36 @@ class AiSdkStreamReducerTest {
         assertThat(result.toolCalls.single().state).isEqualTo("output-available")
         assertThat(result.toolCalls.single().output).isEqualTo("Sunny")
         assertThat(result.toolCalls.single().error).isNull()
+    }
+
+    @Test
+    fun `maps stream snapshot into explicit render model`() {
+        val snapshot = snapshot(
+            streamId = "stream-render",
+            status = StreamStatus.Streaming,
+            parts = listOf(
+                StreamPart.Text(id = "text-1", text = "Hello", textState = "done"),
+                StreamPart.Tool(
+                    id = "gmail",
+                    toolState = "input-available",
+                    toolName = "GMAIL_FETCH_EMAILS",
+                    input = Json.parseToJsonElement("""{"query":"from:alice"}"""),
+                ),
+            ),
+        )
+
+        val renderModel = reducer.mapRenderModel(snapshot)
+        val timelineContent = renderModel.toTimelineContent(isEdited = false, sender = "@agent:example.org")
+
+        assertThat(renderModel.streamId).isEqualTo("stream-render")
+        assertThat(renderModel.isStreaming).isTrue()
+        assertThat(renderModel.cursorMode).isEqualTo(AiStreamCursorMode.TrailingCursor)
+        assertThat(renderModel.markdownBlocks.single().text).isEqualTo("Hello")
+        assertThat(renderModel.firstToolPartIndex).isEqualTo(1)
+        assertThat(renderModel.toolCardEntries).hasSize(1)
+        assertThat(timelineContent.body).isEqualTo("Hello")
+        assertThat(timelineContent.sender).isEqualTo("@agent:example.org")
+        assertThat(timelineContent.visibleParts.map { it.id }).containsExactly("text-1", "gmail").inOrder()
     }
 
     @Test

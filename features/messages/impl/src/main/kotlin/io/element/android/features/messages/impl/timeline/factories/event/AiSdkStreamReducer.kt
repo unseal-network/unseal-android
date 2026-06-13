@@ -15,11 +15,14 @@ import io.element.android.features.messages.impl.timeline.model.event.AiCustomSt
 import io.element.android.features.messages.impl.timeline.model.event.AiDataStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiErrorStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiFileStreamPart
+import io.element.android.features.messages.impl.timeline.model.event.AiMarkdownBlock
 import io.element.android.features.messages.impl.timeline.model.event.AiQuickAction
 import io.element.android.features.messages.impl.timeline.model.event.AiReasoningStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiSource
 import io.element.android.features.messages.impl.timeline.model.event.AiSourceStreamPart
+import io.element.android.features.messages.impl.timeline.model.event.AiStreamCursorMode
 import io.element.android.features.messages.impl.timeline.model.event.AiStreamPart
+import io.element.android.features.messages.impl.timeline.model.event.AiStreamRenderModel
 import io.element.android.features.messages.impl.timeline.model.event.AiThinkingStep
 import io.element.android.features.messages.impl.timeline.model.event.AiTextStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiToolCall
@@ -45,6 +48,13 @@ class AiSdkStreamReducer {
         isEdited: Boolean,
         sender: String?,
     ): TimelineItemAiContent {
+        return mapRenderModel(snapshot).toTimelineContent(
+            isEdited = isEdited,
+            sender = sender,
+        )
+    }
+
+    fun mapRenderModel(snapshot: StreamSnapshot): AiStreamRenderModel {
         val mappedParts = snapshot.parts.map { it.toAiStreamPart() }
         val streamParts = mappedParts.withSnapshotErrorIfNeeded(snapshot)
         Timber.tag(TAG).d(
@@ -77,20 +87,26 @@ class AiSdkStreamReducer {
         val lastPartIsStreamingText = visible.lastOrNull().let { part ->
             part is AiTextStreamPart && part.state == STREAMING_TEXT_STATE
         }
+        val isStreaming = snapshot.status == StreamStatus.Loading || snapshot.status == StreamStatus.Streaming
+        val isTerminal = snapshot.status == StreamStatus.Completed ||
+            snapshot.status == StreamStatus.Failed ||
+            snapshot.status == StreamStatus.Cancelled
 
-        return TimelineItemAiContent(
-            body = textParts.joinToString(separator = "\n\n") { it.text },
-            isEdited = isEdited,
-            isStreaming = snapshot.status == StreamStatus.Loading || snapshot.status == StreamStatus.Streaming,
-            isTerminal = snapshot.status == StreamStatus.Completed ||
-                snapshot.status == StreamStatus.Failed ||
-                snapshot.status == StreamStatus.Cancelled,
+        return AiStreamRenderModel(
             streamId = snapshot.streamId,
             schemaVersion = snapshot.schemaVersion,
             streamStatus = snapshot.status.name,
             updatedAtMs = snapshot.updatedAtMs,
             completedAtMs = snapshot.completedAtMs,
             streamError = snapshot.error?.message,
+            isStreaming = isStreaming,
+            isTerminal = isTerminal,
+            cursorMode = when {
+                !isStreaming -> AiStreamCursorMode.None
+                visible.isEmpty() -> AiStreamCursorMode.Loading
+                lastPartIsStreamingText -> AiStreamCursorMode.None
+                else -> AiStreamCursorMode.TrailingCursor
+            },
             renderVersion = listOf(
                 snapshot.streamId,
                 snapshot.schemaVersion.toString(),
@@ -98,7 +114,13 @@ class AiSdkStreamReducer {
                 snapshot.completedAtMs?.toString().orEmpty(),
                 snapshot.status.name,
             ).joinToString(":"),
-            sender = sender,
+            markdownBlocks = textParts.map {
+                AiMarkdownBlock(
+                    id = it.id,
+                    text = it.text,
+                    state = it.state,
+                )
+            }.toImmutableList(),
             thinkingSteps = reasoningParts.mapIndexed { index, part ->
                 AiThinkingStep(
                     title = "Thinking ${index + 1}",

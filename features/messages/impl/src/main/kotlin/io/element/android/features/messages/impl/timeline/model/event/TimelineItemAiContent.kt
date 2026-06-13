@@ -11,6 +11,76 @@ import androidx.compose.runtime.Immutable
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 
+@Immutable
+data class AiStreamRenderModel(
+    val streamId: String?,
+    val schemaVersion: Int,
+    val streamStatus: String?,
+    val updatedAtMs: Long?,
+    val completedAtMs: Long?,
+    val streamError: String?,
+    val renderVersion: String?,
+    val isStreaming: Boolean,
+    val isTerminal: Boolean,
+    val cursorMode: AiStreamCursorMode,
+    val markdownBlocks: ImmutableList<AiMarkdownBlock>,
+    val thinkingSteps: ImmutableList<AiThinkingStep>,
+    val toolCalls: ImmutableList<AiToolCall>,
+    val sources: ImmutableList<AiSource>,
+    val quickActions: ImmutableList<AiQuickAction>,
+    val parts: ImmutableList<AiStreamPart> = persistentListOf(),
+    val renderableToolParts: ImmutableList<AiToolStreamPart> = persistentListOf(),
+    val toolCardEntries: ImmutableList<AiToolCardEntry> = persistentListOf(),
+    val passthroughParts: ImmutableList<AiStreamPart> = persistentListOf(),
+    val visibleParts: ImmutableList<AiStreamPart> = persistentListOf(),
+    val firstToolPartIndex: Int? = null,
+    val lastPartIsStreamingText: Boolean = false,
+) {
+    val body: String
+        get() = markdownBlocks.joinToString(separator = "\n\n") { it.text }
+
+    fun toTimelineContent(isEdited: Boolean, sender: String?): TimelineItemAiContent {
+        return TimelineItemAiContent(
+            body = body,
+            isEdited = isEdited,
+            isStreaming = isStreaming,
+            isTerminal = isTerminal,
+            streamId = streamId,
+            schemaVersion = schemaVersion,
+            streamStatus = streamStatus,
+            updatedAtMs = updatedAtMs,
+            completedAtMs = completedAtMs,
+            streamError = streamError,
+            renderVersion = renderVersion,
+            sender = sender,
+            thinkingSteps = thinkingSteps,
+            toolCalls = toolCalls,
+            sources = sources,
+            quickActions = quickActions,
+            parts = parts,
+            renderableToolParts = renderableToolParts,
+            toolCardEntries = toolCardEntries,
+            passthroughParts = passthroughParts,
+            visibleParts = visibleParts,
+            firstToolPartIndex = firstToolPartIndex,
+            lastPartIsStreamingText = lastPartIsStreamingText,
+        )
+    }
+}
+
+enum class AiStreamCursorMode {
+    None,
+    Loading,
+    TrailingCursor,
+}
+
+@Immutable
+data class AiMarkdownBlock(
+    val id: String,
+    val text: String,
+    val state: String,
+)
+
 /**
  * Native (degraded) rendering of an Unseal AI/assistant "stream" message.
  *
