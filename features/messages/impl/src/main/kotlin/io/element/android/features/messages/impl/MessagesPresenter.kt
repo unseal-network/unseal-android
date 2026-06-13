@@ -38,6 +38,7 @@ import io.element.android.features.messages.impl.link.LinkState
 import io.element.android.features.messages.impl.messagecomposer.MessageComposerEvent
 import io.element.android.features.messages.impl.messagecomposer.MessageComposerState
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerState
+import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContextLoader
 import io.element.android.features.messages.impl.timeline.MarkAsFullyRead
 import io.element.android.features.messages.impl.timeline.TimelineController
@@ -178,6 +179,9 @@ class MessagesPresenter(
         val roomScheduleBadgeState = roomScheduleBadgePresenter.present()
         val roomCallState = roomCallStatePresenter.present()
         val roomMemberModerationState = roomMemberModerationPresenter.present()
+        val roomUnsealContextState = remember {
+            mutableStateOf<AsyncData<RoomUnsealContext>>(AsyncData.Uninitialized)
+        }
         val threadsList by produceState(persistentListOf()) {
             room.threadsListService.subscribeToItemUpdates()
                 .onStart { room.threadsListService.paginate() }
@@ -215,19 +219,23 @@ class MessagesPresenter(
             }
         }
         LaunchedEffect(room.roomId) {
-            withContext(dispatchers.io) {
-                runCatchingExceptions { roomUnsealContextLoader.load() }
-                    .onSuccess { context ->
-                        Timber.i(
-                            "RoomUnsealContext loaded roomId=${context.roomId.value} " +
-                                "members=${context.members.size} agents=${context.roomAgents.size} " +
-                                "hasAgent=${context.hasAgentInRoom} activeSchedules=${context.activeScheduleCount} " +
-                                "webhooks=${context.webhookTriggers.size} errors=${context.errors.size}"
-                        )
-                    }
-                    .onFailure { error ->
-                        Timber.w(error, "Failed to load RoomUnsealContext for roomId=${room.roomId.value}")
-                    }
+            val previousContext = roomUnsealContextState.value.dataOrNull()
+            roomUnsealContextState.value = AsyncData.Loading(prevData = previousContext)
+            runCatchingExceptions {
+                withContext(dispatchers.io) {
+                    roomUnsealContextLoader.load()
+                }
+            }.onSuccess { context ->
+                roomUnsealContextState.value = AsyncData.Success(context)
+                Timber.i(
+                    "RoomUnsealContext loaded roomId=${context.roomId.value} " +
+                        "members=${context.members.size} agents=${context.roomAgents.size} " +
+                        "hasAgent=${context.hasAgentInRoom} activeSchedules=${context.activeScheduleCount} " +
+                        "webhooks=${context.webhookTriggers.size} errors=${context.errors.size}"
+                )
+            }.onFailure { error ->
+                roomUnsealContextState.value = AsyncData.Failure(error, prevData = previousContext)
+                Timber.w(error, "Failed to load RoomUnsealContext for roomId=${room.roomId.value}")
             }
         }
         LifecycleResumeEffect(Unit) {
@@ -348,6 +356,7 @@ class MessagesPresenter(
             enableTextFormatting = MessageComposerConfig.ENABLE_RICH_TEXT_EDITING,
             roomCallState = roomCallState,
             roomScheduleBadgeState = roomScheduleBadgeState,
+            roomUnsealContext = roomUnsealContextState.value,
             appName = buildMeta.applicationName,
             pinnedMessagesBannerState = pinnedMessagesBannerState,
             dmUserVerificationState = dmUserVerificationState,

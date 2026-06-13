@@ -33,6 +33,7 @@ import io.element.android.features.messages.impl.roomdata.RoomScheduleDescriptor
 import io.element.android.features.messages.impl.roomdata.RoomUnsealDataClient
 import io.element.android.features.messages.impl.roomdata.RoomUnsealDataSnapshot
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContextLoader
+import io.element.android.features.messages.impl.roomdata.RoomUnsealResource
 import io.element.android.features.messages.impl.roomdata.RoomWebhookTriggerDescriptor
 import io.element.android.features.messages.impl.threads.list.aThreadListItem
 import io.element.android.features.messages.impl.timeline.FakeMarkAsFullyRead
@@ -154,6 +155,42 @@ class MessagesPresenterTest {
             assertThat(initialState.inviteProgress).isEqualTo(AsyncData.Uninitialized)
             assertThat(initialState.showReinvitePrompt).isFalse()
             assertThat(initialState.showLiveLocationShareBanner).isFalse()
+        }
+    }
+
+    @Test
+    fun `present - exposes loaded room unseal context`() = runTest {
+        val room = FakeJoinedRoom(
+            baseRoom = FakeBaseRoom(roomId = A_ROOM_ID, initialRoomInfo = aRoomInfo()),
+            typingNoticeResult = { Result.success(Unit) },
+        ).apply {
+            givenRoomMembersState(RoomMembersState.Ready(persistentListOf(aRoomMember(userId = A_USER_ID, membership = RoomMembershipState.JOIN))))
+        }
+        val presenter = createMessagesPresenter(
+            joinedRoom = room,
+            roomUnsealDataClient = FakeRoomUnsealDataClient(
+                snapshot = RoomUnsealDataSnapshot(
+                    schedules = RoomUnsealResource.success(
+                        listOf(
+                            RoomScheduleDescriptor(
+                                id = "schedule-1",
+                                name = "Daily update",
+                                cron = "0 8 * * *",
+                                action = "Summarize",
+                                agentId = "agent-1",
+                                roomId = A_ROOM_ID.value,
+                                timezone = "UTC",
+                                isEnabled = true,
+                            )
+                        )
+                    )
+                )
+            )
+        )
+
+        presenter.testWithLifecycleOwner {
+            val loadedState = consumeItemsUntilPredicate { it.roomUnsealContext.isSuccess() }.last()
+            assertThat(loadedState.roomUnsealContext.dataOrNull()?.activeScheduleCount).isEqualTo(1)
         }
     }
 
@@ -1394,7 +1431,11 @@ class MessagesPresenterTest {
         addRecentEmoji: AddRecentEmoji = AddRecentEmoji { _ -> lambdaError() },
         markAsFullyRead: MarkAsFullyRead = FakeMarkAsFullyRead(),
         liveLocationShareManager: FakeActiveLiveLocationShareManager = FakeActiveLiveLocationShareManager(),
+        roomUnsealDataClient: RoomUnsealDataClient = FakeRoomUnsealDataClient(),
     ): MessagesPresenter {
+        if (joinedRoom.membersStateFlow.value == RoomMembersState.Unknown) {
+            joinedRoom.givenRoomMembersState(RoomMembersState.Ready(persistentListOf()))
+        }
         return MessagesPresenter(
             navigator = navigator,
             room = joinedRoom,
@@ -1425,7 +1466,7 @@ class MessagesPresenterTest {
             addRecentEmoji = addRecentEmoji,
             markAsFullyRead = markAsFullyRead,
             liveLocationShareManager = liveLocationShareManager,
-            roomUnsealContextLoader = RoomUnsealContextLoader(joinedRoom, FakeRoomUnsealDataClient()),
+            roomUnsealContextLoader = RoomUnsealContextLoader(joinedRoom, roomUnsealDataClient),
             sessionCoroutineScope = backgroundScope,
         )
     }
@@ -1440,7 +1481,9 @@ private class FakeRoomScheduleBadgePresenterFactory : RoomScheduleBadgePresenter
     }
 }
 
-private class FakeRoomUnsealDataClient : RoomUnsealDataClient {
+private class FakeRoomUnsealDataClient(
+    private val snapshot: RoomUnsealDataSnapshot = RoomUnsealDataSnapshot(),
+) : RoomUnsealDataClient {
     override suspend fun getRoomAgents(roomId: RoomId): Result<List<RoomAgentDescriptor>> = Result.success(emptyList())
     override suspend fun listAgents(): Result<List<AgentAccountDescriptor>> = Result.success(emptyList())
     override suspend fun listSchedules(roomId: RoomId): Result<List<RoomScheduleDescriptor>> = Result.success(emptyList())
@@ -1448,5 +1491,5 @@ private class FakeRoomUnsealDataClient : RoomUnsealDataClient {
     override suspend fun listLegacyAgentSkills(agentLookupId: String): Result<List<RoomLegacyAgentSkillDescriptor>> = Result.success(emptyList())
     override suspend fun listWebhookTriggers(roomId: RoomId): Result<List<RoomWebhookTriggerDescriptor>> = Result.success(emptyList())
     override suspend fun getRoomWorkingMemory(roomId: RoomId): Result<String> = Result.success("")
-    override suspend fun loadRoomData(roomId: RoomId): RoomUnsealDataSnapshot = RoomUnsealDataSnapshot()
+    override suspend fun loadRoomData(roomId: RoomId): RoomUnsealDataSnapshot = snapshot
 }

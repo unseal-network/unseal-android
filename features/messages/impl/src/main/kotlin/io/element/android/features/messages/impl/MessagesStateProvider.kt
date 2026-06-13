@@ -23,6 +23,7 @@ import io.element.android.features.messages.impl.messagecomposer.MessageComposer
 import io.element.android.features.messages.impl.messagecomposer.aMessageComposerState
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerState
 import io.element.android.features.messages.impl.pinned.banner.aLoadedPinnedMessagesBannerState
+import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
 import io.element.android.features.messages.impl.timeline.TimelineState
 import io.element.android.features.messages.impl.timeline.aTimelineItemList
 import io.element.android.features.messages.impl.timeline.aTimelineState
@@ -121,6 +122,7 @@ fun aMessagesState(
     showReinvitePrompt: Boolean = false,
     roomCallState: RoomCallState = aStandByCallState(),
     roomScheduleBadgeState: RoomScheduleBadgeState = aRoomScheduleBadgeState(),
+    roomUnsealContext: AsyncData<RoomUnsealContext> = AsyncData.Uninitialized,
     pinnedMessagesBannerState: PinnedMessagesBannerState = aLoadedPinnedMessagesBannerState(),
     dmUserVerificationState: IdentityState? = null,
     roomMemberModerationState: RoomMemberModerationState = aRoomMemberModerationState(),
@@ -154,6 +156,7 @@ fun aMessagesState(
     enableTextFormatting = true,
     roomCallState = roomCallState,
     roomScheduleBadgeState = roomScheduleBadgeState,
+    roomUnsealContext = roomUnsealContext,
     appName = "Element",
     pinnedMessagesBannerState = pinnedMessagesBannerState,
     dmUserVerificationState = dmUserVerificationState,
