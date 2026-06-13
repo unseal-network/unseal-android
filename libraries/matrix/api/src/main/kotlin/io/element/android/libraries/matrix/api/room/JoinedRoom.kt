@@ -58,6 +58,15 @@ interface JoinedRoom : BaseRoom {
     suspend fun editMessage(eventId: EventId, body: String, htmlBody: String?, intentionalMentions: List<IntentionalMention>): Result<Unit>
 
     /**
+     * Sends a raw event content payload to the room.
+     *
+     * This is used by Unseal agent messages that need to preserve extra top-level
+     * Matrix content keys such as `skills` or `device_id`, which the typed SDK
+     * message builders would otherwise drop.
+     */
+    suspend fun sendRawRoomMessage(contentJson: String, eventType: String = "m.room.message"): Result<Unit>
+
+    /**
      * Send a typing notification.
      * @param isTyping True if the user is typing, false otherwise.
      */

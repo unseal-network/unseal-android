@@ -28,14 +28,20 @@ import io.element.android.features.messages.impl.draft.ComposerDraftService
 import io.element.android.features.messages.impl.draft.FakeComposerDraftService
 import io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerPresenter
 import io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillCatalogLoader
+import io.element.android.features.messages.impl.roomdata.AgentAccountDescriptor
 import io.element.android.features.messages.impl.roomdata.FakeRoomUnsealDataClient
 import io.element.android.features.messages.impl.messagecomposer.suggestions.SuggestionsProcessor
 import io.element.android.features.messages.impl.roomdata.FakeRoomUnsealContextStore
+import io.element.android.features.messages.impl.roomdata.RoomAgentSkillDescriptor
+import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
+import io.element.android.features.messages.impl.roomdata.RoomUnsealDataSnapshot
+import io.element.android.features.messages.impl.roomdata.RoomUnsealResource
 import io.element.android.features.messages.impl.timeline.TimelineController
 import io.element.android.features.messages.impl.utils.FakeMentionSpanFormatter
 import io.element.android.features.messages.impl.utils.FakeTextPillificationHelper
 import io.element.android.features.messages.impl.utils.TextPillificationHelper
 import io.element.android.libraries.architecture.AsyncAction
+import io.element.android.libraries.architecture.AsyncData
 import io.element.android.libraries.chatbot.api.ChatbotBaseUrlResolver
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.core.mimetype.MimeTypes
@@ -43,6 +49,7 @@ import io.element.android.libraries.designsystem.utils.snackbar.SnackbarDispatch
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.ThreadId
+import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.media.ImageInfo
 import io.element.android.libraries.matrix.api.media.VideoInfo
 import io.element.android.libraries.matrix.api.permalink.PermalinkBuilder
@@ -125,6 +132,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
+import org.json.JSONObject
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -457,6 +465,89 @@ class MessageComposerPresenterTest {
                     messageType = Composer.MessageType.Text,
                 )
             )
+        }
+    }
+
+    @Test
+    fun `present - selected agent skill sends raw message content matching iOS shape`() = runTest {
+        val agentUserId = UserId("@mail-agent:server.org")
+        val roomUnsealContextStore = FakeRoomUnsealContextStore(
+            initialContext = AsyncData.Success(
+                RoomUnsealContext.from(
+                    roomId = A_ROOM_ID,
+                    members = listOf(
+                        aRoomMember(userId = A_USER_ID, displayName = "Me"),
+                        aRoomMember(userId = agentUserId, displayName = "Mail Agent"),
+                    ),
+                    snapshot = RoomUnsealDataSnapshot(
+                        allAgents = RoomUnsealResource.success(
+                            listOf(
+                                AgentAccountDescriptor(
+                                    botName = "mail-agent",
+                                    localpart = "mail-agent",
+                                    serverName = "server.org",
+                                    matrixUserId = agentUserId.value,
+                                    displayName = "Mail Agent",
+                                    avatarUrl = null,
+                                    isDeviceAgent = false,
+                                    boundDeviceId = null,
+                                )
+                            )
+                        )
+                    ),
+                )
+            )
+        )
+        val roomUnsealDataClient = FakeRoomUnsealDataClient().apply {
+            roomAgentSkillsResult = { _, _, _ ->
+                Result.success(listOf(RoomAgentSkillDescriptor(id = "skill-mail", name = "mail", description = null, runtimeVisible = true)))
+            }
+        }
+        var rawContent: String? = null
+        var rawEventType: String? = null
+        val room = FakeJoinedRoom(
+            baseRoom = FakeBaseRoom(initialRoomInfo = aRoomInfo(isDm = true)),
+            sendRawRoomMessageResult = { content, eventType ->
+                rawContent = content
+                rawEventType = eventType
+                Result.success(Unit)
+            },
+            typingNoticeResult = { Result.success(Unit) },
+        )
+        val presenter = createPresenter(
+            room = room,
+            isRichTextEditorEnabled = false,
+            roomUnsealContextStore = roomUnsealContextStore,
+            roomUnsealDataClient = roomUnsealDataClient,
+            slashCommandService = FakeSlashCommandService(
+                parseResult = { _, _, _ -> SlashCommand.NotACommand }
+            ),
+        )
+
+        moleculeFlow(RecompositionMode.Immediate) {
+            presenter.present()
+        }.test {
+            var state = awaitFirstItem()
+            repeat(8) {
+                if (state.agentSkillState.candidates.isNotEmpty()) return@repeat
+                state = awaitItem()
+            }
+            assertThat(state.agentSkillState.targets.map { it.mxid }).containsExactly(agentUserId.value)
+            val candidate = state.agentSkillState.candidates.single()
+            state.textEditorState.setMarkdown(A_MESSAGE)
+            state.eventSink(MessageComposerEvent.SelectAgentSkill(candidate))
+            state.eventSink(MessageComposerEvent.SendMessage)
+
+            advanceUntilIdle()
+
+            assertThat(rawEventType).isEqualTo("m.room.message")
+            val content = JSONObject(checkNotNull(rawContent))
+            assertThat(content.getString("msgtype")).isEqualTo("m.text")
+            assertThat(content.getString("body")).isEqualTo(A_MESSAGE)
+            val skill = content.getJSONArray("skills").getJSONObject(0)
+            assertThat(skill.getString("agent_id")).isEqualTo(agentUserId.value)
+            assertThat(skill.getString("name")).isEqualTo("mail")
+            cancelAndIgnoreRemainingEvents()
         }
     }
 
@@ -1542,6 +1633,8 @@ class MessageComposerPresenterTest {
         textPillificationHelper: TextPillificationHelper = FakeTextPillificationHelper(),
         isRichTextEditorEnabled: Boolean = true,
         draftService: ComposerDraftService = FakeComposerDraftService(),
+        roomUnsealContextStore: FakeRoomUnsealContextStore = FakeRoomUnsealContextStore(),
+        roomUnsealDataClient: FakeRoomUnsealDataClient = FakeRoomUnsealDataClient(),
         mediaOptimizationConfigProvider: FakeMediaOptimizationConfigProvider = FakeMediaOptimizationConfigProvider(),
         isInThread: Boolean = false,
         slashCommandService: SlashCommandService = FakeSlashCommandService(),
@@ -1580,10 +1673,10 @@ class MessageComposerPresenterTest {
         mentionSpanProvider = mentionSpanProvider,
         pillificationHelper = textPillificationHelper,
         suggestionsProcessor = SuggestionsProcessor(slashCommandService = slashCommandService),
-        roomUnsealContextStore = FakeRoomUnsealContextStore(),
+        roomUnsealContextStore = roomUnsealContextStore,
         composerAgentSkillCatalogLoader = ComposerAgentSkillCatalogLoader(
             room = room,
-            roomUnsealDataClient = FakeRoomUnsealDataClient(),
+            roomUnsealDataClient = roomUnsealDataClient,
             dispatchers = CoroutineDispatchers(UnconfinedTestDispatcher(testScheduler), UnconfinedTestDispatcher(testScheduler), UnconfinedTestDispatcher(testScheduler)),
         ),
         mediaOptimizationConfigProvider = mediaOptimizationConfigProvider,
