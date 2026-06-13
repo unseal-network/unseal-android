@@ -25,6 +25,15 @@ import io.element.android.features.messages.impl.messagecomposer.MessageComposer
 import io.element.android.features.messages.impl.messagecomposer.MessageComposerState
 import io.element.android.features.messages.impl.messagecomposer.aMessageComposerState
 import io.element.android.features.messages.impl.pinned.banner.aLoadedPinnedMessagesBannerState
+import io.element.android.features.messages.impl.roomdata.AgentAccountDescriptor
+import io.element.android.features.messages.impl.roomdata.RoomAgentDescriptor
+import io.element.android.features.messages.impl.roomdata.RoomAgentSkillDescriptor
+import io.element.android.features.messages.impl.roomdata.RoomLegacyAgentSkillDescriptor
+import io.element.android.features.messages.impl.roomdata.RoomScheduleDescriptor
+import io.element.android.features.messages.impl.roomdata.RoomUnsealDataClient
+import io.element.android.features.messages.impl.roomdata.RoomUnsealDataSnapshot
+import io.element.android.features.messages.impl.roomdata.RoomUnsealContextLoader
+import io.element.android.features.messages.impl.roomdata.RoomWebhookTriggerDescriptor
 import io.element.android.features.messages.impl.threads.list.aThreadListItem
 import io.element.android.features.messages.impl.timeline.FakeMarkAsFullyRead
 import io.element.android.features.messages.impl.timeline.MarkAsFullyRead
@@ -1416,6 +1425,7 @@ class MessagesPresenterTest {
             addRecentEmoji = addRecentEmoji,
             markAsFullyRead = markAsFullyRead,
             liveLocationShareManager = liveLocationShareManager,
+            roomUnsealContextLoader = RoomUnsealContextLoader(joinedRoom, FakeRoomUnsealDataClient()),
             sessionCoroutineScope = backgroundScope,
         )
     }
@@ -1428,4 +1438,15 @@ private class FakeRoomScheduleBadgePresenterFactory : RoomScheduleBadgePresenter
             override fun present() = aRoomScheduleBadgeState()
         }
     }
+}
+
+private class FakeRoomUnsealDataClient : RoomUnsealDataClient {
+    override suspend fun getRoomAgents(roomId: RoomId): Result<List<RoomAgentDescriptor>> = Result.success(emptyList())
+    override suspend fun listAgents(): Result<List<AgentAccountDescriptor>> = Result.success(emptyList())
+    override suspend fun listSchedules(roomId: RoomId): Result<List<RoomScheduleDescriptor>> = Result.success(emptyList())
+    override suspend fun listRoomAgentSkills(roomId: RoomId, agentId: String, runtimeOwnerUserId: String?): Result<List<RoomAgentSkillDescriptor>> = Result.success(emptyList())
+    override suspend fun listLegacyAgentSkills(agentLookupId: String): Result<List<RoomLegacyAgentSkillDescriptor>> = Result.success(emptyList())
+    override suspend fun listWebhookTriggers(roomId: RoomId): Result<List<RoomWebhookTriggerDescriptor>> = Result.success(emptyList())
+    override suspend fun getRoomWorkingMemory(roomId: RoomId): Result<String> = Result.success("")
+    override suspend fun loadRoomData(roomId: RoomId): RoomUnsealDataSnapshot = RoomUnsealDataSnapshot()
 }

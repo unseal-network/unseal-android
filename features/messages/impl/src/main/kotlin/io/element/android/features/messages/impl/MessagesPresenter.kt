@@ -38,6 +38,7 @@ import io.element.android.features.messages.impl.link.LinkState
 import io.element.android.features.messages.impl.messagecomposer.MessageComposerEvent
 import io.element.android.features.messages.impl.messagecomposer.MessageComposerState
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerState
+import io.element.android.features.messages.impl.roomdata.RoomUnsealContextLoader
 import io.element.android.features.messages.impl.timeline.MarkAsFullyRead
 import io.element.android.features.messages.impl.timeline.TimelineController
 import io.element.android.features.messages.impl.timeline.TimelineEvent
@@ -132,6 +133,7 @@ class MessagesPresenter(
     private val addRecentEmoji: AddRecentEmoji,
     private val markAsFullyRead: MarkAsFullyRead,
     private val liveLocationShareManager: ActiveLiveLocationShareManager,
+    private val roomUnsealContextLoader: RoomUnsealContextLoader,
     @SessionCoroutineScope private val sessionCoroutineScope: CoroutineScope,
 ) : Presenter<MessagesState> {
     @AssistedFactory
@@ -210,6 +212,22 @@ class MessagesPresenter(
                 if (roomInfo.isEncrypted == null) {
                     room.getUpdatedIsEncrypted()
                 }
+            }
+        }
+        LaunchedEffect(room.roomId) {
+            withContext(dispatchers.io) {
+                runCatchingExceptions { roomUnsealContextLoader.load() }
+                    .onSuccess { context ->
+                        Timber.i(
+                            "RoomUnsealContext loaded roomId=${context.roomId.value} " +
+                                "members=${context.members.size} agents=${context.roomAgents.size} " +
+                                "hasAgent=${context.hasAgentInRoom} activeSchedules=${context.activeScheduleCount} " +
+                                "webhooks=${context.webhookTriggers.size} errors=${context.errors.size}"
+                        )
+                    }
+                    .onFailure { error ->
+                        Timber.w(error, "Failed to load RoomUnsealContext for roomId=${room.roomId.value}")
+                    }
             }
         }
         LifecycleResumeEffect(Unit) {
