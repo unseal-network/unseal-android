@@ -70,6 +70,8 @@ import io.element.android.features.messages.impl.timeline.components.receipt.Tim
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.timeline.model.TimelineItemGroupPosition
 import io.element.android.features.messages.impl.timeline.model.TimelineItemThreadInfo
+import io.element.android.features.messages.impl.timeline.model.TimelineItemAlignment
+import io.element.android.features.messages.impl.timeline.model.TimelinePresentationReducer
 import io.element.android.features.messages.impl.timeline.model.bubble.BubbleState
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemGameContent
@@ -444,11 +446,23 @@ private fun TimelineItemEventRowContent(
             .wrapContentHeight()
             .fillMaxWidth(),
     ) {
-        val aiContentStartMargin = when {
+        val presentation = remember(event.content, event.isMine, event.groupPosition, timelineRoomInfo.isDm) {
+            TimelinePresentationReducer.reduce(
+                content = event.content,
+                isMine = event.isMine,
+                groupPosition = event.groupPosition,
+                isDirectRoom = timelineRoomInfo.isDm,
+            )
+        }
+        val standaloneContentStartMargin = when {
             maxWidth < 360.dp -> TIMELINE_ROW_HORIZONTAL_PADDING + 28.dp
             else -> AI_INCOMING_CONTENT_START
         }
-        val aiContentEndMargin = AI_INCOMING_CONTENT_END
+        val standaloneContentEndMargin = when {
+            maxWidth < 390.dp -> 20.dp
+            maxWidth < 600.dp -> 48.dp
+            else -> 64.dp
+        }
 
         ConstraintLayout(
             modifier = Modifier
@@ -462,9 +476,8 @@ private fun TimelineItemEventRowContent(
             pinIcon,
         ) = createRefs()
 
-        val isAiEvent = event.content is TimelineItemAiContent
         // Sender
-        if (event.showSenderInformation && (!timelineRoomInfo.isDm || isAiEvent)) {
+        if (presentation.showSenderInformation) {
             MessageSenderInformation(
                 event.senderId,
                 event.senderProfile,
@@ -489,30 +502,30 @@ private fun TimelineItemEventRowContent(
         )
         val messageModifier = Modifier
             .constrainAs(message) {
-                val topMargin = if (!isAiEvent && bubbleState.cutTopStart) {
+                val topMargin = if (!presentation.isStandalone && bubbleState.cutTopStart) {
                     NEGATIVE_MARGIN_FOR_BUBBLE
                 } else {
                     0.dp
                 }
                 top.linkTo(sender.bottom, margin = topMargin)
-                if (event.isMine) {
+                if (presentation.alignment == TimelineItemAlignment.End) {
                     end.linkTo(parent.end, margin = 16.dp)
                 } else {
-                    val startMargin = if (isAiEvent) {
-                        aiContentStartMargin
+                    val startMargin = if (presentation.reserveAvatarColumn) {
+                        standaloneContentStartMargin
                     } else if (timelineRoomInfo.isDm) {
                         16.dp
                     } else {
                         16.dp + BUBBLE_INCOMING_OFFSET
                     }
                     start.linkTo(parent.start, margin = startMargin)
-                    if (isAiEvent) {
-                        end.linkTo(parent.end, margin = aiContentEndMargin)
+                    if (presentation.isStandalone) {
+                        end.linkTo(parent.end, margin = standaloneContentEndMargin)
                         width = Dimension.fillToConstraints
                     }
                 }
             }
-        if (isAiEvent) {
+        if (presentation.isStandalone) {
             BoxWithConstraints(
                 modifier = messageModifier,
                 contentAlignment = if (event.isMine) Alignment.CenterEnd else Alignment.CenterStart,
