@@ -127,6 +127,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
@@ -1476,6 +1477,7 @@ class MessagesPresenterTest {
                 )
             ),
             sessionCoroutineScope = backgroundScope,
+            roomConfigChangeRequests = emptyFlow(),
         )
     }
 }

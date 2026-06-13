@@ -15,6 +15,8 @@ import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookTrigger
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.room.RoomMember
+import io.element.android.libraries.matrix.api.room.RoomMembersState
+import io.element.android.libraries.matrix.api.room.roomMembers
 import kotlinx.serialization.json.JsonPrimitive
 
 data class RoomUnsealDataSnapshot(
@@ -154,6 +156,19 @@ data class RoomWebhookTriggerDescriptor(
     val status: String,
     val actionPrompt: String,
 )
+
+internal fun RoomMembersState.roomUnsealMemberSignature(): String? {
+    return roomMembers()
+        ?.sortedBy { it.userId.value }
+        ?.joinToString(separator = "\n") { member ->
+            listOf(
+                member.userId.value,
+                member.membership.name,
+                member.displayName.orEmpty(),
+                member.avatarUrl.orEmpty(),
+            ).joinToString(separator = "|")
+        }
+}
 
 private val AGENT_USER_TYPES = setOf("agent", "bot", "external_bot", "trusted_external_bot")
 

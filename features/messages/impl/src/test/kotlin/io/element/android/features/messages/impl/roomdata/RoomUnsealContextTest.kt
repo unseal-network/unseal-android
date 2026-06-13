@@ -11,7 +11,9 @@ import com.google.common.truth.Truth.assertThat
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.room.RoomMembershipState
+import io.element.android.libraries.matrix.api.room.RoomMembersState
 import io.element.android.libraries.matrix.test.room.aRoomMember
+import kotlinx.collections.immutable.persistentListOf
 import org.junit.Test
 
 class RoomUnsealContextTest {
@@ -69,6 +71,32 @@ class RoomUnsealContextTest {
 
         assertThat(context.hasAgentInRoom).isFalse()
         assertThat(context.errors).containsExactly(error)
+    }
+
+    @Test
+    fun `member signature is stable and includes fields that affect agent room context`() {
+        val alice = aRoomMember(
+            userId = USER_ID,
+            displayName = "Alice",
+            avatarUrl = "mxc://avatar",
+            membership = RoomMembershipState.JOIN,
+        )
+        val agent = aRoomMember(
+            userId = AGENT_ID,
+            displayName = "Agent",
+            membership = RoomMembershipState.INVITE,
+        )
+
+        val signature = RoomMembersState.Ready(persistentListOf(alice, agent)).roomUnsealMemberSignature()
+        val reorderedSignature = RoomMembersState.Ready(persistentListOf(agent, alice)).roomUnsealMemberSignature()
+        val changedMembershipSignature = RoomMembersState.Ready(
+            persistentListOf(alice, agent.copy(membership = RoomMembershipState.JOIN))
+        ).roomUnsealMemberSignature()
+
+        assertThat(signature).isEqualTo(reorderedSignature)
+        assertThat(signature).isNotEqualTo(changedMembershipSignature)
+        assertThat(signature).contains("@agent:example.org|INVITE|Agent|")
+        assertThat(signature).contains("@user:example.org|JOIN|Alice|mxc://avatar")
     }
 
     private companion object {

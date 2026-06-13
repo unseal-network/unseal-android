@@ -41,6 +41,7 @@ import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBan
 import io.element.android.features.messages.impl.roomdata.RoomMenuReducer
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContextStore
+import io.element.android.features.messages.impl.roomdata.roomUnsealMemberSignature
 import io.element.android.features.messages.impl.timeline.MarkAsFullyRead
 import io.element.android.features.messages.impl.timeline.TimelineController
 import io.element.android.features.messages.impl.timeline.TimelineEvent
@@ -177,6 +178,10 @@ class MessagesPresenter(
         val roomCallState = roomCallStatePresenter.present()
         val roomMemberModerationState = roomMemberModerationPresenter.present()
         val roomUnsealContextState by roomUnsealContextStore.context.collectAsState()
+        val membersState by room.membersStateFlow.collectAsState()
+        val roomMemberSignature = remember(membersState) {
+            membersState.roomUnsealMemberSignature()
+        }
         val threadsList by produceState(persistentListOf()) {
             room.threadsListService.subscribeToItemUpdates()
                 .onStart { room.threadsListService.paginate() }
@@ -233,6 +238,11 @@ class MessagesPresenter(
                 roomUnsealContextStore.refresh(force = true)
             }
         }
+        LaunchedEffect(roomMemberSignature) {
+            if (roomMemberSignature != null && roomUnsealContextState.dataOrNull() != null && !roomUnsealContextState.isLoading()) {
+                roomUnsealContextStore.refresh(force = true)
+            }
+        }
         LifecycleResumeEffect(Unit) {
             if (!roomUnsealContextState.isLoading()) {
                 coroutineScope.launch { roomUnsealContextStore.refresh(force = true) }
@@ -253,7 +263,6 @@ class MessagesPresenter(
 
         var dmUserVerificationState by remember { mutableStateOf<IdentityState?>(null) }
 
-        val membersState by room.membersStateFlow.collectAsState()
         val dmRoomMember by room.getDirectRoomMember(membersState)
         val roomMemberIdentityStateChanges = identityChangeState.roomMemberIdentityStateChanges
 
