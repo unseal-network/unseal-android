@@ -82,7 +82,15 @@ class TimelineItemAiPresenter(
                 currentContent = initialContent
                 return@LaunchedEffect
             }
-            if ((cachedContent ?: initialContent).isTerminalRenderableStream(streamId)) {
+            val baseContent = cachedContent ?: initialContent
+            if (baseContent.isTerminalRenderableStream(streamId)) {
+                return@LaunchedEffect
+            }
+            loadCompletedCachedContent(
+                streamId = streamId,
+                fallbackContent = initialContent,
+            )?.let { completedContent ->
+                currentContent = completedContent
                 return@LaunchedEffect
             }
 
@@ -94,6 +102,21 @@ class TimelineItemAiPresenter(
         }
 
         return TimelineItemAiState(currentContent)
+    }
+
+    private suspend fun loadCompletedCachedContent(
+        streamId: String,
+        fallbackContent: TimelineItemAiContent,
+    ): TimelineItemAiContent? {
+        return withContext(dispatchers.io) {
+            aiStreamHandleStore.cachedCompletedSnapshot(streamId)?.let { snapshot ->
+                aiSdkStreamReducer.mapSnapshot(
+                    snapshot = snapshot,
+                    isEdited = fallbackContent.isEdited,
+                    sender = fallbackContent.sender,
+                ).also(aiStreamContentCache::put)
+            }
+        }
     }
 
     private suspend fun collectStreamContent(

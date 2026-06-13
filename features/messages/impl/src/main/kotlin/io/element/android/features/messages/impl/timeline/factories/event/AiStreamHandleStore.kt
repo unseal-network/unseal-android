@@ -15,6 +15,7 @@ import io.element.android.libraries.agentstream.api.StreamListener
 import io.element.android.libraries.agentstream.api.StreamRequest
 import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.agentstream.api.StreamStatus
+import io.element.android.libraries.agentstream.api.StreamStorageProvider
 import io.element.android.libraries.agentstream.api.StreamSubscription
 import io.element.android.libraries.di.RoomScope
 import java.io.Closeable
@@ -24,6 +25,7 @@ import timber.log.Timber
 @Inject
 class AiStreamHandleStore(
     private val client: AgentStreamClient,
+    private val storageProvider: StreamStorageProvider,
 ) {
     private val handles = linkedMapOf<String, StreamHandle>()
     private val snapshots = linkedMapOf<String, StreamSnapshot>()
@@ -42,6 +44,20 @@ class AiStreamHandleStore(
                 snapshot?.parts?.size ?: 0,
             )
         }
+    }
+
+    suspend fun cachedCompletedSnapshot(streamId: String): StreamSnapshot? {
+        cachedSnapshot(streamId)
+            ?.takeIf { it.status == StreamStatus.Completed && it.hasUsableContent() }
+            ?.let { return it }
+
+        val storedSnapshot = storageProvider.load(streamId)
+            ?.takeIf { it.status == StreamStatus.Completed && it.hasUsableContent() }
+            ?: return null
+        synchronized(lock) {
+            rememberSnapshotLocked(streamId, storedSnapshot)
+        }
+        return storedSnapshot
     }
 
     fun bind(

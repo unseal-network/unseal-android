@@ -18,7 +18,9 @@ import io.element.android.libraries.agentstream.api.StreamPart
 import io.element.android.libraries.agentstream.api.StreamRequest
 import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.agentstream.api.StreamStatus
+import io.element.android.libraries.agentstream.api.StreamStorageProvider
 import io.element.android.libraries.agentstream.api.StreamSubscription
+import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -28,7 +30,7 @@ class AiStreamHandleStoreTest {
     @Test
     fun `same stream id reuses one sdk handle`() {
         val client = FakeAgentStreamClient()
-        val store = AiStreamHandleStore(client)
+        val store = AiStreamHandleStore(client, FakeStreamStorageProvider())
         val request = StreamRequest(streamId = "stream-1", sender = "@a:b", roomId = "!room:b", eventId = "event-1")
 
         val first = store.bind(request) { }
@@ -42,7 +44,7 @@ class AiStreamHandleStoreTest {
     @Test
     fun `unbind cancels listener subscription but does not cancel sdk handle`() {
         val client = FakeAgentStreamClient()
-        val store = AiStreamHandleStore(client)
+        val store = AiStreamHandleStore(client, FakeStreamStorageProvider())
         val binding = store.bind(StreamRequest("stream-1", "@a:b", "!room:b", "event-1")) { }
 
         binding.close()
@@ -54,7 +56,7 @@ class AiStreamHandleStoreTest {
     @Test
     fun `refresh delegates to existing sdk handle`() {
         val client = FakeAgentStreamClient()
-        val store = AiStreamHandleStore(client)
+        val store = AiStreamHandleStore(client, FakeStreamStorageProvider())
         store.bind(StreamRequest("stream-1", "@a:b", "!room:b", "event-1")) { }
 
         store.refresh("stream-1")
@@ -72,7 +74,7 @@ class AiStreamHandleStoreTest {
                 )
             )
         )
-        val store = AiStreamHandleStore(client)
+        val store = AiStreamHandleStore(client, FakeStreamStorageProvider())
         val request = StreamRequest("stream-1", "@a:b", "!room:b", "event-1")
 
         store.bind(request) { }.close()
@@ -84,7 +86,7 @@ class AiStreamHandleStoreTest {
     @Test
     fun `concurrent binds for same stream id reuse one sdk handle`() {
         val client = FakeAgentStreamClient()
-        val store = AiStreamHandleStore(client)
+        val store = AiStreamHandleStore(client, FakeStreamStorageProvider())
         val request = StreamRequest(streamId = "stream-1", sender = "@a:b", roomId = "!room:b", eventId = "event-1")
         val ready = CountDownLatch(8)
         val start = CountDownLatch(1)
@@ -108,12 +110,28 @@ class AiStreamHandleStoreTest {
     @Test
     fun `cached snapshot returns latest usable snapshot after binding`() {
         val client = FakeAgentStreamClient()
-        val store = AiStreamHandleStore(client)
+        val store = AiStreamHandleStore(client, FakeStreamStorageProvider())
         val request = StreamRequest(streamId = "stream-1", sender = "@a:b", roomId = "!room:b", eventId = "event-1")
 
         store.bind(request) { }.close()
 
         assertThat(store.cachedSnapshot("stream-1")?.status).isEqualTo(StreamStatus.Completed)
+    }
+
+    @Test
+    fun `cached completed snapshot loads durable storage without creating sdk handle`() = runTest {
+        val client = FakeAgentStreamClient()
+        val storage = FakeStreamStorageProvider(
+            loadResult = completedSnapshot(streamId = "stream-1", text = "stored final"),
+        )
+        val store = AiStreamHandleStore(client, storage)
+
+        val snapshot = store.cachedCompletedSnapshot("stream-1")
+
+        assertThat(snapshot?.status).isEqualTo(StreamStatus.Completed)
+        assertThat((snapshot?.parts?.single() as StreamPart.Text).text).isEqualTo("stored final")
+        assertThat(store.cachedSnapshot("stream-1")?.status).isEqualTo(StreamStatus.Completed)
+        assertThat(client.requests).isEmpty()
     }
 }
 
@@ -168,4 +186,32 @@ private class FakeStreamHandle(
     override fun cancel() {
         cancelCount += 1
     }
+}
+
+private class FakeStreamStorageProvider(
+    private val loadResult: StreamSnapshot? = null,
+) : StreamStorageProvider {
+    override suspend fun load(streamId: String): StreamSnapshot? = loadResult
+
+    override suspend fun save(snapshot: StreamSnapshot) = Unit
+
+    override suspend fun delete(streamId: String) = Unit
+}
+
+private fun completedSnapshot(
+    streamId: String,
+    text: String,
+): StreamSnapshot {
+    return StreamSnapshot(
+        schemaVersion = AGENT_STREAM_SCHEMA_VERSION,
+        streamId = streamId,
+        status = StreamStatus.Completed,
+        parts = listOf(
+            StreamPart.Text(id = "text-1", text = text, textState = "done"),
+        ),
+        rawEvents = emptyList(),
+        updatedAtMs = 1L,
+        completedAtMs = 1L,
+        error = null,
+    )
 }
