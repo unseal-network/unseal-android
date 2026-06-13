@@ -19,6 +19,7 @@ import io.element.android.libraries.agentstream.api.StreamError
 import io.element.android.libraries.agentstream.api.StreamPart
 import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.agentstream.api.StreamStatus
+import io.element.android.libraries.agentstream.api.normalizedForTerminalState
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import org.json.JSONObject
@@ -166,7 +167,7 @@ class AiSdkStreamReducerTest {
     }
 
     @Test
-    fun `reducer does not mutate sdk part states for completed snapshots`() {
+    fun `reducer consumes sdk-normalized completed part states`() {
         val snapshot = snapshot(
             status = StreamStatus.Completed,
             parts = listOf(
@@ -179,12 +180,12 @@ class AiSdkStreamReducerTest {
                     output = Json.parseToJsonElement("""{"successful":true}"""),
                 ),
             ),
-        )
+        ).normalizedForTerminalState()
 
         val result = reducer.mapSnapshot(snapshot, isEdited = false, sender = null)
 
         val tool = result.parts.single() as AiToolStreamPart
-        assertThat(tool.state).isEqualTo("input-available")
+        assertThat(tool.state).isEqualTo("output-available")
         assertThat(tool.input).contains("alice@example.com")
         assertThat(tool.rawInput).isEqualTo("Find Alice emails")
         assertThat(tool.output).contains("successful")

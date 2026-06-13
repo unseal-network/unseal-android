@@ -20,7 +20,9 @@ import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.agentstream.api.StreamStatus
 import io.element.android.libraries.agentstream.api.StreamStorageProvider
 import io.element.android.libraries.agentstream.api.StreamSubscription
+import io.element.android.libraries.agentstream.api.ToolPartState
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
 import org.junit.Test
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -133,6 +135,27 @@ class AiStreamHandleStoreTest {
         assertThat(store.cachedSnapshot("stream-1")?.status).isEqualTo(StreamStatus.Completed)
         assertThat(client.requests).isEmpty()
     }
+
+    @Test
+    fun `cached completed snapshot normalizes stale running part states before timeline reads`() = runTest {
+        val client = FakeAgentStreamClient()
+        val storage = FakeStreamStorageProvider(
+            loadResult = completedSnapshot(
+                streamId = "stream-1",
+                text = "stored final",
+                textState = "streaming",
+                toolState = ToolPartState.InputAvailable.wireValue,
+            ),
+        )
+        val store = AiStreamHandleStore(client, storage)
+
+        val snapshot = store.cachedCompletedSnapshot("stream-1")
+
+        assertThat(snapshot?.status).isEqualTo(StreamStatus.Completed)
+        assertThat((snapshot?.parts?.get(0) as StreamPart.Text).textState).isEqualTo("done")
+        assertThat((snapshot.parts[1] as StreamPart.Tool).toolState).isEqualTo("output-available")
+        assertThat(client.requests).isEmpty()
+    }
 }
 
 private class FakeAgentStreamClient(
@@ -201,14 +224,26 @@ private class FakeStreamStorageProvider(
 private fun completedSnapshot(
     streamId: String,
     text: String,
+    textState: String = "done",
+    toolState: String? = null,
 ): StreamSnapshot {
     return StreamSnapshot(
         schemaVersion = AGENT_STREAM_SCHEMA_VERSION,
         streamId = streamId,
         status = StreamStatus.Completed,
-        parts = listOf(
-            StreamPart.Text(id = "text-1", text = text, textState = "done"),
-        ),
+        parts = buildList {
+            add(StreamPart.Text(id = "text-1", text = text, textState = textState))
+            if (toolState != null) {
+                add(
+                    StreamPart.Tool(
+                        id = "tool-1",
+                        toolName = "GMAIL_FETCH_EMAILS",
+                        toolState = toolState,
+                        input = Json.parseToJsonElement("""{"query":"from:alice"}"""),
+                    )
+                )
+            }
+        },
         rawEvents = emptyList(),
         updatedAtMs = 1L,
         completedAtMs = 1L,

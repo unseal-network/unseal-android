@@ -17,6 +17,7 @@ import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.agentstream.api.StreamStatus
 import io.element.android.libraries.agentstream.api.StreamStorageProvider
 import io.element.android.libraries.agentstream.api.StreamSubscription
+import io.element.android.libraries.agentstream.api.normalizedForTerminalState
 import io.element.android.libraries.di.RoomScope
 import java.io.Closeable
 import timber.log.Timber
@@ -33,7 +34,7 @@ class AiStreamHandleStore(
 
     fun cachedSnapshot(streamId: String): StreamSnapshot? {
         return synchronized(lock) {
-            handles[streamId]?.snapshot()?.takeIf { it.hasUsableContent() }
+            handles[streamId]?.snapshot()?.normalizedForTerminalState()?.takeIf { it.hasUsableContent() }
                 ?: snapshots[streamId]
         }.also { snapshot ->
             Timber.tag(DBG).d(
@@ -52,6 +53,7 @@ class AiStreamHandleStore(
             ?.let { return it }
 
         val storedSnapshot = storageProvider.load(streamId)
+            ?.normalizedForTerminalState()
             ?.takeIf { it.status == StreamStatus.Completed && it.hasUsableContent() }
             ?: return null
         synchronized(lock) {
@@ -71,16 +73,17 @@ class AiStreamHandleStore(
             }
             handles.getOrPut(request.streamId) { client.getStream(request) }
         }
-        val initialSnapshot = handle.snapshot()
+        val initialSnapshot = handle.snapshot().normalizedForTerminalState()
         synchronized(lock) {
             rememberSnapshotLocked(request.streamId, initialSnapshot)
         }
         onSnapshot(initialSnapshot)
         val subscription = handle.subscribe(StreamListener { snapshot ->
+            val normalizedSnapshot = snapshot.normalizedForTerminalState()
             synchronized(lock) {
-                rememberSnapshotLocked(request.streamId, snapshot)
+                rememberSnapshotLocked(request.streamId, normalizedSnapshot)
             }
-            onSnapshot(snapshot)
+            onSnapshot(normalizedSnapshot)
         })
         return Binding(
             streamId = request.streamId,
