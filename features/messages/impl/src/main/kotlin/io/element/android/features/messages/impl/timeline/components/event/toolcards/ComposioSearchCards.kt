@@ -1297,17 +1297,10 @@ private fun WeatherCard(data: JSONObject) {
     val humidity = current?.cardDouble("humidity")
     val windSpeed = current?.cardDouble("windSpeed", "wind_speed")
 
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(16.dp)),
-        shape = RoundedCornerShape(16.dp),
-        color = Color(0xFF0D0E11),
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-        ) {
             WeatherLocationHeader(
                 city = city,
                 country = country.orEmpty(),
@@ -1408,7 +1401,6 @@ private fun WeatherCard(data: JSONObject) {
                 }
             }
         }
-    }
 }
 
 @Composable
@@ -1643,17 +1635,10 @@ private fun EventRow(event: JSONObject) {
 @Composable
 private fun PlaceListCard(data: JSONObject, onLinkClick: () -> Unit) {
     val all = data.cardObjects("places")
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = Color(0xFF171A1F),
-        tonalElevation = 0.dp,
+    Column(
         modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            PlaceHeader(count = all.size)
             if (all.isEmpty()) {
                 MetaText("No places found", Color(0xFF9AA0A8))
                 return@Column
@@ -1661,7 +1646,6 @@ private fun PlaceListCard(data: JSONObject, onLinkClick: () -> Unit) {
             Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 all.take(MAX_ITEMS).forEach { PlaceRow(it, onLinkClick) }
             }
-        }
     }
 }
 

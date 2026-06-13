@@ -237,8 +237,10 @@ private fun EmailListCardView(messages: List<JSONObject>) {
     val shown = messages.take(MAX_CARD_ITEMS)
     val open = rememberLinkOpener {}
 
-    ToolCardSurface {
-        ToolCardHeader(title = "Emails", count = messages.size)
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
+    ) {
         DividedList(shown) { message -> EmailListRow(message, open) }
         if (messages.size > shown.size) {
             MetaText("+${messages.size - shown.size} more")
