@@ -145,7 +145,8 @@ class RoomSchedulesPresenterTest {
                 Result.success(Unit)
             }
         }
-        val presenter = createPresenter(service = service)
+        val navigator = FakeRoomSchedulesNavigator()
+        val presenter = createPresenter(service = service, navigator = navigator)
 
         presenter.test {
             awaitItem().eventSink(RoomSchedulesEvents.OnAppear)
@@ -157,6 +158,7 @@ class RoomSchedulesPresenterTest {
             changed.eventSink(RoomSchedulesEvents.SaveMemory)
             val savedState = awaitStateWhere { !it.isEditingMemory && it.workingMemory == "new" }
             assertThat(saved).containsExactly("new")
+            assertThat(navigator.changedCalls).isEqualTo(1)
             savedState.eventSink(RoomSchedulesEvents.StartEditingMemory)
             val editingAgain = awaitStateWhere { it.isEditingMemory }
             editingAgain.eventSink(RoomSchedulesEvents.CancelEditingMemory)
