@@ -710,8 +710,9 @@ Steps:
 - [x] Verify each covered fixture maps to typed props.
 - [x] Remove large empty fallback cards and flatten nested content surfaces for weather/places/emails.
 - [x] Add finance second-level tabs.
-- [ ] Fix gallery/horizontal image scrolling parity for hotels/places.
+- [x] Fix gallery/horizontal image scrolling parity for hotels/places.
 - [x] Commit current parity fixes with `fix(messages): flatten tool card content surfaces` (`5bf01433d7`).
+- [x] Commit hotel/place gallery fixes with `fix(messages): preserve place image galleries in tool cards` (`dbb4ff5343`).
 
 ### Task 9: Performance and Cache Verification
 
@@ -753,8 +754,8 @@ Steps:
 
 Steps:
 
-- [ ] Build with `./gradlew :app:assembleGplayDebug`.
-- [ ] Install to device with adb.
+- [x] Build with `./gradlew :app:assembleGplayDebug`.
+- [ ] Install to device with adb. Current blocker: `/usr/local/share/android-commandlinetools/platform-tools/adb devices` returns no connected devices/emulators.
 - [ ] Use real agent to generate every P0 card type.
 - [ ] Capture logs for stream handle reuse and completed cache hits.
 - [ ] Compare screenshots against iOS for timeline spacing, markdown, and cards.

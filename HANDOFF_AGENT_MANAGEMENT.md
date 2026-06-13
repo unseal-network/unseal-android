@@ -286,7 +286,20 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
   - 后续同一个 mention query 的文本变化不会重复刷新，避免输入时连续打 API。
 - `614f38cb50` `test(roomdetails): cover webhook config change callback`
   - 测试锁定 RoomDetails 内 WebhookTriggers 的 `onTriggersChanged()` 会转成 `onRoomConfigChanged()`。
-- 当前未提交 checkpoint：无。请继续保持小步提交。
+- `b3946ee856` `feat(messages): expose room webhook menu action`
+  - Room topbar/menu render model 增加 Webhooks action，并把 room webhook 页面改成由 Messages flow 打开。
+  - WebhookTriggers 变更后通过 room config refresh flow 通知 Messages 重新加载 `RoomUnsealContextStore`。
+- `c175ca27d1` `fix(messages): pass ai stream event id to sdk`
+  - `TimelineItemAiContent` 带上 Matrix event id，`TimelineItemAiPresenter` 创建 `StreamRequest` 时传给 Stream SDK。
+- `5e089d9a8f` `fix(messages): pass ai stream room id to sdk`
+  - `TimelineItemAiContent` 带上 room id，timeline/pinned timeline factory 都通过同一上下文注入。
+  - Stream SDK 请求现在具备 `streamId + roomId + eventId`，后续 storage key、日志、去重、真实 stream 拉取都不要在 UI 层再猜。
+- `dbb4ff5343` `fix(messages): preserve place image galleries in tool cards`
+  - `CardTransforms.place()` 输出 `imageUrls`，支持 thumbnail/image/photo/photos/images 多种服务端字段。
+  - 酒店/地点图片条改成 `LazyRow`，点击后用 `HorizontalPager` dialog 查看，避免普通 Row 抢不到横向手势。
+- `f8b2809853` `docs(messages): update stream sdk verification status`
+  - 重新验证 Stream SDK listener 取消不会取消后台完成/store 写入，并记录到计划。
+- 最新文档状态已同步到计划与 handoff；后续继续保持小步提交。
 
 ### Room 数据流当前边界
 
@@ -486,9 +499,11 @@ Current composer data flow:
 7. `ComposerAgentSkillCatalogLoader` mirrors iOS skill loading: room-agent runtime skill catalog first using the current session user as `runtimeOwnerUserId`, then legacy installed skills as fallback. Legacy lookup tries the target mxid and then the mxid localpart.
 8. `MessageComposerState.agentSkillState` exposes known agent mxids, direct-room/mentioned skill targets, loaded candidates, selected skills, loading/error status, and candidate metadata for the future skill picker UI.
 
-Pending composer parity:
+Composer skill parity status:
 
-- Skill picker UI and send/insert behavior.
+- Skill picker UI 已接入 `ComposerAgentSkillPickerView`，状态来自 `ComposerAgentSkillState`。
+- 发送 selected skills 时走 `JoinedRoom.sendRawRoomMessage`，保留 iOS 同形状顶层 `skills` 字段和可选 `device_id`。
+- 后续只允许扩展 reducer/model；不要在 picker Composable 里直接请求 skill/agent API。
 
 Room action menu data parity:
 
@@ -500,6 +515,13 @@ Verification on this branch:
 
 - `./gradlew :libraries:agentstream:testDebugUnitTest` passed.
 - `./gradlew :features:messages:impl:compileDebugKotlin` passed.
+- `./gradlew :libraries:agentstream:testDebugUnitTest --tests 'io.element.android.libraries.agentstream.api.DefaultAgentStreamClientTest' --tests 'io.element.android.libraries.agentstream.api.StreamSnapshotUpdatePolicyTest' --console=plain` passed.
+- `./gradlew :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.timeline.components.event.toolcards.ToolCardDispatcherTest' --tests 'io.element.android.features.messages.impl.timeline.components.event.toolcards.ToolCardDispatcherCoverageTest' --console=plain` passed.
+- `./gradlew :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.timeline.components.event.TimelineItemAiPresenterTest' --tests 'io.element.android.features.messages.impl.timeline.factories.event.TimelineItemContentFactoryTest' --console=plain` passed.
+- `./gradlew :app:assembleGplayDebug --console=plain` passed on 2026-06-14. APKs:
+  - `app/build/outputs/apk/gplay/debug/app-gplay-arm64-v8a-debug.apk`
+  - `app/build/outputs/apk/gplay/debug/app-gplay-universal-debug.apk`
+- Install was attempted with `/usr/local/share/android-commandlinetools/platform-tools/adb install -r app/build/outputs/apk/gplay/debug/app-gplay-arm64-v8a-debug.apk`, but adb currently reports no connected devices/emulators. Re-run `$ADB devices` after the phone is visible.
 - `./gradlew :features:messages:impl:testDebugUnitTest` completed 575 tests with one flaky unrelated `MessagesViewTest > live location banner is hidden when current room is not sharing`; rerunning that single test passed.
 - Latest targeted checks passed:
   - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests '*roomdata*'`
