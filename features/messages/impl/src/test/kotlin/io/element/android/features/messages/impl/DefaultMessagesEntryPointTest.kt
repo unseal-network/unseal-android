@@ -23,6 +23,7 @@ import io.element.android.features.messages.api.MessagesEntryPoint
 import io.element.android.features.messages.impl.pinned.banner.createPinnedEventsTimelineProvider
 import io.element.android.features.messages.impl.timeline.createTimelineController
 import io.element.android.features.poll.test.create.FakeCreatePollEntryPoint
+import io.element.android.features.webhooks.test.FakeWebhookTriggersEntryPoint
 import io.element.android.libraries.androidutils.system.DeviceHasVulkanSupport
 import io.element.android.libraries.dateformatter.test.FakeDateFormatter
 import io.element.android.libraries.matrix.api.core.EventId
@@ -64,6 +65,7 @@ class DefaultMessagesEntryPointTest {
                 buildContext = buildContext,
                 plugins = plugins,
                 roomListService = FakeRoomListService(),
+                context = mockk(relaxed = true),
                 sessionId = A_SESSION_ID,
                 shareLocationEntryPoint = FakeShareLocationEntryPoint(),
                 showLocationEntryPoint = FakeShowLocationEntryPoint(),
@@ -86,6 +88,7 @@ class DefaultMessagesEntryPointTest {
                 pinnedEventsTimelineProvider = createPinnedEventsTimelineProvider(),
                 timelineController = createTimelineController(),
                 knockRequestsListEntryPoint = FakeKnockRequestsListEntryPoint(),
+                webhookTriggersEntryPoint = FakeWebhookTriggersEntryPoint(),
                 dateFormatter = FakeDateFormatter(),
                 coroutineDispatchers = testCoroutineDispatchers(),
                 hasVulkanSupport = DeviceHasVulkanSupport(mockk(relaxed = true))

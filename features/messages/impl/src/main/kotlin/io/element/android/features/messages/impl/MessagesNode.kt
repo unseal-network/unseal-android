@@ -136,6 +136,7 @@ class MessagesNode(
         fun navigateToRoomDetails()
         fun navigateToPinnedMessagesList()
         fun navigateToRoomSchedules(roomId: RoomId, roomName: String, joinedRoom: JoinedRoom)
+        fun navigateToRoomWebhooks(roomId: RoomId, roomName: String)
         fun navigateToKnockRequestsList()
         fun navigateToDeveloperSettings()
 
@@ -310,6 +311,12 @@ class MessagesNode(
                         roomId = room.roomId,
                         roomName = state.roomName ?: room.roomId.value,
                         joinedRoom = room,
+                    )
+                },
+                onRoomWebhooksClick = {
+                    callback.navigateToRoomWebhooks(
+                        roomId = room.roomId,
+                        roomName = state.roomName ?: room.roomId.value,
                     )
                 },
                 onViewAllPinnedMessagesClick = callback::navigateToPinnedMessagesList,

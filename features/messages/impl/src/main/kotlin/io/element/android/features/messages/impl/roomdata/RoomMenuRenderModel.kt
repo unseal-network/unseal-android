@@ -57,6 +57,7 @@ data class RoomWorkingMemoryMenuState(
 enum class RoomTopbarAction {
     Threads,
     Schedules,
+    Webhooks,
     DeviceAgentChat,
     DeviceAgentTerminal,
 }
@@ -89,6 +90,7 @@ object RoomMenuReducer {
             }
             if (context?.hasAgentInRoom == true) {
                 add(RoomTopbarAction.Schedules)
+                add(RoomTopbarAction.Webhooks)
             }
             if (deviceAgent != null) {
                 add(RoomTopbarAction.DeviceAgentChat)

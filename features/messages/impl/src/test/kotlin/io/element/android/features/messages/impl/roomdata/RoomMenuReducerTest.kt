@@ -46,7 +46,10 @@ class RoomMenuReducerTest {
             isThreadTimeline = false,
         )
 
-        assertThat(roomMenu.topbarActions).containsExactly(RoomTopbarAction.Schedules)
+        assertThat(roomMenu.topbarActions).containsExactly(
+            RoomTopbarAction.Schedules,
+            RoomTopbarAction.Webhooks,
+        ).inOrder()
         assertThat(roomMenu.scheduleBadge?.activeScheduleCount).isEqualTo(2)
         assertThat(roomMenu.scheduleBadge?.isLoading).isFalse()
     }
@@ -61,6 +64,7 @@ class RoomMenuReducerTest {
 
         assertThat(roomMenu.topbarActions).containsExactly(
             RoomTopbarAction.Schedules,
+            RoomTopbarAction.Webhooks,
             RoomTopbarAction.DeviceAgentChat,
             RoomTopbarAction.DeviceAgentTerminal,
         ).inOrder()
@@ -98,6 +102,7 @@ class RoomMenuReducerTest {
 
         assertThat(roomMenu.webhookSummary?.totalCount).isEqualTo(3)
         assertThat(roomMenu.webhookSummary?.activeCount).isEqualTo(2)
+        assertThat(roomMenu.topbarActions).contains(RoomTopbarAction.Webhooks)
         assertThat(roomMenu.workingMemory?.hasContent).isTrue()
         assertThat(roomMenu.workingMemory?.preview).isEqualTo("Remember this room prefers concise agent replies.")
     }

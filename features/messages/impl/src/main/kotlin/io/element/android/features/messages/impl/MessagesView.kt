@@ -158,6 +158,7 @@ fun MessagesView(
     onCreatePollClick: () -> Unit,
     onJoinCallClick: (isAudioCall: Boolean) -> Unit,
     onRoomSchedulesClick: () -> Unit,
+    onRoomWebhooksClick: () -> Unit = {},
     onViewAllPinnedMessagesClick: () -> Unit,
     onThreadsListClick: () -> Unit,
     onDeviceAgentChatClick: (RoomDeviceAgent) -> Unit = {},
@@ -263,6 +264,7 @@ fun MessagesView(
                                     roomCallState = state.roomCallState,
                                     onJoinCallClick = onJoinCallClick,
                                     onRoomSchedulesClick = onRoomSchedulesClick,
+                                    onRoomWebhooksClick = onRoomWebhooksClick,
                                     onThreadsListClick = onThreadsListClick,
                                     onDeviceAgentChatClick = {
                                         state.eventSink(MessagesEvent.ToggleDeviceAgentChat(it))
@@ -447,6 +449,7 @@ internal fun RowScope.MessagesMenuActions(
     roomCallState: RoomCallState,
     onJoinCallClick: (isAudioCall: Boolean) -> Unit,
     onRoomSchedulesClick: () -> Unit,
+    onRoomWebhooksClick: () -> Unit = {},
     onThreadsListClick: () -> Unit,
     onDeviceAgentChatClick: (RoomDeviceAgent) -> Unit = {},
     onDeviceAgentTerminalClick: (RoomDeviceAgent) -> Unit = {},
@@ -466,6 +469,7 @@ internal fun RowScope.MessagesMenuActions(
     RoomToolMenu(
         roomMenu = roomMenu,
         onRoomSchedulesClick = onRoomSchedulesClick,
+        onRoomWebhooksClick = onRoomWebhooksClick,
         onDeviceAgentChatClick = onDeviceAgentChatClick,
         onDeviceAgentTerminalClick = onDeviceAgentTerminalClick,
     )
@@ -476,10 +480,12 @@ internal fun RowScope.MessagesMenuActions(
 private fun RoomToolMenu(
     roomMenu: RoomMenuRenderModel,
     onRoomSchedulesClick: () -> Unit,
+    onRoomWebhooksClick: () -> Unit,
     onDeviceAgentChatClick: (RoomDeviceAgent) -> Unit,
     onDeviceAgentTerminalClick: (RoomDeviceAgent) -> Unit,
 ) {
     val hasTools = roomMenu.hasTopbarAction(RoomTopbarAction.Schedules) ||
+        roomMenu.hasTopbarAction(RoomTopbarAction.Webhooks) ||
         roomMenu.hasTopbarAction(RoomTopbarAction.DeviceAgentChat) ||
         roomMenu.hasTopbarAction(RoomTopbarAction.DeviceAgentTerminal)
     if (!hasTools) return
@@ -573,6 +579,27 @@ private fun RoomToolMenu(
                         Icon(
                             imageVector = CompoundIcons.Time(),
                             contentDescription = "Room AI Config",
+                        )
+                    }
+                }
+                if (roomMenu.hasTopbarAction(RoomTopbarAction.Webhooks)) {
+                    ToolbarCircleButton(
+                        onClick = {
+                            expanded = false
+                            onRoomWebhooksClick()
+                        },
+                        badgeContent = {
+                            val count = roomMenu.webhookSummary?.activeCount ?: 0
+                            if (count > 0) {
+                                Badge {
+                                    Text(count.toString())
+                                }
+                            }
+                        },
+                    ) {
+                        Icon(
+                            imageVector = CompoundIcons.Link(),
+                            contentDescription = "Webhook triggers",
                         )
                     }
                 }

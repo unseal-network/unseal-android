@@ -8,6 +8,7 @@
 
 package io.element.android.features.messages.impl
 
+import android.content.Context
 import android.os.Parcelable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -57,7 +58,9 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 import io.element.android.features.messages.impl.timeline.model.event.duration
 import io.element.android.features.poll.api.create.CreatePollEntryPoint
 import io.element.android.features.poll.api.create.CreatePollMode
+import io.element.android.features.webhooks.api.WebhookTriggersEntryPoint
 import io.element.android.libraries.androidutils.system.DeviceHasVulkanSupport
+import io.element.android.libraries.androidutils.system.openUrlInExternalApp
 import io.element.android.libraries.architecture.BackstackWithOverlayBox
 import io.element.android.libraries.architecture.BaseFlowNode
 import io.element.android.libraries.architecture.callback
@@ -70,6 +73,7 @@ import io.element.android.libraries.dateformatter.api.DateFormatter
 import io.element.android.libraries.dateformatter.api.DateFormatterMode
 import io.element.android.libraries.dateformatter.api.toHumanReadableDuration
 import io.element.android.libraries.di.RoomScope
+import io.element.android.libraries.di.annotations.ApplicationContext
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.SessionId
@@ -96,7 +100,9 @@ import io.element.android.services.analytics.api.AnalyticsService
 import io.element.android.services.analyticsproviders.api.trackers.captureInteraction
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.withContext
 import kotlinx.parcelize.Parcelize
@@ -108,6 +114,7 @@ class MessagesFlowNode(
     @Assisted buildContext: BuildContext,
     @Assisted plugins: List<Plugin>,
     private val roomListService: RoomListService,
+    @ApplicationContext private val context: Context,
     private val sessionId: SessionId,
     private val shareLocationEntryPoint: ShareLocationEntryPoint,
     private val showLocationEntryPoint: ShowLocationEntryPoint,
@@ -125,6 +132,7 @@ class MessagesFlowNode(
     private val pinnedEventsTimelineProvider: DefaultPinnedEventsTimelineProvider,
     private val timelineController: TimelineController,
     private val knockRequestsListEntryPoint: KnockRequestsListEntryPoint,
+    private val webhookTriggersEntryPoint: WebhookTriggersEntryPoint,
     private val dateFormatter: DateFormatter,
     private val coroutineDispatchers: CoroutineDispatchers,
     private val hasVulkanSupport: DeviceHasVulkanSupport,
@@ -191,10 +199,14 @@ class MessagesFlowNode(
 
         @Parcelize
         data object ThreadsList : NavTarget
+
+        @Parcelize
+        data class RoomWebhooks(val roomId: RoomId, val roomName: String) : NavTarget
     }
 
     private val params = plugins.filterIsInstance<MessagesEntryPoint.Params>().first()
     private val callback: MessagesEntryPoint.Callback = callback()
+    private val localRoomConfigChangeRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
     private var displayVulkanNotSupportedError by mutableStateOf(false)
 
@@ -318,6 +330,10 @@ class MessagesFlowNode(
                         callback.navigateToRoomSchedules(roomId, roomName, joinedRoom)
                     }
 
+                    override fun navigateToRoomWebhooks(roomId: RoomId, roomName: String) {
+                        backstack.push(NavTarget.RoomWebhooks(roomId, roomName))
+                    }
+
                     override fun navigateToKnockRequestsList() {
                         backstack.push(NavTarget.KnockRequestsList)
                     }
@@ -336,7 +352,7 @@ class MessagesFlowNode(
                 }
                 val inputs = MessagesNode.Inputs(
                     focusedEventId = navTarget.focusedEventId,
-                    roomConfigChangeRequests = params.roomConfigChangeRequests,
+                    roomConfigChangeRequests = merge(params.roomConfigChangeRequests, localRoomConfigChangeRequests),
                 )
                 createNode<MessagesNode>(buildContext, listOf(callback, inputs))
             }
@@ -485,6 +501,31 @@ class MessagesFlowNode(
             }
             NavTarget.KnockRequestsList -> {
                 knockRequestsListEntryPoint.createNode(this, buildContext)
+            }
+            is NavTarget.RoomWebhooks -> {
+                webhookTriggersEntryPoint.createNode(
+                    parentNode = this,
+                    buildContext = buildContext,
+                    params = WebhookTriggersEntryPoint.Params(
+                        initialTarget = WebhookTriggersEntryPoint.InitialTarget.Room(
+                            roomId = navTarget.roomId,
+                            roomName = navTarget.roomName,
+                        ),
+                    ),
+                    callback = object : WebhookTriggersEntryPoint.Callback {
+                        override fun onDone() {
+                            backstack.pop()
+                        }
+
+                        override fun onTriggersChanged() {
+                            localRoomConfigChangeRequests.tryEmit(Unit)
+                        }
+
+                        override fun onOpenConnectUrl(url: String) {
+                            context.openUrlInExternalApp(url)
+                        }
+                    },
+                )
             }
             is NavTarget.Thread -> {
                 val inputs = ThreadedMessagesNode.Inputs(
