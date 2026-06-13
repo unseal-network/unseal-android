@@ -73,6 +73,7 @@ import io.element.android.services.analytics.api.AnalyticsService
 import io.element.android.services.appnavstate.api.AppNavigationStateService
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 
 @ContributesNode(RoomScope::class)
@@ -120,6 +121,7 @@ class ThreadedMessagesNode(
                 timelineMode = timelineController.mainTimelineMode(),
             ),
             timelineController = timelineController,
+            roomConfigChangeRequests = emptyFlow(),
         )
     }
 

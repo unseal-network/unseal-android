@@ -193,6 +193,7 @@ class MessagesFlowNode(
         data object ThreadsList : NavTarget
     }
 
+    private val params = plugins.filterIsInstance<MessagesEntryPoint.Params>().first()
     private val callback: MessagesEntryPoint.Callback = callback()
 
     private var displayVulkanNotSupportedError by mutableStateOf(false)
@@ -333,7 +334,10 @@ class MessagesFlowNode(
                         callback.navigateToDeveloperSettings()
                     }
                 }
-                val inputs = MessagesNode.Inputs(focusedEventId = navTarget.focusedEventId)
+                val inputs = MessagesNode.Inputs(
+                    focusedEventId = navTarget.focusedEventId,
+                    roomConfigChangeRequests = params.roomConfigChangeRequests,
+                )
                 createNode<MessagesNode>(buildContext, listOf(callback, inputs))
             }
             is NavTarget.MediaViewer -> {

@@ -76,6 +76,7 @@ import io.element.android.services.analytics.api.finishLongRunningTransaction
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
 @ContributesNode(RoomScope::class)
@@ -99,6 +100,7 @@ class MessagesNode(
 ) : Node(buildContext, plugins = plugins), MessagesNavigator {
     data class Inputs(
         val focusedEventId: EventId?,
+        val roomConfigChangeRequests: Flow<Unit>,
     ) : NodeInputs
 
     private val inputs = inputs<Inputs>()
@@ -114,6 +116,7 @@ class MessagesNode(
             timelineMode = timelineController.mainTimelineMode(),
         ),
         timelineController = timelineController,
+        roomConfigChangeRequests = inputs.roomConfigChangeRequests,
     )
 
     interface Callback : Plugin {

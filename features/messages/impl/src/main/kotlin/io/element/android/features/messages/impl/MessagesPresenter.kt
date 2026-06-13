@@ -98,6 +98,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -136,6 +137,7 @@ class MessagesPresenter(
     private val liveLocationShareManager: ActiveLiveLocationShareManager,
     private val roomUnsealContextStore: RoomUnsealContextStore,
     @SessionCoroutineScope private val sessionCoroutineScope: CoroutineScope,
+    @Assisted private val roomConfigChangeRequests: Flow<Unit>,
 ) : Presenter<MessagesState> {
     @AssistedFactory
     interface Factory {
@@ -145,6 +147,7 @@ class MessagesPresenter(
             timelinePresenter: Presenter<TimelineState>,
             actionListPresenter: Presenter<ActionListState>,
             timelineController: TimelineController,
+            roomConfigChangeRequests: Flow<Unit>,
         ): MessagesPresenter
     }
 
@@ -224,6 +227,11 @@ class MessagesPresenter(
         }
         LaunchedEffect(room.roomId) {
             roomUnsealContextStore.refresh()
+        }
+        LaunchedEffect(roomConfigChangeRequests) {
+            roomConfigChangeRequests.collectLatest {
+                roomUnsealContextStore.refresh(force = true)
+            }
         }
         LifecycleResumeEffect(Unit) {
             if (!roomUnsealContextState.isLoading()) {
