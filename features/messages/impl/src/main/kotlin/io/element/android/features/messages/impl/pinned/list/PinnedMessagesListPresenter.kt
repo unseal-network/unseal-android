@@ -88,6 +88,7 @@ class PinnedMessagesListPresenter(
         config = TimelineItemsFactoryConfig(
             computeReadReceipts = false,
             computeReactions = false,
+            roomId = room.roomId.value,
         )
     )
 

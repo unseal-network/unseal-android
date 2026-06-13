@@ -156,7 +156,7 @@ class TimelineItemAiPresenter(
                 request = StreamRequest(
                     streamId = streamId,
                     sender = fallbackContent.sender.orEmpty(),
-                    roomId = "",
+                    roomId = fallbackContent.roomId.orEmpty(),
                     eventId = fallbackContent.eventId.orEmpty(),
                     includeRawEvents = false,
                 ),

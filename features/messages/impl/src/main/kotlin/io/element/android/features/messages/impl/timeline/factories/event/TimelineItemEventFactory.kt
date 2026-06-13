@@ -105,7 +105,7 @@ class TimelineItemEventFactory(
         }
 
         val content = contentFactory.create(currentTimelineItem.event, roomKeyRecoveryStatuses)
-            .withTimelineContext(eventId = currentTimelineItem.eventId?.value)
+            .withTimelineContext(roomId = config.roomId, eventId = currentTimelineItem.eventId?.value)
 
         return TimelineItem.Event(
             id = currentTimelineItem.uniqueId,
@@ -136,9 +136,9 @@ class TimelineItemEventFactory(
         )
     }
 
-    private fun TimelineItemEventContent.withTimelineContext(eventId: String?): TimelineItemEventContent {
+    private fun TimelineItemEventContent.withTimelineContext(roomId: String?, eventId: String?): TimelineItemEventContent {
         return when (this) {
-            is TimelineItemAiContent -> copy(eventId = eventId)
+            is TimelineItemAiContent -> copy(roomId = roomId, eventId = eventId)
             else -> this
         }
     }
@@ -151,7 +151,7 @@ class TimelineItemEventFactory(
     ): TimelineItem.Event {
         return timelineItem.copy(
             content = contentFactory.create(receivedMatrixTimelineItem.event, roomKeyRecoveryStatuses)
-                .withTimelineContext(eventId = receivedMatrixTimelineItem.eventId?.value),
+                .withTimelineContext(roomId = config.roomId, eventId = receivedMatrixTimelineItem.eventId?.value),
             readReceiptState = receivedMatrixTimelineItem.computeReadReceiptState(roomMembers)
         )
     }

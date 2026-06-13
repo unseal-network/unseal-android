@@ -118,6 +118,7 @@ class TimelinePresenter(
         config = TimelineItemsFactoryConfig(
             computeReadReceipts = true,
             computeReactions = true,
+            roomId = room.roomId.value,
         )
     )
     private var timelineItems by mutableStateOf<ImmutableList<TimelineItem>>(persistentListOf())

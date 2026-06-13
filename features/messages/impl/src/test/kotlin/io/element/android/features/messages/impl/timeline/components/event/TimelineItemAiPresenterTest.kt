@@ -44,7 +44,12 @@ class TimelineItemAiPresenterTest {
     fun `present - uses sdk stream id and maps subscribed snapshots`() = runTest {
         val client = FakeAgentStreamClient()
         val presenter = createPresenter(
-            content = aTimelineItemAiContent(streamId = "stream-1", sender = "@bot:keepsecret.io", eventId = "\$event-1"),
+            content = aTimelineItemAiContent(
+                streamId = "stream-1",
+                sender = "@bot:keepsecret.io",
+                roomId = "!room:keepsecret.io",
+                eventId = "\$event-1",
+            ),
             agentStreamClient = client,
             dispatchers = testCoroutineDispatchers(useUnconfinedTestDispatcher = true),
         )
@@ -75,7 +80,7 @@ class TimelineItemAiPresenterTest {
             StreamRequest(
                 streamId = "stream-1",
                 sender = "@bot:keepsecret.io",
-                roomId = "",
+                roomId = "!room:keepsecret.io",
                 eventId = "\$event-1",
                 includeRawEvents = false,
             )
@@ -505,6 +510,7 @@ class TimelineItemAiPresenterTest {
         fun aTimelineItemAiContent(
             streamId: String? = null,
             sender: String? = null,
+            roomId: String? = null,
             eventId: String? = null,
             parts: ImmutableList<AiStreamPart> = persistentListOf(),
         ): TimelineItemAiContent {
@@ -514,6 +520,7 @@ class TimelineItemAiPresenterTest {
                 isStreaming = true,
                 streamId = streamId,
                 sender = sender,
+                roomId = roomId,
                 eventId = eventId,
                 thinkingSteps = persistentListOf(),
                 toolCalls = persistentListOf(),
