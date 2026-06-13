@@ -39,8 +39,11 @@ import io.element.android.features.messages.impl.attachments.preview.error.sendA
 import io.element.android.features.messages.impl.draft.ComposerDraftService
 import io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerPresenter
 import io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerState
+import io.element.android.features.messages.impl.messagecomposer.suggestions.ComposerSuggestionReducer
+import io.element.android.features.messages.impl.messagecomposer.suggestions.ComposerSuggestionRenderModel
 import io.element.android.features.messages.impl.messagecomposer.suggestions.RoomAliasSuggestionsDataSource
 import io.element.android.features.messages.impl.messagecomposer.suggestions.SuggestionsProcessor
+import io.element.android.features.messages.impl.roomdata.RoomUnsealContextStore
 import io.element.android.features.messages.impl.timeline.TimelineController
 import io.element.android.features.messages.impl.utils.TextPillificationHelper
 import io.element.android.libraries.architecture.AsyncAction
@@ -131,6 +134,7 @@ class MessageComposerPresenter(
     private val mentionSpanProvider: MentionSpanProvider,
     private val pillificationHelper: TextPillificationHelper,
     private val suggestionsProcessor: SuggestionsProcessor,
+    private val roomUnsealContextStore: RoomUnsealContextStore,
     private val mediaOptimizationConfigProvider: MediaOptimizationConfigProvider,
     private val notificationConversationService: NotificationConversationService,
     private val slashCommandService: SlashCommandService,
@@ -213,7 +217,12 @@ class MessageComposerPresenter(
         }
 
         val suggestions = remember { mutableStateListOf<ResolvedSuggestion>() }
-        ResolveSuggestionsEffect(suggestions)
+        val suggestionRenderModels = remember { mutableStateListOf<ComposerSuggestionRenderModel>() }
+        ResolveSuggestionsEffect(suggestions, suggestionRenderModels)
+
+        LaunchedEffect(Unit) {
+            roomUnsealContextStore.refresh()
+        }
 
         DisposableEffect(Unit) {
             // Declare that the user is not typing anymore when the composer is disposed
@@ -415,6 +424,7 @@ class MessageComposerPresenter(
             showTextFormatting = showTextFormatting,
             canShareLocation = canShareLocation.value,
             suggestions = suggestions.toImmutableList(),
+            suggestionRenderModels = suggestionRenderModels.toImmutableList(),
             resolveMentionDisplay = resolveMentionDisplay,
             resolveAtRoomMentionDisplay = resolveAtRoomMentionDisplay,
             slashCommandAction = slashCommandAction.value,
@@ -427,6 +437,7 @@ class MessageComposerPresenter(
     @Composable
     private fun ResolveSuggestionsEffect(
         suggestions: SnapshotStateList<ResolvedSuggestion>,
+        suggestionRenderModels: SnapshotStateList<ComposerSuggestionRenderModel>,
     ) {
         LaunchedEffect(Unit) {
             val currentUserId = room.sessionId
@@ -449,7 +460,7 @@ class MessageComposerPresenter(
                 .getAllRoomAliasSuggestions()
                 .stateIn(this, SharingStarted.Lazily, emptyList())
 
-            combine(mentionTriggerFlow, room.membersStateFlow, roomAliasSuggestionsFlow) { suggestion, roomMembersState, roomAliasSuggestions ->
+            combine(mentionTriggerFlow, room.membersStateFlow, roomAliasSuggestionsFlow, roomUnsealContextStore.context) { suggestion, roomMembersState, roomAliasSuggestions, roomUnsealContextState ->
                 val result = suggestionsProcessor.process(
                     suggestion = suggestion,
                     roomMembersState = roomMembersState,
@@ -460,6 +471,8 @@ class MessageComposerPresenter(
                 )
                 suggestions.clear()
                 suggestions.addAll(result)
+                suggestionRenderModels.clear()
+                suggestionRenderModels.addAll(ComposerSuggestionReducer.fromResolvedSuggestions(result, roomUnsealContextState.dataOrNull()))
             }
                 .collect()
         }

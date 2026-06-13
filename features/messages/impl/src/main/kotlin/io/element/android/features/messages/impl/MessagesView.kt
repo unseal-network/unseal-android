@@ -304,6 +304,7 @@ fun MessagesView(
                             roomName = state.roomName,
                             roomAvatarData = state.roomAvatar,
                             suggestions = state.composerState.suggestions,
+                            suggestionRenderModels = state.composerState.suggestionRenderModels,
                             onSelectSuggestion = {
                                 state.composerState.eventSink(MessageComposerEvent.InsertSuggestion(it))
                             }

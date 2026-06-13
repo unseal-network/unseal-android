@@ -10,6 +10,7 @@ package io.element.android.features.messages.impl.messagecomposer.suggestions
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
 import io.element.android.libraries.core.data.filterUpTo
 import io.element.android.libraries.matrix.api.core.UserId
+import io.element.android.libraries.textcomposer.mentions.ResolvedSuggestion
 
 data class ComposerSuggestionRenderModel(
     val id: String,
@@ -78,6 +79,57 @@ object ComposerSuggestionReducer {
             ) + memberSuggestions
         } else {
             memberSuggestions
+        }
+    }
+
+    fun fromResolvedSuggestions(
+        suggestions: List<ResolvedSuggestion>,
+        context: RoomUnsealContext?,
+    ): List<ComposerSuggestionRenderModel> {
+        return suggestions.map { suggestion ->
+            when (suggestion) {
+                ResolvedSuggestion.AtRoom -> ComposerSuggestionRenderModel(
+                    id = "@room",
+                    displayName = "Everyone",
+                    subtitle = "@room",
+                    avatarUrl = null,
+                    kind = ComposerSuggestionKind.AllUsers,
+                    isAgent = false,
+                    insertPayload = ComposerSuggestionInsertPayload.RoomMention,
+                )
+                is ResolvedSuggestion.Member -> {
+                    val member = suggestion.roomMember
+                    val enrichedMember = context?.members?.firstOrNull { it.userId == member.userId }
+                    val isAgent = enrichedMember?.isAgent == true
+                    ComposerSuggestionRenderModel(
+                        id = member.userId.value,
+                        displayName = member.displayName,
+                        subtitle = member.userId.value,
+                        avatarUrl = member.avatarUrl,
+                        kind = if (isAgent) ComposerSuggestionKind.Agent else ComposerSuggestionKind.User,
+                        isAgent = isAgent,
+                        insertPayload = ComposerSuggestionInsertPayload.UserMention(member.userId),
+                    )
+                }
+                is ResolvedSuggestion.Alias -> ComposerSuggestionRenderModel(
+                    id = suggestion.roomId.value,
+                    displayName = suggestion.roomName,
+                    subtitle = suggestion.roomAlias.value,
+                    avatarUrl = suggestion.roomAvatarUrl,
+                    kind = ComposerSuggestionKind.Room,
+                    isAgent = false,
+                    insertPayload = ComposerSuggestionInsertPayload.RoomAlias(suggestion.roomId.value, suggestion.roomAlias.value),
+                )
+                is ResolvedSuggestion.Command -> ComposerSuggestionRenderModel(
+                    id = suggestion.command.command,
+                    displayName = suggestion.command.command,
+                    subtitle = suggestion.command.description,
+                    avatarUrl = null,
+                    kind = ComposerSuggestionKind.Command,
+                    isAgent = false,
+                    insertPayload = ComposerSuggestionInsertPayload.Command(suggestion.command.command),
+                )
+            }
         }
     }
 

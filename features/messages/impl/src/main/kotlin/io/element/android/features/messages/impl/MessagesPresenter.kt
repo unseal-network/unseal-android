@@ -40,7 +40,7 @@ import io.element.android.features.messages.impl.messagecomposer.MessageComposer
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerState
 import io.element.android.features.messages.impl.roomdata.RoomMenuReducer
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
-import io.element.android.features.messages.impl.roomdata.RoomUnsealContextLoader
+import io.element.android.features.messages.impl.roomdata.RoomUnsealContextStore
 import io.element.android.features.messages.impl.timeline.MarkAsFullyRead
 import io.element.android.features.messages.impl.timeline.TimelineController
 import io.element.android.features.messages.impl.timeline.TimelineEvent
@@ -134,7 +134,7 @@ class MessagesPresenter(
     private val addRecentEmoji: AddRecentEmoji,
     private val markAsFullyRead: MarkAsFullyRead,
     private val liveLocationShareManager: ActiveLiveLocationShareManager,
-    private val roomUnsealContextLoader: RoomUnsealContextLoader,
+    private val roomUnsealContextStore: RoomUnsealContextStore,
     @SessionCoroutineScope private val sessionCoroutineScope: CoroutineScope,
 ) : Presenter<MessagesState> {
     @AssistedFactory
@@ -173,9 +173,7 @@ class MessagesPresenter(
         val pinnedMessagesBannerState = pinnedMessagesBannerPresenter.present()
         val roomCallState = roomCallStatePresenter.present()
         val roomMemberModerationState = roomMemberModerationPresenter.present()
-        val roomUnsealContextState = remember {
-            mutableStateOf<AsyncData<RoomUnsealContext>>(AsyncData.Uninitialized)
-        }
+        val roomUnsealContextState by roomUnsealContextStore.context.collectAsState()
         val threadsList by produceState(persistentListOf()) {
             room.threadsListService.subscribeToItemUpdates()
                 .onStart { room.threadsListService.paginate() }
@@ -199,39 +197,18 @@ class MessagesPresenter(
         var hasDismissedInviteDialog by rememberSaveable {
             mutableStateOf(false)
         }
-        suspend fun loadRoomUnsealContext() {
-            val previousContext = roomUnsealContextState.value.dataOrNull()
-            roomUnsealContextState.value = AsyncData.Loading(prevData = previousContext)
-            runCatchingExceptions {
-                withContext(dispatchers.io) {
-                    roomUnsealContextLoader.load()
-                }
-            }.onSuccess { context ->
-                roomUnsealContextState.value = AsyncData.Success(context)
-                Timber.i(
-                    "RoomUnsealContext loaded roomId=${context.roomId.value} " +
-                        "members=${context.members.size} agents=${context.roomAgents.size} " +
-                        "hasAgent=${context.hasAgentInRoom} activeSchedules=${context.activeScheduleCount} " +
-                        "webhooks=${context.webhookTriggers.size} errors=${context.errors.size}"
-                )
-            }.onFailure { error ->
-                roomUnsealContextState.value = AsyncData.Failure(error, prevData = previousContext)
-                Timber.w(error, "Failed to load RoomUnsealContext for roomId=${room.roomId.value}")
-            }
-        }
-
         fun handleRoomScheduleBadgeEvent(event: RoomScheduleBadgeEvents) {
             when (event) {
-                RoomScheduleBadgeEvents.OnAppear -> if (roomUnsealContextState.value.isUninitialized()) {
-                    coroutineScope.launch { loadRoomUnsealContext() }
+                RoomScheduleBadgeEvents.OnAppear -> if (roomUnsealContextState.isUninitialized()) {
+                    coroutineScope.launch { roomUnsealContextStore.refresh() }
                 }
-                RoomScheduleBadgeEvents.Refresh -> if (!roomUnsealContextState.value.isLoading()) {
-                    coroutineScope.launch { loadRoomUnsealContext() }
+                RoomScheduleBadgeEvents.Refresh -> if (!roomUnsealContextState.isLoading()) {
+                    coroutineScope.launch { roomUnsealContextStore.refresh(force = true) }
                 }
             }
         }
 
-        val roomScheduleBadgeState = roomUnsealContextState.value.toRoomScheduleBadgeState(::handleRoomScheduleBadgeEvent)
+        val roomScheduleBadgeState = roomUnsealContextState.toRoomScheduleBadgeState(::handleRoomScheduleBadgeEvent)
 
         LaunchedEffect(Unit) {
             // Remove the unread flag on entering but don't send read receipts
@@ -246,11 +223,11 @@ class MessagesPresenter(
             }
         }
         LaunchedEffect(room.roomId) {
-            loadRoomUnsealContext()
+            roomUnsealContextStore.refresh()
         }
         LifecycleResumeEffect(Unit) {
-            if (!roomUnsealContextState.value.isLoading()) {
-                coroutineScope.launch { loadRoomUnsealContext() }
+            if (!roomUnsealContextState.isLoading()) {
+                coroutineScope.launch { roomUnsealContextStore.refresh(force = true) }
             }
             onPauseOrDispose {}
         }
@@ -374,9 +351,9 @@ class MessagesPresenter(
             enableTextFormatting = MessageComposerConfig.ENABLE_RICH_TEXT_EDITING,
             roomCallState = roomCallState,
             roomScheduleBadgeState = roomScheduleBadgeState,
-            roomUnsealContext = roomUnsealContextState.value,
+            roomUnsealContext = roomUnsealContextState,
             roomMenu = RoomMenuReducer.reduce(
-                roomUnsealContext = roomUnsealContextState.value,
+                roomUnsealContext = roomUnsealContextState,
                 hasThreads = threads.hasThreads,
                 isThreadTimeline = timelineState.timelineMode is Timeline.Mode.Thread,
             ),

@@ -16,6 +16,7 @@ import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.room.RoomMembershipState
 import io.element.android.libraries.matrix.test.room.aRoomMember
+import io.element.android.libraries.textcomposer.mentions.ResolvedSuggestion
 import org.junit.Test
 
 class ComposerSuggestionReducerTest {
@@ -87,6 +88,28 @@ class ComposerSuggestionReducerTest {
         )
 
         assertThat(suggestions.none { it.kind == ComposerSuggestionKind.AllUsers }).isTrue()
+    }
+
+    @Test
+    fun `fromResolvedSuggestions marks resolved members with room context agent data`() {
+        val context = RoomUnsealContext.from(
+            roomId = ROOM_ID,
+            members = listOf(aRoomMember(userId = AGENT_USER_ID, displayName = "Mail Agent", membership = RoomMembershipState.JOIN)),
+            snapshot = RoomUnsealDataSnapshot(
+                roomAgents = RoomUnsealResource.success(
+                    listOf(RoomAgentDescriptor(AGENT_USER_ID.value, "Mail Agent", null, null, "join"))
+                )
+            ),
+        )
+
+        val renderModels = ComposerSuggestionReducer.fromResolvedSuggestions(
+            suggestions = listOf(ResolvedSuggestion.Member(aRoomMember(userId = AGENT_USER_ID, displayName = "Mail Agent"))),
+            context = context,
+        )
+
+        assertThat(renderModels.single().kind).isEqualTo(ComposerSuggestionKind.Agent)
+        assertThat(renderModels.single().isAgent).isTrue()
+        assertThat(renderModels.single().insertPayload).isEqualTo(ComposerSuggestionInsertPayload.UserMention(AGENT_USER_ID))
     }
 
     private companion object {

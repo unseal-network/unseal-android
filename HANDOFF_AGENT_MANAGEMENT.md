@@ -169,9 +169,26 @@ val roomUnsealContext: AsyncData<RoomUnsealContext>
 `MessagesPresenter` 负责加载并暴露这个 context。`RoomScheduleBadgeState` 已经改为从 `roomUnsealContext` 派生：
 - `isVisible = context.hasAgentInRoom`
 - `activeScheduleCount = context.activeScheduleCount`
-- refresh 事件回到 `RoomUnsealContextLoader`
+- refresh 事件回到 room-scoped `RoomUnsealContextStore`
 
 这意味着 `MessagesPresenter` 不再调用旧的 `RoomScheduleBadgePresenter`，避免 room topbar 自己重复 `listAgents/listSchedules/updateMembers`。旧 `features/roomschedules` presenter 目前还留在模块里，后续可清理或改成消费共享 context。
+
+### RoomUnsealContext 共享 store
+
+新增：
+
+```text
+features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/roomdata/RoomUnsealContextStore.kt
+```
+
+包括：
+- `RoomUnsealContextStore`
+- `DefaultRoomUnsealContextStore`
+
+`MessagesPresenter` 和 `MessageComposerPresenter` 都消费同一个 RoomScope store：
+- `MessagesPresenter` 用它派生日程 badge、topbar actions、`roomUnsealContext` state。
+- `MessageComposerPresenter` 用它给 mention suggestion 生成 agent-aware render model。
+- `refresh()` 内部做 in-flight loading guard，避免多个 UI 入口重复拉 room agents / schedules / members。
 
 ### Composer suggestion 数据结构
 
@@ -186,13 +203,14 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 - `ComposerSuggestionKind`
 - `ComposerSuggestionInsertPayload`
 - `ComposerSuggestionReducer.memberSuggestions(...)`
+- `ComposerSuggestionReducer.fromResolvedSuggestions(...)`
 
 它先从 `RoomUnsealContext.members` 生成 agent-aware suggestion：
 - joined member 且非自己才显示
 - enriched agent member 输出 `kind=Agent`、`isAgent=true`
 - `@room` 只有 power level 允许且非 direct 1:1 时显示，并排在第一位
 
-现状：模型和 reducer 已有测试，但 UI 还没有切换到这个 render model。下一步应该把现有 `SuggestionsProcessor`/`SuggestionsPickerView` 接到该模型，而不是继续只用 `ResolvedSuggestion.Member`。
+现状：模型和 reducer 已有测试，`MessageComposerState` 已新增 `suggestionRenderModels`，`SuggestionsPickerView` 已接入该模型并显示 Agent badge。点击插入仍走原有 `ResolvedSuggestion`，保证 text composer 的 mention 插入逻辑不被破坏。
 
 ### 验证命令
 
@@ -226,11 +244,10 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 
 ### 后续执行顺序
 
-1. 把 composer mention picker 切到 `ComposerSuggestionRenderModel`，显示 Agent badge。
-2. 建 `ComposerAgentSkillState`，对齐 iOS direct agent slash、mentioned agent targets、runtime skill catalog、legacy fallback。
-3. 继续补 `ToolCallRootRenderModel`，把 tool root card 的数据结构从现有 `AiToolCardEntry` 升级为更完整的 root model。
-4. 做 attachment menu、long press menu、topbar overlay 的 iOS parity。
-5. 继续逐个 card fixture 做视觉和交互 parity。
+1. 建 `ComposerAgentSkillState`，对齐 iOS direct agent slash、mentioned agent targets、runtime skill catalog、legacy fallback。
+2. 继续补 `ToolCallRootRenderModel`，把 tool root card 的数据结构从现有 `AiToolCardEntry` 升级为更完整的 root model。
+3. 做 attachment menu、long press menu、topbar overlay 的 iOS parity。
+4. 继续逐个 card fixture 做视觉和交互 parity。
 
 ---
 

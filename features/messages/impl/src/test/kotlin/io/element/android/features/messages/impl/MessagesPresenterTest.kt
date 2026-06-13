@@ -30,9 +30,10 @@ import io.element.android.features.messages.impl.roomdata.RoomAgentDescriptor
 import io.element.android.features.messages.impl.roomdata.RoomAgentSkillDescriptor
 import io.element.android.features.messages.impl.roomdata.RoomLegacyAgentSkillDescriptor
 import io.element.android.features.messages.impl.roomdata.RoomScheduleDescriptor
+import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
 import io.element.android.features.messages.impl.roomdata.RoomUnsealDataClient
 import io.element.android.features.messages.impl.roomdata.RoomUnsealDataSnapshot
-import io.element.android.features.messages.impl.roomdata.RoomUnsealContextLoader
+import io.element.android.features.messages.impl.roomdata.FakeRoomUnsealContextStore
 import io.element.android.features.messages.impl.roomdata.RoomUnsealResource
 import io.element.android.features.messages.impl.roomdata.RoomWebhookTriggerDescriptor
 import io.element.android.features.messages.impl.threads.list.aThreadListItem
@@ -78,6 +79,7 @@ import io.element.android.libraries.matrix.api.room.RoomMembersState
 import io.element.android.libraries.matrix.api.room.RoomMembershipState
 import io.element.android.libraries.matrix.api.room.StateEventType
 import io.element.android.libraries.matrix.api.room.history.RoomHistoryVisibility
+import io.element.android.libraries.matrix.api.room.roomMembers
 import io.element.android.libraries.matrix.api.room.tombstone.SuccessorRoom
 import io.element.android.libraries.matrix.api.timeline.Timeline
 import io.element.android.libraries.matrix.api.timeline.item.TimelineItemDebugInfo
@@ -1430,7 +1432,7 @@ class MessagesPresenterTest {
         addRecentEmoji: AddRecentEmoji = AddRecentEmoji { _ -> lambdaError() },
         markAsFullyRead: MarkAsFullyRead = FakeMarkAsFullyRead(),
         liveLocationShareManager: FakeActiveLiveLocationShareManager = FakeActiveLiveLocationShareManager(),
-        roomUnsealDataClient: RoomUnsealDataClient = FakeRoomUnsealDataClient(),
+        roomUnsealDataClient: FakeRoomUnsealDataClient = FakeRoomUnsealDataClient(),
     ): MessagesPresenter {
         if (joinedRoom.membersStateFlow.value == RoomMembersState.Unknown) {
             joinedRoom.givenRoomMembersState(RoomMembersState.Ready(persistentListOf()))
@@ -1464,14 +1466,22 @@ class MessagesPresenterTest {
             addRecentEmoji = addRecentEmoji,
             markAsFullyRead = markAsFullyRead,
             liveLocationShareManager = liveLocationShareManager,
-            roomUnsealContextLoader = RoomUnsealContextLoader(joinedRoom, roomUnsealDataClient),
+            roomUnsealContextStore = FakeRoomUnsealContextStore(
+                AsyncData.Success(
+                    RoomUnsealContext.from(
+                        roomId = joinedRoom.roomId,
+                        members = joinedRoom.membersStateFlow.value.roomMembers().orEmpty(),
+                        snapshot = roomUnsealDataClient.snapshot,
+                    )
+                )
+            ),
             sessionCoroutineScope = backgroundScope,
         )
     }
 }
 
 private class FakeRoomUnsealDataClient(
-    private val snapshot: RoomUnsealDataSnapshot = RoomUnsealDataSnapshot(),
+    val snapshot: RoomUnsealDataSnapshot = RoomUnsealDataSnapshot(),
 ) : RoomUnsealDataClient {
     override suspend fun getRoomAgents(roomId: RoomId): Result<List<RoomAgentDescriptor>> = Result.success(emptyList())
     override suspend fun listAgents(): Result<List<AgentAccountDescriptor>> = Result.success(emptyList())

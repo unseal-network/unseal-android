@@ -221,9 +221,9 @@ Rules:
 
 | Feature | iOS owner | Android target owner | Data model | Implementation status |
 |---|---|---|---|---|
-| Agent mention badge | `CompletionSuggestionService` | composer suggestion reducer | `ComposerSuggestionRenderModel.isAgent` | Not started. |
-| Member suggestions | `CompletionSuggestionService.membersSuggestions` | composer suggestion reducer | `ComposerSuggestionRenderModel` | Not started. |
-| `@room` suggestion | `CompletionSuggestionService.membersSuggestions` | composer suggestion reducer | `kind=AllUsers` | Not started. |
+| Agent mention badge | `CompletionSuggestionService` | composer suggestion reducer + picker | `ComposerSuggestionRenderModel.isAgent` | Implemented; picker uses render model while insertion still uses `ResolvedSuggestion`. |
+| Member suggestions | `CompletionSuggestionService.membersSuggestions` | composer suggestion reducer + shared room context store | `ComposerSuggestionRenderModel` | Implemented for current member/alias/command suggestions; agent skill side effects pending. |
+| `@room` suggestion | `CompletionSuggestionService.membersSuggestions` | composer suggestion reducer | `kind=AllUsers` | Implemented in render model mapping; existing permission gate remains in `SuggestionsProcessor`. |
 | Direct agent slash target | `ComposerToolbarViewModel.updateDirectAgentSkillPickerForSlashTrigger` | composer skill reducer | `ComposerAgentDescriptor` | Not started. |
 | Mentioned agent targets | `ComposerToolbarViewModel.updateMentionedAgentTargets` | composer skill reducer | `ComposerAgentSkillState.agentTargets` | Not started. |
 | Runtime skill catalog | `loadRoomAgentSkillCatalogs` | composer skill loader | `ComposerAgentSkillCandidate` | Not started. |
@@ -321,6 +321,7 @@ Android room topbar must use the same context as the rest of the room:
 - Badge count is enabled schedules count.
 - Terminal / device-agent chat actions show only when a device agent exists.
 - Existing `RoomScheduleBadgePresenter` must stop duplicating agent/schedule requests and consume `RoomUnsealContext`.
+- Room context is owned by `RoomUnsealContextStore` in RoomScope so presenter, topbar, and composer share one loaded snapshot.
 
 ### P0: Composer Mention Suggestions
 
@@ -337,6 +338,8 @@ Target model:
 
 - `ComposerSuggestionRenderModel`
 - Fields: `id`, `displayName`, `subtitle`, `avatar`, `kind`, `isAgent`, `insertPayload`.
+- `MessageComposerState.suggestionRenderModels` is the UI-facing list.
+- `MessageComposerState.suggestions` remains the insertion-facing list for the existing text composer.
 
 ### P0: Composer Agent Skill Flow
 
