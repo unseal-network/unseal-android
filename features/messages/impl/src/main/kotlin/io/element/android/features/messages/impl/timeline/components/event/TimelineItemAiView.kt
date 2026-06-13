@@ -366,7 +366,7 @@ private fun ReasoningPart(part: AiReasoningStreamPart) {
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                text = (if (expanded) "▾ " else "▸ ") + if (isStreaming) "Thinking..." else "Thought",
+                text = (if (expanded) "▾ " else "▸ ") + if (isStreaming) "思考中" else "思考",
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -584,11 +584,7 @@ private fun ToolEntryContent(
                     onLinkLongClick = onLinkLongClick,
                 )
                 if (!rendered) {
-                    Text(
-                        text = if (isStreaming) "Waiting for tool output." else "Completed",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    ToolEmptyState(isStreaming = isStreaming)
                 }
             }
         }
@@ -606,11 +602,7 @@ private fun ToolCallingEntryContent(
         onLinkLongClick = {},
     )
     if (!rendered) {
-        Text(
-            text = if (allFinished) "Waiting for tool output." else "Running tool…",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        ToolEmptyState(isStreaming = !allFinished)
     }
 }
 
@@ -675,11 +667,7 @@ private fun ToolPartContent(
                     onLinkLongClick = onLinkLongClick,
                 )
                 if (!rendered) {
-                    Text(
-                        text = if (part.isDone) "Completed" else "Waiting for tool output.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    ToolEmptyState(isStreaming = !part.isDone)
                 }
             }
         }
@@ -701,15 +689,20 @@ private fun ToolCallingContent(
             onLinkLongClick = onLinkLongClick,
         )
         if (!rendered) {
-            Text(
-                text = if (allFinished) "Waiting for tool output." else "Running tool…",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            ToolEmptyState(isStreaming = !allFinished)
         }
     } else {
+        ToolEmptyState(isStreaming = !allFinished)
+    }
+}
+
+@Composable
+private fun ToolEmptyState(isStreaming: Boolean) {
+    if (isStreaming) {
+        AiLoadingIndicator()
+    } else {
         Text(
-            text = if (allFinished) "Waiting for tool output." else "Running tool…",
+            text = "Completed",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -1097,7 +1090,7 @@ private fun ThinkingSection(steps: List<AiThinkingStep>) {
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
-                text = (if (expanded) "▾ " else "▸ ") + "Thinking (${steps.size})",
+                text = (if (expanded) "▾ " else "▸ ") + "思考 (${steps.size})",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
