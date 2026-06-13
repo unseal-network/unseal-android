@@ -71,6 +71,7 @@ import io.element.android.features.messages.impl.messagecomposer.AttachmentsBott
 import io.element.android.features.messages.impl.messagecomposer.DisabledComposerView
 import io.element.android.features.messages.impl.messagecomposer.MessageComposerEvent
 import io.element.android.features.messages.impl.messagecomposer.MessageComposerView
+import io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillPickerView
 import io.element.android.features.messages.impl.messagecomposer.suggestions.SuggestionsPickerView
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerState
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerView
@@ -606,6 +607,21 @@ private fun MessagesViewComposerBottomSheetContents(
                 if (verificationViolation != null) {
                     DisabledComposerView(modifier = Modifier.fillMaxWidth())
                 } else {
+                    ComposerAgentSkillPickerView(
+                        state = state.composerState.agentSkillState,
+                        onTogglePicker = {
+                            state.composerState.eventSink(MessageComposerEvent.ToggleAgentSkillPicker)
+                        },
+                        onSelectTarget = {
+                            state.composerState.eventSink(MessageComposerEvent.SelectAgentSkillTarget(it))
+                        },
+                        onSelectSkill = {
+                            state.composerState.eventSink(MessageComposerEvent.SelectAgentSkill(it))
+                        },
+                        onRemoveSkill = {
+                            state.composerState.eventSink(MessageComposerEvent.RemoveSelectedAgentSkill(it))
+                        },
+                    )
                     MessageComposerView(
                         state = state.composerState,
                         voiceMessageState = state.voiceMessageComposerState,
