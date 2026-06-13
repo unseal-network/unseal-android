@@ -64,6 +64,55 @@ Every migrated feature must move through these gates. A feature is not considere
 | 6. UI | Compose component that consumes only render models | Makes UI replaceable without changing data logic. |
 | 7. Tests | Unit tests for API mapping/domain/reducer; screenshot/manual tests for UI | Catches regressions before visual polish work. |
 
+## Room Migration Workflow Checklist
+
+The room migration is split into four tracks. Each track must be implemented in order: **request client -> domain state -> reducer/render model -> Compose UI**. UI work that cannot point to a domain/render model in this table is incomplete.
+
+### Track A: Room API And Shared Context
+
+| Feature | iOS request/data source | Android request owner | Domain owner | Reducer/render output | P0 acceptance |
+|---|---|---|---|---|---|
+| Homeserver/unseal routing | `ChatbotAPIClientFactory.makeClient(userSession:appSettings:)`, `.well-known` backed API URL | `RoomUnsealDataClient` backed by `ChatbotApiServiceFactory.createForHomeserver(matrixClient)` | `RoomUnsealDataSnapshot` | `RoomUnsealContext` | No room feature hardcodes `api.unseal.network`; all room requests use logged-in homeserver routing. |
+| Matrix members | `JoinedRoomProxy.updateMembers()`: `membersNoSync()` first, then `members()` | `JoinedRoom.updateMembers()` plus current `membersStateFlow` | `RoomMemberRender` | member map in `RoomUnsealContext` and composer suggestions | Empty/unknown members trigger refresh; room context refreshes when member signature changes. |
+| Room-agent enrichment | `RoomAgentMemberEnricher.enrich(members:agents:)` | `RoomUnsealDataClient.getRoomAgents(roomId)` | `RoomAgentMemberEnricher`, `RoomMemberRender.isAgent` | agent badges, skill targets, menu visibility | Only joined Matrix members become agents; non-join room-agent membership is ignored; missing user type defaults to `agent`. |
+| Global agent/device metadata | `RoomScreenViewModel.loadActiveScheduleCount()` calls `listAgents()` | `RoomUnsealDataClient.listAgents()` | `AgentAccountDescriptor`, `RoomDeviceAgent` | `RoomMenuRenderModel.topbarActions`, composer device-agent send target | Device agent requires `metadata.agent_kind=device` and `metadata.bound_device_id`; terminal/chat actions hide without a device agent. |
+| Schedules | `RoomScreenViewModel.loadActiveScheduleCount()` calls `listSchedules(roomId)` | `RoomUnsealDataClient.listSchedules(roomId)` | `RoomScheduleDescriptor` | `RoomScheduleMenuBadge` and schedules menu action | Badge count equals enabled schedules; schedule mutations emit a room context refresh. |
+| Webhook triggers | `ChatbotAPIClient.listWebhookTriggers(agentId:source:roomId:status:)` | `RoomUnsealDataClient.listWebhookTriggers(roomId)` | `RoomWebhookTriggerDescriptor` | `RoomMenuRenderModel.webhookSummary` and future webhook entry point | Trigger count/status is loaded with the room context; webhook mutations refresh context. |
+| Working memory | `ChatbotAPIClient.getRoomWorkingMemory(roomId:)` | `RoomUnsealDataClient.getRoomWorkingMemory(roomId)` | `RoomUnsealContext.workingMemory` | future working-memory menu/detail model | Loaded as partial resource; failure does not blank room context. |
+
+### Track B: Composer And Agent Skills
+
+| Feature | iOS request/data source | Android request owner | Domain owner | Reducer/render output | P0 acceptance |
+|---|---|---|---|---|---|
+| Mention suggestions | `CompletionSuggestionService` observes enriched `membersPublisher` | shared `RoomUnsealContextStore` | `ComposerSuggestionRenderModel` | `SuggestionsPickerView` | `@` suggestions exclude self, include joined members, and show an agent badge for enriched members. |
+| `@room` suggestion | `CompletionSuggestionService.membersSuggestions` plus room power levels/direct-room gate | existing Matrix suggestion processor plus render reducer | `ComposerSuggestionRenderModel(kind=AllUsers)` | `SuggestionsPickerView` | Appears only when room notification is allowed and not a one-to-one direct room. |
+| Agent descriptors | `ComposerToolbarViewModel.refreshRoomAgents()` from enriched members and `listAgents()` fallback | shared `RoomUnsealContext` | `ComposerAgentDescriptor` | `ComposerAgentSkillState.targets` | Direct rooms auto-resolve direct agent; mentioned agents become skill targets. |
+| Runtime skills | `listRoomAgentSkills(roomId, agentId, runtimeOwnerUserId)` | `ComposerAgentSkillCatalogLoader` via `RoomUnsealDataClient` | `ComposerAgentSkillCandidate` | skill picker list | Runtime-visible skills are preferred and deduped by target/skill id. |
+| Legacy skill fallback | `listAgentSkills(botName)` | `ComposerAgentSkillCatalogLoader` | `ComposerAgentSkillCandidate(relation=Installed)` | skill picker list | Legacy fallback only fills the list when runtime-visible skills are unavailable. |
+| Skill/device-agent send | `TimelineViewModel.sendAgentSkillMessage`, `sendAgentChatMessage` | `MessageComposerPresenter` | selected skills + `AgentChatModeMemoryCache` | raw Matrix content | Sends raw `m.room.message` preserving top-level `skills` and optional top-level `device_id`. |
+
+### Track C: Stream, Timeline, Markdown
+
+| Feature | iOS reference | Android data owner | Reducer/render output | Compose owner | P0 acceptance |
+|---|---|---|---|---|---|
+| Stream lifecycle | iOS stream views consume state; Android source of truth is Stream SDK | `libraries/agentstream` only | `StreamSnapshot.parts` | `TimelineItemAiPresenter` subscribes; does not parse SSE | Same `streamId` reuses handle; completed memory/store snapshot renders first frame without fetch/loading. |
+| Parts to render model | `ToolGroupUtils`, `ToolCallRootCard` order semantics | `AiSdkStreamReducer` | `AiStreamRenderModel` | `TimelineItemAiView` | Root tool card inserted once at first visible tool part; hidden tool parts are not rendered twice. |
+| Tool root model | `ToolCallRootCard` | `ToolCallRootCardAdapter` | `ToolCallRootRenderModel` | `ToolCallRootCard` Compose | Completed tool entries cannot remain running/input-only; unsupported tools use compact diagnostic fallback. |
+| Timeline row policy | iOS `TimelineView`, `BubbleMessageView`, `TimelineItemBubbledStylerView` | Matrix timeline event + stream render state | `TimelinePresentationModel` | `TimelineItemEventRow` | AI stream/card/markdown blocks are not wrapped in a giant normal bubble; avatar has its own column and right breathing space is preserved. |
+| Edited/timestamp policy | iOS stream replacement messages hide edited text | timeline content reducer | `TimelinePresentationModel.editedPolicy` | `TimelineEventTimestampView` | `已编辑` appears for normal edited messages only, not stream-rendered AI messages. |
+| Markdown | iOS markdown render view | markdown reducer/cache | future `MarkdownRenderModel` | `MarkdownBody` | Links clickable; completed markdown is cached; streaming cursor does not show literal `Thinking...`. |
+
+### Track D: Room UI And Menus
+
+| Feature | iOS reference | Android domain/render owner | Compose owner | P0 acceptance |
+|---|---|---|---|---|
+| Topbar actions | `RoomScreenView`, `RoomScreenViewModel` | `RoomMenuRenderModel.topbarActions` | `MessagesViewTopBar`, `RoomToolMenu` | Call/video/settings remain native; schedules/device-agent actions derive from room context; unsupported terminal is not presented as functional. |
+| Attachment menu | `RoomAttachmentPicker` | `RoomMenuRenderModel.attachmentActions` | Android bottom sheet or iOS-style overlay | Content/order/icons match manifest; unavailable actions are disabled or hidden consistently. |
+| Mention picker | `CompletionSuggestionService`, `ComposerToolbar` | `ComposerSuggestionRenderModel` | `SuggestionsPickerView` | Floats above composer, max roughly 4.5 rows, agent badge visible. |
+| Skill picker | `ComposerToolbarViewModel`, `ComposerToolbar` | `ComposerAgentSkillState` | `ComposerAgentSkillPickerView` | Uses context-derived targets and catalog state; Compose does not request APIs directly. |
+| Long press menu | `TimelineItemMenuActionProvider` | `MessageActionMenuRenderModel` | `ActionListView` | Existing actions stay; iOS-only actions are listed as blocked until bottom-layer support exists, not silently skipped. |
+| Tool cards | `unseal-agent-ios/ToolCardsIOS` | typed card props from `CardTransforms` and adapters | `toolcards/*` | No raw JSON to users; empty cards collapse; weather/finance/news/search/shopping/places/hotels/files/email/drive/github/schedule fixtures render meaningful content. |
+
 ## iOS Data Flow To Android Architecture
 
 ### Room Data Request Client
