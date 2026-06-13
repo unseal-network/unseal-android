@@ -250,14 +250,23 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 - `a7bfcd76c6` `feat(messages): share room context with composer suggestions`
   - 新增 RoomScope `RoomUnsealContextStore`，Messages / Composer 共用同一份 room agents、members、schedules snapshot。
   - `MessageComposerState` 新增 `suggestionRenderModels`，picker 使用 `ComposerSuggestionRenderModel` 显示 Agent badge，点击插入仍走 `ResolvedSuggestion`。
-- 当前未提交 checkpoint：Tool root card 已新增 `ToolCallRootRenderModel`，`AiSdkStreamReducer` 会预计算 title、done/error/calling counts、selected index、默认展开状态；UI 不再自行推导这些状态。
+- `26ba0427f9` `feat(messages): send selected agent skills via raw content`
+  - Matrix `JoinedRoom` 新增 `sendRawRoomMessage(contentJson, eventType)`，用于发送 iOS 同形状的 agent skill 消息。
+  - `MessageComposerPresenter` 现在维护 `ComposerAgentSkillState.selectedSkills`、active target、picker 展示状态。
+  - 选择 skill 后发送 raw `m.room.message`，保留顶层 `skills` 数组、`m.mentions`、reply relation；不能走普通 `Timeline.sendMessage`，否则 `skills` 字段会丢。
+  - 单测覆盖 selected skill 发送的 raw content shape。
+- `90b0074946` `feat(messages): add composer agent skill picker`
+  - 新增 `ComposerAgentSkillPickerView`，直接消费 `ComposerAgentSkillState`。
+  - 支持 agent target 切换、可见 skill 候选列表、已选 skill chip、移除已选 skill。
+  - `MessagesView` 在 composer 上方展示 skill picker，事件回到 presenter/reducer；UI 不请求接口。
+- 当前未提交 checkpoint：无。请继续保持小步提交。
 
 ### 后续执行顺序
 
-1. 建 `ComposerAgentSkillState`，对齐 iOS direct agent slash、mentioned agent targets、runtime skill catalog、legacy fallback。
-2. 做 attachment menu、long press menu、topbar overlay 的 iOS parity。
-3. 继续逐个 card fixture 做视觉和交互 parity。
-4. 为 `ToolCallRootRenderModel` 增加 snapshot / screenshot 覆盖，验证单 tool、多 tool、error、calling、done 的 UI 行为。
+1. 继续做 attachment menu、long press menu、topbar overlay 的 iOS parity；其中 device-agent chat/terminal 已有数据模型，但 Android 还缺最终 destination，不能先暴露死入口。
+2. 继续逐个 card fixture 做视觉和交互 parity。
+3. 为 `ToolCallRootRenderModel` 增加 snapshot / screenshot 覆盖，验证单 tool、多 tool、error、calling、done 的 UI 行为。
+4. 真机验证 composer：direct room 输入 `/` 应打开 skill picker，选择 skill 后发送的 Matrix event content 应包含顶层 `skills`。
 
 ---
 

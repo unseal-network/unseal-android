@@ -176,8 +176,9 @@ Android target:
 
 Next required work:
 
-- Finish skill picker UI and send/insert behavior from `ComposerAgentSkillState`.
+- Polish skill picker UI against iOS after real-room testing.
 - Keep agent descriptors and runtime/legacy skill loading in reducers/loaders, not in Compose.
+- Keep raw Matrix send for selected skills routed through `JoinedRoom.sendRawRoomMessage`; do not send selected skills through normal `Timeline.sendMessage`, because Matrix content must preserve the top-level `skills` field.
 
 ### Stream And Timeline
 
@@ -218,12 +219,14 @@ Rules:
 | Feature | iOS owner | Android target owner | Data model | Implementation status |
 |---|---|---|---|---|
 | Agent mention badge | `CompletionSuggestionService` | composer suggestion reducer + picker | `ComposerSuggestionRenderModel.isAgent` | Implemented; picker uses render model while insertion still uses `ResolvedSuggestion`. |
-| Member suggestions | `CompletionSuggestionService.membersSuggestions` | composer suggestion reducer + shared room context store | `ComposerSuggestionRenderModel` | Implemented for current member/alias/command suggestions; agent skill side effects pending. |
+| Member suggestions | `CompletionSuggestionService.membersSuggestions` | composer suggestion reducer + shared room context store | `ComposerSuggestionRenderModel` | Implemented for current member/alias/command suggestions. |
 | `@room` suggestion | `CompletionSuggestionService.membersSuggestions` | composer suggestion reducer | `kind=AllUsers` | Implemented in render model mapping; existing permission gate remains in `SuggestionsProcessor`. |
-| Direct agent slash target | `ComposerToolbarViewModel.updateDirectAgentSkillPickerForSlashTrigger` | composer skill reducer | `ComposerAgentDescriptor` | Not started. |
-| Mentioned agent targets | `ComposerToolbarViewModel.updateMentionedAgentTargets` | composer skill reducer | `ComposerAgentSkillState.agentTargets` | Not started. |
-| Runtime skill catalog | `loadRoomAgentSkillCatalogs` | composer skill loader | `ComposerAgentSkillCandidate` | Not started. |
-| Legacy skill fallback | `legacyInstalledSkillCandidates` | composer skill loader | `ComposerAgentSkillCandidate` | Not started. |
+| Direct agent slash target | `ComposerToolbarViewModel.updateDirectAgentSkillPickerForSlashTrigger` | composer skill reducer + presenter | `ComposerAgentDescriptor` | Implemented initial: direct room + `/` opens picker for the direct agent target. |
+| Mentioned agent targets | `ComposerToolbarViewModel.updateMentionedAgentTargets` | composer skill reducer + presenter | `ComposerAgentSkillState.targets` | Implemented initial from intentional mentions and enriched room-agent members. |
+| Runtime skill catalog | `loadRoomAgentSkillCatalogs` | composer skill loader | `ComposerAgentSkillCandidate` | Implemented initial via `RoomUnsealDataClient.listRoomAgentSkills`. |
+| Legacy skill fallback | `legacyInstalledSkillCandidates` | composer skill loader | `ComposerAgentSkillCandidate` | Implemented initial via `RoomUnsealDataClient.listLegacyAgentSkills`. |
+| Skill picker UI | `ComposerToolbarView` skill picker surface | `ComposerAgentSkillPickerView` | `ComposerAgentSkillState` | Implemented first Compose surface; needs iOS visual polish after device test. |
+| Selected skill send | `TimelineViewModel.sendAgentSkillMessage` | `MessageComposerPresenter` + `JoinedRoom.sendRawRoomMessage` | raw `m.room.message` content with top-level `skills` | Implemented and unit tested against iOS content shape. |
 
 ### P0 Timeline / Stream / Card Features
 
@@ -241,8 +244,8 @@ Rules:
 | Feature | iOS owner | Android target owner | Data model | Implementation status |
 |---|---|---|---|---|
 | Topbar actions | `RoomScreenViewModel` + room view | room menu reducer | `RoomMenuRenderModel.topbarActions` | Implemented for threads, schedules, and device-agent actions; visual overlay parity still pending. |
-| Attachment menu | composer attachment scope | room menu reducer | `RoomMenuRenderModel.attachmentActions` | Not started. |
-| Long press menu | timeline action sheets | action menu reducer | `RoomMenuRenderModel.messageActions` | Not started. |
+| Attachment menu | composer attachment scope | room menu reducer | `RoomMenuRenderModel.attachmentActions` | Implemented initial; existing bottom sheet consumes reducer ordering. Needs iOS visual/order audit. |
+| Long press menu | timeline action sheets | action menu reducer | `MessageActionMenuRenderModel` | Implemented initial render model and grouping for existing actions; missing iOS-only actions need handler support before exposure. |
 | Link handling | markdown/card link actions | link action reducer | `RoomLinkAction` | Existing mixed; needs card/markdown audit. |
 | Read receipts/reactions | room timeline | existing Element state + menu model | action model | P1 after P0 render. |
 
