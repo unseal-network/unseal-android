@@ -54,7 +54,6 @@ import io.element.android.features.messages.test.timeline.FakeHtmlConverterProvi
 import io.element.android.features.messages.test.timeline.voicemessages.composer.FakeDefaultVoiceMessageComposerPresenterFactory
 import io.element.android.features.roomcall.api.aStandByCallState
 import io.element.android.features.roommembermoderation.api.RoomMemberModerationState
-import io.element.android.features.roomschedules.api.room.RoomScheduleBadgePresenter
 import io.element.android.libraries.androidutils.clipboard.FakeClipboardHelper
 import io.element.android.libraries.architecture.AsyncData
 import io.element.android.libraries.architecture.Presenter
@@ -1451,7 +1450,6 @@ class MessagesPresenterTest {
             readReceiptBottomSheetPresenter = { aReadReceiptBottomSheetState() },
             pinnedMessagesBannerPresenter = { aLoadedPinnedMessagesBannerState() },
             roomCallStatePresenter = { aStandByCallState() },
-            roomScheduleBadgePresenterFactory = FakeRoomScheduleBadgePresenterFactory(),
             roomMemberModerationPresenter = roomMemberModerationPresenter,
             snackbarDispatcher = SnackbarDispatcher(),
             dispatchers = coroutineDispatchers,
@@ -1469,15 +1467,6 @@ class MessagesPresenterTest {
             roomUnsealContextLoader = RoomUnsealContextLoader(joinedRoom, roomUnsealDataClient),
             sessionCoroutineScope = backgroundScope,
         )
-    }
-}
-
-private class FakeRoomScheduleBadgePresenterFactory : RoomScheduleBadgePresenter.Factory {
-    override fun create(roomId: RoomId, joinedRoom: JoinedRoom): RoomScheduleBadgePresenter {
-        return object : RoomScheduleBadgePresenter {
-            @androidx.compose.runtime.Composable
-            override fun present() = aRoomScheduleBadgeState()
-        }
     }
 }
 
