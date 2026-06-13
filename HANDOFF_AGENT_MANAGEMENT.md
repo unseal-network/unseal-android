@@ -425,13 +425,14 @@ Current composer data flow:
 2. Mention suggestions combine Matrix members, room aliases, slash commands, and `RoomUnsealContext`.
 3. `ComposerSuggestionReducer` marks agent members with an Agent badge from enriched room members.
 4. `ComposerAgentSkillReducer` derives iOS-style agent descriptors from room members plus account agent data, preferring account `displayName/botName` and falling back to Matrix members.
-5. `ComposerAgentSkillCatalogLoader` mirrors iOS skill loading: room-agent runtime skill catalog first using the current session user as `runtimeOwnerUserId`, then legacy installed skills as fallback. Legacy lookup tries the target mxid and then the mxid localpart.
-6. `MessageComposerState.agentSkillState` exposes known agent mxids, direct-room skill targets, loaded candidates, selected skills, loading/error status, and candidate metadata for the future skill picker UI.
+5. `MessageComposerPresenter` extracts mentioned user ids from the active editor's mention state (`RichTextEditorState.mentionsState` or `MarkdownTextEditorState.getMentions()`) and feeds them to `ComposerAgentSkillReducer`.
+6. `ComposerAgentSkillReducer` merges direct-room auto target plus mentioned agent targets, deduped by mxid, so skill catalog loading follows the active target set.
+7. `ComposerAgentSkillCatalogLoader` mirrors iOS skill loading: room-agent runtime skill catalog first using the current session user as `runtimeOwnerUserId`, then legacy installed skills as fallback. Legacy lookup tries the target mxid and then the mxid localpart.
+8. `MessageComposerState.agentSkillState` exposes known agent mxids, direct-room/mentioned skill targets, loaded candidates, selected skills, loading/error status, and candidate metadata for the future skill picker UI.
 
 Pending composer parity:
 
 - Skill picker UI and send/insert behavior.
-- Mentioned-agent target extraction from composer mentions.
 
 Room action menu data parity:
 

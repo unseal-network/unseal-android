@@ -90,12 +90,18 @@ object ComposerAgentSkillReducer {
         context: RoomUnsealContext?,
         currentUserId: String,
         isDirectRoom: Boolean,
+        mentionedUserIds: Set<String> = emptySet(),
         selectedSkills: List<ComposerSelectedAgentSkill> = emptyList(),
     ): ComposerAgentSkillState {
         context ?: return ComposerAgentSkillState.Empty
         val knownAgents = agentDescriptors(context)
         val directAgent = directAgentDescriptor(knownAgents, context.members, currentUserId).takeIf { isDirectRoom }
-        val targets = listOfNotNull(directAgent)
+        val mentionedAgents = mentionedAgentDescriptors(
+            mentionedUserIds = mentionedUserIds,
+            knownAgents = knownAgents,
+            members = context.members,
+        )
+        val targets = (listOfNotNull(directAgent) + mentionedAgents).distinctBy { it.mxid }
         return ComposerAgentSkillState(
             knownAgentMxids = knownAgents.keys.toImmutableSet(),
             targets = targets.toImmutableList(),

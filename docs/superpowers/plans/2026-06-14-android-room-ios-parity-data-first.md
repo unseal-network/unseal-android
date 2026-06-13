@@ -607,7 +607,8 @@ Steps:
 - [x] Use enriched room members for `@` suggestions.
 - [x] Use room-agent descriptors for skill target resolution.
 - [x] Prefer room-agent runtime skill API, fallback legacy agent skills.
-- [ ] Commit with `feat(messages): align composer agent suggestions with ios`.
+- [x] Extract mentioned agent targets from the active composer mention state.
+- [x] Commit with `feat(messages): align composer agent suggestions with ios` (`9e1ed5a615`) and `feat(messages): target mentioned agents for skills`.
 
 ### Task 6: Stabilize Timeline and Stream Render Models
 

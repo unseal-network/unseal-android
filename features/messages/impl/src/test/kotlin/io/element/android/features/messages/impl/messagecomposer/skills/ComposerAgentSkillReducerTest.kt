@@ -43,6 +43,49 @@ class ComposerAgentSkillReducerTest {
     }
 
     @Test
+    fun `stateFromContext exposes mentioned agent targets outside direct rooms`() {
+        val context = contextWithAgents(
+            agentUserIds = listOf(SECOND_AGENT_USER_ID, AGENT_USER_ID),
+            allAgents = listOf(
+                agentAccount(SECOND_AGENT_USER_ID.value, "Beta"),
+                agentAccount(AGENT_USER_ID.value, "Alpha"),
+            ),
+        )
+
+        val state = ComposerAgentSkillReducer.stateFromContext(
+            context = context,
+            currentUserId = CURRENT_USER_ID.value,
+            isDirectRoom = false,
+            mentionedUserIds = setOf(SECOND_AGENT_USER_ID.value),
+        )
+
+        assertThat(state.targets.map { it.mxid }).containsExactly(SECOND_AGENT_USER_ID.value)
+        assertThat(state.targets.single().label).isEqualTo("Beta")
+        assertThat(state.activeAgentMxid).isEqualTo(SECOND_AGENT_USER_ID.value)
+    }
+
+    @Test
+    fun `stateFromContext merges direct and mentioned agent targets without duplicates`() {
+        val context = contextWithAgents(
+            agentUserIds = listOf(AGENT_USER_ID, SECOND_AGENT_USER_ID),
+            allAgents = listOf(
+                agentAccount(AGENT_USER_ID.value, "Alpha"),
+                agentAccount(SECOND_AGENT_USER_ID.value, "Beta"),
+            ),
+        )
+
+        val state = ComposerAgentSkillReducer.stateFromContext(
+            context = context,
+            currentUserId = CURRENT_USER_ID.value,
+            isDirectRoom = true,
+            mentionedUserIds = setOf(AGENT_USER_ID.value, SECOND_AGENT_USER_ID.value),
+        )
+
+        assertThat(state.targets.map { it.mxid }).containsExactly(AGENT_USER_ID.value, SECOND_AGENT_USER_ID.value).inOrder()
+        assertThat(state.activeAgentMxid).isNull()
+    }
+
+    @Test
     fun `mentionedAgentDescriptors uses known agents and sorts by label`() {
         val context = contextWithAgents(
             agentUserIds = listOf(SECOND_AGENT_USER_ID, AGENT_USER_ID),

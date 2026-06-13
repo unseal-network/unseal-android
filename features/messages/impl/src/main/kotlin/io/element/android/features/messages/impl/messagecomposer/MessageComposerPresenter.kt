@@ -224,11 +224,18 @@ class MessageComposerPresenter(
         val suggestions = remember { mutableStateListOf<ResolvedSuggestion>() }
         val suggestionRenderModels = remember { mutableStateListOf<ComposerSuggestionRenderModel>() }
         val roomUnsealContextState by roomUnsealContextStore.context.collectAsState()
-        val baseAgentSkillState = remember(roomUnsealContextState, roomInfo.isDm, room.sessionId) {
+        val mentionedUserIds = remember(showTextFormatting, richTextEditorState.mentionsState, markdownTextEditorState.text) {
+            currentComposerMentionedUserIds(
+                markdownTextEditorState = markdownTextEditorState,
+                richTextEditorState = richTextEditorState,
+            )
+        }
+        val baseAgentSkillState = remember(roomUnsealContextState, roomInfo.isDm, room.sessionId, mentionedUserIds) {
             ComposerAgentSkillReducer.stateFromContext(
                 context = roomUnsealContextState.dataOrNull(),
                 currentUserId = room.sessionId.value,
                 isDirectRoom = roomInfo.isDm,
+                mentionedUserIds = mentionedUserIds,
             )
         }
         var agentSkillCandidates by remember { mutableStateOf<ImmutableList<ComposerAgentSkillCandidate>>(persistentListOf()) }
@@ -821,6 +828,20 @@ class MessageComposerPresenter(
                 emptyList()
             }
             Message(html = null, markdown = markdown, intentionalMentions = mentions)
+        }
+    }
+
+    private fun currentComposerMentionedUserIds(
+        markdownTextEditorState: MarkdownTextEditorState,
+        richTextEditorState: RichTextEditorState,
+    ): Set<String> {
+        return if (showTextFormatting) {
+            richTextEditorState.mentionsState?.userIds.orEmpty().toSet()
+        } else {
+            markdownTextEditorState.getMentions()
+                .filterIsInstance<IntentionalMention.User>()
+                .map { it.userId.value }
+                .toSet()
         }
     }
 
