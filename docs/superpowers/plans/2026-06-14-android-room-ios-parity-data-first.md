@@ -50,6 +50,206 @@ This migration must happen in this order. Do not start by changing card UI.
    - Verify markdown/tool card transforms are memoized by stream render version.
    - Verify visible listeners detach without cancelling background stream completion or store writes.
 
+## Migration Workflow Deliverables
+
+Every migrated feature must move through these gates. A feature is not considered migrated if it only has a Compose view.
+
+| Gate | Required output | Why it matters |
+|---|---|---|
+| 1. iOS source mapping | File paths, method names, and state fields from iOS | Prevents guessing UI behavior without knowing how iOS gets data. |
+| 2. Request/API mapping | Android client method, service endpoint, homeserver/unseal routing rule, failure behavior | Keeps Android from hardcoding endpoints or duplicating API calls. |
+| 3. Domain model | Stable Kotlin data class that represents the feature before UI | Lets Android and iOS share semantics even when UI components differ. |
+| 4. Reducer/adapter | Pure transform from API/SDK/domain data into render model | Keeps Compose from parsing JSON or making business decisions. |
+| 5. State ownership | Presenter/state holder that owns loading, refresh, cache, and lifecycle | Avoids repeated network work when timeline rows recycle. |
+| 6. UI | Compose component that consumes only render models | Makes UI replaceable without changing data logic. |
+| 7. Tests | Unit tests for API mapping/domain/reducer; screenshot/manual tests for UI | Catches regressions before visual polish work. |
+
+## iOS Data Flow To Android Architecture
+
+### Room Data Request Client
+
+iOS uses `ChatbotAPIClientFactory.makeClient(userSession:appSettings:)` from room and composer features. Android must use one room-scoped facade backed by `ChatbotApiServiceFactory.createForHomeserver(matrixClient)`.
+
+The request client is responsible for:
+
+- Selecting the correct base URL from the logged-in homeserver and `.well-known`.
+- Keeping room feature calls on the same route family as iOS:
+  - room agents: `getRoomAgents(roomId)`
+  - global agents: `listAgents()`
+  - schedules: `listSchedules(roomId)`
+  - runtime room skills: `listRoomAgentSkills(roomId, agentId, runtimeOwnerUserId)`
+  - legacy skills: `listAgentSkills(botName)`
+  - webhook triggers: `listWebhookTriggers(roomId)`
+  - working memory: `getRoomWorkingMemory(roomId)`
+- Returning typed room domain models, not raw API responses.
+- Returning partial results when one resource fails.
+
+Android implementation checkpoint:
+
+- `RoomUnsealDataClient` exists.
+- `DefaultRoomUnsealDataClient` exists.
+- `RoomUnsealDataSnapshot` carries partial `RoomUnsealResource<T>` failures.
+
+Next required work:
+
+- Replace duplicated schedule/topbar calls with `RoomUnsealContext`.
+- Feed composer mention/skill state from `RoomUnsealContext`.
+- Add refresh events so menus can request context reload without knowing request details.
+
+### Members And Agent Enrichment
+
+iOS data flow:
+
+1. `JoinedRoomProxy.updateMembers()` loads local disk members with `membersNoSync()`.
+2. It loads room agents through `roomAgentsProvider(id)`.
+3. It enriches members with `RoomAgentMemberEnricher.enrich`.
+4. It then repeats with live `members()` data.
+5. Composer, mention suggestions, and room topbar all observe enriched `membersPublisher`.
+
+Android target:
+
+1. `RoomUnsealContextLoader` asks Matrix for room members if the current state is empty/unknown.
+2. It loads `RoomUnsealDataSnapshot` through `RoomUnsealDataClient`.
+3. It derives `RoomMemberRender` with the same rules as iOS:
+   - only joined Matrix members can be agents
+   - room-agent `membership` must be absent/empty/`join`
+   - missing `userType` defaults to `agent`
+   - agent types are `agent`, `bot`, `external_bot`, `trusted_external_bot`
+4. `MessagesState.roomUnsealContext` exposes the result as `AsyncData<RoomUnsealContext>`.
+
+Next required work:
+
+- Use `roomUnsealContext.members` for mention suggestions.
+- Use `roomUnsealContext.hasAgentInRoom` and `deviceAgentInRoom` for topbar/menu actions.
+- Add reload triggers when room members change, app resumes, or a schedule/webhook mutation completes.
+
+### Schedule, Device Agent, And Topbar
+
+iOS data flow in `RoomScreenViewModel.loadActiveScheduleCount()`:
+
+1. Create Chatbot API client from current user session.
+2. Load `listSchedules(roomId)` and `listAgents()` concurrently.
+3. Count enabled schedules.
+4. Build `memberIDs` from `roomProxy.membersPublisher.value`.
+5. Match global agents to members by `@localpart:serverName`.
+6. Detect device agent when `agent.isDeviceAgent` and `boundDeviceID` exists.
+7. Topbar uses those derived fields for schedules and device/terminal actions.
+
+Android target:
+
+- `RoomUnsealContext.activeScheduleCount`
+- `RoomUnsealContext.hasAgentInRoom`
+- `RoomUnsealContext.deviceAgentInRoom`
+- `RoomMenuRenderModel.topbarActions`
+
+Next required work:
+
+- Stop `RoomScheduleBadgePresenter` from being the owner of requests.
+- Derive `RoomScheduleBadgeState` from `RoomUnsealContext` inside messages.
+- Build a topbar action reducer:
+  - schedules visible when `hasAgentInRoom`
+  - terminal/device-agent chat visible when `deviceAgentInRoom != null`
+  - call/video/settings follow existing Matrix room rules
+
+### Composer Mention And Skill Flow
+
+iOS mention data flow:
+
+1. `CompletionSuggestionService` combines suggestion trigger, enriched members, room list, and cached agent user IDs.
+2. `@` suggestions include joined members except self.
+3. Agent badge is based on enriched member `isAgent`.
+4. `@room` is inserted only when power levels allow room notification and the room is not a direct one-to-one.
+5. Member refresh is requested once when a user mention trigger first appears.
+
+iOS skill data flow:
+
+1. `ComposerToolbarViewModel` observes enriched members.
+2. `refreshRoomAgents()` builds `ComposerAgentDescriptor` from agent members.
+3. Direct rooms select the direct agent automatically.
+4. Mentioned agent users become skill targets.
+5. Runtime skills load through `listRoomAgentSkills(roomId, agentId, runtimeOwnerUserId)`.
+6. If no runtime-visible skills are available or the request fails, iOS falls back to `listAgentSkills(botName)`.
+
+Android target:
+
+- `ComposerSuggestionRenderModel`
+- `ComposerAgentDescriptor`
+- `ComposerAgentSkillState`
+- `ComposerAgentSkillCandidate`
+
+Next required work:
+
+- Add models first, without changing UI.
+- Add reducers from `RoomUnsealContext + current composer text + permissions` to suggestions/skill state.
+- Then replace Android suggestion view data source with the reducer output.
+
+### Stream And Timeline
+
+iOS stream/card data flow is not the request source for Android. Android must keep Stream SDK as the only lifecycle owner.
+
+Android target:
+
+1. Matrix event content gives a stream id.
+2. Android asks Stream SDK for the stream snapshot.
+3. Stream SDK handles fetch/dedupe/cache/store/SSE patch state.
+4. Android reducer maps `StreamSnapshot.parts` to `AiStreamRenderModel`.
+5. Timeline reducer maps Matrix event + stream render model to `TimelinePresentationModel`.
+6. Compose renders only the render model.
+
+Rules:
+
+- Do not fetch stream directly from timeline cells.
+- Do not parse raw stream JSON in Compose cards.
+- Do not show completed stream as loading when cache/store has final snapshot.
+- AI cards and markdown are independent content blocks, not nested in a normal message bubble.
+
+## Feature Migration Matrix
+
+### P0 Request / State Features
+
+| Feature | iOS owner | Android target owner | Data model | Implementation status |
+|---|---|---|---|---|
+| Room API routing | `ChatbotAPIClientFactory`, `ChatbotAPIClient` | `RoomUnsealDataClient` | `RoomUnsealDataSnapshot` | Implemented initial facade. |
+| Member refresh/enrichment | `JoinedRoomProxy.updateMembers`, `RoomAgentMemberEnricher` | `RoomUnsealContextLoader`, `RoomAgentMemberEnricher` | `RoomMemberRender` | Implemented initial parity. |
+| Agent in room | `RoomScreenViewModel.loadActiveScheduleCount` | `RoomUnsealContext` | `hasAgentInRoom` | Implemented in context; not yet consumed by topbar. |
+| Device agent | `RoomScreenViewModel.loadActiveScheduleCount` | `RoomUnsealContext` | `RoomDeviceAgent` | Implemented in context; not yet consumed by topbar. |
+| Schedule count | `RoomScreenViewModel.loadActiveScheduleCount` | messages state, later schedule badge reducer | `activeScheduleCount` | Implemented in context; old badge still duplicates requests. |
+| Working memory | `ChatbotAPIClient.getRoomWorkingMemory` | `RoomUnsealContext` | `workingMemory` | Loaded by client; no menu/UI consumer yet. |
+| Webhook triggers | `ChatbotAPIClient.listWebhookTriggers` | `RoomUnsealContext` | `webhookTriggers` | Loaded by client; no menu/UI consumer yet. |
+
+### P0 Composer Features
+
+| Feature | iOS owner | Android target owner | Data model | Implementation status |
+|---|---|---|---|---|
+| Agent mention badge | `CompletionSuggestionService` | composer suggestion reducer | `ComposerSuggestionRenderModel.isAgent` | Not started. |
+| Member suggestions | `CompletionSuggestionService.membersSuggestions` | composer suggestion reducer | `ComposerSuggestionRenderModel` | Not started. |
+| `@room` suggestion | `CompletionSuggestionService.membersSuggestions` | composer suggestion reducer | `kind=AllUsers` | Not started. |
+| Direct agent slash target | `ComposerToolbarViewModel.updateDirectAgentSkillPickerForSlashTrigger` | composer skill reducer | `ComposerAgentDescriptor` | Not started. |
+| Mentioned agent targets | `ComposerToolbarViewModel.updateMentionedAgentTargets` | composer skill reducer | `ComposerAgentSkillState.agentTargets` | Not started. |
+| Runtime skill catalog | `loadRoomAgentSkillCatalogs` | composer skill loader | `ComposerAgentSkillCandidate` | Not started. |
+| Legacy skill fallback | `legacyInstalledSkillCandidates` | composer skill loader | `ComposerAgentSkillCandidate` | Not started. |
+
+### P0 Timeline / Stream / Card Features
+
+| Feature | iOS owner | Android target owner | Data model | Implementation status |
+|---|---|---|---|---|
+| Stream lifecycle | Stream renderer state | Stream SDK | `StreamSnapshot.parts` | Existing; needs invariant tests. |
+| AI render model | `ToolCallRootCard` + text render flow | stream reducer | `AiStreamRenderModel` | Existing partial; needs formal model/tests. |
+| Tool root grouping | `ToolGroupUtils` semantics | tool root adapter | `ToolCallRootRenderModel` | Existing partial; needs parity tests. |
+| Timeline row policy | room timeline views | timeline presentation reducer | `TimelinePresentationModel` | Existing UI tweaks; model not formalized. |
+| Markdown render | iOS markdown view | markdown reducer/cache | `MarkdownRenderModel` | Existing partial; needs parity/cache tests. |
+| Cards weather/finance/news/shopping/places/hotels/files/email/drive/github/schedule | iOS card implementations and screenshots | card adapters + Compose cards | typed card props | Existing partial; needs fixture-by-fixture parity. |
+
+### P0 Menus / Room Interactions
+
+| Feature | iOS owner | Android target owner | Data model | Implementation status |
+|---|---|---|---|---|
+| Topbar actions | `RoomScreenViewModel` + room view | room menu reducer | `RoomMenuRenderModel.topbarActions` | Not started. |
+| Attachment menu | composer attachment scope | room menu reducer | `RoomMenuRenderModel.attachmentActions` | Not started. |
+| Long press menu | timeline action sheets | action menu reducer | `RoomMenuRenderModel.messageActions` | Not started. |
+| Link handling | markdown/card link actions | link action reducer | `RoomLinkAction` | Existing mixed; needs card/markdown audit. |
+| Read receipts/reactions | room timeline | existing Element state + menu model | action model | P1 after P0 render. |
+
 ## iOS Fact Sources
 
 Use these files as reference before implementing each related Android task:
