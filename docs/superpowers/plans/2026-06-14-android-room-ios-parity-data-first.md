@@ -722,11 +722,12 @@ Steps:
 
 Steps:
 
-- [ ] Add tests proving listener cancel does not cancel background store.
+- [x] Add tests proving listener cancel does not cancel background store.
 - [x] Add tests proving completed stream is served from memory/store without fetch.
 - [x] Add memoization by raw tool payload/card type for tool props transforms.
 - [x] Run relevant unit tests.
 - [x] Commit with `fix(messages): render completed stream cache before binding` (`607f491732`) and `perf(messages): memoize tool card prop transforms` (`f22937d679`).
+- [x] Re-verified with `./gradlew :libraries:agentstream:testDebugUnitTest --tests 'io.element.android.libraries.agentstream.api.DefaultAgentStreamClientTest' --tests 'io.element.android.libraries.agentstream.api.StreamSnapshotUpdatePolicyTest' --console=plain`.
 
 ### Task 9.1: Room Context Refresh and API Ownership Hardening
 
