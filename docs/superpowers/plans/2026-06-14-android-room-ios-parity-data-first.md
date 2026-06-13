@@ -90,7 +90,7 @@ Android implementation checkpoint:
 - `DefaultRoomUnsealDataClient` exists.
 - `RoomUnsealDataSnapshot` carries partial `RoomUnsealResource<T>` failures.
 - `RoomUnsealContextStore` is the shared RoomScope owner consumed by messages and composer.
-- `RoomMenuRenderModel` now owns topbar actions and attachment menu action ordering.
+- `RoomMenuRenderModel` now owns topbar actions, device-agent chat active state, and attachment menu action ordering.
 
 Next required work:
 
@@ -145,7 +145,7 @@ Android target:
 Next required work:
 
 - Replace any remaining room chrome visual overlays with iOS-style action presentation.
-- Wire terminal/device-agent actions to final UI destinations where missing.
+- Device-agent chat mode is wired through room state and composer send; terminal destination is still missing.
 - Keep schedules visible only when `hasAgentInRoom`, and terminal/device-agent chat visible only when `deviceAgentInRoom != null`.
 
 ### Composer Mention And Skill Flow
@@ -209,7 +209,7 @@ Rules:
 | Room API routing | `ChatbotAPIClientFactory`, `ChatbotAPIClient` | `RoomUnsealDataClient` | `RoomUnsealDataSnapshot` | Implemented initial facade. |
 | Member refresh/enrichment | `JoinedRoomProxy.updateMembers`, `RoomAgentMemberEnricher` | `RoomUnsealContextLoader`, `RoomAgentMemberEnricher` | `RoomMemberRender` | Implemented initial parity. |
 | Agent in room | `RoomScreenViewModel.loadActiveScheduleCount` | `RoomUnsealContext` + `RoomMenuReducer` | `hasAgentInRoom` | Implemented and consumed by topbar schedule action. |
-| Device agent | `RoomScreenViewModel.loadActiveScheduleCount` | `RoomUnsealContext` + `RoomMenuReducer` | `RoomDeviceAgent` | Implemented and represented in menu model; UI actions still need parity wiring. |
+| Device agent | `RoomScreenViewModel.loadActiveScheduleCount`, `RoomScreen.AgentChatModeMemoryCache`, `TimelineViewModel.sendAgentChatMessage` | `RoomUnsealContext` + `RoomMenuReducer` + `AgentChatModeMemoryCache` + composer raw send | `RoomDeviceAgent`, active target `boundDeviceId`, raw message top-level `device_id` | Device-agent chat mode implemented and unit tested; terminal destination still missing. |
 | Schedule count | `RoomScreenViewModel.loadActiveScheduleCount` | messages state + room menu reducer | `activeScheduleCount` | Implemented from context and surfaced as `RoomScheduleMenuBadge`. |
 | Working memory | `ChatbotAPIClient.getRoomWorkingMemory` | `RoomUnsealContext` | `workingMemory` | Loaded by client; no menu/UI consumer yet. |
 | Webhook triggers | `ChatbotAPIClient.listWebhookTriggers` | `RoomUnsealContext` | `webhookTriggers` | Loaded by client; no menu/UI consumer yet. |
@@ -226,7 +226,8 @@ Rules:
 | Runtime skill catalog | `loadRoomAgentSkillCatalogs` | composer skill loader | `ComposerAgentSkillCandidate` | Implemented initial via `RoomUnsealDataClient.listRoomAgentSkills`. |
 | Legacy skill fallback | `legacyInstalledSkillCandidates` | composer skill loader | `ComposerAgentSkillCandidate` | Implemented initial via `RoomUnsealDataClient.listLegacyAgentSkills`. |
 | Skill picker UI | `ComposerToolbarView` skill picker surface | `ComposerAgentSkillPickerView` | `ComposerAgentSkillState` | Implemented first Compose surface; needs iOS visual polish after device test. |
-| Selected skill send | `TimelineViewModel.sendAgentSkillMessage` | `MessageComposerPresenter` + `JoinedRoom.sendRawRoomMessage` | raw `m.room.message` content with top-level `skills` | Implemented and unit tested against iOS content shape. |
+| Selected skill send | `TimelineViewModel.sendAgentSkillMessage` / `sendAgentChatMessage` | `MessageComposerPresenter` + `JoinedRoom.sendRawRoomMessage` | raw `m.room.message` content with top-level `skills` and optional top-level `device_id` | Implemented and unit tested against iOS content shape. |
+| Device-agent chat send | `RoomScreen.isAgentChatMode`, `TimelineViewModel.agentChatTargetDeviceID`, `sendAgentChatMessage` | `MessagesPresenter` + `AgentChatModeMemoryCache` + `MessageComposerPresenter` | room-scoped target `boundDeviceId`, raw message top-level `device_id` | Implemented for normal/reply sends; active menu state implemented. |
 
 ### P0 Timeline / Stream / Card Features
 

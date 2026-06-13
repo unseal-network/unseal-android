@@ -14,6 +14,7 @@ data class RoomMenuRenderModel(
     val attachmentActions: List<RoomAttachmentAction>,
     val scheduleBadge: RoomScheduleMenuBadge?,
     val deviceAgent: RoomDeviceAgent?,
+    val isDeviceAgentChatActive: Boolean = false,
     val webhookSummary: RoomWebhookMenuSummary? = null,
     val workingMemory: RoomWorkingMemoryMenuState? = null,
 ) {
@@ -26,6 +27,7 @@ data class RoomMenuRenderModel(
             attachmentActions = emptyList(),
             scheduleBadge = null,
             deviceAgent = null,
+            isDeviceAgentChatActive = false,
             webhookSummary = null,
             workingMemory = null,
         )
@@ -77,8 +79,10 @@ object RoomMenuReducer {
         isThreadTimeline: Boolean,
         canShareLocation: Boolean = false,
         enableTextFormatting: Boolean = false,
+        activeDeviceAgentBoundDeviceId: String? = null,
     ): RoomMenuRenderModel {
         val context = roomUnsealContext.dataOrNull()
+        val deviceAgent = context?.deviceAgentInRoom
         val actions = buildList {
             if (!isThreadTimeline && hasThreads) {
                 add(RoomTopbarAction.Threads)
@@ -86,7 +90,7 @@ object RoomMenuReducer {
             if (context?.hasAgentInRoom == true) {
                 add(RoomTopbarAction.Schedules)
             }
-            if (context?.deviceAgentInRoom != null) {
+            if (deviceAgent != null) {
                 add(RoomTopbarAction.DeviceAgentChat)
                 add(RoomTopbarAction.DeviceAgentTerminal)
             }
@@ -115,7 +119,8 @@ object RoomMenuReducer {
                     error = roomUnsealContext.errorOrNull()?.message,
                 )
             },
-            deviceAgent = context?.deviceAgentInRoom,
+            deviceAgent = deviceAgent,
+            isDeviceAgentChatActive = deviceAgent?.boundDeviceId == activeDeviceAgentBoundDeviceId,
             webhookSummary = context?.let {
                 RoomWebhookMenuSummary(
                     totalCount = it.webhookTriggers.size,

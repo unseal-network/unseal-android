@@ -68,6 +68,18 @@ class RoomMenuReducerTest {
     }
 
     @Test
+    fun `reduce marks device agent chat active when bound device matches`() {
+        val roomMenu = RoomMenuReducer.reduce(
+            roomUnsealContext = AsyncData.Success(contextWithAgent(isDeviceAgent = true)),
+            hasThreads = false,
+            isThreadTimeline = false,
+            activeDeviceAgentBoundDeviceId = "device-1",
+        )
+
+        assertThat(roomMenu.isDeviceAgentChatActive).isTrue()
+    }
+
+    @Test
     fun `reduce exposes webhook summary and working memory state from room context`() {
         val roomMenu = RoomMenuReducer.reduce(
             roomUnsealContext = AsyncData.Success(

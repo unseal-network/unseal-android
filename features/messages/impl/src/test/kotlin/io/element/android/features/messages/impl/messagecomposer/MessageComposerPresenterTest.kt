@@ -552,6 +552,44 @@ class MessageComposerPresenterTest {
     }
 
     @Test
+    fun `present - agent chat target sends raw message with top level device id`() = runTest {
+        var rawContent: String? = null
+        val room = FakeJoinedRoom(
+            baseRoom = FakeBaseRoom(initialRoomInfo = aRoomInfo()),
+            sendRawRoomMessageResult = { content, _ ->
+                rawContent = content
+                Result.success(Unit)
+            },
+            typingNoticeResult = { Result.success(Unit) },
+        )
+        val presenter = createPresenter(
+            room = room,
+            isRichTextEditorEnabled = false,
+            slashCommandService = FakeSlashCommandService(
+                parseResult = { _, _, _ -> SlashCommand.NotACommand }
+            ),
+        )
+
+        moleculeFlow(RecompositionMode.Immediate) {
+            presenter.present()
+        }.test {
+            val state = awaitFirstItem()
+            state.textEditorState.setMarkdown(A_MESSAGE)
+            state.eventSink(MessageComposerEvent.SetAgentChatTargetDeviceId("desktop-device-1"))
+            state.eventSink(MessageComposerEvent.SendMessage)
+
+            advanceUntilIdle()
+
+            val content = JSONObject(checkNotNull(rawContent))
+            assertThat(content.getString("msgtype")).isEqualTo("m.text")
+            assertThat(content.getString("body")).isEqualTo(A_MESSAGE)
+            assertThat(content.getString("device_id")).isEqualTo("desktop-device-1")
+            assertThat(content.has("skills")).isFalse()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `present - edit sent message`() = runTest {
         val editMessageLambda = lambdaRecorder { _: EventOrTransactionId, _: String, _: String?, _: List<IntentionalMention> ->
             Result.success(Unit)

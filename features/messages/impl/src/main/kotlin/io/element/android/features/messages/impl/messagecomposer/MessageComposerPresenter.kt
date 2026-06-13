@@ -337,6 +337,7 @@ class MessageComposerPresenter(
         )
 
         val slashCommandAction = remember { mutableStateOf<AsyncAction<Unit>>(AsyncAction.Uninitialized) }
+        var agentChatTargetDeviceId by remember { mutableStateOf<String?>(null) }
 
         LaunchedEffect(Unit) {
             val draft = draftService.loadDraft(
@@ -371,6 +372,7 @@ class MessageComposerPresenter(
                         richTextEditorState = richTextEditorState,
                         slashCommandAction = slashCommandAction,
                         selectedSkills = selectedSkillsForSend,
+                        agentChatTargetDeviceId = agentChatTargetDeviceId,
                     )
                 }
                 is MessageComposerEvent.SendUri -> {
@@ -526,6 +528,9 @@ class MessageComposerPresenter(
                     selectedAgentSkills = nextSelectedSkills
                     isAgentSkillPickerPresented = ComposerAgentSkillReducer.hasUnresolvedTargets(baseAgentSkillState.targets, nextSelectedSkills)
                 }
+                is MessageComposerEvent.SetAgentChatTargetDeviceId -> {
+                    agentChatTargetDeviceId = event.deviceId
+                }
             }
         }
 
@@ -615,6 +620,7 @@ class MessageComposerPresenter(
         richTextEditorState: RichTextEditorState,
         slashCommandAction: MutableState<AsyncAction<Unit>>,
         selectedSkills: ImmutableList<ComposerSelectedAgentSkill>,
+        agentChatTargetDeviceId: String?,
     ) = launch {
         val message = currentComposerMessage(markdownTextEditorState, richTextEditorState, withMentions = true)
         val capturedMode = messageComposerContext.composerMode
@@ -682,13 +688,14 @@ class MessageComposerPresenter(
         when (capturedMode) {
             is MessageComposerMode.Attachment,
             is MessageComposerMode.Normal -> timelineController.invokeOnCurrentTimeline {
-                if (selectedSkills.isNotEmpty()) {
+                if (agentChatTargetDeviceId != null || selectedSkills.isNotEmpty()) {
                     room.sendRawRoomMessage(
-                        contentJson = agentSkillMessageContentJson(
+                        contentJson = rawAgentMessageContentJson(
                             body = message.markdown,
                             htmlBody = message.html,
                             intentionalMentions = message.intentionalMentions,
                             selectedSkills = selectedSkills,
+                            targetDeviceId = agentChatTargetDeviceId,
                         )
                     )
                 } else {
@@ -724,13 +731,14 @@ class MessageComposerPresenter(
             is MessageComposerMode.Reply -> {
                 timelineController.invokeOnCurrentTimeline {
                     with(capturedMode) {
-                        if (selectedSkills.isNotEmpty()) {
+                        if (agentChatTargetDeviceId != null || selectedSkills.isNotEmpty()) {
                             room.sendRawRoomMessage(
-                                contentJson = agentSkillMessageContentJson(
+                                contentJson = rawAgentMessageContentJson(
                                     body = message.markdown,
                                     htmlBody = message.html,
                                     intentionalMentions = message.intentionalMentions,
                                     selectedSkills = selectedSkills,
+                                    targetDeviceId = agentChatTargetDeviceId,
                                     inReplyToEventId = eventId,
                                 )
                             )
@@ -769,30 +777,34 @@ class MessageComposerPresenter(
         )
     }
 
-    private fun agentSkillMessageContentJson(
+    private fun rawAgentMessageContentJson(
         body: String,
         htmlBody: String?,
         intentionalMentions: List<IntentionalMention>,
         selectedSkills: List<ComposerSelectedAgentSkill>,
+        targetDeviceId: String?,
         inReplyToEventId: EventId? = null,
     ): String {
         return JSONObject().apply {
             put("msgtype", "m.text")
             put("body", body)
+            targetDeviceId?.takeIf { it.isNotBlank() }?.let { put("device_id", it) }
             if (!htmlBody.isNullOrBlank()) {
                 put("format", "org.matrix.custom.html")
                 put("formatted_body", htmlBody)
             }
-            put("skills", JSONArray().apply {
-                selectedSkills.forEach { selected ->
-                    put(JSONObject().apply {
-                        put("agent_id", selected.agentMxid)
-                        put("name", selected.skillName)
-                        selected.path?.takeIf { it.isNotBlank() }?.let { put("path", it) }
-                        selected.directoryName?.takeIf { it.isNotBlank() }?.let { put("directoryName", it) }
-                    })
-                }
-            })
+            if (selectedSkills.isNotEmpty()) {
+                put("skills", JSONArray().apply {
+                    selectedSkills.forEach { selected ->
+                        put(JSONObject().apply {
+                            put("agent_id", selected.agentMxid)
+                            put("name", selected.skillName)
+                            selected.path?.takeIf { it.isNotBlank() }?.let { put("path", it) }
+                            selected.directoryName?.takeIf { it.isNotBlank() }?.let { put("directoryName", it) }
+                        })
+                    }
+                })
+            }
             val mentionedUsers = intentionalMentions.filterIsInstance<IntentionalMention.User>()
             val hasRoomMention = intentionalMentions.any { it is IntentionalMention.Room }
             if (mentionedUsers.isNotEmpty() || hasRoomMention) {

@@ -45,4 +45,5 @@ sealed interface MessageComposerEvent {
     data class SelectAgentSkill(val candidate: ComposerAgentSkillCandidate) : MessageComposerEvent
     data class RemoveSelectedAgentSkill(val selected: ComposerSelectedAgentSkill) : MessageComposerEvent
     data class SelectAgentSkillTarget(val agentMxid: String) : MessageComposerEvent
+    data class SetAgentChatTargetDeviceId(val deviceId: String?) : MessageComposerEvent
 }

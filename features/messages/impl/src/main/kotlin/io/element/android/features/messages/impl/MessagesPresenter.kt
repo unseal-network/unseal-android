@@ -38,6 +38,7 @@ import io.element.android.features.messages.impl.link.LinkState
 import io.element.android.features.messages.impl.messagecomposer.MessageComposerEvent
 import io.element.android.features.messages.impl.messagecomposer.MessageComposerState
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerState
+import io.element.android.features.messages.impl.roomdata.AgentChatModeMemoryCache
 import io.element.android.features.messages.impl.roomdata.RoomMenuReducer
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContextStore
@@ -178,6 +179,9 @@ class MessagesPresenter(
         val roomCallState = roomCallStatePresenter.present()
         val roomMemberModerationState = roomMemberModerationPresenter.present()
         val roomUnsealContextState by roomUnsealContextStore.context.collectAsState()
+        var activeDeviceAgentBoundDeviceId by remember(room.roomId) {
+            mutableStateOf(AgentChatModeMemoryCache.targetDeviceIdFor(room.roomId))
+        }
         val membersState by room.membersStateFlow.collectAsState()
         val roomMemberSignature = remember(membersState) {
             membersState.roomUnsealMemberSignature()
@@ -232,6 +236,16 @@ class MessagesPresenter(
         }
         LaunchedEffect(room.roomId) {
             roomUnsealContextStore.refresh()
+        }
+        LaunchedEffect(activeDeviceAgentBoundDeviceId) {
+            composerState.eventSink(MessageComposerEvent.SetAgentChatTargetDeviceId(activeDeviceAgentBoundDeviceId))
+        }
+        LaunchedEffect(roomUnsealContextState, activeDeviceAgentBoundDeviceId) {
+            val deviceAgent = roomUnsealContextState.dataOrNull()?.deviceAgentInRoom
+            if (activeDeviceAgentBoundDeviceId != null && deviceAgent?.boundDeviceId != activeDeviceAgentBoundDeviceId) {
+                activeDeviceAgentBoundDeviceId = null
+                AgentChatModeMemoryCache.setTargetDeviceId(room.roomId, null)
+            }
         }
         LaunchedEffect(roomConfigChangeRequests) {
             roomConfigChangeRequests.collectLatest {
@@ -321,6 +335,19 @@ class MessagesPresenter(
                 MessagesEvent.ShowLiveLocationShare -> {
                     navigator.navigateToCurrentLiveLocation()
                 }
+                is MessagesEvent.ToggleDeviceAgentChat -> {
+                    val nextTargetDeviceId = if (activeDeviceAgentBoundDeviceId == event.deviceAgent.boundDeviceId) {
+                        null
+                    } else {
+                        event.deviceAgent.boundDeviceId
+                    }
+                    activeDeviceAgentBoundDeviceId = nextTargetDeviceId
+                    AgentChatModeMemoryCache.setTargetDeviceId(room.roomId, nextTargetDeviceId)
+                    composerState.eventSink(MessageComposerEvent.SetAgentChatTargetDeviceId(nextTargetDeviceId))
+                }
+                is MessagesEvent.OpenDeviceAgentTerminal -> {
+                    Timber.i("Device agent terminal requested for boundDeviceId=${event.deviceAgent.boundDeviceId}")
+                }
                 is MessagesEvent.MarkAsFullyReadAndExit -> if (!markingAsReadAndExiting.getAndSet(true)) {
                     coroutineScope.launch {
                         val latestEventId = room.liveTimeline.getLatestEventId().getOrElse {
@@ -375,6 +402,7 @@ class MessagesPresenter(
                 isThreadTimeline = timelineState.timelineMode is Timeline.Mode.Thread,
                 canShareLocation = composerState.canShareLocation,
                 enableTextFormatting = MessageComposerConfig.ENABLE_RICH_TEXT_EDITING,
+                activeDeviceAgentBoundDeviceId = activeDeviceAgentBoundDeviceId,
             ),
             appName = buildMeta.applicationName,
             pinnedMessagesBannerState = pinnedMessagesBannerState,

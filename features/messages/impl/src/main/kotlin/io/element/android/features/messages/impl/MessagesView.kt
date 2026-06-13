@@ -264,8 +264,14 @@ fun MessagesView(
                                     onJoinCallClick = onJoinCallClick,
                                     onRoomSchedulesClick = onRoomSchedulesClick,
                                     onThreadsListClick = onThreadsListClick,
-                                    onDeviceAgentChatClick = onDeviceAgentChatClick,
-                                    onDeviceAgentTerminalClick = onDeviceAgentTerminalClick,
+                                    onDeviceAgentChatClick = {
+                                        state.eventSink(MessagesEvent.ToggleDeviceAgentChat(it))
+                                        onDeviceAgentChatClick(it)
+                                    },
+                                    onDeviceAgentTerminalClick = {
+                                        state.eventSink(MessagesEvent.OpenDeviceAgentTerminal(it))
+                                        onDeviceAgentTerminalClick(it)
+                                    },
                                 )
                             }
                         )
@@ -487,6 +493,7 @@ private fun RoomToolMenu(
     ) {
         ToolbarCircleButton(
             onClick = { expanded = !expanded },
+            isActive = roomMenu.isDeviceAgentChatActive,
             badgeContent = {
                 if (deviceAgent != null) {
                     Box(
@@ -539,8 +546,10 @@ private fun RoomToolMenu(
                             expanded = false
                             onDeviceAgentChatClick(deviceAgent)
                         },
+                        isActive = roomMenu.isDeviceAgentChatActive,
                     ) {
                         Icon(
+                            tint = if (roomMenu.isDeviceAgentChatActive) ElementTheme.colors.iconSuccessPrimary else ElementTheme.colors.iconPrimary,
                             imageVector = CompoundIcons.Computer(),
                             contentDescription = "Chat with device agent",
                         )
@@ -575,6 +584,7 @@ private fun RoomToolMenu(
 @Composable
 private fun ToolbarCircleButton(
     onClick: () -> Unit,
+    isActive: Boolean = false,
     badgeContent: @Composable BoxScope.() -> Unit = {},
     content: @Composable () -> Unit,
 ) {
@@ -585,7 +595,7 @@ private fun ToolbarCircleButton(
             modifier = Modifier
                 .size(36.dp)
                 .clip(CircleShape)
-                .background(ElementTheme.colors.bgSubtleSecondary)
+                .background(if (isActive) ElementTheme.colors.bgCanvasDefault else ElementTheme.colors.bgSubtleSecondary)
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {

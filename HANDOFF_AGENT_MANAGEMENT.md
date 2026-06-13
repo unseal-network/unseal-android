@@ -100,6 +100,9 @@ $ADB -s 5fd76ce3 logcat -s "AiSdkStreamReducer:*" "AiStreamDbg:*" > /tmp/sd.txt
 - `607f491732` completed stream 先读 SDK/store 缓存再 bind，避免滑回 timeline 时 loading/running 闪回
 - `5bf01433d7` flatten Weather/Places/Emails tool card content surfaces，减少 root card 内二次套框
 - `f22937d679` reducer 侧 memoize tool card props transform，降低 stream patch / timeline 回收时重复 JSON 转换
+- `2a43c75417` pending tool/reasoning 使用 loading indicator，不再展示裸 `Running tool...` / `Thinking...`
+- `8d76a16b0e` Room topbar tool menu 改为 `RoomMenuRenderModel` 驱动，露出 schedules / device-agent chat / terminal
+- 当前待提交：device-agent chat mode 数据流对齐 iOS（房间级内存 cache、menu active 状态、composer raw send 顶层 `device_id`）
 
 详情：
 1. **流完成收尾**：`Completed` 快照时把所有 in-progress part 状态归一（reasoning/text→done，tool→output-available），在计算可渲染列表**之前**执行。一处修复解决了：① "Thinking…" 卡死、② "Running tool…" 卡死、③ 子 agent 卡片完成后不出现（`expandSubAgent`/`expandMultiExecute` 只在 `isDone` 时解析 `subAgentToolResults`）、④ 重进会话显示旧的中间态。（`AiSdkStreamReducer.finalizeIfCompleted`）
@@ -178,6 +181,13 @@ val roomUnsealContext: AsyncData<RoomUnsealContext>
 - refresh 事件回到 room-scoped `RoomUnsealContextStore`
 
 这意味着 `MessagesPresenter` 不再调用旧的 `RoomScheduleBadgePresenter`，避免 room topbar 自己重复 `listAgents/listSchedules/updateMembers`。旧 `features/roomschedules` presenter 目前还留在模块里，后续可清理或改成消费共享 context。
+
+Device-agent chat mode 也由 `MessagesPresenter` 管理：
+- `AgentChatModeMemoryCache` 按 roomId 记录当前目标 `boundDeviceId`，进程级内存保存，重启清空，行为对齐 iOS `AgentChatModeMemoryCache`。
+- `RoomMenuRenderModel.isDeviceAgentChatActive` 给 topbar 展示 active 状态。
+- `MessagesEvent.ToggleDeviceAgentChat` 切换目标设备，并通过 `MessageComposerEvent.SetAgentChatTargetDeviceId` 同步到 composer。
+- `MessageComposerPresenter` 发送 normal/reply 消息时，如果存在 target device，就走 `JoinedRoom.sendRawRoomMessage`，顶层注入 `"device_id": boundDeviceId`；如果同时选择 skill，也同时保留顶层 `skills`。这对齐 iOS `TimelineViewModel.sendAgentChatMessage`。
+- `MessagesEvent.OpenDeviceAgentTerminal` 目前已经进入事件层并记录日志，真实 terminal destination 仍需接 navigator/node。
 
 ### RoomUnsealContext 共享 store
 
