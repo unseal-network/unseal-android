@@ -97,6 +97,9 @@ $ADB -s 5fd76ce3 logcat -s "AiSdkStreamReducer:*" "AiStreamDbg:*" > /tmp/sd.txt
 - `e0de65633b` Tool 卡片布局对齐 iOS + 修「已编辑」重叠
 - `6b04d94d60` 空 stream 的 loading / 失败卡片状态
 - `b02ff03d51` 移植 iOS CardTransforms（卡片展开内容修复）
+- `607f491732` completed stream 先读 SDK/store 缓存再 bind，避免滑回 timeline 时 loading/running 闪回
+- `5bf01433d7` flatten Weather/Places/Emails tool card content surfaces，减少 root card 内二次套框
+- `f22937d679` reducer 侧 memoize tool card props transform，降低 stream patch / timeline 回收时重复 JSON 转换
 
 详情：
 1. **流完成收尾**：`Completed` 快照时把所有 in-progress part 状态归一（reasoning/text→done，tool→output-available），在计算可渲染列表**之前**执行。一处修复解决了：① "Thinking…" 卡死、② "Running tool…" 卡死、③ 子 agent 卡片完成后不出现（`expandSubAgent`/`expandMultiExecute` 只在 `isDone` 时解析 `subAgentToolResults`）、④ 重进会话显示旧的中间态。（`AiSdkStreamReducer.finalizeIfCompleted`）
@@ -105,6 +108,9 @@ $ADB -s 5fd76ce3 logcat -s "AiSdkStreamReducer:*" "AiStreamDbg:*" > /tmp/sd.txt
 4. **「已编辑」重叠修复**：`TimelineItemAiView` 通过 `onContentLayoutChange` 上报全宽，使气泡 `ContentAvoidingLayout` 把时间戳/已编辑标记放到下一行而非覆盖正文。
 5. **空 stream 处理**：终态但无可渲染内容→失败卡片「消息内容加载失败」；仍在流式→三点 loading 指示。（`TimelineItemAiContent.isTerminal` + `AiLoadingIndicator`/`AiUnavailableCard`）
 6. **CardTransforms 移植**：移植 iOS `CardTransforms`（raw API → 卡片 props，如 `items`→`repositories`、`organic_results`→`headlines`、snake_case→camelCase）。在 `ToolCard()` dispatch 前应用，并在转换后无内容时返回 false 回退到原始 payload（不再出现空白卡片）。（`toolcards/CardTransforms.kt`）
+7. **completed stream durable cache 首帧渲染**：`AiStreamHandleStore.cachedCompletedSnapshot()` 会先查 room memory / SDK handle snapshot，再读 `StreamStorageProvider`；`TimelineItemAiPresenter` 在 bind SDK stream 前先把 completed snapshot 映射成 `TimelineItemAiContent`。命中后不会创建新 handle，不会再次显示 loading/running。
+8. **tool card 内容层级收敛**：root `ToolCallRootCard` 继续作为唯一外框；Weather / Places / Email list 不再额外包一层深色 `ToolCardSurface` 或重复 header，避免截图中“小卡片塞进大气泡”的压缩感。
+9. **tool props 转换缓存**：`AiToolCardLogic` 在 reducer 侧按 `cardType + raw payload` 做 128 项 LRU，避免同一 tool output 在多次 snapshot/重组中重复执行 `CardTransforms`。
 
 之前已完成（见 git 历史 / 旧提交）：
 - **菜单 M3 迁移**：Agent 列表/详情/编辑、Skills（Home/Marketplace/Detail/AgentSkills/Hub/Create）、Connectors（List/Manage）、Webhooks（List/Edit）、Voice Library、Credits。均为 Node/Presenter/View 架构，编译通过。
@@ -398,13 +404,15 @@ Rules for follow-up work:
 Current Android render flow:
 
 1. Timeline event exposes a `streamId`.
-2. `TimelineItemAiPresenter` asks `AiStreamHandleStore` to bind a `StreamRequest`.
-3. `AiStreamHandleStore` dedupes SDK handles by stream id and keeps background streams alive across Compose recycling.
-4. `StreamSnapshotUpdatePolicy` coalesces patch-only updates and emits state changes immediately.
-5. `AiSdkStreamReducer` maps SDK parts into `AiStreamRenderModel`, then into `TimelineItemAiContent`, including markdown blocks, cursor mode, `toolCardEntries`, `firstToolPartIndex`, and terminal stream metadata.
-6. `TimelinePresentationReducer` decides standalone AI layout vs normal bubble layout.
-7. `TimelineItemAiView` renders from `TimelineItemAiContent` only. `ToolCallRootCard` consumes precomputed `ToolCallRootRenderModel` / `AiToolCardEntry` values instead of reparsing tool stream parts.
-8. If `AiStreamContentCache` already has terminal renderable content, `TimelineItemAiPresenter` skips SDK rebind for recycled cells.
+2. `TimelineItemAiPresenter` first asks `AiStreamHandleStore.cachedCompletedSnapshot(streamId)` for room memory / SDK memory / SQLite completed snapshot.
+3. If completed cache hits, presenter maps it with `AiSdkStreamReducer` and skips SDK bind entirely.
+4. If no completed cache hits, presenter asks `AiStreamHandleStore` to bind a `StreamRequest`.
+5. `AiStreamHandleStore` dedupes SDK handles by stream id and keeps background streams alive across Compose recycling.
+6. `StreamSnapshotUpdatePolicy` coalesces patch-only updates and emits state changes immediately.
+7. `AiSdkStreamReducer` maps SDK parts into `AiStreamRenderModel`, then into `TimelineItemAiContent`, including markdown blocks, cursor mode, `toolCardEntries`, `firstToolPartIndex`, and terminal stream metadata.
+8. `TimelinePresentationReducer` decides standalone AI layout vs normal bubble layout.
+9. `TimelineItemAiView` renders from `TimelineItemAiContent` only. `ToolCallRootCard` consumes precomputed `ToolCallRootRenderModel` / `AiToolCardEntry` values instead of reparsing tool stream parts.
+10. If `AiStreamContentCache` already has terminal renderable content, `TimelineItemAiPresenter` also skips SDK rebind for recycled cells.
 
 ## Room Data / Composer Parity Status
 
@@ -453,3 +461,5 @@ Verification on this branch:
   - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillReducerTest'`
   - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.messagecomposer.skills.*'`
   - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.actionlist.model.MessageActionMenuReducerTest'`
+  - `./gradlew :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.timeline.factories.event.AiStreamHandleStoreTest' --tests 'io.element.android.features.messages.impl.timeline.components.event.TimelineItemAiPresenterTest'`
+  - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.timeline.factories.event.AiSdkStreamReducerTest' --tests 'io.element.android.features.messages.impl.timeline.components.event.toolcards.ToolCallRootCardAdapterTest' --tests 'io.element.android.features.messages.impl.timeline.components.event.toolcards.ToolCardDispatcherTest'`

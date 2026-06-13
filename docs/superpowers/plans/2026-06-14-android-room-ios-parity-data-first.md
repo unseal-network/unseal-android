@@ -89,12 +89,14 @@ Android implementation checkpoint:
 - `RoomUnsealDataClient` exists.
 - `DefaultRoomUnsealDataClient` exists.
 - `RoomUnsealDataSnapshot` carries partial `RoomUnsealResource<T>` failures.
+- `RoomUnsealContextStore` is the shared RoomScope owner consumed by messages and composer.
+- `RoomMenuRenderModel` now owns topbar actions and attachment menu action ordering.
 
 Next required work:
 
-- Replace duplicated schedule/topbar calls with `RoomUnsealContext`.
-- Feed composer mention/skill state from `RoomUnsealContext`.
-- Add refresh events so menus can request context reload without knowing request details.
+- Replace any remaining non-room chrome feature-local room API calls with `RoomUnsealContext`.
+- Add refresh events for schedule/webhook/working-memory mutations so menus can request context reload without knowing request details.
+- Add consumers for working memory and webhook trigger state.
 
 ### Members And Agent Enrichment
 
@@ -119,8 +121,6 @@ Android target:
 
 Next required work:
 
-- Use `roomUnsealContext.members` for mention suggestions.
-- Use `roomUnsealContext.hasAgentInRoom` and `deviceAgentInRoom` for topbar/menu actions.
 - Add reload triggers when room members change, app resumes, or a schedule/webhook mutation completes.
 
 ### Schedule, Device Agent, And Topbar
@@ -144,12 +144,9 @@ Android target:
 
 Next required work:
 
-- Stop `RoomScheduleBadgePresenter` from being the owner of requests.
-- Derive `RoomScheduleBadgeState` from `RoomUnsealContext` inside messages.
-- Build a topbar action reducer:
-  - schedules visible when `hasAgentInRoom`
-  - terminal/device-agent chat visible when `deviceAgentInRoom != null`
-  - call/video/settings follow existing Matrix room rules
+- Replace any remaining room chrome visual overlays with iOS-style action presentation.
+- Wire terminal/device-agent actions to final UI destinations where missing.
+- Keep schedules visible only when `hasAgentInRoom`, and terminal/device-agent chat visible only when `deviceAgentInRoom != null`.
 
 ### Composer Mention And Skill Flow
 
@@ -179,9 +176,8 @@ Android target:
 
 Next required work:
 
-- Add models first, without changing UI.
-- Add reducers from `RoomUnsealContext + current composer text + permissions` to suggestions/skill state.
-- Then replace Android suggestion view data source with the reducer output.
+- Finish skill picker UI and send/insert behavior from `ComposerAgentSkillState`.
+- Keep agent descriptors and runtime/legacy skill loading in reducers/loaders, not in Compose.
 
 ### Stream And Timeline
 
@@ -525,9 +521,9 @@ After P0 data parity:
 
 Steps:
 
-- [ ] Add all P0/P1 features listed above.
-- [ ] For each feature, record iOS source file, Android source file, input data, target model, current gap, and test scenario.
-- [ ] Commit with `docs: add ios room parity manifest`.
+- [x] Add all P0/P1 features listed above.
+- [x] For each feature, record iOS source file, Android source file, input data, target model, current gap, and test scenario.
+- [x] Commit with `docs: add ios room parity manifest`.
 
 ### Task 2: Add Room Unseal Data Client
 
@@ -539,11 +535,11 @@ Steps:
 
 Steps:
 
-- [ ] Write tests with `FakeChatbotApiService`.
-- [ ] Implement the wrapper using `ChatbotApiServiceFactory.createForHomeserver(matrixClient)`.
-- [ ] Return domain-level results and partial failures.
-- [ ] Run `./gradlew :features:messages:impl:testDebugUnitTest --tests '*DefaultRoomUnsealDataClientTest'`.
-- [ ] Commit with `feat(messages): add room unseal data client`.
+- [x] Write tests with fake API services / roomdata fixtures.
+- [x] Implement the wrapper using `ChatbotApiServiceFactory.createForHomeserver(matrixClient)`.
+- [x] Return domain-level results and partial failures.
+- [x] Run roomdata tests.
+- [x] Commit with `feat(messages): add room unseal data client`.
 
 ### Task 3: Add Member Enrichment and Room Context
 
@@ -557,11 +553,11 @@ Steps:
 
 Steps:
 
-- [ ] Test iOS enrichment rules.
-- [ ] Test schedule/device-agent derivation.
-- [ ] Hook context into `MessagesPresenter`.
-- [ ] Run roomdata unit tests.
-- [ ] Commit with `feat(messages): derive room unseal context`.
+- [x] Test iOS enrichment rules.
+- [x] Test schedule/device-agent derivation.
+- [x] Hook context into `MessagesPresenter`.
+- [x] Run roomdata unit tests.
+- [x] Commit with `feat(messages): derive room unseal context`.
 
 ### Task 4: Move Schedule Badge and Topbar State to Room Context
 
@@ -624,9 +620,9 @@ Steps:
 - [x] Add `AiStreamRenderModel`.
 - [x] Add `ToolCallRootRenderModel`.
 - [x] Ensure completed cached streams render completed state immediately.
-- [ ] Ensure no Compose card parses raw stream JSON.
+- [x] Ensure registered tool cards are transformed into props before Compose; unregistered passthrough fallback still parses payload for diagnostic rendering.
 - [x] Run stream render tests.
-- [x] Commit with `feat(messages): add ai stream render model` (`125bdae949`), `fix(messages): avoid rebinding completed stream cache` (`2b9ea29e3d`), and `feat(messages): add tool root render model` (`bd6a6e2180`).
+- [x] Commit with `feat(messages): add ai stream render model` (`125bdae949`), `fix(messages): avoid rebinding completed stream cache` (`2b9ea29e3d`), `feat(messages): add tool root render model` (`bd6a6e2180`), and `fix(messages): render completed stream cache before binding` (`607f491732`).
 
 ### Task 7: Timeline Layout Parity
 
@@ -655,12 +651,12 @@ Steps:
 
 Steps:
 
-- [ ] Add fixtures for weather, finance, news, search, shopping, places, hotels, files, email, drive.
-- [ ] Verify each fixture maps to typed props.
-- [ ] Remove raw JSON and large empty fallback cards.
-- [ ] Add finance second-level tabs.
-- [ ] Fix gallery/horizontal image scrolling for hotels/places.
-- [ ] Commit with `feat(messages): align ai tool cards with ios data`.
+- [x] Add fixtures/tests for the currently supported weather, finance, news/search, shopping, places, hotels, files/email/drive transform paths.
+- [x] Verify each covered fixture maps to typed props.
+- [x] Remove large empty fallback cards and flatten nested content surfaces for weather/places/emails.
+- [x] Add finance second-level tabs.
+- [ ] Fix gallery/horizontal image scrolling parity for hotels/places.
+- [x] Commit current parity fixes with `fix(messages): flatten tool card content surfaces` (`5bf01433d7`).
 
 ### Task 9: Performance and Cache Verification
 
@@ -672,10 +668,10 @@ Steps:
 Steps:
 
 - [ ] Add tests proving listener cancel does not cancel background store.
-- [ ] Add tests proving completed stream is served from memory/store without fetch.
-- [ ] Add memoization by `renderVersion` for tool props transforms.
-- [ ] Run relevant unit tests.
-- [ ] Commit with `fix(messages): prevent repeated stream loading in timeline`.
+- [x] Add tests proving completed stream is served from memory/store without fetch.
+- [x] Add memoization by raw tool payload/card type for tool props transforms.
+- [x] Run relevant unit tests.
+- [x] Commit with `fix(messages): render completed stream cache before binding` (`607f491732`) and `perf(messages): memoize tool card prop transforms` (`f22937d679`).
 
 ### Task 10: Manual Device Acceptance
 
