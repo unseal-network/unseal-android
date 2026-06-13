@@ -589,7 +589,7 @@ Steps:
 
 - [x] Add action menu sections for primary/edit/copy/pin/debug/danger.
 - [x] Preserve emoji reaction and send-failure metadata in the render model.
-- [x] Keep current UI consuming `TimelineItemAction` until the Compose migration pass.
+- [x] Wire `ActionListView` to render from `MessageActionMenuRenderModel.sections`.
 - [x] Run action menu reducer tests.
 
 ### Task 5: Composer Mention and Skill Picker Data Parity

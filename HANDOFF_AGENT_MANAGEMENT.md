@@ -436,7 +436,8 @@ Pending composer parity:
 Room action menu data parity:
 
 - `MessageActionMenuReducer` now converts the existing `ActionListState.Target.Success` into sectioned render data (`Primary`, `Edit`, `Copy`, `Pin`, `Debug`, `Danger`) while preserving emoji reactions and verified send-failure state.
-- Current Compose UI still consumes `TimelineItemAction` directly. The next UI pass should render from `MessageActionMenuRenderModel` and then add missing iOS actions such as select text, translate, save/unsave, share/save media where Android has the underlying handlers.
+- `ActionListView` now renders action rows from `MessageActionMenuRenderModel.sections`, so the sheet UI consumes sectioned render entries instead of iterating raw `TimelineItemAction` directly.
+- Remaining parity work is to add missing iOS actions such as select text, translate, save/unsave, share/save media where Android has the underlying handlers.
 
 Verification on this branch:
 
