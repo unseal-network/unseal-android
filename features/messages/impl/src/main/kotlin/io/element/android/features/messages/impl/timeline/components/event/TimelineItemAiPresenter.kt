@@ -157,7 +157,7 @@ class TimelineItemAiPresenter(
                     streamId = streamId,
                     sender = fallbackContent.sender.orEmpty(),
                     roomId = "",
-                    eventId = "",
+                    eventId = fallbackContent.eventId.orEmpty(),
                     includeRawEvents = false,
                 ),
             ) { snapshot ->
