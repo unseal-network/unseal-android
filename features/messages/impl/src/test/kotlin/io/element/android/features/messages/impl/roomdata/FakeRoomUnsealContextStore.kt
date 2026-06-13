@@ -20,9 +20,12 @@ class FakeRoomUnsealContextStore(
     override val context: StateFlow<AsyncData<RoomUnsealContext>> = mutableContext
     var refreshCount: Int = 0
         private set
+    var lastRefreshForce: Boolean? = null
+        private set
 
     override suspend fun refresh(force: Boolean) {
         refreshCount++
+        lastRefreshForce = force
     }
 
     fun givenContext(context: RoomUnsealContext) {

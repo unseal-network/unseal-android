@@ -1112,6 +1112,48 @@ class MessageComposerPresenterTest {
             // If the suggestion isn't a mention, no suggestions are returned
             initialState.eventSink(MessageComposerEvent.SuggestionReceived(Suggestion(0, 0, SuggestionType.Command, "")))
             assertThat(awaitItem().suggestions).isEmpty()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - refreshes room unseal context when mention suggestions start`() = runTest {
+        val roomUnsealContextStore = FakeRoomUnsealContextStore()
+        val room = FakeJoinedRoom(
+            baseRoom = FakeBaseRoom(
+                roomPermissions = FakeRoomPermissions(
+                    canTriggerRoomNotification = true,
+                )
+            ),
+            typingNoticeResult = { Result.success(Unit) }
+        ).apply {
+            givenRoomMembersState(RoomMembersState.Ready(persistentListOf(aRoomMember(userId = A_USER_ID_2, membership = RoomMembershipState.JOIN))))
+            givenRoomInfo(aRoomInfo(isDirect = false))
+        }
+        val presenter = createPresenter(
+            room = room,
+            roomUnsealContextStore = roomUnsealContextStore,
+            slashCommandService = FakeSlashCommandService(
+                getSuggestionsResult = { _, _ -> emptyList() },
+            ),
+        )
+        presenter.test {
+            val initialState = awaitItem()
+            waitForPredicate { roomUnsealContextStore.refreshCount == 1 }
+
+            initialState.eventSink(MessageComposerEvent.SuggestionReceived(Suggestion(0, 0, SuggestionType.Command, "")))
+            awaitItem()
+            assertThat(roomUnsealContextStore.refreshCount).isEqualTo(1)
+
+            initialState.eventSink(MessageComposerEvent.SuggestionReceived(Suggestion(0, 0, SuggestionType.Mention, "")))
+            awaitItem()
+            waitForPredicate { roomUnsealContextStore.refreshCount == 2 }
+            assertThat(roomUnsealContextStore.lastRefreshForce).isTrue()
+
+            initialState.eventSink(MessageComposerEvent.SuggestionReceived(Suggestion(0, 0, SuggestionType.Mention, "agent")))
+            awaitItem()
+            assertThat(roomUnsealContextStore.refreshCount).isEqualTo(2)
+            cancelAndIgnoreRemainingEvents()
         }
     }
 

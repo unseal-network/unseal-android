@@ -88,6 +88,7 @@ import io.element.android.libraries.textcomposer.model.MarkdownTextEditorState
 import io.element.android.libraries.textcomposer.model.Message
 import io.element.android.libraries.textcomposer.model.MessageComposerMode
 import io.element.android.libraries.textcomposer.model.Suggestion
+import io.element.android.libraries.textcomposer.model.SuggestionType
 import io.element.android.libraries.textcomposer.model.TextEditorState
 import io.element.android.libraries.textcomposer.model.rememberMarkdownTextEditorState
 import io.element.android.services.analytics.api.AnalyticsService
@@ -279,6 +280,16 @@ class MessageComposerPresenter(
 
         LaunchedEffect(Unit) {
             roomUnsealContextStore.refresh()
+        }
+        LaunchedEffect(Unit) {
+            var mentionWasActive = false
+            suggestionSearchTrigger.collect { suggestion ->
+                val mentionIsActive = suggestion?.type == SuggestionType.Mention
+                if (mentionIsActive && !mentionWasActive) {
+                    roomUnsealContextStore.refresh(force = true)
+                }
+                mentionWasActive = mentionIsActive
+            }
         }
         LaunchedEffect(baseAgentSkillState.targets) {
             val targetMxids = baseAgentSkillState.targets.map { it.mxid }.toSet()
