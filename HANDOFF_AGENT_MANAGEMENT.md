@@ -299,6 +299,10 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
   - 酒店/地点图片条改成 `LazyRow`，点击后用 `HorizontalPager` dialog 查看，避免普通 Row 抢不到横向手势。
 - `f8b2809853` `docs(messages): update stream sdk verification status`
   - 重新验证 Stream SDK listener 取消不会取消后台完成/store 写入，并记录到计划。
+- `d92da963eb` `feat(messages): render json spec stream parts`
+  - `data-ui-spec` / `data-json-render` / `data-spec` 不再降级成几行 JSON 摘要，而是进入 `JsonSpecRender`。
+  - 该 renderer 支持 iOS flat `Spec(root/elements/state)` 的核心递归结构，以及 nested payload fallback。
+  - 第一版组件覆盖 stack/card/text/heading/button/image/divider/badge/progress/alert/file/hotel/product/news；完整 Shadcn 目录和 markdown code-block spec 接入仍是后续增强。
 - 最新文档状态已同步到计划与 handoff；后续继续保持小步提交。
 
 ### Room 数据流当前边界
@@ -350,14 +354,14 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 
 > `features/messages/impl/.../timeline/components/event/TimelineItemAiView.kt:SuspendedToolCard` 目前是 display-only。需要接 host delegate（参考 iOS `AgentMessageViewDelegate` + `UIParts/DataParts/Suspended/`）。
 
-### 4.3 JsonRender / 服务端驱动 UI（**重点缺口，task #14**）
+### 4.3 JsonRender / 服务端驱动 UI（**部分完成，继续补组件目录**）
 
 | 能力 | iOS 效果 | Android 现状 | 差距 |
 |---|---|---|---|
-| `data-ui-spec` / `data-json-render` / `data-spec` | `JsonRenderView` → `Renderer` 递归渲染 Spec 树 | 🟡 退化成 list/code-block 兜底 | ❌ 无 Renderer |
-| 组件目录（Shadcn） | stack/text/heading/button/image/input/select/switch/radio/checkbox/progress/alert/card/divider/spacer/scroll/group + 富卡片 | ❌ 无 | ❌ 需建组件目录 |
+| `data-ui-spec` / `data-json-render` / `data-spec` | `JsonRenderView` → `Renderer` 递归渲染 Spec 树 | 🟡 `JsonSpecRender` 已接入 stream data parts，支持 flat spec + nested fallback | 🟡 第一版覆盖核心组件，未完整覆盖 iOS Shadcn 目录 |
+| 组件目录（Shadcn） | stack/text/heading/button/image/input/select/switch/radio/checkbox/progress/alert/card/divider/spacer/scroll/group + 富卡片 | 🟡 stack/card/text/heading/button/image/divider/badge/progress/alert/file/hotel/product/news | ❌ input/select/switch/radio/checkbox/conditional/repeat/action 等未迁移 |
 | 高级特性 | `$state` 绑定、`visible` 条件、`repeat` 重复、`on.click` 事件、`$template` | ❌ 无 | ❌ |
-| markdown 中 ` ```json/```spec ` 代码块 | iOS `CustomCodeBlockView` 把 spec/json 渲染成 Renderer | 🟡 Android 当前回退普通代码块 | ❌ 待接 JsonRender |
+| markdown 中 ` ```json/```spec ` 代码块 | iOS `CustomCodeBlockView` 把 spec/json 渲染成 Renderer | 🟡 Android 当前回退普通代码块 | ❌ 待把 `MarkdownBody` code-block 分流到 `JsonSpecRender` |
 
 ### 4.4 菜单页面
 
@@ -383,8 +387,8 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 ## 5. 待完成 TODO（按优先级）
 
 **P0 — 内容/交互对齐（影响可用性）**
-1. **JsonRender 渲染器**（task #14）：移植 iOS `Renderer` + Shadcn 组件目录，接 `data-ui-spec`/`data-json-render`/`data-spec` 与 markdown `json`/`spec` 代码块。
-2. **Suspended/审批卡片交互**：把 `SuspendedToolCard` 从 display-only 改为可交互（vault 授权、Moltbook 注册、choose request、删日程、设 sandbox），接 host delegate 回调恢复 agent。
+1. **JsonRender 组件目录补全**（task #14 follow-up）：`data-ui-spec`/`data-json-render`/`data-spec` 已接第一版 `JsonSpecRender`；继续补 iOS Shadcn 目录、`visible/repeat/$state/on.click`、markdown `json/spec` code-block 分流。
+2. **Suspended/审批卡片交互**：Android 目前 display-only；iOS 卡片会调用 `AgentMessageViewDelegate.updateMessage(eventId, ToUnsealUpdateData(mAgentSuspended: ...))`，但当前 ElementX host `AIAgentProxy.updateMessage` 也是 `not implemented`。不要在 Android 里自造协议；等 iOS host wire shape 落地后按同一接口迁移。
 3. **真机逐卡核对**：用 §1.4 抓 `AiSdkStreamReducer` 日志，确认每个 cardType 的 payload 经 CardTransforms 后字段命中、内容与 iOS 一致（尤其 GitHub activity 类、composio search 富卡片）。
 
 **P1 — 菜单打磨对齐**
@@ -518,6 +522,7 @@ Verification on this branch:
 - `./gradlew :libraries:agentstream:testDebugUnitTest --tests 'io.element.android.libraries.agentstream.api.DefaultAgentStreamClientTest' --tests 'io.element.android.libraries.agentstream.api.StreamSnapshotUpdatePolicyTest' --console=plain` passed.
 - `./gradlew :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.timeline.components.event.toolcards.ToolCardDispatcherTest' --tests 'io.element.android.features.messages.impl.timeline.components.event.toolcards.ToolCardDispatcherCoverageTest' --console=plain` passed.
 - `./gradlew :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.timeline.components.event.TimelineItemAiPresenterTest' --tests 'io.element.android.features.messages.impl.timeline.factories.event.TimelineItemContentFactoryTest' --console=plain` passed.
+- `./gradlew :features:messages:impl:compileDebugKotlin --console=plain` passed after `JsonSpecRender` was added.
 - `./gradlew :app:assembleGplayDebug --console=plain` passed on 2026-06-14. APKs:
   - `app/build/outputs/apk/gplay/debug/app-gplay-arm64-v8a-debug.apk`
   - `app/build/outputs/apk/gplay/debug/app-gplay-universal-debug.apk`
