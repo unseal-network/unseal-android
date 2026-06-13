@@ -415,6 +415,7 @@ Important files:
 - `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/roomdata/RoomUnsealContextStore.kt`
 - `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/roomdata/RoomUnsealContextLoader.kt`
 - `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/roomdata/RoomMenuRenderModel.kt`
+- `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/actionlist/model/MessageActionMenuRenderModel.kt`
 - `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/messagecomposer/suggestions/ComposerSuggestionRenderModel.kt`
 - `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/messagecomposer/skills/ComposerAgentSkillState.kt`
 
@@ -432,6 +433,11 @@ Pending composer parity:
 - Skill picker UI and send/insert behavior.
 - Mentioned-agent target extraction from composer mentions.
 
+Room action menu data parity:
+
+- `MessageActionMenuReducer` now converts the existing `ActionListState.Target.Success` into sectioned render data (`Primary`, `Edit`, `Copy`, `Pin`, `Debug`, `Danger`) while preserving emoji reactions and verified send-failure state.
+- Current Compose UI still consumes `TimelineItemAction` directly. The next UI pass should render from `MessageActionMenuRenderModel` and then add missing iOS actions such as select text, translate, save/unsave, share/save media where Android has the underlying handlers.
+
 Verification on this branch:
 
 - `./gradlew :libraries:agentstream:testDebugUnitTest` passed.
@@ -444,3 +450,4 @@ Verification on this branch:
   - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.timeline.components.event.TimelineItemAiPresenterTest'`
   - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillReducerTest'`
   - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.messagecomposer.skills.*'`
+  - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.actionlist.model.MessageActionMenuReducerTest'`

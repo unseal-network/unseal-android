@@ -578,6 +578,20 @@ Steps:
 - [x] Verify schedules badge only appears when an agent is in the room.
 - [x] Commit with `feat(messages): add room menu render model` (`399ead4a42`).
 
+### Task 4.1: Message Action Menu Render Model
+
+**Files:**
+
+- Add: `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/actionlist/model/MessageActionMenuRenderModel.kt`
+- Test: `features/messages/impl/src/test/kotlin/io/element/android/features/messages/impl/actionlist/model/MessageActionMenuReducerTest.kt`
+
+Steps:
+
+- [x] Add action menu sections for primary/edit/copy/pin/debug/danger.
+- [x] Preserve emoji reaction and send-failure metadata in the render model.
+- [x] Keep current UI consuming `TimelineItemAction` until the Compose migration pass.
+- [x] Run action menu reducer tests.
+
 ### Task 5: Composer Mention and Skill Picker Data Parity
 
 **Files:**
