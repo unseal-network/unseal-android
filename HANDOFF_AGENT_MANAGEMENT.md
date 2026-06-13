@@ -113,6 +113,108 @@ $ADB -s 5fd76ce3 logcat -s "AiSdkStreamReducer:*" "AiStreamDbg:*" > /tmp/sd.txt
 
 ---
 
+## 3.1 新增：Room 数据层 iOS parity（数据优先迁移）
+
+最新提交（feature/agent-management）：
+- `4200047aab` `feat(messages): add room unseal data client`
+- `b056f81c3a` `feat(messages): derive room unseal context`
+- `d15c38ffc9` `feat(messages): add room unseal context loader`
+- `0443bc4ab7` `feat(messages): start room unseal context loading`
+- `fe8321f52a` `feat(messages): expose room unseal context state`
+- `7a202e378f` `docs: expand room ios parity migration workflow`
+- `aa39f0fc1c` `feat(messages): derive schedule badge from room context`
+- `9e1ed5a615` `feat(messages): add agent-aware composer suggestion model`
+
+### 目标
+
+Room 页面后续迁移必须先对齐 iOS 的数据读取方式，再做 UI：
+1. 请求接口 client
+2. domain/context 数据结构
+3. reducer/render model
+4. Compose UI
+
+不要直接在 Compose 或 timeline cell 里重新请求/解析业务数据。
+
+### 已落地的数据入口
+
+新增目录：
+
+```text
+features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/roomdata/
+```
+
+核心类：
+- `RoomUnsealDataClient`：room 级 Unseal/Chatbot API facade。
+- `DefaultRoomUnsealDataClient`：通过 `ChatbotApiServiceFactory.createForHomeserver(matrixClient)` 路由；不要硬编码 `api.unseal.network`。
+- `RoomUnsealDataSnapshot`：并发加载 room agents、all agents、schedules、webhook triggers、working memory；每项用 `RoomUnsealResource<T>` 保留 partial failure。
+- `RoomAgentMemberEnricher`：对齐 iOS `RoomAgentMemberEnricher.swift`。
+- `RoomUnsealContext`：统一派生 `members`、`roomAgents`、`hasAgentInRoom`、`deviceAgentInRoom`、`activeScheduleCount`、`webhookTriggers`、`workingMemory`。
+- `RoomUnsealContextLoader`：如果当前 Matrix members 为空/未知，先 `room.updateMembers()`，再加载 snapshot 并派生 context。
+
+iOS 对应实现：
+- `/Users/Ruihan/go/src/unseal-ios/ElementX/Sources/Services/Room/JoinedRoomProxy.swift`
+- `/Users/Ruihan/go/src/unseal-ios/ElementX/Sources/Services/Room/RoomAgentMemberEnricher.swift`
+- `/Users/Ruihan/go/src/unseal-ios/ElementX/Sources/Screens/RoomScreen/RoomScreenViewModel.swift`
+- `/Users/Ruihan/go/src/unseal-ios/ElementX/Sources/Screens/RoomScreen/ComposerToolbar/CompletionSuggestionService.swift`
+- `/Users/Ruihan/go/src/unseal-ios/ElementX/Sources/Screens/RoomScreen/ComposerToolbar/ComposerToolbarViewModel.swift`
+
+### 当前 MessagesPresenter 状态
+
+`MessagesState` 新增：
+
+```kotlin
+val roomUnsealContext: AsyncData<RoomUnsealContext>
+```
+
+`MessagesPresenter` 负责加载并暴露这个 context。`RoomScheduleBadgeState` 已经改为从 `roomUnsealContext` 派生：
+- `isVisible = context.hasAgentInRoom`
+- `activeScheduleCount = context.activeScheduleCount`
+- refresh 事件回到 `RoomUnsealContextLoader`
+
+这意味着 `MessagesPresenter` 不再调用旧的 `RoomScheduleBadgePresenter`，避免 room topbar 自己重复 `listAgents/listSchedules/updateMembers`。旧 `features/roomschedules` presenter 目前还留在模块里，后续可清理或改成消费共享 context。
+
+### Composer suggestion 数据结构
+
+新增：
+
+```text
+features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/messagecomposer/suggestions/ComposerSuggestionRenderModel.kt
+```
+
+包括：
+- `ComposerSuggestionRenderModel`
+- `ComposerSuggestionKind`
+- `ComposerSuggestionInsertPayload`
+- `ComposerSuggestionReducer.memberSuggestions(...)`
+
+它先从 `RoomUnsealContext.members` 生成 agent-aware suggestion：
+- joined member 且非自己才显示
+- enriched agent member 输出 `kind=Agent`、`isAgent=true`
+- `@room` 只有 power level 允许且非 direct 1:1 时显示，并排在第一位
+
+现状：模型和 reducer 已有测试，但 UI 还没有切换到这个 render model。下一步应该把现有 `SuggestionsProcessor`/`SuggestionsPickerView` 接到该模型，而不是继续只用 `ResolvedSuggestion.Member`。
+
+### 验证命令
+
+```bash
+./gradlew :features:messages:impl:compileDebugKotlin \
+  :features:messages:impl:testDebugUnitTest \
+  --tests '*roomdata*' \
+  --tests 'io.element.android.features.messages.impl.MessagesPresenterTest.present - exposes loaded room unseal context' \
+  --tests 'io.element.android.features.messages.impl.messagecomposer.suggestions.ComposerSuggestionReducerTest'
+```
+
+已通过。
+
+### 后续执行顺序
+
+1. 把 topbar/menu 建成 `RoomMenuRenderModel`，从 `RoomUnsealContext + RoomCallState + Timeline/permission state` 派生。
+2. 把 composer mention picker 切到 `ComposerSuggestionRenderModel`，显示 Agent badge。
+3. 建 `ComposerAgentSkillState`，对齐 iOS direct agent slash、mentioned agent targets、runtime skill catalog、legacy fallback。
+4. 再继续 TimelinePresentationModel / AiStreamRenderModel formalization 和 UI parity。
+
+---
+
 ## 4. iOS vs Android 对齐对比（UI / 交互 / 功能）
 
 > ✅ 已对齐　🟡 部分对齐/需打磨　❌ 缺失/未对齐
