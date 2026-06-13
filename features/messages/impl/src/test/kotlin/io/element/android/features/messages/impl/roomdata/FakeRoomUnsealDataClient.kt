@@ -12,13 +12,18 @@ import io.element.android.libraries.matrix.api.core.RoomId
 class FakeRoomUnsealDataClient(
     var snapshot: RoomUnsealDataSnapshot = RoomUnsealDataSnapshot(),
 ) : RoomUnsealDataClient {
+    var getRoomAgentsResult: (RoomId) -> Result<List<RoomAgentDescriptor>> = { Result.success(snapshot.roomAgents.value) }
     var roomAgentSkillsResult: (RoomId, String, String?) -> Result<List<RoomAgentSkillDescriptor>> = { _, _, _ -> Result.success(emptyList()) }
     var legacyAgentSkillsResult: (String) -> Result<List<RoomLegacyAgentSkillDescriptor>> = { Result.success(emptyList()) }
 
+    val roomAgentRequests = mutableListOf<RoomId>()
     val roomAgentSkillRequests = mutableListOf<RoomAgentSkillRequest>()
     val legacyAgentSkillRequests = mutableListOf<String>()
 
-    override suspend fun getRoomAgents(roomId: RoomId): Result<List<RoomAgentDescriptor>> = Result.success(snapshot.roomAgents.value)
+    override suspend fun getRoomAgents(roomId: RoomId): Result<List<RoomAgentDescriptor>> {
+        roomAgentRequests += roomId
+        return getRoomAgentsResult(roomId)
+    }
 
     override suspend fun listAgents(): Result<List<AgentAccountDescriptor>> = Result.success(snapshot.allAgents.value)
 

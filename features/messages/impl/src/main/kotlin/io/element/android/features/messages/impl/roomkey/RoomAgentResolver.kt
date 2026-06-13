@@ -9,17 +9,15 @@ package io.element.android.features.messages.impl.roomkey
 
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
-import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
+import io.element.android.features.messages.impl.roomdata.RoomUnsealDataClient
 import io.element.android.libraries.di.RoomScope
-import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.UserId
 
 @SingleIn(RoomScope::class)
 @Inject
 class RoomAgentResolver(
-    private val matrixClient: MatrixClient,
-    private val chatbotApiServiceFactory: ChatbotApiServiceFactory,
+    private val roomUnsealDataClient: RoomUnsealDataClient,
 ) {
     private var cache: Cache? = null
 
@@ -30,11 +28,10 @@ class RoomAgentResolver(
             .joinToString("|")
         cache?.takeIf { it.roomId == roomId && it.memberSignature == memberSignature }?.let { return it.userIds }
 
-        val service = chatbotApiServiceFactory.createForHomeserver(matrixClient)
-        val userIds = service.getRoomAgents(roomId.value)
+        val userIds = roomUnsealDataClient.getRoomAgents(roomId)
             .getOrElse { return emptySet() }
-            .agents
-            .mapNotNull { it.mxid }
+            .map { it.userId }
+            .filter { it.startsWith("@") }
             .map(::UserId)
             .toSet()
         cache = Cache(roomId = roomId, memberSignature = memberSignature, userIds = userIds)

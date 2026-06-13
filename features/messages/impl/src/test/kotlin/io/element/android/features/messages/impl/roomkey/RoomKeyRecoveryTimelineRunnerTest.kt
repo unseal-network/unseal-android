@@ -9,10 +9,10 @@ package io.element.android.features.messages.impl.roomkey
 
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
-import io.element.android.libraries.chatbot.api.model.rooms.ChatbotGetRoomAgentsResponse
-import io.element.android.libraries.chatbot.api.model.rooms.ChatbotRoomAgent
-import io.element.android.libraries.chatbot.test.FakeChatbotApiService
-import io.element.android.libraries.chatbot.test.FakeChatbotApiServiceFactory
+import io.element.android.features.messages.impl.roomdata.FakeRoomUnsealDataClient
+import io.element.android.features.messages.impl.roomdata.RoomAgentDescriptor
+import io.element.android.features.messages.impl.roomdata.RoomUnsealDataSnapshot
+import io.element.android.features.messages.impl.roomdata.RoomUnsealResource
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.encryption.BackupState
 import io.element.android.libraries.matrix.api.encryption.roomkey.AgentRoomKeyRecoveryRequest
@@ -154,20 +154,11 @@ class RoomKeyRecoveryTimelineRunnerTest {
                 )
             )
         }
-        val service = FakeChatbotApiService().apply {
-            getRoomAgentsResult = {
-                Result.success(
-                    ChatbotGetRoomAgentsResponse(
-                        agents = listOf(ChatbotRoomAgent(agentId = "agent", mxid = AGENT_ID.value))
-                    )
-                )
-            }
-        }
         val runner = createRunner(
             encryptionService = FakeEncryptionService(
                 requestRoomKeyRecoveryResult = requestRoomKeyRecovery,
             ),
-            roomAgentResolver = RoomAgentResolver(FakeMatrixClient(), FakeChatbotApiServiceFactory(service)),
+            roomAgentResolver = RoomAgentResolver(roomUnsealDataClientWithAgent(AGENT_ID.value)),
         )
 
         runner.recoverVisibleItems(
@@ -270,7 +261,7 @@ class RoomKeyRecoveryTimelineRunnerTest {
         encryptionService: FakeEncryptionService = FakeEncryptionService(),
         sessionVerificationService: FakeSessionVerificationService = FakeSessionVerificationService(),
         policy: MemberAwareRoomKeyForwardingPolicy = MemberAwareRoomKeyForwardingPolicy(),
-        roomAgentResolver: RoomAgentResolver = RoomAgentResolver(matrixClient, FakeChatbotApiServiceFactory()),
+        roomAgentResolver: RoomAgentResolver = RoomAgentResolver(FakeRoomUnsealDataClient()),
     ): RoomKeyRecoveryTimelineRunner {
         return RoomKeyRecoveryTimelineRunner(
             matrixClient = matrixClient,
@@ -282,6 +273,22 @@ class RoomKeyRecoveryTimelineRunnerTest {
             sessionCoroutineScope = this,
         )
     }
+
+    private fun roomUnsealDataClientWithAgent(userId: String) = FakeRoomUnsealDataClient(
+        snapshot = RoomUnsealDataSnapshot(
+            roomAgents = RoomUnsealResource.success(
+                listOf(
+                    RoomAgentDescriptor(
+                        userId = userId,
+                        displayName = null,
+                        avatarUrl = null,
+                        userType = "agent",
+                        membership = "join",
+                    )
+                )
+            )
+        )
+    )
 
     private fun successRoomKeyRecovery(): (RoomKeyRecoveryRequest, List<RoomKeyRecoveryTarget>, RoomKeyRecoveryScope) -> Result<RoomKeyRecoveryProgress> {
         return { request, targets, _ ->
