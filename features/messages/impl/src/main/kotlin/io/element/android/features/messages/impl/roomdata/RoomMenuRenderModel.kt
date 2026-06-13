@@ -14,6 +14,8 @@ data class RoomMenuRenderModel(
     val attachmentActions: List<RoomAttachmentAction>,
     val scheduleBadge: RoomScheduleMenuBadge?,
     val deviceAgent: RoomDeviceAgent?,
+    val webhookSummary: RoomWebhookMenuSummary? = null,
+    val workingMemory: RoomWorkingMemoryMenuState? = null,
 ) {
     fun hasTopbarAction(action: RoomTopbarAction): Boolean = topbarActions.contains(action)
     fun hasAttachmentAction(action: RoomAttachmentAction): Boolean = attachmentActions.contains(action)
@@ -24,12 +26,28 @@ data class RoomMenuRenderModel(
             attachmentActions = emptyList(),
             scheduleBadge = null,
             deviceAgent = null,
+            webhookSummary = null,
+            workingMemory = null,
         )
     }
 }
 
 data class RoomScheduleMenuBadge(
     val activeScheduleCount: Int,
+    val isLoading: Boolean,
+    val error: String?,
+)
+
+data class RoomWebhookMenuSummary(
+    val totalCount: Int,
+    val activeCount: Int,
+    val isLoading: Boolean,
+    val error: String?,
+)
+
+data class RoomWorkingMemoryMenuState(
+    val hasContent: Boolean,
+    val preview: String,
     val isLoading: Boolean,
     val error: String?,
 )
@@ -98,6 +116,33 @@ object RoomMenuReducer {
                 )
             },
             deviceAgent = context?.deviceAgentInRoom,
+            webhookSummary = context?.let {
+                RoomWebhookMenuSummary(
+                    totalCount = it.webhookTriggers.size,
+                    activeCount = it.webhookTriggers.count { trigger -> trigger.isEnabled() },
+                    isLoading = roomUnsealContext.isLoading(),
+                    error = roomUnsealContext.errorOrNull()?.message,
+                )
+            },
+            workingMemory = context?.let {
+                RoomWorkingMemoryMenuState(
+                    hasContent = it.workingMemory.isNotBlank(),
+                    preview = it.workingMemory.toWorkingMemoryPreview(),
+                    isLoading = roomUnsealContext.isLoading(),
+                    error = roomUnsealContext.errorOrNull()?.message,
+                )
+            },
         )
     }
 }
+
+private fun RoomWebhookTriggerDescriptor.isEnabled(): Boolean {
+    return status.equals("enabled", ignoreCase = true) || status.equals("active", ignoreCase = true)
+}
+
+private fun String.toWorkingMemoryPreview(maxLength: Int = 120): String {
+    val collapsed = trim().replace(WhitespaceRegex, " ")
+    return if (collapsed.length <= maxLength) collapsed else collapsed.take(maxLength).trimEnd() + "..."
+}
+
+private val WhitespaceRegex = Regex("\\s+")

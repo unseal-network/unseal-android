@@ -68,6 +68,29 @@ class RoomMenuReducerTest {
     }
 
     @Test
+    fun `reduce exposes webhook summary and working memory state from room context`() {
+        val roomMenu = RoomMenuReducer.reduce(
+            roomUnsealContext = AsyncData.Success(
+                contextWithAgent(
+                    webhookTriggers = listOf(
+                        webhookTrigger("enabled", status = "enabled"),
+                        webhookTrigger("active", status = "ACTIVE"),
+                        webhookTrigger("disabled", status = "disabled"),
+                    ),
+                    workingMemory = "Remember\n  this room prefers concise agent replies.",
+                )
+            ),
+            hasThreads = false,
+            isThreadTimeline = false,
+        )
+
+        assertThat(roomMenu.webhookSummary?.totalCount).isEqualTo(3)
+        assertThat(roomMenu.webhookSummary?.activeCount).isEqualTo(2)
+        assertThat(roomMenu.workingMemory?.hasContent).isTrue()
+        assertThat(roomMenu.workingMemory?.preview).isEqualTo("Remember this room prefers concise agent replies.")
+    }
+
+    @Test
     fun `reduce exposes attachment actions in stable composer order`() {
         val roomMenu = RoomMenuReducer.reduce(
             roomUnsealContext = AsyncData.Uninitialized,
@@ -112,6 +135,8 @@ class RoomMenuReducerTest {
     private fun contextWithAgent(
         activeScheduleCount: Int = 0,
         isDeviceAgent: Boolean = false,
+        webhookTriggers: List<RoomWebhookTriggerDescriptor> = emptyList(),
+        workingMemory: String = "",
     ): RoomUnsealContext {
         val schedules = List(activeScheduleCount) { index ->
             RoomScheduleDescriptor(
@@ -155,9 +180,24 @@ class RoomMenuReducerTest {
                     )
                 ),
                 schedules = RoomUnsealResource.success(schedules),
+                webhookTriggers = RoomUnsealResource.success(webhookTriggers),
+                workingMemory = RoomUnsealResource.success(workingMemory),
             )
         )
     }
+
+    private fun webhookTrigger(
+        id: String,
+        status: String,
+    ) = RoomWebhookTriggerDescriptor(
+        id = id,
+        agentId = "agent",
+        name = "Trigger $id",
+        source = "gmail",
+        roomId = ROOM_ID.value,
+        status = status,
+        actionPrompt = "Run",
+    )
 
     private companion object {
         val ROOM_ID = RoomId("!room:example.org")
