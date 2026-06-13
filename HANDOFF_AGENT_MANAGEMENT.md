@@ -206,12 +206,31 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 
 已通过。
 
+### 本轮新增 checkpoint
+
+- `399ead4a42` `feat(messages): add room menu render model`
+  - 新增 `RoomMenuRenderModel` / `RoomMenuReducer`。
+  - messages topbar 现在从 `RoomUnsealContext` 派生 threads、schedules、device-agent actions。
+  - `RoomMenuReducerTest` 覆盖线程入口、schedule badge、device-agent chat/terminal action。
+- `190027de90` `feat(messages): add timeline presentation model`
+  - 新增 `TimelinePresentationModel` / `TimelinePresentationReducer`。
+  - AI stream row 走 standalone policy，不再按普通气泡布局；宽屏/投屏有自适应右侧留白。
+  - `TimelinePresentationReducerTest` 覆盖 AI direct room、普通 direct text、自己消息对齐。
+- `125bdae949` `feat(messages): add ai stream render model`
+  - 新增 `AiStreamRenderModel`、`AiMarkdownBlock`、`AiStreamCursorMode`。
+  - `AiSdkStreamReducer.mapRenderModel()` 先产稳定 render model，再转换为 `TimelineItemAiContent`。
+  - reducer 测试覆盖 markdown blocks、cursor mode、tool root 插入位置。
+- `2b9ea29e3d` `fix(messages): avoid rebinding completed stream cache`
+  - `TimelineItemAiPresenter` 命中 terminal render cache 时不再重新 bind SDK stream。
+  - 解决 timeline cell 回收后 completed stream 闪回 loading / 重复请求的一个直接原因。
+
 ### 后续执行顺序
 
-1. 把 topbar/menu 建成 `RoomMenuRenderModel`，从 `RoomUnsealContext + RoomCallState + Timeline/permission state` 派生。
-2. 把 composer mention picker 切到 `ComposerSuggestionRenderModel`，显示 Agent badge。
-3. 建 `ComposerAgentSkillState`，对齐 iOS direct agent slash、mentioned agent targets、runtime skill catalog、legacy fallback。
-4. 再继续 TimelinePresentationModel / AiStreamRenderModel formalization 和 UI parity。
+1. 把 composer mention picker 切到 `ComposerSuggestionRenderModel`，显示 Agent badge。
+2. 建 `ComposerAgentSkillState`，对齐 iOS direct agent slash、mentioned agent targets、runtime skill catalog、legacy fallback。
+3. 继续补 `ToolCallRootRenderModel`，把 tool root card 的数据结构从现有 `AiToolCardEntry` 升级为更完整的 root model。
+4. 做 attachment menu、long press menu、topbar overlay 的 iOS parity。
+5. 继续逐个 card fixture 做视觉和交互 parity。
 
 ---
 
@@ -361,11 +380,18 @@ Current Android render flow:
 2. `TimelineItemAiPresenter` asks `AiStreamHandleStore` to bind a `StreamRequest`.
 3. `AiStreamHandleStore` dedupes SDK handles by stream id and keeps background streams alive across Compose recycling.
 4. `StreamSnapshotUpdatePolicy` coalesces patch-only updates and emits state changes immediately.
-5. `AiSdkStreamReducer` maps SDK parts into `TimelineItemAiContent`, including `toolCardEntries`, `firstToolPartIndex`, and terminal stream metadata.
-6. `TimelineItemAiView` renders from `TimelineItemAiContent` only. `ToolCallRootCard` consumes precomputed `AiToolCardEntry` values instead of reparsing tool stream parts.
+5. `AiSdkStreamReducer` maps SDK parts into `AiStreamRenderModel`, then into `TimelineItemAiContent`, including markdown blocks, cursor mode, `toolCardEntries`, `firstToolPartIndex`, and terminal stream metadata.
+6. `TimelinePresentationReducer` decides standalone AI layout vs normal bubble layout.
+7. `TimelineItemAiView` renders from `TimelineItemAiContent` only. `ToolCallRootCard` consumes precomputed `AiToolCardEntry` values instead of reparsing tool stream parts.
+8. If `AiStreamContentCache` already has terminal renderable content, `TimelineItemAiPresenter` skips SDK rebind for recycled cells.
 
 Verification on this branch:
 
 - `./gradlew :libraries:agentstream:testDebugUnitTest` passed.
 - `./gradlew :features:messages:impl:compileDebugKotlin` passed.
 - `./gradlew :features:messages:impl:testDebugUnitTest` completed 575 tests with one flaky unrelated `MessagesViewTest > live location banner is hidden when current room is not sharing`; rerunning that single test passed.
+- Latest targeted checks passed:
+  - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests '*roomdata*'`
+  - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.timeline.model.TimelinePresentationReducerTest'`
+  - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.timeline.factories.event.AiSdkStreamReducerTest'`
+  - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.timeline.components.event.TimelineItemAiPresenterTest'`

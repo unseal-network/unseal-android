@@ -211,9 +211,9 @@ Rules:
 |---|---|---|---|---|
 | Room API routing | `ChatbotAPIClientFactory`, `ChatbotAPIClient` | `RoomUnsealDataClient` | `RoomUnsealDataSnapshot` | Implemented initial facade. |
 | Member refresh/enrichment | `JoinedRoomProxy.updateMembers`, `RoomAgentMemberEnricher` | `RoomUnsealContextLoader`, `RoomAgentMemberEnricher` | `RoomMemberRender` | Implemented initial parity. |
-| Agent in room | `RoomScreenViewModel.loadActiveScheduleCount` | `RoomUnsealContext` | `hasAgentInRoom` | Implemented in context; not yet consumed by topbar. |
-| Device agent | `RoomScreenViewModel.loadActiveScheduleCount` | `RoomUnsealContext` | `RoomDeviceAgent` | Implemented in context; not yet consumed by topbar. |
-| Schedule count | `RoomScreenViewModel.loadActiveScheduleCount` | messages state, later schedule badge reducer | `activeScheduleCount` | Implemented in context; old badge still duplicates requests. |
+| Agent in room | `RoomScreenViewModel.loadActiveScheduleCount` | `RoomUnsealContext` + `RoomMenuReducer` | `hasAgentInRoom` | Implemented and consumed by topbar schedule action. |
+| Device agent | `RoomScreenViewModel.loadActiveScheduleCount` | `RoomUnsealContext` + `RoomMenuReducer` | `RoomDeviceAgent` | Implemented and represented in menu model; UI actions still need parity wiring. |
+| Schedule count | `RoomScreenViewModel.loadActiveScheduleCount` | messages state + room menu reducer | `activeScheduleCount` | Implemented from context and surfaced as `RoomScheduleMenuBadge`. |
 | Working memory | `ChatbotAPIClient.getRoomWorkingMemory` | `RoomUnsealContext` | `workingMemory` | Loaded by client; no menu/UI consumer yet. |
 | Webhook triggers | `ChatbotAPIClient.listWebhookTriggers` | `RoomUnsealContext` | `webhookTriggers` | Loaded by client; no menu/UI consumer yet. |
 
@@ -233,10 +233,10 @@ Rules:
 
 | Feature | iOS owner | Android target owner | Data model | Implementation status |
 |---|---|---|---|---|
-| Stream lifecycle | Stream renderer state | Stream SDK | `StreamSnapshot.parts` | Existing; needs invariant tests. |
-| AI render model | `ToolCallRootCard` + text render flow | stream reducer | `AiStreamRenderModel` | Existing partial; needs formal model/tests. |
+| Stream lifecycle | Stream renderer state | Stream SDK | `StreamSnapshot.parts` | Existing with presenter/cache invariant tests. |
+| AI render model | `ToolCallRootCard` + text render flow | stream reducer | `AiStreamRenderModel` | Implemented with reducer tests; timeline content is derived from it. |
 | Tool root grouping | `ToolGroupUtils` semantics | tool root adapter | `ToolCallRootRenderModel` | Existing partial; needs parity tests. |
-| Timeline row policy | room timeline views | timeline presentation reducer | `TimelinePresentationModel` | Existing UI tweaks; model not formalized. |
+| Timeline row policy | room timeline views | timeline presentation reducer | `TimelinePresentationModel` | Implemented with reducer tests; AI stream rows use standalone policy and adaptive right spacing. |
 | Markdown render | iOS markdown view | markdown reducer/cache | `MarkdownRenderModel` | Existing partial; needs parity/cache tests. |
 | Cards weather/finance/news/shopping/places/hotels/files/email/drive/github/schedule | iOS card implementations and screenshots | card adapters + Compose cards | typed card props | Existing partial; needs fixture-by-fixture parity. |
 
@@ -244,7 +244,7 @@ Rules:
 
 | Feature | iOS owner | Android target owner | Data model | Implementation status |
 |---|---|---|---|---|
-| Topbar actions | `RoomScreenViewModel` + room view | room menu reducer | `RoomMenuRenderModel.topbarActions` | Not started. |
+| Topbar actions | `RoomScreenViewModel` + room view | room menu reducer | `RoomMenuRenderModel.topbarActions` | Implemented for threads, schedules, and device-agent actions; visual overlay parity still pending. |
 | Attachment menu | composer attachment scope | room menu reducer | `RoomMenuRenderModel.attachmentActions` | Not started. |
 | Long press menu | timeline action sheets | action menu reducer | `RoomMenuRenderModel.messageActions` | Not started. |
 | Link handling | markdown/card link actions | link action reducer | `RoomLinkAction` | Existing mixed; needs card/markdown audit. |
@@ -570,10 +570,10 @@ Steps:
 
 Steps:
 
-- [ ] Replace duplicated `listAgents/listSchedules` logic with context state.
-- [ ] Keep behavior identical when context loading or failed.
-- [ ] Verify schedules badge only appears when an agent is in the room.
-- [ ] Commit with `refactor(messages): drive room topbar from unseal context`.
+- [x] Replace duplicated `listAgents/listSchedules` logic with context state for messages topbar.
+- [x] Keep behavior identical when context loading or failed.
+- [x] Verify schedules badge only appears when an agent is in the room.
+- [x] Commit with `feat(messages): add room menu render model` (`399ead4a42`).
 
 ### Task 5: Composer Mention and Skill Picker Data Parity
 
@@ -603,12 +603,12 @@ Steps:
 
 Steps:
 
-- [ ] Add `AiStreamRenderModel`.
+- [x] Add `AiStreamRenderModel`.
 - [ ] Add `ToolCallRootRenderModel`.
-- [ ] Ensure completed cached streams render completed state immediately.
+- [x] Ensure completed cached streams render completed state immediately.
 - [ ] Ensure no Compose card parses raw stream JSON.
-- [ ] Run stream render tests.
-- [ ] Commit with `refactor(messages): render ai streams from stable models`.
+- [x] Run stream render tests.
+- [x] Commit with `feat(messages): add ai stream render model` (`125bdae949`) and `fix(messages): avoid rebinding completed stream cache` (`2b9ea29e3d`).
 
 ### Task 7: Timeline Layout Parity
 
@@ -621,12 +621,12 @@ Steps:
 
 Steps:
 
-- [ ] Add `TimelinePresentationModel`.
-- [ ] Remove AI/markdown outer large bubble.
-- [ ] Keep avatar column stable.
-- [ ] Add adaptive right-side breathing space.
-- [ ] Keep edited label hidden for stream messages.
-- [ ] Commit with `feat(messages): align room timeline layout with ios`.
+- [x] Add `TimelinePresentationModel`.
+- [x] Remove AI outer large bubble through standalone row policy. Markdown standalone parity remains pending.
+- [x] Keep avatar column stable for AI stream rows.
+- [x] Add adaptive right-side breathing space.
+- [x] Keep edited label hidden for stream messages.
+- [x] Commit with `feat(messages): add timeline presentation model` (`190027de90`).
 
 ### Task 8: Tool Card Parity Pass
 
