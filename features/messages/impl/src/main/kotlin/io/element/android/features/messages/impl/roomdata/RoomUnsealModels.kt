@@ -13,6 +13,8 @@ import io.element.android.libraries.chatbot.api.model.schedules.ChatbotSchedule
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotRoomAgentSkill
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookTrigger
+import io.element.android.libraries.matrix.api.core.RoomId
+import io.element.android.libraries.matrix.api.room.RoomMember
 import kotlinx.serialization.json.JsonPrimitive
 
 data class RoomUnsealDataSnapshot(
@@ -21,6 +23,70 @@ data class RoomUnsealDataSnapshot(
     val schedules: RoomUnsealResource<List<RoomScheduleDescriptor>> = RoomUnsealResource.success(emptyList()),
     val webhookTriggers: RoomUnsealResource<List<RoomWebhookTriggerDescriptor>> = RoomUnsealResource.success(emptyList()),
     val workingMemory: RoomUnsealResource<String> = RoomUnsealResource.success(""),
+)
+
+data class RoomUnsealContext(
+    val roomId: RoomId,
+    val members: List<RoomMemberRender>,
+    val roomAgents: List<RoomAgentDescriptor>,
+    val allAgents: List<AgentAccountDescriptor>,
+    val hasAgentInRoom: Boolean,
+    val deviceAgentInRoom: RoomDeviceAgent?,
+    val schedules: List<RoomScheduleDescriptor>,
+    val activeScheduleCount: Int,
+    val webhookTriggers: List<RoomWebhookTriggerDescriptor>,
+    val workingMemory: String,
+    val errors: List<Throwable>,
+) {
+    companion object {
+        fun from(roomId: RoomId, members: List<RoomMember>, snapshot: RoomUnsealDataSnapshot): RoomUnsealContext {
+            val enrichedMembers = RoomAgentMemberEnricher.enrich(members, snapshot.roomAgents.value)
+            val memberIds = enrichedMembers.map { it.userId.value }.toSet()
+            val agentsInRoom = snapshot.allAgents.value.filter { agent -> agent.matrixUserId in memberIds }
+            val deviceAgent = agentsInRoom.firstNotNullOfOrNull { agent ->
+                agent.boundDeviceId?.takeIf { agent.isDeviceAgent }?.let { boundDeviceId ->
+                    RoomDeviceAgent(boundDeviceId = boundDeviceId, displayName = agent.displayName ?: agent.botName, matrixUserId = agent.matrixUserId)
+                }
+            }
+            return RoomUnsealContext(
+                roomId = roomId,
+                members = enrichedMembers,
+                roomAgents = snapshot.roomAgents.value,
+                allAgents = snapshot.allAgents.value,
+                hasAgentInRoom = agentsInRoom.isNotEmpty() || enrichedMembers.any { it.isAgent },
+                deviceAgentInRoom = deviceAgent,
+                schedules = snapshot.schedules.value,
+                activeScheduleCount = snapshot.schedules.value.count { it.isEnabled },
+                webhookTriggers = snapshot.webhookTriggers.value,
+                workingMemory = snapshot.workingMemory.value,
+                errors = listOfNotNull(
+                    snapshot.roomAgents.error,
+                    snapshot.allAgents.error,
+                    snapshot.schedules.error,
+                    snapshot.webhookTriggers.error,
+                    snapshot.workingMemory.error,
+                ),
+            )
+        }
+    }
+}
+
+data class RoomMemberRender(
+    val member: RoomMember,
+    val userType: String?,
+) {
+    val userId = member.userId
+    val displayName = member.displayName
+    val avatarUrl = member.avatarUrl
+    val membership = member.membership
+    val isAgent: Boolean = userType in AGENT_USER_TYPES
+    val isActive: Boolean = member.membership.isActive()
+}
+
+data class RoomDeviceAgent(
+    val boundDeviceId: String,
+    val displayName: String?,
+    val matrixUserId: String?,
 )
 
 data class RoomUnsealResource<T>(
@@ -88,6 +154,8 @@ data class RoomWebhookTriggerDescriptor(
     val status: String,
     val actionPrompt: String,
 )
+
+private val AGENT_USER_TYPES = setOf("agent", "bot", "external_bot", "trusted_external_bot")
 
 internal fun ChatbotRoomAgent.toRoomAgentDescriptor(): RoomAgentDescriptor {
     return RoomAgentDescriptor(
