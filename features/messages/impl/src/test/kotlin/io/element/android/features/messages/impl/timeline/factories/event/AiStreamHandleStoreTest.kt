@@ -104,6 +104,17 @@ class AiStreamHandleStoreTest {
 
         assertThat(client.requests).hasSize(1)
     }
+
+    @Test
+    fun `cached snapshot returns latest usable snapshot after binding`() {
+        val client = FakeAgentStreamClient()
+        val store = AiStreamHandleStore(client)
+        val request = StreamRequest(streamId = "stream-1", sender = "@a:b", roomId = "!room:b", eventId = "event-1")
+
+        store.bind(request) { }.close()
+
+        assertThat(store.cachedSnapshot("stream-1")?.status).isEqualTo(StreamStatus.Completed)
+    }
 }
 
 private class FakeAgentStreamClient(

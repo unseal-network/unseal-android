@@ -734,7 +734,7 @@ internal fun String.toDisplayLabel(): String =
         // GITHUB_FIND_REPOSITORIES render as "Github Find Repositories", not "GITHUB FIND ...".
         .joinToString(" ") { word -> word.lowercase().replaceFirstChar { it.uppercaseChar() } }
 
-internal const val MAX_RENDERED_ITEMS = 5
+internal const val MAX_RENDERED_ITEMS = 100
 internal const val MAX_VALUE_CHARS = 240
 internal const val MAX_RAW_PAYLOAD_CHARS = 4000
 private const val CARD_STATE_CALLING = "calling"

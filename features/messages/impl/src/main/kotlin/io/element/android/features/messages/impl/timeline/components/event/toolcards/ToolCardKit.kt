@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -170,14 +171,21 @@ internal fun <T> DividedList(items: List<T>, row: @Composable (T) -> Unit) {
 
 @Composable
 internal fun CardRemoteImage(url: String?, modifier: Modifier = Modifier, corner: Int = 6) {
-    if (url.isNullOrBlank()) return
+    if (url.isNullOrBlank()) {
+        Box(
+            modifier = modifier
+                .clip(RoundedCornerShape(corner.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
+        )
+        return
+    }
     SubcomposeAsyncImage(
         model = url,
         contentDescription = null,
         contentScale = ContentScale.Crop,
         modifier = modifier.clip(RoundedCornerShape(corner.dp)),
-        loading = { Box(modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant)) },
-        error = { Box(modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant)) },
+        loading = { Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))) },
+        error = { Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))) },
     )
 }
 

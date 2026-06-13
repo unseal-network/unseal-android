@@ -22,6 +22,7 @@ import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.IntoMap
 import io.element.android.features.messages.impl.timeline.di.TimelineItemEventContentKey
 import io.element.android.features.messages.impl.timeline.di.TimelineItemPresenterFactory
+import io.element.android.features.messages.impl.timeline.factories.event.AiStreamContentCache
 import io.element.android.features.messages.impl.timeline.factories.event.AiStreamHandleStore
 import io.element.android.features.messages.impl.timeline.factories.event.AiSdkStreamReducer
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
@@ -54,6 +55,7 @@ data class TimelineItemAiState(
 class TimelineItemAiPresenter(
     @Assisted private val content: TimelineItemAiContent,
     private val aiStreamHandleStore: AiStreamHandleStore,
+    private val aiStreamContentCache: AiStreamContentCache,
     private val aiSdkStreamReducer: AiSdkStreamReducer,
     private val dispatchers: CoroutineDispatchers,
 ) : Presenter<TimelineItemAiState> {
@@ -67,7 +69,11 @@ class TimelineItemAiPresenter(
         val initialContent = content
         val streamId = initialContent.streamId
         var currentContent by remember(streamId, initialContent.parts) {
-            mutableStateOf(initialContent)
+            mutableStateOf(
+                streamId
+                    ?.let(aiStreamContentCache::get)
+                    ?: initialContent
+            )
         }
 
         LaunchedEffect(streamId, initialContent.parts) {
@@ -94,7 +100,12 @@ class TimelineItemAiPresenter(
         // Map snapshots (JSON → parts) off the main thread; only the state write hops to main.
         withContext(dispatchers.io) {
             val snapshots = Channel<StreamSnapshot>(Channel.UNLIMITED)
-            val updatePolicy = StreamSnapshotUpdatePolicy()
+            val updatePolicy = StreamSnapshotUpdatePolicy(
+                // iOS writes every text-delta into the observed message model, which gives the
+                // visible type-on effect. Keep Android bounded for markdown parse cost, but flush
+                // streaming text often enough that it does not appear in large 500ms batches.
+                patchCoalesceMs = STREAMING_TEXT_PATCH_COALESCE_MS,
+            )
 
             suspend fun emit(snapshot: StreamSnapshot) {
                 val updated = aiSdkStreamReducer.mapSnapshot(
@@ -102,6 +113,7 @@ class TimelineItemAiPresenter(
                     isEdited = fallbackContent.isEdited,
                     sender = fallbackContent.sender,
                 )
+                aiStreamContentCache.put(updated)
                 withContext(dispatchers.main) {
                     updateContent(updated)
                 }
@@ -162,5 +174,6 @@ class TimelineItemAiPresenter(
 
     private companion object {
         const val DBG = "AiStreamDbg"
+        const val STREAMING_TEXT_PATCH_COALESCE_MS = 120L
     }
 }

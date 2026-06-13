@@ -62,9 +62,10 @@ fun MessageEventBubble(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
+    gesturesEnabled: Boolean = true,
     content: @Composable BoxScope.() -> Unit = {},
 ) {
-    val clickableModifier = if (isTalkbackActive()) {
+    val clickableModifier = if (isTalkbackActive() || !gesturesEnabled) {
         Modifier
     } else {
         Modifier

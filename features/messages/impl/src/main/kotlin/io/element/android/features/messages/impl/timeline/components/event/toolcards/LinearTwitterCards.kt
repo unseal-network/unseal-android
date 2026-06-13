@@ -186,8 +186,8 @@ private fun PriorityBars(priority: String) {
 
 @Composable
 private fun LinearIssueCardView(data: JSONObject, onLinkClick: () -> Unit) {
-    val title = data.cardString("title")
-    val identifier = data.cardString("identifier")
+    val title = data.cardString("title", "name")
+    val identifier = data.cardString("identifier", "id")
     if (title.isNullOrBlank() && identifier == null) return
 
     val description = data.cardString("description")
@@ -338,7 +338,7 @@ private fun LinearIssueCardView(data: JSONObject, onLinkClick: () -> Unit) {
 
 @Composable
 private fun LinearIssuesListCardView(data: JSONObject, onLinkClick: () -> Unit) {
-    val items = data.cardObjects("items")
+    val items = data.cardObjects("items", "issues", "pull_requests")
     if (items.isEmpty()) return
     val shown = items.take(MAX_CARD_ITEMS)
     val open = ltLinkOpener(onLinkClick)
@@ -354,8 +354,8 @@ private fun LinearIssuesListCardView(data: JSONObject, onLinkClick: () -> Unit) 
 
 @Composable
 private fun LinearIssueRow(item: JSONObject, open: (String?) -> Unit) {
-    val identifier = item.cardString("identifier") ?: ""
-    val title = item.cardString("title") ?: "Untitled"
+    val identifier = item.cardString("identifier", "id") ?: ""
+    val title = item.cardString("title", "name") ?: "Untitled"
     val status = item.cardString("status") ?: "todo"
     val priority = item.cardString("priority") ?: "none"
     val url = item.cardString("url")
@@ -421,7 +421,7 @@ private fun LinearIssueRow(item: JSONObject, open: (String?) -> Unit) {
 
 @Composable
 private fun SocialPostFeedCardView(data: JSONObject) {
-    val posts = data.cardObjects("posts")
+    val posts = data.cardObjects("posts", "tweets", "items", "data")
     if (posts.isEmpty()) return
     val shown = posts.take(MAX_CARD_ITEMS)
 
@@ -455,11 +455,12 @@ private fun formatSocialCount(n: Int): String = when {
 
 @Composable
 private fun PostRow(post: JSONObject) {
-    val author = post.cardString("author") ?: "Unknown"
-    val handle = post.cardString("handle")
-    val avatarUrl = post.cardString("avatarUrl")
-    val body = post.cardString("body") ?: ""
-    val createdAt = post.cardString("createdAt")
+    val authorObject = post.optJSONObject("author") ?: post.optJSONObject("user")
+    val author = post.cardString("author") ?: authorObject?.cardString("name", "username", "screen_name") ?: "Unknown"
+    val handle = post.cardString("handle") ?: authorObject?.cardString("handle", "username", "screen_name")?.let { "@${it.removePrefix("@")}" }
+    val avatarUrl = post.cardString("avatarUrl", "avatar_url", "profile_image_url") ?: authorObject?.cardString("avatarUrl", "avatar_url", "profile_image_url")
+    val body = post.cardString("body", "text", "full_text", "content") ?: ""
+    val createdAt = post.cardString("createdAt", "created_at")
     val verified = post.cardBool("verified") ?: false
     val stats = engagementStats(post)
 

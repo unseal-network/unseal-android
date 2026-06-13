@@ -141,8 +141,8 @@ private fun Avatar(url: String?, size: Int = 28) {
 
 @Composable
 private fun GitHubIssueCardView(data: JSONObject, onLinkClick: () -> Unit) {
-    val title = data.cardString("title")
-    val number = data.cardInt("number")
+    val title = data.cardString("title", "name")
+    val number = data.cardInt("number") ?: data.cardInt("id")
     if (title.isNullOrBlank() && number == null) return
 
     val state = data.cardString("state") ?: "open"
@@ -312,7 +312,7 @@ private fun IssueRow(issue: JSONObject, open: (String?) -> Unit) {
 
 @Composable
 private fun GitHubRepoListCardView(data: JSONObject, onLinkClick: () -> Unit) {
-    val repos = data.cardObjects("repositories")
+    val repos = data.cardObjects("repositories", "repos", "items")
     if (repos.isEmpty()) return
     val shown = repos.take(MAX_CARD_ITEMS)
     val open = rememberLinkOpener(onLinkClick)
@@ -399,8 +399,8 @@ private fun langColor(lang: String): Color = when (lang) {
 
 @Composable
 private fun GitHubReleaseCardView(data: JSONObject) {
-    val name = data.cardString("name") ?: ""
-    val tagName = data.cardString("tagName") ?: ""
+    val name = data.cardString("name", "title") ?: ""
+    val tagName = data.cardString("tagName", "tag_name") ?: ""
     if (name.isBlank() && tagName.isBlank()) return
 
     val body = data.cardString("body")
@@ -458,7 +458,7 @@ private fun GitHubReleaseCardView(data: JSONObject) {
 
 @Composable
 private fun GitHubOrgsListCardView(data: JSONObject, onLinkClick: () -> Unit) {
-    val orgs = data.cardObjects("organizations")
+    val orgs = data.cardObjects("organizations", "orgs", "items")
     if (orgs.isEmpty()) return
     val shown = orgs.take(MAX_CARD_ITEMS)
     val open = rememberLinkOpener(onLinkClick)
@@ -477,7 +477,7 @@ private fun OrgRow(org: JSONObject, open: (String?) -> Unit) {
     val login = org.cardString("login") ?: "unknown"
     val description = org.cardString("description")
     val avatarUrl = org.cardString("avatarUrl")
-    val url = org.cardString("url")
+    val url = org.cardString("url", "html_url", "htmlUrl")
 
     Row(
         modifier = Modifier
@@ -514,7 +514,7 @@ private fun OrgRow(org: JSONObject, open: (String?) -> Unit) {
 
 @Composable
 private fun GitHubContributorsCardView(data: JSONObject, onLinkClick: () -> Unit) {
-    val contributors = data.cardObjects("contributors")
+    val contributors = data.cardObjects("contributors", "items")
         .sortedByDescending { it.cardInt("contributions") ?: 0 }
     if (contributors.isEmpty()) return
     val shown = contributors.take(MAX_CARD_ITEMS)

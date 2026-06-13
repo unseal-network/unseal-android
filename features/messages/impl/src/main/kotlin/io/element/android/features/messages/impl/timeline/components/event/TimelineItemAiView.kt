@@ -8,10 +8,16 @@
 package io.element.android.features.messages.impl.timeline.components.event
 
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -24,9 +30,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.border
 import androidx.compose.ui.layout.onSizeChanged
 import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
@@ -34,6 +40,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PriorityHigh
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.Icon
@@ -49,11 +56,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -118,7 +128,8 @@ fun TimelineItemAiView(
     ) {
         // Mirror iOS BubbleMessageView: render ONLY the (hidden-filtered, ordered) stream parts.
         // There is no "thinking_process" concept in iOS — reasoning is a stream part. When parts
-        // haven't loaded yet, fall back to the known body text (never a thinking placeholder).
+        // haven't loaded yet, fall back to real body text only. Matrix stream placeholders such as
+        // "thinking", "loading", or the stream id itself render as a loading indicator instead.
         if (content.visibleParts.isNotEmpty()) {
             AiStreamPartsView(
                 visibleParts = content.visibleParts,
@@ -129,7 +140,7 @@ fun TimelineItemAiView(
                 onLinkClick = onLinkClick,
                 onLinkLongClick = onLinkLongClick,
             )
-        } else if (content.body.isNotBlank()) {
+        } else if (content.shouldRenderBodyFallback()) {
             MarkdownBody(
                 text = content.body,
                 isStreaming = content.isStreaming,
@@ -168,6 +179,27 @@ fun TimelineItemAiView(
             }
         }
     }
+}
+
+internal fun TimelineItemAiContent.shouldRenderBodyFallback(): Boolean {
+    if (body.isBlank()) return false
+    val streamId = streamId ?: return true
+    return !body.isStreamPlaceholderBody(streamId)
+}
+
+private fun String.isStreamPlaceholderBody(streamId: String): Boolean {
+    val normalized = trim().lowercase()
+        .trim('.', '…', '。', '!', '！')
+    if (normalized == streamId.trim().lowercase()) return true
+    return normalized in setOf(
+        "thinking",
+        "loading",
+        "streaming",
+        "pending",
+        "running",
+        "思考中",
+        "处理中",
+    )
 }
 
 @Composable
@@ -219,10 +251,22 @@ private fun AiStreamPartsView(
 /** Trailing streaming indicator (iOS StreamingCursor). */
 @Composable
 private fun StreamingCursor() {
-    Text(
-        text = "▍",
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    val transition = rememberInfiniteTransition(label = "ai-streaming-cursor")
+    val alpha by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 500),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "ai-streaming-cursor-alpha",
+    )
+    Box(
+        modifier = Modifier
+            .width(2.dp)
+            .height(16.dp)
+            .alpha(alpha)
+            .background(MaterialTheme.colorScheme.onSurfaceVariant),
     )
 }
 
@@ -424,7 +468,8 @@ private fun ToolCallRootCard(
 ) {
     if (entries.isEmpty()) return
     var selectedIndex by remember(entries.joinToString(separator = "|") { it.id }) { mutableStateOf(entries.lastIndex) }
-    var expanded by remember(entries.first().id) { mutableStateOf(true) }
+    var expanded by remember(entries.first().id) { mutableStateOf(false) }
+    var userToggled by remember(entries.first().id) { mutableStateOf(false) }
     if (selectedIndex !in entries.indices) selectedIndex = entries.lastIndex
     val selectedEntry = entries[selectedIndex]
     val doneCount = entries.count { it.state == "done" }
@@ -433,6 +478,19 @@ private fun ToolCallRootCard(
     // does NOT gate on the message-level streaming flag).
     val callingCount = entries.size - doneCount - errorCount
     val allFinished = callingCount == 0
+    LaunchedEffect(allFinished, entries.size) {
+        if (allFinished && !userToggled) {
+            expanded = false
+        } else if (!allFinished && !userToggled) {
+            selectedIndex = entries.lastIndex
+            expanded = true
+        }
+    }
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (expanded) 0f else -90f,
+        animationSpec = tween(durationMillis = 300),
+        label = "tool-card-chevron-rotation",
+    )
 
     Surface(
         shape = RoundedCornerShape(12.dp),
@@ -443,7 +501,10 @@ private fun ToolCallRootCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { expanded = !expanded }
+                    .clickable {
+                        userToggled = true
+                        expanded = !expanded
+                    }
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -468,27 +529,47 @@ private fun ToolCallRootCard(
                 if (errorCount > 0) {
                     CountPill(icon = Icons.Filled.PriorityHigh, count = errorCount, color = MaterialTheme.colorScheme.error)
                 }
-                Text(
-                    text = if (expanded) "⌄" else "›",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Icon(
+                    imageVector = Icons.Filled.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                    modifier = Modifier
+                        .size(18.dp)
+                        .rotate(chevronRotation),
                 )
             }
-            if (expanded) {
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically(animationSpec = tween(durationMillis = 300)) + fadeIn(animationSpec = tween(durationMillis = 180)),
+                exit = shrinkVertically(animationSpec = tween(durationMillis = 250)) + fadeOut(animationSpec = tween(durationMillis = 140)),
+            ) {
                 if (entries.size > 1) {
-                    ToolSelectionTabs(
-                        entries = entries,
-                        selectedIndex = selectedIndex,
-                        onSelected = { selectedIndex = it },
+                    Column {
+                        ToolSelectionTabs(
+                            entries = entries,
+                            selectedIndex = selectedIndex,
+                            onSelected = {
+                                userToggled = true
+                                selectedIndex = it
+                            },
+                        )
+                        ToolEntryContentViewport(
+                            entry = selectedEntry,
+                            isStreaming = isStreaming,
+                            allFinished = allFinished,
+                            onLinkClick = onLinkClick,
+                            onLinkLongClick = onLinkLongClick,
+                        )
+                    }
+                } else {
+                    ToolEntryContentViewport(
+                        entry = selectedEntry,
+                        isStreaming = isStreaming,
+                        allFinished = allFinished,
+                        onLinkClick = onLinkClick,
+                        onLinkLongClick = onLinkLongClick,
                     )
                 }
-                ToolEntryContentViewport(
-                    entry = selectedEntry,
-                    isStreaming = isStreaming,
-                    allFinished = allFinished,
-                    onLinkClick = onLinkClick,
-                    onLinkLongClick = onLinkLongClick,
-                )
             }
         }
     }
@@ -547,7 +628,7 @@ private fun ToolEntryContentViewport(
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .verticalScroll(scrollState),
         ) {
             ToolEntryContent(
@@ -574,14 +655,7 @@ private fun ToolEntryContent(
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when (entry.state) {
             "calling" -> ToolCallingEntryContent(entry, allFinished)
-            "error" -> {
-                val props = remember(entry.props) { runCatching { JSONObject(entry.props) }.getOrNull() ?: JSONObject() }
-                Text(
-                    text = props.optString("errorText").takeIf { it.isNotBlank() } ?: "Tool call failed.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
+            "error" -> ToolErrorEntryContent(entry)
             else -> {
                 val rendered = ToolEntryPayloadCard(
                     entry = entry,
@@ -613,6 +687,33 @@ private fun ToolCallingEntryContent(
     if (!rendered) {
         Text(
             text = if (allFinished) "Waiting for tool output." else "Running tool…",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun ToolErrorEntryContent(entry: AiToolCardEntry) {
+    val props = remember(entry.props) { runCatching { JSONObject(entry.props) }.getOrNull() ?: JSONObject() }
+    val message = props.optString("errorText")
+        .takeIf { it.isNotBlank() && !it.looksLikeRawJsonError() }
+        ?: "Failed to get results"
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.ErrorOutline,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(18.dp),
+        )
+        Text(
+            text = message,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -703,6 +804,13 @@ private fun ToolErrorContent(part: AiToolStreamPart) {
     )
 }
 
+private fun String.looksLikeRawJsonError(): Boolean {
+    val normalized = trim()
+    return normalized.startsWith("{") ||
+        normalized.contains("ToolNotFoundError") ||
+        normalized.contains("\"name\"") && normalized.contains("Error")
+}
+
 @Composable
 private fun ToolPayloadCandidates(
     part: AiToolStreamPart,
@@ -747,14 +855,10 @@ private fun ToolPayloadCard(
     Surface(
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(max = 260.dp),
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Column(
-            modifier = Modifier
-                .padding(10.dp)
-                .verticalScroll(rememberScrollState()),
+            modifier = Modifier.padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (model != null && model.items.isNotEmpty()) {

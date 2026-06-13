@@ -97,6 +97,14 @@ private fun formatAddr(addr: JSONObject): String {
     return if (!name.isNullOrBlank()) "$name <$email>" else email
 }
 
+private fun formatAddrValue(value: Any?): String? {
+    return when (value) {
+        is JSONObject -> formatAddr(value).takeIf { it.isNotBlank() }
+        is String -> value.takeIf { it.isNotBlank() }
+        else -> null
+    }
+}
+
 @Composable
 private fun AddressRow(label: String, addresses: List<JSONObject>) {
     val joined = addresses.joinToString(", ") { formatAddr(it) }
@@ -120,6 +128,12 @@ private fun AddressRow(label: String, addresses: List<JSONObject>) {
 
 @Composable
 private fun ComposeEmailCardView(data: JSONObject) {
+    val messages = data.cardObjects("messages", "items")
+    if (messages.isNotEmpty()) {
+        EmailListCardView(messages)
+        return
+    }
+
     val from = data.opt("from") as? JSONObject
     val to = data.cardObjects("to")
     val cc = data.cardObjects("cc")
@@ -131,7 +145,14 @@ private fun ComposeEmailCardView(data: JSONObject) {
     val starred = data.cardBool("starred") ?: false
     val labels = data.cardStrings("labels")
 
-    val isEmpty = subject == "(No Subject)" && to.isEmpty() && from == null
+    val isEmpty = subject == "(No Subject)" &&
+        to.isEmpty() &&
+        cc.isEmpty() &&
+        from == null &&
+        body.isNullOrBlank() &&
+        date.isNullOrBlank() &&
+        labels.isEmpty() &&
+        !hasAttachments
     if (isEmpty) return
 
     ToolCardSurface {
@@ -211,32 +232,150 @@ private fun ComposeEmailCardView(data: JSONObject) {
     }
 }
 
+@Composable
+private fun EmailListCardView(messages: List<JSONObject>) {
+    val shown = messages.take(MAX_CARD_ITEMS)
+    val open = rememberLinkOpener {}
+
+    ToolCardSurface {
+        ToolCardHeader(title = "Emails", count = messages.size)
+        DividedList(shown) { message -> EmailListRow(message, open) }
+        if (messages.size > shown.size) {
+            MetaText("+${messages.size - shown.size} more")
+        }
+    }
+}
+
+@Composable
+private fun EmailListRow(message: JSONObject, open: (String?) -> Unit) {
+    val subject = message.cardString("subject", "title") ?: "(No Subject)"
+    val from = formatAddrValue(message.opt("from")) ?: message.cardString("sender", "fromEmail", "email")
+    val snippet = message.cardString("snippet", "body", "summary", "text")
+    val date = message.cardString("date", "receivedAt", "received_at", "internalDate")
+    val url = message.cardString("url", "link", "web_url", "webUrl")
+    val labels = message.cardStrings("labels")
+    val starred = message.cardBool("starred") ?: false
+    val hasAttachments = message.cardBool("hasAttachments") ?: false
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (!url.isNullOrBlank()) Modifier.clickable { open(url) } else Modifier)
+            .padding(vertical = 7.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(top = 3.dp)
+                .size(8.dp)
+                .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(50)),
+        )
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = subject,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                if (starred) {
+                    Icon(
+                        Icons.Filled.Star,
+                        contentDescription = null,
+                        tint = Color(0xFFFFC107),
+                        modifier = Modifier.size(12.dp),
+                    )
+                }
+                if (hasAttachments) {
+                    Icon(
+                        Icons.Filled.AttachFile,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(12.dp),
+                    )
+                }
+            }
+            if (!from.isNullOrBlank() || !date.isNullOrBlank()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (!from.isNullOrBlank()) {
+                        Text(
+                            text = from,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                    }
+                    if (!date.isNullOrBlank()) {
+                        MetaText(date)
+                    }
+                }
+            }
+            if (!snippet.isNullOrBlank()) {
+                Text(
+                    text = snippet,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (labels.isNotEmpty()) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    labels.take(4).forEach { CardChip(text = it) }
+                }
+            }
+        }
+        if (!url.isNullOrBlank()) {
+            Icon(
+                Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .padding(top = 2.dp)
+                    .size(16.dp),
+            )
+        }
+    }
+}
+
 // MARK: - fileAttachment (Google Drive)
 
 @Composable
 private fun FileAttachmentCardView(data: JSONObject, onLinkClick: () -> Unit) {
-    val files = data.cardObjects("files")
+    val files = data.cardObjects("files", "items")
     if (files.isEmpty()) return
     val shown = files.take(MAX_CARD_ITEMS)
     val open = rememberLinkOpener(onLinkClick)
 
-    ToolCardSurface {
-        ToolCardHeader(title = "Files", count = files.size)
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
+    ) {
         DividedList(shown) { file -> FileRow(file, open) }
         if (files.size > shown.size) {
-            MetaText("+${files.size - shown.size} more")
+            Text(
+                text = "+${files.size - shown.size} more",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
+            )
         }
     }
 }
 
 @Composable
 private fun FileRow(file: JSONObject, open: (String?) -> Unit) {
-    val name = file.cardString("name") ?: "Untitled"
+    val name = file.cardString("name", "filename", "title") ?: "Untitled"
     val size = file.cardString("size")
-    val modifiedAt = file.cardString("modifiedAt")
+    val modifiedAt = file.cardString("modifiedAt", "modified_at", "modifiedTime", "modified_time")
     val owner = file.cardString("owner")
     val shared = file.cardBool("shared") ?: false
-    val url = file.cardString("url")
+    val url = file.cardString("url", "webViewLink", "web_view_link", "alternateLink")
     val icon = resolveFileTypeIcon(name)
     val details = listOfNotNull(size, modifiedAt, owner).filter { it.isNotBlank() }
 

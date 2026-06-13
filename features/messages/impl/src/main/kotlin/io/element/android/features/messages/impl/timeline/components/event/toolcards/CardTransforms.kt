@@ -24,11 +24,24 @@ internal object CardTransforms {
         "imageGrid" -> imageGrid(raw)
         "productList" -> product(raw)
         "finance" -> finance(raw)
+        "weather" -> weather(raw)
         "eventList" -> event(raw)
         "placeList" -> place(raw)
         "urlContent" -> urlContent(raw)
         "githubIssuesList" -> githubIssues(raw)
         "repoList" -> githubRepos(raw)
+        "fileAttachment" -> fileAttachment(raw)
+        "commentThread" -> commentThread(raw)
+        "socialPostFeed" -> socialPost(raw)
+        "checkRuns" -> canonicalList(raw, "checkRuns", "check_runs", "items")
+        "deployments" -> canonicalList(raw, "deployments", "items")
+        "notifications" -> canonicalList(raw, "notifications", "items")
+        "secretAlerts" -> canonicalList(raw, "alerts", "secretAlerts", "secret_alerts", "items")
+        "workflows" -> canonicalList(raw, "workflows", "items")
+        "orgsList" -> canonicalList(raw, "organizations", "orgs", "items")
+        "contributors" -> canonicalList(raw, "contributors", "items")
+        "linearIssuesList" -> canonicalList(raw, "items", "issues", "pull_requests")
+        "release" -> release(raw)
         else -> raw
     }
 
@@ -223,7 +236,7 @@ internal object CardTransforms {
             item.intOrNull("reviews")?.let { p.put("reviews", it) }
             val address = joinStrings(item.opt("address"))
             address?.let { p.put("address", it) }
-            item.str("thumbnail")?.let { p.put("thumbnail", it) }
+            item.firstImageUrl()?.let { p.put("thumbnail", it) }
             item.str("price")?.let { p.put("price", it) }
             item.str("open_state")?.let { p.put("openState", it) }
             item.str("phone")?.let { p.put("phone", it) }
@@ -248,6 +261,56 @@ internal object CardTransforms {
             articles.put(a)
         }
         return JSONObject().put("articles", articles)
+    }
+
+    // MARK: - Files / comments / social feeds
+
+    private fun fileAttachment(raw: JSONObject): JSONObject {
+        firstObjectList(raw, "files", "items")?.let { return JSONObject().put("files", it) }
+        if (!raw.hasAny("name", "filename", "title", "mimeType", "mime_type", "webViewLink", "web_view_link", "url", "id")) return raw
+        val file = JSONObject()
+        (raw.str("name") ?: raw.str("filename") ?: raw.str("title"))?.let { file.put("name", it) }
+        (raw.str("mimeType") ?: raw.str("mime_type"))?.let { file.put("mimeType", it) }
+        raw.str("size")?.let { file.put("size", it) }
+        (raw.str("modifiedAt") ?: raw.str("modified_at") ?: raw.str("modifiedTime") ?: raw.str("modified_time"))?.let { file.put("modifiedAt", it) }
+        (raw.str("owner") ?: raw.objList("owners").firstOrNull()?.str("displayName"))?.let { file.put("owner", it) }
+        raw.opt("shared")?.let { file.put("shared", it) }
+        (raw.str("url") ?: raw.str("webViewLink") ?: raw.str("web_view_link") ?: raw.str("alternateLink"))?.let { file.put("url", it) }
+        return JSONObject().put("files", JSONArray().put(file))
+    }
+
+    private fun commentThread(raw: JSONObject): JSONObject {
+        firstObjectList(raw, "comments", "items")?.let { return JSONObject().put("comments", it) }
+        if (!raw.hasAny("body", "comment", "user", "author", "created_at", "createdAt", "html_url", "url")) return raw
+        val comment = JSONObject()
+        (raw.str("body") ?: raw.str("comment"))?.let { comment.put("body", it) }
+        val user = raw.obj("user")
+        (raw.str("author") ?: user?.str("login") ?: user?.str("name"))?.let { comment.put("author", it) }
+        (raw.str("avatarUrl") ?: raw.str("avatar_url") ?: user?.str("avatar_url") ?: user?.str("avatarUrl"))?.let { comment.put("avatarUrl", it) }
+        (raw.str("createdAt") ?: raw.str("created_at"))?.let { comment.put("createdAt", it) }
+        (raw.str("association") ?: raw.str("author_association"))?.let { comment.put("association", it) }
+        (raw.str("url") ?: raw.str("html_url"))?.let { comment.put("url", it) }
+        return JSONObject().put("comments", JSONArray().put(comment))
+    }
+
+    private fun socialPost(raw: JSONObject): JSONObject {
+        firstObjectList(raw, "posts", "tweets", "items", "data")?.let { return JSONObject().put("posts", it) }
+        if (!raw.hasAny("text", "full_text", "body", "content", "id", "created_at", "createdAt", "author", "user")) return raw
+        val post = JSONObject()
+        (raw.str("text") ?: raw.str("full_text") ?: raw.str("body") ?: raw.str("content"))?.let { post.put("body", it) }
+        raw.str("id")?.let { post.put("id", it) }
+        (raw.str("createdAt") ?: raw.str("created_at"))?.let { post.put("createdAt", it) }
+        val author = raw.obj("author") ?: raw.obj("user")
+        author?.let { post.put("author", it) }
+        (raw.str("url") ?: raw.str("link"))?.let { post.put("url", it) }
+        return JSONObject().put("posts", JSONArray().put(post))
+    }
+
+    private fun release(raw: JSONObject): JSONObject {
+        val out = JSONObject(raw.toString())
+        (raw.str("tagName") ?: raw.str("tag_name"))?.let { out.put("tagName", it) }
+        (raw.str("name") ?: raw.str("title"))?.let { out.put("name", it) }
+        return out
     }
 
     // MARK: - Hotels
@@ -366,7 +429,77 @@ internal object CardTransforms {
         source.obj("summary")?.strList("extensions")?.takeIf { it.isNotEmpty() }?.let { stats ->
             props.put("stats", JSONArray(stats))
         }
+        source.objList("financials").let { financials ->
+            val sections = JSONArray()
+            financials.forEach { section ->
+                val title = section.str("title") ?: return@forEach
+                val latest = section.objList("results").firstOrNull() ?: return@forEach
+                val rows = JSONArray()
+                latest.objList("table").forEach { item ->
+                    val label = item.str("title") ?: return@forEach
+                    val value = item.str("value")?.takeIf { it != "—" } ?: return@forEach
+                    val row = JSONObject()
+                        .put("label", label)
+                        .put("value", formatFinancialValue(value))
+                    item.str("change")?.takeIf { it != "—" }?.let { row.put("change", it) }
+                    rows.put(row)
+                }
+                if (rows.length() > 0) {
+                    sections.put(
+                        JSONObject()
+                            .put("title", title)
+                            .put("period", latest.str("date") ?: "")
+                            .put("rows", JSONArray((0 until rows.length()).take(8).map { rows.getJSONObject(it) }))
+                    )
+                }
+            }
+            if (sections.length() > 0) props.put("financials", sections)
+        }
         return props
+    }
+
+    // MARK: - Weather
+
+    private fun weather(raw: JSONObject): JSONObject {
+        val source = raw.obj("data") ?: raw.obj("results") ?: raw
+        val weatherResult = source.obj("weather_result") ?: source.obj("current") ?: source.obj("weather") ?: source
+        val props = JSONObject()
+        val location = source.str("location") ?: weatherResult.str("location") ?: source.str("city") ?: weatherResult.str("city")
+        location?.let {
+            val parts = it.split(",").map { part -> part.trim() }.filter { part -> part.isNotEmpty() }
+            props.put("city", source.str("city") ?: weatherResult.str("city") ?: parts.firstOrNull().orEmpty())
+            parts.drop(1).joinToString(", ").takeIf { country -> country.isNotEmpty() }?.let { country -> props.put("country", country) }
+        }
+        (source.str("country") ?: weatherResult.str("country"))?.let { props.put("country", it) }
+
+        val current = JSONObject()
+        numberFrom(weatherResult.opt("temperature") ?: weatherResult.opt("temp"))?.let { current.put("temperature", it) }
+        numberFrom(weatherResult.opt("feelsLike") ?: weatherResult.opt("feels_like"))?.let { current.put("feelsLike", it) }
+        numberFrom(weatherResult.opt("humidity"))?.let { current.put("humidity", it) }
+        numberFrom(weatherResult.opt("windSpeed") ?: weatherResult.opt("wind_speed") ?: weatherResult.opt("wind"))?.let { current.put("windSpeed", it) }
+        (weatherResult.str("condition") ?: weatherResult.str("weather") ?: weatherResult.str("description"))?.let { current.put("condition", it) }
+        if (current.length() > 0) props.put("current", current)
+
+        val forecastSource = source.objList("forecast")
+            .ifEmpty { weatherResult.objList("forecast") }
+            .ifEmpty { source.objList("daily_forecast") }
+            .ifEmpty { weatherResult.objList("daily_forecast") }
+        if (forecastSource.isNotEmpty()) {
+            val forecast = JSONArray()
+            forecastSource.forEach { item ->
+                val row = JSONObject()
+                (item.str("day") ?: item.str("weekday") ?: item.str("date"))?.let { row.put("day", it) }
+                item.str("date")?.let { row.put("date", it) }
+                numberFrom(item.opt("high") ?: item.opt("max") ?: item.opt("max_temp") ?: item.opt("temperature"))?.let { row.put("high", it) }
+                numberFrom(item.opt("low") ?: item.opt("min") ?: item.opt("min_temp"))?.let { row.put("low", it) }
+                (item.str("condition") ?: item.str("weather") ?: item.str("description"))?.let { row.put("condition", it) }
+                numberFrom(item.opt("precipitation") ?: item.opt("rain_chance") ?: item.opt("precipitation_probability"))?.let { row.put("precipitation", it) }
+                if (row.length() > 0) forecast.put(row)
+            }
+            if (forecast.length() > 0) props.put("forecast", forecast)
+        }
+
+        return if (props.length() > 0) props else raw
     }
 
     private fun applyMovement(movement: Any?, dict: JSONObject) {
@@ -412,9 +545,60 @@ internal object CardTransforms {
 
     // MARK: - Helpers
 
+    private fun canonicalList(raw: JSONObject, canonicalKey: String, vararg sourceKeys: String): JSONObject {
+        firstObjectList(raw, *sourceKeys)?.let { return JSONObject(raw.toString()).put(canonicalKey, it) }
+        return raw
+    }
+
+    private fun firstObjectList(raw: JSONObject, vararg keys: String): JSONArray? {
+        keys.forEach { key ->
+            raw.optJSONArray(key)?.takeIf { it.length() > 0 }?.let { return it }
+        }
+        return null
+    }
+
+    private fun JSONObject.firstImageUrl(): String? {
+        (str("thumbnail") ?: str("image") ?: str("imageUrl") ?: str("photo"))?.let { return it }
+        listOf("images", "photos", "photo_images").forEach { key ->
+            val array = optJSONArray(key) ?: return@forEach
+            for (index in 0 until array.length()) {
+                when (val item = array.opt(index)) {
+                    is String -> if (item.isNotBlank()) return item
+                    is JSONObject -> {
+                        (item.str("thumbnail")
+                            ?: item.str("original_image")
+                            ?: item.str("original")
+                            ?: item.str("url")
+                            ?: item.str("imageUrl"))?.let { return it }
+                    }
+                }
+            }
+        }
+        return null
+    }
+
+    private fun JSONObject.hasAny(vararg keys: String): Boolean = keys.any { has(it) && !isNull(it) }
+
+    private fun numberFrom(value: Any?): Double? = when (value) {
+        is Number -> value.toDouble()
+        is String -> Regex("-?\\d+(\\.\\d+)?").find(value)?.value?.toDoubleOrNull()
+        else -> null
+    }
+
     private fun formatPrice(value: Double, currency: String?): String {
         val symbol = if (currency == null || currency == "USD") "$" else "$currency "
         return if (value % 1.0 == 0.0) "$symbol${value.toInt()}" else String.format("$symbol%.2f", value)
+    }
+
+    private fun formatFinancialValue(value: String): String {
+        val n = value.toDoubleOrNull() ?: return value
+        val abs = kotlin.math.abs(n)
+        return when {
+            abs >= 1e12 -> String.format("%.2fT", n / 1e12)
+            abs >= 1e9 -> String.format("%.2fB", n / 1e9)
+            abs >= 1e6 -> String.format("%.1fM", n / 1e6)
+            else -> value
+        }
     }
 
     private fun mapsURL(name: String, address: String?, gps: JSONObject?): String {

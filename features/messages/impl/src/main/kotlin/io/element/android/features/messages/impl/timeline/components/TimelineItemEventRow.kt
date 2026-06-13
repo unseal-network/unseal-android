@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.constraintlayout.compose.ConstrainScope
 import androidx.constraintlayout.compose.ConstraintLayout
+import androidx.constraintlayout.compose.Dimension
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.messages.impl.timeline.TimelineEvent
@@ -70,6 +71,7 @@ import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.timeline.model.TimelineItemGroupPosition
 import io.element.android.features.messages.impl.timeline.model.TimelineItemThreadInfo
 import io.element.android.features.messages.impl.timeline.model.bubble.BubbleState
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemGameContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemImageContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
@@ -136,6 +138,10 @@ val NEGATIVE_MARGIN_FOR_BUBBLE = (-8).dp
 val SENDER_AVATAR_BORDER_WIDTH = 3.dp
 
 private val BUBBLE_INCOMING_OFFSET = 16.dp
+private val TIMELINE_ROW_HORIZONTAL_PADDING = 16.dp
+private val AI_SENDER_DETAILS_SPACING = 4.dp
+private val AI_INCOMING_CONTENT_START = TIMELINE_ROW_HORIZONTAL_PADDING + AvatarSize.TimelineSender.dp + AI_SENDER_DETAILS_SPACING
+private val AI_INCOMING_CONTENT_END = 16.dp
 
 @Composable
 fun TimelineItemEventRow(
@@ -212,7 +218,9 @@ fun TimelineItemEventRow(
         } else {
             Spacer(modifier = Modifier.height(2.dp))
         }
-        val canReply = timelineRoomInfo.userHasPermissionToSendMessage && event.canBeRepliedTo
+        val canReply = timelineRoomInfo.userHasPermissionToSendMessage &&
+            event.canBeRepliedTo &&
+            event.content !is TimelineItemAiContent
         if (canReply) {
             val state: SwipeableActionsState = rememberSwipeableActionsState()
             val offset = state.offset.floatValue
@@ -431,11 +439,22 @@ private fun TimelineItemEventRowContent(
         start.linkTo(parent.start)
     }
 
-    ConstraintLayout(
+    BoxWithConstraints(
         modifier = modifier
             .wrapContentHeight()
             .fillMaxWidth(),
     ) {
+        val aiContentStartMargin = when {
+            maxWidth < 360.dp -> TIMELINE_ROW_HORIZONTAL_PADDING + 28.dp
+            else -> AI_INCOMING_CONTENT_START
+        }
+        val aiContentEndMargin = AI_INCOMING_CONTENT_END
+
+        ConstraintLayout(
+            modifier = Modifier
+                .wrapContentHeight()
+                .fillMaxWidth(),
+        ) {
         val (
             sender,
             message,
@@ -443,8 +462,9 @@ private fun TimelineItemEventRowContent(
             pinIcon,
         ) = createRefs()
 
+        val isAiEvent = event.content is TimelineItemAiContent
         // Sender
-        if (event.showSenderInformation && !timelineRoomInfo.isDm) {
+        if (event.showSenderInformation && (!timelineRoomInfo.isDm || isAiEvent)) {
             MessageSenderInformation(
                 event.senderId,
                 event.senderProfile,
@@ -467,36 +487,68 @@ private fun TimelineItemEventRowContent(
             isMine = event.isMine,
             timelineRoomInfo = timelineRoomInfo,
         )
-        MessageEventBubble(
-            modifier = Modifier
-                .constrainAs(message) {
-                    val topMargin = if (bubbleState.cutTopStart) {
-                        NEGATIVE_MARGIN_FOR_BUBBLE
+        val messageModifier = Modifier
+            .constrainAs(message) {
+                val topMargin = if (!isAiEvent && bubbleState.cutTopStart) {
+                    NEGATIVE_MARGIN_FOR_BUBBLE
+                } else {
+                    0.dp
+                }
+                top.linkTo(sender.bottom, margin = topMargin)
+                if (event.isMine) {
+                    end.linkTo(parent.end, margin = 16.dp)
+                } else {
+                    val startMargin = if (isAiEvent) {
+                        aiContentStartMargin
+                    } else if (timelineRoomInfo.isDm) {
+                        16.dp
                     } else {
-                        0.dp
+                        16.dp + BUBBLE_INCOMING_OFFSET
                     }
-                    top.linkTo(sender.bottom, margin = topMargin)
-                    if (event.isMine) {
-                        end.linkTo(parent.end, margin = 16.dp)
-                    } else {
-                        val startMargin = if (timelineRoomInfo.isDm) 16.dp else 16.dp + BUBBLE_INCOMING_OFFSET
-                        start.linkTo(parent.start, margin = startMargin)
+                    start.linkTo(parent.start, margin = startMargin)
+                    if (isAiEvent) {
+                        end.linkTo(parent.end, margin = aiContentEndMargin)
+                        width = Dimension.fillToConstraints
                     }
-                },
-            state = bubbleState,
-            interactionSource = interactionSource,
-            onClick = onContentClick,
-            onLongClick = onLongClick,
-        ) {
-            MessageEventBubbleContent(
-                event = event,
-                timelineMode = timelineMode,
-                timelineProtectionState = timelineProtectionState,
-                onMessageLongClick = onLongClick,
-                inReplyToClick = inReplyToClick,
-                eventSink = eventSink,
-                eventContentView = eventContentView,
-            )
+                }
+            }
+        if (isAiEvent) {
+            BoxWithConstraints(
+                modifier = messageModifier,
+                contentAlignment = if (event.isMine) Alignment.CenterEnd else Alignment.CenterStart,
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    MessageEventBubbleContent(
+                        event = event,
+                        timelineMode = timelineMode,
+                        timelineProtectionState = timelineProtectionState,
+                        onMessageLongClick = onLongClick,
+                        inReplyToClick = inReplyToClick,
+                        eventSink = eventSink,
+                        eventContentView = eventContentView,
+                    )
+                }
+            }
+        } else {
+            MessageEventBubble(
+                modifier = messageModifier,
+                state = bubbleState,
+                interactionSource = interactionSource,
+                onClick = onContentClick,
+                onLongClick = onLongClick,
+            ) {
+                MessageEventBubbleContent(
+                    event = event,
+                    timelineMode = timelineMode,
+                    timelineProtectionState = timelineProtectionState,
+                    onMessageLongClick = onLongClick,
+                    inReplyToClick = inReplyToClick,
+                    eventSink = eventSink,
+                    eventContentView = eventContentView,
+                )
+            }
         }
 
         // Pin icon
@@ -547,6 +599,7 @@ private fun TimelineItemEventRowContent(
                     )
             )
         }
+    }
     }
 }
 
@@ -792,7 +845,8 @@ private fun MessageEventBubbleContent(
                 content.mode.isOwnUser
             if (shouldHide) TimestampPosition.Hidden else TimestampPosition.Overlay
         }
-        is TimelineItemPollContent -> TimestampPosition.Below
+        is TimelineItemPollContent,
+        is TimelineItemAiContent -> TimestampPosition.Below
         // Game cards render the timestamp inline inside the card itself — suppress the external one
         is TimelineItemGameContent -> TimestampPosition.Hidden
         else -> TimestampPosition.Default
@@ -803,7 +857,8 @@ private fun MessageEventBubbleContent(
         is TimelineItemStickerContent,
         is TimelineItemLocationContent,
         // Game card has its own internal padding — no extra bubble padding needed
-        is TimelineItemGameContent -> ContentPadding.Media
+        is TimelineItemGameContent,
+        is TimelineItemAiContent -> ContentPadding.Media
         else -> ContentPadding.Textual
     }
     CommonLayout(

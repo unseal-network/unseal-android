@@ -67,7 +67,7 @@ internal fun gitHubActivityCard(cardType: String, data: JSONObject, onLinkClick:
 
 @Composable
 private fun CheckRunsCard(data: JSONObject, onLinkClick: () -> Unit): Boolean {
-    val runs = data.cardObjects("checkRuns")
+    val runs = data.cardObjects("checkRuns", "check_runs", "items")
     if (runs.isEmpty()) return false
     val summary = checkRunsSummary(runs)
     ToolCardSurface {
@@ -132,7 +132,7 @@ private fun CommitComparisonCard(data: JSONObject): Boolean {
     val behindBy = data.cardInt("behindBy") ?: 0
     val commits = data.cardObjects("commits")
     val files = data.cardObjects("files")
-    if (status == null && commits.isEmpty()) return false
+    if (status == null && commits.isEmpty() && files.isEmpty()) return false
 
     val statusColor = when (status) {
         "ahead" -> StatusSuccess
@@ -190,7 +190,7 @@ private fun FileRow(file: JSONObject) {
 
 @Composable
 private fun DeploymentsCard(data: JSONObject): Boolean {
-    val deployments = data.cardObjects("deployments")
+    val deployments = data.cardObjects("deployments", "items")
     if (deployments.isEmpty()) return false
     ToolCardSurface {
         ToolCardHeader(title = "Deployments", count = deployments.size)
@@ -222,7 +222,7 @@ private fun DeploymentRow(dep: JSONObject) {
 
 @Composable
 private fun NotificationsCard(data: JSONObject, onLinkClick: () -> Unit): Boolean {
-    val notifications = data.cardObjects("notifications")
+    val notifications = data.cardObjects("notifications", "items")
     if (notifications.isEmpty()) return false
     ToolCardSurface {
         ToolCardHeader(title = "Notifications", count = notifications.size)
@@ -257,7 +257,7 @@ private fun NotificationRow(n: JSONObject, onLinkClick: () -> Unit) {
 
 @Composable
 private fun SecretAlertsCard(data: JSONObject, onLinkClick: () -> Unit): Boolean {
-    val alerts = data.cardObjects("alerts")
+    val alerts = data.cardObjects("alerts", "secretAlerts", "secret_alerts", "items")
     if (alerts.isEmpty()) return false
     ToolCardSurface {
         ToolCardHeader(title = "Secret Alerts", count = alerts.size)
@@ -291,7 +291,7 @@ private fun SecretAlertRow(alert: JSONObject, onLinkClick: () -> Unit) {
 
 @Composable
 private fun WorkflowsCard(data: JSONObject, onLinkClick: () -> Unit): Boolean {
-    val workflows = data.cardObjects("workflows")
+    val workflows = data.cardObjects("workflows", "items")
     if (workflows.isEmpty()) return false
     ToolCardSurface {
         ToolCardHeader(title = "Workflows", count = workflows.size)
@@ -327,7 +327,7 @@ private fun WorkflowRow(wf: JSONObject, onLinkClick: () -> Unit) {
 
 @Composable
 private fun CommentThreadCard(data: JSONObject): Boolean {
-    val comments = data.cardObjects("comments")
+    val comments = data.cardObjects("comments", "items")
     if (comments.isEmpty()) return false
     val prTitle = data.cardString("prTitle")
     val prNumber = data.cardInt("prNumber")

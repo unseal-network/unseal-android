@@ -150,16 +150,27 @@ class SQLiteStreamStorageProvider(
             null,
         ).use { cursor ->
             if (!cursor.moveToFirst()) {
+                Timber.tag("AiStreamDbg").d("sqlite cache MISS stream=%s", streamId)
                 return@withContext null
             }
             val json = cursor.getString(0)
             val snapshot = runCatching { codec.decode(json) }
-                .onFailure { deleteSync(streamId) }
+                .onFailure {
+                    Timber.tag("AiStreamDbg").w(it, "sqlite cache CORRUPT stream=%s", streamId)
+                    deleteSync(streamId)
+                }
                 .getOrNull()
             if (snapshot?.status == StreamStatus.Completed && snapshot.parts.isEmpty()) {
+                Timber.tag("AiStreamDbg").d("sqlite cache STALE_EMPTY stream=%s", streamId)
                 deleteSync(streamId)
                 null
             } else {
+                Timber.tag("AiStreamDbg").d(
+                    "sqlite cache HIT stream=%s status=%s parts=%d",
+                    streamId,
+                    snapshot?.status,
+                    snapshot?.parts?.size ?: 0,
+                )
                 snapshot
             }
         }
@@ -167,6 +178,7 @@ class SQLiteStreamStorageProvider(
 
     override suspend fun save(snapshot: StreamSnapshot) = withContext(dispatchers.io) {
         if (!shouldSave(snapshot)) {
+            Timber.tag("AiStreamDbg").d("sqlite cache SKIP_SAVE stream=%s status=%s parts=%d", snapshot.streamId, snapshot.status, snapshot.parts.size)
             return@withContext
         }
         val json = codec.encode(snapshot)
@@ -182,6 +194,7 @@ class SQLiteStreamStorageProvider(
         database.beginTransaction()
         try {
             if (snapshot.status == StreamStatus.Failed && hasCompletedSnapshotWithParts(database, snapshot.streamId)) {
+                Timber.tag("AiStreamDbg").d("sqlite cache KEEP_COMPLETED stream=%s", snapshot.streamId)
                 return@withContext
             }
             database.insertWithOnConflict(
@@ -191,6 +204,7 @@ class SQLiteStreamStorageProvider(
                 SQLiteDatabase.CONFLICT_REPLACE,
             )
             database.setTransactionSuccessful()
+            Timber.tag("AiStreamDbg").d("sqlite cache SAVE stream=%s status=%s parts=%d", snapshot.streamId, snapshot.status, snapshot.parts.size)
         } finally {
             database.endTransaction()
         }

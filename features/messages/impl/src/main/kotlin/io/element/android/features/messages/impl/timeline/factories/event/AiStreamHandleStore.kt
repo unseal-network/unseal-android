@@ -18,6 +18,7 @@ import io.element.android.libraries.agentstream.api.StreamStatus
 import io.element.android.libraries.agentstream.api.StreamSubscription
 import io.element.android.libraries.di.RoomScope
 import java.io.Closeable
+import timber.log.Timber
 
 @SingleIn(RoomScope::class)
 @Inject
@@ -25,7 +26,23 @@ class AiStreamHandleStore(
     private val client: AgentStreamClient,
 ) {
     private val handles = linkedMapOf<String, StreamHandle>()
+    private val snapshots = linkedMapOf<String, StreamSnapshot>()
     private val lock = Any()
+
+    fun cachedSnapshot(streamId: String): StreamSnapshot? {
+        return synchronized(lock) {
+            handles[streamId]?.snapshot()?.takeIf { it.hasUsableContent() }
+                ?: snapshots[streamId]
+        }.also { snapshot ->
+            Timber.tag(DBG).d(
+                "room cache %s stream=%s status=%s parts=%d",
+                if (snapshot == null) "MISS" else "HIT",
+                streamId,
+                snapshot?.status,
+                snapshot?.parts?.size ?: 0,
+            )
+        }
+    }
 
     fun bind(
         request: StreamRequest,
@@ -38,8 +55,17 @@ class AiStreamHandleStore(
             }
             handles.getOrPut(request.streamId) { client.getStream(request) }
         }
-        onSnapshot(handle.snapshot())
-        val subscription = handle.subscribe(StreamListener { snapshot -> onSnapshot(snapshot) })
+        val initialSnapshot = handle.snapshot()
+        synchronized(lock) {
+            rememberSnapshotLocked(request.streamId, initialSnapshot)
+        }
+        onSnapshot(initialSnapshot)
+        val subscription = handle.subscribe(StreamListener { snapshot ->
+            synchronized(lock) {
+                rememberSnapshotLocked(request.streamId, snapshot)
+            }
+            onSnapshot(snapshot)
+        })
         return Binding(
             streamId = request.streamId,
             subscription = subscription,
@@ -62,8 +88,32 @@ class AiStreamHandleStore(
             subscription.cancel()
         }
     }
+
+    private fun rememberSnapshotLocked(
+        streamId: String,
+        snapshot: StreamSnapshot,
+    ) {
+        if (!snapshot.hasUsableContent()) {
+            return
+        }
+        snapshots[streamId] = snapshot
+        Timber.tag(DBG).d("room cache PUT stream=%s status=%s parts=%d", streamId, snapshot.status, snapshot.parts.size)
+        while (snapshots.size > MAX_CACHED_SNAPSHOTS) {
+            val eldestKey = snapshots.keys.firstOrNull() ?: return
+            snapshots.remove(eldestKey)
+        }
+    }
+
+    private companion object {
+        const val DBG = "AiStreamDbg"
+        const val MAX_CACHED_SNAPSHOTS = 256
+    }
 }
 
 private fun StreamStatus.isRetryableTerminalCache(): Boolean {
     return this == StreamStatus.Failed || this == StreamStatus.Cancelled
+}
+
+private fun StreamSnapshot.hasUsableContent(): Boolean {
+    return parts.isNotEmpty() || isTerminal
 }

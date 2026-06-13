@@ -88,31 +88,43 @@ private val LIST_KEYS = arrayOf(
 
 internal fun JSONObject.hasCardContentFor(cardType: String): Boolean {
     return when (cardType) {
-        "composeEmail" -> hasSingleEmailContent()
-        "fileAttachment" -> cardObjects("files").isNotEmpty()
-        "githubIssue", "linearIssue" -> cardString("title", "name", "number", "id").isNullOrBlank().not()
+        "composeEmail" -> hasSingleEmailContent() || cardObjects("messages", "items").isNotEmpty()
+        "fileAttachment" -> cardObjects("files", "items").isNotEmpty() ||
+            cardString("name", "filename", "title", "mimeType", "mime_type", "url", "webViewLink", "web_view_link").isNullOrBlank().not()
+        "githubIssue" -> cardString("title", "number").isNullOrBlank().not()
+        "linearIssue" -> cardString("title", "identifier").isNullOrBlank().not()
         "githubIssuesList", "linearIssuesList" -> cardObjects("items", "issues", "pull_requests").isNotEmpty()
         "repoList" -> cardObjects("repositories", "repos", "items").isNotEmpty()
         "release" -> cardString("name", "tagName", "tag_name", "title").isNullOrBlank().not()
         "orgsList" -> cardObjects("organizations", "orgs", "items").isNotEmpty()
         "contributors" -> cardObjects("contributors", "items").isNotEmpty()
         "checkRuns" -> cardObjects("checkRuns", "check_runs", "items").isNotEmpty()
-        "commentThread" -> cardObjects("comments", "items").isNotEmpty()
+        "commentThread" -> cardObjects("comments", "items").isNotEmpty() ||
+            cardString("body", "comment", "author", "createdAt", "created_at").isNullOrBlank().not() ||
+            optJSONObject("user") != null
         "commitComparison" -> cardObjects("commits", "files").isNotEmpty() || cardString("status").isNullOrBlank().not()
         "deployments" -> cardObjects("deployments", "items").isNotEmpty()
         "notifications" -> cardObjects("notifications", "items").isNotEmpty()
-        "secretAlerts" -> cardObjects("alerts", "secretAlerts", "items").isNotEmpty()
+        "secretAlerts" -> cardObjects("alerts", "secretAlerts", "secret_alerts", "items").isNotEmpty()
         "workflows" -> cardObjects("workflows", "items").isNotEmpty()
         "flightAlert" -> cardObjects("flights").isNotEmpty()
         "hotelBooking" -> cardObjects("hotels").isNotEmpty()
-        "headlineList", "breakingNews" -> cardObjects("headlines", "items", "results", "news_results", "organic_results", "data").isNotEmpty()
+        "headlineList" -> cardObjects("headlines", "items", "results", "news_results", "organic_results", "data").isNotEmpty()
+        "breakingNews" -> cardString("headline", "title").isNullOrBlank().not() || cardObjects("headlines", "items").isNotEmpty()
         "imageGrid" -> cardObjects("images", "items", "data").isNotEmpty()
         "productList" -> cardObjects("products", "items", "data").isNotEmpty()
-        "finance" -> cardObjects("quotes", "items").isNotEmpty() || cardString("symbol", "ticker", "price").isNullOrBlank().not()
+        "finance" -> optJSONObject("quote") != null ||
+            cardObjects("quotes", "items", "markets", "keyEvents", "news", "graph").isNotEmpty() ||
+            cardStrings("stats").isNotEmpty() ||
+            cardString("symbol", "ticker", "price", "name").isNullOrBlank().not()
+        "weather" -> optJSONObject("current") != null ||
+            cardObjects("forecast", "items", "daily_forecast").isNotEmpty() ||
+            cardString("city", "location", "temperature", "temp", "condition", "weather").isNullOrBlank().not()
         "eventList" -> cardObjects("events", "items", "data").isNotEmpty()
         "placeList" -> cardObjects("places", "items", "data").isNotEmpty()
-        "urlContent" -> cardObjects("results", "items", "data").isNotEmpty() || cardString("title", "url", "content", "text").isNullOrBlank().not()
-        "socialPostFeed" -> cardObjects("posts", "tweets", "items", "data").isNotEmpty()
+        "urlContent" -> cardObjects("articles", "results", "items", "data").isNotEmpty() || cardString("title", "url", "content", "text").isNullOrBlank().not()
+        "socialPostFeed" -> cardObjects("posts", "tweets", "items", "data").isNotEmpty() ||
+            cardString("text", "full_text", "body", "content", "id").isNullOrBlank().not()
         "createSchedule", "updateSchedule", "updateScheduleStatus" -> cardString("name", "title", "scheduleId", "schedule_id", "status").isNullOrBlank().not()
         "moltbookRegister" -> cardString("title", "name", "status").isNullOrBlank().not()
         else -> true
@@ -200,4 +212,7 @@ private fun GenericListRow(item: JSONObject) {
     }
 }
 
-internal const val MAX_CARD_ITEMS = 6
+// The root ToolCall card owns the fixed-height viewport and vertical scrolling, matching iOS.
+// Keep only a high safety cap here so card renderers do not truncate ordinary tool output before
+// the inner card scroll can take over.
+internal const val MAX_CARD_ITEMS = 100
