@@ -9,12 +9,18 @@
 package io.element.android.features.messages.impl
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -27,9 +33,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +50,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.onSizeChanged
@@ -76,6 +86,7 @@ import io.element.android.features.messages.impl.messagecomposer.suggestions.Sug
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerState
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerView
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerViewDefaults
+import io.element.android.features.messages.impl.roomdata.RoomDeviceAgent
 import io.element.android.features.messages.impl.roomdata.RoomMenuRenderModel
 import io.element.android.features.messages.impl.roomdata.RoomTopbarAction
 import io.element.android.features.messages.impl.timeline.FOCUS_ON_PINNED_EVENT_DEBOUNCE_DURATION_IN_MILLIS
@@ -149,6 +160,8 @@ fun MessagesView(
     onRoomSchedulesClick: () -> Unit,
     onViewAllPinnedMessagesClick: () -> Unit,
     onThreadsListClick: () -> Unit,
+    onDeviceAgentChatClick: (RoomDeviceAgent) -> Unit = {},
+    onDeviceAgentTerminalClick: (RoomDeviceAgent) -> Unit = {},
     modifier: Modifier = Modifier,
     forceJumpToBottomVisibility: Boolean = false,
     knockRequestsBannerView: @Composable () -> Unit,
@@ -250,7 +263,9 @@ fun MessagesView(
                                     roomCallState = state.roomCallState,
                                     onJoinCallClick = onJoinCallClick,
                                     onRoomSchedulesClick = onRoomSchedulesClick,
-                                    onThreadsListClick = onThreadsListClick
+                                    onThreadsListClick = onThreadsListClick,
+                                    onDeviceAgentChatClick = onDeviceAgentChatClick,
+                                    onDeviceAgentTerminalClick = onDeviceAgentTerminalClick,
                                 )
                             }
                         )
@@ -427,6 +442,8 @@ internal fun RowScope.MessagesMenuActions(
     onJoinCallClick: (isAudioCall: Boolean) -> Unit,
     onRoomSchedulesClick: () -> Unit,
     onThreadsListClick: () -> Unit,
+    onDeviceAgentChatClick: (RoomDeviceAgent) -> Unit = {},
+    onDeviceAgentTerminalClick: (RoomDeviceAgent) -> Unit = {},
 ) {
     if (roomMenu.hasTopbarAction(RoomTopbarAction.Threads)) {
         Icon(
@@ -436,29 +453,145 @@ internal fun RowScope.MessagesMenuActions(
         )
         Spacer(Modifier.width(8.dp))
     }
-    roomMenu.scheduleBadge?.let { scheduleBadge ->
-        BadgedBox(
-            badge = {
-                if (scheduleBadge.activeScheduleCount > 0) {
-                    Badge {
-                        Text(scheduleBadge.activeScheduleCount.toString())
-                    }
-                }
-            }
-        ) {
-            Icon(
-                modifier = Modifier.clickable(enabled = true, onClick = onRoomSchedulesClick),
-                imageVector = CompoundIcons.Calendar(),
-                contentDescription = "Room AI Config",
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-    }
     CallMenuItem(
         roomCallState = roomCallState,
         onJoinCallClick = onJoinCallClick,
     )
+    RoomToolMenu(
+        roomMenu = roomMenu,
+        onRoomSchedulesClick = onRoomSchedulesClick,
+        onDeviceAgentChatClick = onDeviceAgentChatClick,
+        onDeviceAgentTerminalClick = onDeviceAgentTerminalClick,
+    )
     Spacer(Modifier.width(8.dp))
+}
+
+@Composable
+private fun RoomToolMenu(
+    roomMenu: RoomMenuRenderModel,
+    onRoomSchedulesClick: () -> Unit,
+    onDeviceAgentChatClick: (RoomDeviceAgent) -> Unit,
+    onDeviceAgentTerminalClick: (RoomDeviceAgent) -> Unit,
+) {
+    val hasTools = roomMenu.hasTopbarAction(RoomTopbarAction.Schedules) ||
+        roomMenu.hasTopbarAction(RoomTopbarAction.DeviceAgentChat) ||
+        roomMenu.hasTopbarAction(RoomTopbarAction.DeviceAgentTerminal)
+    if (!hasTools) return
+
+    var expanded by remember { mutableStateOf(false) }
+    val deviceAgent = roomMenu.deviceAgent
+
+    Column(
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        ToolbarCircleButton(
+            onClick = { expanded = !expanded },
+            badgeContent = {
+                if (deviceAgent != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(ElementTheme.colors.iconSuccessPrimary)
+                    )
+                }
+            },
+        ) {
+            Icon(
+                modifier = Modifier.rotate(if (expanded) 90f else 0f),
+                imageVector = CompoundIcons.OverflowHorizontal(),
+                contentDescription = "Room tools",
+            )
+        }
+
+        AnimatedVisibility(
+            visible = expanded,
+            enter = fadeIn(animationSpec = spring()) + slideInVertically(
+                animationSpec = spring(dampingRatio = 0.85f),
+                initialOffsetY = { -it / 2 },
+            ),
+            exit = fadeOut(animationSpec = spring()) + slideOutVertically(
+                animationSpec = spring(dampingRatio = 0.85f),
+                targetOffsetY = { -it / 2 },
+            ),
+        ) {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (deviceAgent != null && roomMenu.hasTopbarAction(RoomTopbarAction.DeviceAgentTerminal)) {
+                    ToolbarCircleButton(
+                        onClick = {
+                            expanded = false
+                            onDeviceAgentTerminalClick(deviceAgent)
+                        },
+                    ) {
+                        Icon(
+                            imageVector = CompoundIcons.Code(),
+                            contentDescription = "Remote terminal",
+                        )
+                    }
+                }
+                if (deviceAgent != null && roomMenu.hasTopbarAction(RoomTopbarAction.DeviceAgentChat)) {
+                    ToolbarCircleButton(
+                        onClick = {
+                            expanded = false
+                            onDeviceAgentChatClick(deviceAgent)
+                        },
+                    ) {
+                        Icon(
+                            imageVector = CompoundIcons.Computer(),
+                            contentDescription = "Chat with device agent",
+                        )
+                    }
+                }
+                if (roomMenu.hasTopbarAction(RoomTopbarAction.Schedules)) {
+                    ToolbarCircleButton(
+                        onClick = {
+                            expanded = false
+                            onRoomSchedulesClick()
+                        },
+                        badgeContent = {
+                            val count = roomMenu.scheduleBadge?.activeScheduleCount ?: 0
+                            if (count > 0) {
+                                Badge {
+                                    Text(count.toString())
+                                }
+                            }
+                        },
+                    ) {
+                        Icon(
+                            imageVector = CompoundIcons.Time(),
+                            contentDescription = "Room AI Config",
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolbarCircleButton(
+    onClick: () -> Unit,
+    badgeContent: @Composable BoxScope.() -> Unit = {},
+    content: @Composable () -> Unit,
+) {
+    BadgedBox(
+        badge = badgeContent,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(ElementTheme.colors.bgSubtleSecondary)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            content()
+        }
+    }
 }
 
 @Composable

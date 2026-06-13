@@ -24,6 +24,7 @@ import io.element.android.features.messages.impl.messagecomposer.aMessageCompose
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerState
 import io.element.android.features.messages.impl.pinned.banner.aLoadedPinnedMessagesBannerState
 import io.element.android.features.messages.impl.roomdata.RoomMenuRenderModel
+import io.element.android.features.messages.impl.roomdata.RoomMenuReducer
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
 import io.element.android.features.messages.impl.timeline.TimelineState
 import io.element.android.features.messages.impl.timeline.aTimelineItemList
@@ -124,7 +125,6 @@ fun aMessagesState(
     roomCallState: RoomCallState = aStandByCallState(),
     roomScheduleBadgeState: RoomScheduleBadgeState = aRoomScheduleBadgeState(),
     roomUnsealContext: AsyncData<RoomUnsealContext> = AsyncData.Uninitialized,
-    roomMenu: RoomMenuRenderModel = RoomMenuRenderModel.Empty,
     pinnedMessagesBannerState: PinnedMessagesBannerState = aLoadedPinnedMessagesBannerState(),
     dmUserVerificationState: IdentityState? = null,
     roomMemberModerationState: RoomMemberModerationState = aRoomMemberModerationState(),
@@ -133,6 +133,13 @@ fun aMessagesState(
     threads: MessagesState.Threads = MessagesState.Threads(
         hasThreads = false,
         hasUnreadThreads = false,
+    ),
+    roomMenu: RoomMenuRenderModel = RoomMenuReducer.reduce(
+        roomUnsealContext = roomUnsealContext,
+        hasThreads = threads.hasThreads,
+        isThreadTimeline = timelineState.timelineMode is Timeline.Mode.Thread,
+        canShareLocation = composerState.canShareLocation,
+        enableTextFormatting = true,
     ),
     isCurrentlySharingLiveLocationInRoom: Boolean = false,
     eventSink: (MessagesEvent) -> Unit = {},
