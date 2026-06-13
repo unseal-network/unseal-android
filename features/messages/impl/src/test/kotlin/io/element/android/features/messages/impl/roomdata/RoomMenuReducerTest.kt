@@ -67,6 +67,48 @@ class RoomMenuReducerTest {
         assertThat(roomMenu.deviceAgent?.boundDeviceId).isEqualTo("device-1")
     }
 
+    @Test
+    fun `reduce exposes attachment actions in stable composer order`() {
+        val roomMenu = RoomMenuReducer.reduce(
+            roomUnsealContext = AsyncData.Uninitialized,
+            hasThreads = false,
+            isThreadTimeline = false,
+            canShareLocation = true,
+            enableTextFormatting = true,
+        )
+
+        assertThat(roomMenu.attachmentActions).containsExactly(
+            RoomAttachmentAction.PhotoFromCamera,
+            RoomAttachmentAction.VideoFromCamera,
+            RoomAttachmentAction.Gallery,
+            RoomAttachmentAction.Files,
+            RoomAttachmentAction.Location,
+            RoomAttachmentAction.Poll,
+            RoomAttachmentAction.Game,
+            RoomAttachmentAction.TextFormatting,
+        ).inOrder()
+    }
+
+    @Test
+    fun `reduce hides gated attachment actions`() {
+        val roomMenu = RoomMenuReducer.reduce(
+            roomUnsealContext = AsyncData.Uninitialized,
+            hasThreads = false,
+            isThreadTimeline = false,
+            canShareLocation = false,
+            enableTextFormatting = false,
+        )
+
+        assertThat(roomMenu.attachmentActions).containsExactly(
+            RoomAttachmentAction.PhotoFromCamera,
+            RoomAttachmentAction.VideoFromCamera,
+            RoomAttachmentAction.Gallery,
+            RoomAttachmentAction.Files,
+            RoomAttachmentAction.Poll,
+            RoomAttachmentAction.Game,
+        ).inOrder()
+    }
+
     private fun contextWithAgent(
         activeScheduleCount: Int = 0,
         isDeviceAgent: Boolean = false,

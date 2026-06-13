@@ -501,9 +501,9 @@ private fun MessagesViewContent(
     ) {
         AttachmentsBottomSheet(
             state = state.composerState,
+            attachmentActions = state.roomMenu.attachmentActions,
             onSendLocationClick = onSendLocationClick,
             onCreatePollClick = onCreatePollClick,
-            enableTextFormatting = state.enableTextFormatting,
         )
 
         if (state.voiceMessageComposerState.showPermissionRationaleDialog) {

@@ -204,6 +204,7 @@ internal fun MessagesViewTopBarPreview() = ElementPreview {
                     if (displayThreads) add(RoomTopbarAction.Threads)
                     if (displaySchedules) add(RoomTopbarAction.Schedules)
                 },
+                attachmentActions = emptyList(),
                 scheduleBadge = RoomScheduleMenuBadge(
                     activeScheduleCount = 2,
                     isLoading = false,

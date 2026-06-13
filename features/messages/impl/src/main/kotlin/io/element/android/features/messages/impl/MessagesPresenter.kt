@@ -356,6 +356,8 @@ class MessagesPresenter(
                 roomUnsealContext = roomUnsealContextState,
                 hasThreads = threads.hasThreads,
                 isThreadTimeline = timelineState.timelineMode is Timeline.Mode.Thread,
+                canShareLocation = composerState.canShareLocation,
+                enableTextFormatting = MessageComposerConfig.ENABLE_RICH_TEXT_EDITING,
             ),
             appName = buildMeta.applicationName,
             pinnedMessagesBannerState = pinnedMessagesBannerState,

@@ -11,14 +11,17 @@ import io.element.android.libraries.architecture.AsyncData
 
 data class RoomMenuRenderModel(
     val topbarActions: List<RoomTopbarAction>,
+    val attachmentActions: List<RoomAttachmentAction>,
     val scheduleBadge: RoomScheduleMenuBadge?,
     val deviceAgent: RoomDeviceAgent?,
 ) {
     fun hasTopbarAction(action: RoomTopbarAction): Boolean = topbarActions.contains(action)
+    fun hasAttachmentAction(action: RoomAttachmentAction): Boolean = attachmentActions.contains(action)
 
     companion object {
         val Empty = RoomMenuRenderModel(
             topbarActions = emptyList(),
+            attachmentActions = emptyList(),
             scheduleBadge = null,
             deviceAgent = null,
         )
@@ -38,11 +41,24 @@ enum class RoomTopbarAction {
     DeviceAgentTerminal,
 }
 
+enum class RoomAttachmentAction {
+    PhotoFromCamera,
+    VideoFromCamera,
+    Gallery,
+    Files,
+    Location,
+    Poll,
+    Game,
+    TextFormatting,
+}
+
 object RoomMenuReducer {
     fun reduce(
         roomUnsealContext: AsyncData<RoomUnsealContext>,
         hasThreads: Boolean,
         isThreadTimeline: Boolean,
+        canShareLocation: Boolean = false,
+        enableTextFormatting: Boolean = false,
     ): RoomMenuRenderModel {
         val context = roomUnsealContext.dataOrNull()
         val actions = buildList {
@@ -57,8 +73,23 @@ object RoomMenuReducer {
                 add(RoomTopbarAction.DeviceAgentTerminal)
             }
         }
+        val attachmentActions = buildList {
+            add(RoomAttachmentAction.PhotoFromCamera)
+            add(RoomAttachmentAction.VideoFromCamera)
+            add(RoomAttachmentAction.Gallery)
+            add(RoomAttachmentAction.Files)
+            if (canShareLocation) {
+                add(RoomAttachmentAction.Location)
+            }
+            add(RoomAttachmentAction.Poll)
+            add(RoomAttachmentAction.Game)
+            if (enableTextFormatting) {
+                add(RoomAttachmentAction.TextFormatting)
+            }
+        }
         return RoomMenuRenderModel(
             topbarActions = actions,
+            attachmentActions = attachmentActions,
             scheduleBadge = context?.takeIf { it.hasAgentInRoom }?.let {
                 RoomScheduleMenuBadge(
                     activeScheduleCount = it.activeScheduleCount,
