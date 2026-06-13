@@ -196,6 +196,150 @@ class ToolCardDispatcherTest {
     }
 
     @Test
+    fun `news payload preserves title source date url and image for headline cards`() {
+        val payload = JSONObject(
+            """
+            {
+              "results": {
+                "news_results": [
+                  {
+                    "title": "AI helps doctors",
+                    "snippet": "Medical residency story",
+                    "source": "chronicleonline.com",
+                    "date": "38 minutes ago",
+                    "link": "https://chronicleonline.com/story",
+                    "thumbnail": "https://example.com/news.png"
+                  }
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        val transformed = CardTransforms.transform(payload, "headlineList")
+        val headline = transformed.cardObjects("headlines").single()
+
+        assertThat(transformed.hasCardContentFor("headlineList")).isTrue()
+        assertThat(headline.cardString("title")).isEqualTo("AI helps doctors")
+        assertThat(headline.cardString("source")).isEqualTo("chronicleonline.com")
+        assertThat(headline.cardString("publishedAt")).isEqualTo("38 minutes ago")
+        assertThat(headline.cardString("url")).isEqualTo("https://chronicleonline.com/story")
+        assertThat(headline.cardString("imageUrl")).isEqualTo("https://example.com/news.png")
+    }
+
+    @Test
+    fun `shopping payload preserves thumbnail price rating reviews and merchant`() {
+        val payload = JSONObject(
+            """
+            {
+              "results": {
+                "shopping_results": [
+                  {
+                    "title": "Apple MacBook Pro",
+                    "thumbnail": "https://example.com/macbook.png",
+                    "price": "$1,899.00",
+                    "rating": 4.8,
+                    "reviews": 2600,
+                    "source": "Apple",
+                    "link": "https://apple.com/macbook"
+                  }
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        val transformed = CardTransforms.transform(payload, "productList")
+        val product = transformed.cardObjects("products").single()
+
+        assertThat(transformed.hasCardContentFor("productList")).isTrue()
+        assertThat(product.cardString("title")).isEqualTo("Apple MacBook Pro")
+        assertThat(product.cardString("thumbnail")).isEqualTo("https://example.com/macbook.png")
+        assertThat(product.cardString("price")).isEqualTo("$1,899.00")
+        assertThat(product.optDouble("rating")).isEqualTo(4.8)
+        assertThat(product.optInt("reviews")).isEqualTo(2600)
+        assertThat(product.cardString("source")).isEqualTo("Apple")
+        assertThat(product.cardString("url")).isEqualTo("https://apple.com/macbook")
+    }
+
+    @Test
+    fun `places payload preserves thumbnail address rating review count and map url`() {
+        val payload = JSONObject(
+            """
+            {
+              "results": {
+                "local_results": [
+                  {
+                    "title": "Mr&Mrs Bund",
+                    "type": "Western restaurant",
+                    "rating": 4.5,
+                    "reviews": 148,
+                    "address": "The Bund No.18, Shanghai",
+                    "thumbnail": "https://example.com/bund.png",
+                    "gps_coordinates": { "latitude": 31.239, "longitude": 121.489 }
+                  }
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        val transformed = CardTransforms.transform(payload, "placeList")
+        val place = transformed.cardObjects("places").single()
+
+        assertThat(transformed.hasCardContentFor("placeList")).isTrue()
+        assertThat(place.cardString("name")).isEqualTo("Mr&Mrs Bund")
+        assertThat(place.cardString("thumbnail")).isEqualTo("https://example.com/bund.png")
+        assertThat(place.cardString("address")).isEqualTo("The Bund No.18, Shanghai")
+        assertThat(place.optDouble("rating")).isEqualTo(4.5)
+        assertThat(place.optInt("reviews")).isEqualTo(148)
+        assertThat(place.cardString("url")).contains("google.com/maps")
+    }
+
+    @Test
+    fun `hotel payload preserves image gallery amenities price rating and map url`() {
+        val payload = JSONObject(
+            """
+            {
+              "results": {
+                "properties": [
+                  {
+                    "name": "Buddha Zen Hotel Chengdu",
+                    "rate_per_night": { "lowest": "$47" },
+                    "total_rate": { "lowest": "$190" },
+                    "overall_rating": 4.7,
+                    "reviews": 80,
+                    "hotel_class": 4,
+                    "address": "Wenshu Yuan Monastery",
+                    "images": [
+                      { "thumbnail": "https://example.com/thumb.jpg", "original_image": "https://example.com/1.jpg" },
+                      { "thumbnail": "https://example.com/thumb2.jpg", "original_image": "https://example.com/2.jpg" }
+                    ],
+                    "amenities": ["Breakfast", "Free Wi-Fi", "Parking"],
+                    "gps_coordinates": { "latitude": 30.67, "longitude": 104.06 }
+                  }
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        val transformed = CardTransforms.transform(payload, "hotelBooking")
+        val hotel = transformed.cardObjects("hotels").single()
+
+        assertThat(transformed.hasCardContentFor("hotelBooking")).isTrue()
+        assertThat(hotel.cardString("name")).isEqualTo("Buddha Zen Hotel Chengdu")
+        assertThat(hotel.cardString("imageUrl")).isEqualTo("https://example.com/thumb.jpg")
+        assertThat(hotel.optJSONArray("imageUrls")?.length()).isEqualTo(2)
+        assertThat(hotel.cardString("price")).isEqualTo("$47")
+        assertThat(hotel.cardString("totalPrice")).isEqualTo("$190")
+        assertThat(hotel.optDouble("rating")).isEqualTo(4.7)
+        assertThat(hotel.optInt("reviewCount")).isEqualTo(80)
+        assertThat(hotel.optJSONArray("amenities")?.length()).isEqualTo(3)
+        assertThat(hotel.cardString("mapsUrl")).contains("google.com/maps")
+    }
+
+    @Test
     fun `single comment payload is normalized to comment thread`() {
         val payload = JSONObject(
             """
