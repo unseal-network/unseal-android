@@ -35,7 +35,7 @@ class StreamSnapshotJsonCodec(
         return Json.encodeToString(encoded)
     }
 
-    fun decode(value: String): StreamSnapshot = parser.parse(value)
+    fun decode(value: String): StreamSnapshot = parser.parse(value).normalizedForTerminalState()
 
     private fun StreamPart.toJsonElement(): JsonElement {
         return buildJsonObject {

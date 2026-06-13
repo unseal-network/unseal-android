@@ -78,7 +78,7 @@ class StreamSnapshotJsonCodecTest {
 
         val text = decoded.parts[0] as StreamPart.Text
         assertEquals("Done", text.text)
-        assertEquals(TextPartState.Complete.wireValue, text.textState)
+        assertEquals(TextPartState.Done.wireValue, text.textState)
 
         val tool = decoded.parts[1] as StreamPart.Tool
         assertEquals("weather", tool.toolName)
@@ -133,6 +133,32 @@ class StreamSnapshotJsonCodecTest {
         assertEquals("blocked-waiting", (decoded.parts[0] as StreamPart.Text).textState)
         assertEquals("blocked-waiting", (decoded.parts[1] as StreamPart.Reasoning).reasoningState)
         assertEquals("output-streaming", (decoded.parts[2] as StreamPart.Tool).toolState)
+    }
+
+    @Test
+    fun `normalizes completed cache snapshots on decode`() {
+        val codec = StreamSnapshotJsonCodec()
+        val decoded = codec.decode(
+            """
+            {
+              "schemaVersion": 1,
+              "streamId": "stream-1",
+              "status": "completed",
+              "updatedAtMs": 111,
+              "completedAtMs": 222,
+              "parts": [
+                { "type": "text", "id": "text-1", "state": "streaming", "text": "Hello" },
+                { "type": "reasoning", "id": "reason-1", "state": "streaming", "text": "Thinking" },
+                { "type": "tool-mail", "id": "tool-1", "state": "input-available", "input": { "query": "gmail" } }
+              ]
+            }
+            """.trimIndent()
+        )
+
+        assertEquals(StreamStatus.Completed, decoded.status)
+        assertEquals(TextPartState.Done.wireValue, (decoded.parts[0] as StreamPart.Text).textState)
+        assertEquals(TextPartState.Done.wireValue, (decoded.parts[1] as StreamPart.Reasoning).reasoningState)
+        assertEquals(ToolPartState.OutputAvailable.wireValue, (decoded.parts[2] as StreamPart.Tool).toolState)
     }
 
     @Test

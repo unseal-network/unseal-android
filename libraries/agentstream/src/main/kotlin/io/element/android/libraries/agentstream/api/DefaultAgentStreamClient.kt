@@ -182,7 +182,7 @@ class DefaultAgentStreamClient(
                     storageProvider.load(request.streamId)?.let { storedSnapshot ->
                         val snapshot = storedSnapshot
                             .withStreamIdFallback(request.streamId)
-                            .normalizedForTerminalPublish()
+                            .normalizedForTerminalState()
                         // Only a Completed snapshot is a durable cache hit. Genuine stream-level
                         // errors arrive as SSE data and are stored as Completed (with an error part),
                         // so they stay cached. A stored Failed/Cancelled is a transient transport
@@ -230,7 +230,7 @@ class DefaultAgentStreamClient(
                         .parseOrFailed(activeSession.finish(), request.streamId)
                         .withStreamIdFallback(request.streamId)
                         .asCompleted(clock())
-                        .normalizedForTerminalPublish()
+                            .normalizedForTerminalState()
                     if (!isActiveRun(runId)) {
                         return
                     }
@@ -280,7 +280,7 @@ class DefaultAgentStreamClient(
         }
 
         private fun publishIfActive(runId: Long, snapshot: StreamSnapshot): Boolean {
-            val snapshotToPublish = snapshot.normalizedForTerminalPublish()
+            val snapshotToPublish = snapshot.normalizedForTerminalState()
             val callbacks = synchronized(lock) {
                 if (!isActiveRunLocked(runId)) {
                     return false
@@ -301,7 +301,7 @@ class DefaultAgentStreamClient(
         }
 
         private fun publish(snapshot: StreamSnapshot) {
-            val snapshotToPublish = snapshot.normalizedForTerminalPublish()
+            val snapshotToPublish = snapshot.normalizedForTerminalState()
             val callbacks = synchronized(lock) {
                 currentSnapshot = snapshotToPublish
                 listeners.values.toList()
@@ -312,7 +312,7 @@ class DefaultAgentStreamClient(
         }
 
         private fun rememberCompleted(snapshot: StreamSnapshot) {
-            val normalized = snapshot.normalizedForTerminalPublish()
+            val normalized = snapshot.normalizedForTerminalState()
             if (normalized.status == StreamStatus.Completed) {
                 synchronized(lock) {
                     completedCache[normalized.streamId] = normalized
@@ -431,29 +431,8 @@ class DefaultAgentStreamClient(
         )
     }
 
-    private fun StreamSnapshot.normalizedForTerminalPublish(): StreamSnapshot {
-        if (status != StreamStatus.Completed) return this
-        return copy(parts = parts.map { it.normalizedCompletedPart() })
-    }
-
-    private fun StreamPart.normalizedCompletedPart(): StreamPart {
-        return when (this) {
-            is StreamPart.Text -> if (textState == TextPartState.Done.wireValue) this else copy(textState = TextPartState.Done.wireValue)
-            is StreamPart.Reasoning -> if (reasoningState == TextPartState.Done.wireValue) this else copy(reasoningState = TextPartState.Done.wireValue)
-            is StreamPart.Tool -> if (toolState in TERMINAL_TOOL_STATES) this else copy(toolState = ToolPartState.OutputAvailable.wireValue)
-            else -> this
-        }
-    }
-
     private companion object {
         private const val MAX_MEMORY_ENTRIES = 128
         private const val CACHE_LOAD_FACTOR = 0.75f
-        private val TERMINAL_TOOL_STATES = setOf(
-            ToolPartState.OutputAvailable.wireValue,
-            ToolPartState.ApprovalRequested.wireValue,
-            ToolPartState.ApprovalResponded.wireValue,
-            ToolPartState.OutputError.wireValue,
-            ToolPartState.OutputDenied.wireValue,
-        )
     }
 }
