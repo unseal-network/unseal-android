@@ -20,6 +20,7 @@ import io.element.android.features.messages.impl.timeline.components.event.toolc
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.TOOL_CARD_REGISTRY_WITH_DISPLAY
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.errorProps
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.isRegisteredToolName
+import java.util.LinkedHashMap
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -113,7 +114,7 @@ internal fun AiToolStreamPart.toToolCardEntries(): List<AiToolCardEntry> {
             JSONObject().put("_cardType", registry.cardType).also { props ->
                 if (cardState == CARD_STATE_DONE) {
                     val raw = extractProps(output)
-                    val transformed = CardTransforms.transform(raw, registry.cardType)
+                    val transformed = ToolCardPropsTransformCache.transform(raw, registry.cardType)
                     transformed.copyInto(props)
                 }
             }
@@ -298,7 +299,7 @@ private fun AiToolStreamPart.expandSubAgentEntries(): List<AiToolCardEntry> {
             JSONObject().put("_cardType", registry.cardType).also { props ->
                 if (successful) {
                     val data = result?.optJSONObject("data") ?: result ?: JSONObject()
-                    CardTransforms.transform(data, registry.cardType).copyInto(props)
+                    ToolCardPropsTransformCache.transform(data, registry.cardType).copyInto(props)
                 }
             }
         }
@@ -347,7 +348,7 @@ private fun entriesFromMultiExecuteResults(
                     }
                 }
             }
-            CardTransforms.transform(mergedData, registry.cardType).copyInto(props)
+            ToolCardPropsTransformCache.transform(mergedData, registry.cardType).copyInto(props)
         }
         AiToolCardEntry(
             id = "${idPrefix}_$slug",
@@ -429,6 +430,29 @@ private fun extractProps(output: String?): JSONObject {
         remove("error")
         remove("successful")
         remove("logId")
+    }
+}
+
+private object ToolCardPropsTransformCache {
+    private const val MAX_ENTRIES = 128
+    private const val LOAD_FACTOR = 0.75f
+    private val lock = Any()
+    private val values = object : LinkedHashMap<String, String>(MAX_ENTRIES, LOAD_FACTOR, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?): Boolean {
+            return size > MAX_ENTRIES
+        }
+    }
+
+    fun transform(data: JSONObject, cardType: String): JSONObject {
+        val key = "$cardType\u0000${data}"
+        synchronized(lock) {
+            values[key]?.let { return JSONObject(it) }
+        }
+        val transformed = CardTransforms.transform(data, cardType)
+        synchronized(lock) {
+            values[key] = transformed.toString()
+        }
+        return transformed
     }
 }
 
