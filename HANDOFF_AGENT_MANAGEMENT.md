@@ -241,13 +241,17 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 - `2b9ea29e3d` `fix(messages): avoid rebinding completed stream cache`
   - `TimelineItemAiPresenter` 命中 terminal render cache 时不再重新 bind SDK stream。
   - 解决 timeline cell 回收后 completed stream 闪回 loading / 重复请求的一个直接原因。
+- `a7bfcd76c6` `feat(messages): share room context with composer suggestions`
+  - 新增 RoomScope `RoomUnsealContextStore`，Messages / Composer 共用同一份 room agents、members、schedules snapshot。
+  - `MessageComposerState` 新增 `suggestionRenderModels`，picker 使用 `ComposerSuggestionRenderModel` 显示 Agent badge，点击插入仍走 `ResolvedSuggestion`。
+- 当前未提交 checkpoint：Tool root card 已新增 `ToolCallRootRenderModel`，`AiSdkStreamReducer` 会预计算 title、done/error/calling counts、selected index、默认展开状态；UI 不再自行推导这些状态。
 
 ### 后续执行顺序
 
 1. 建 `ComposerAgentSkillState`，对齐 iOS direct agent slash、mentioned agent targets、runtime skill catalog、legacy fallback。
-2. 继续补 `ToolCallRootRenderModel`，把 tool root card 的数据结构从现有 `AiToolCardEntry` 升级为更完整的 root model。
-3. 做 attachment menu、long press menu、topbar overlay 的 iOS parity。
-4. 继续逐个 card fixture 做视觉和交互 parity。
+2. 做 attachment menu、long press menu、topbar overlay 的 iOS parity。
+3. 继续逐个 card fixture 做视觉和交互 parity。
+4. 为 `ToolCallRootRenderModel` 增加 snapshot / screenshot 覆盖，验证单 tool、多 tool、error、calling、done 的 UI 行为。
 
 ---
 
@@ -399,7 +403,7 @@ Current Android render flow:
 4. `StreamSnapshotUpdatePolicy` coalesces patch-only updates and emits state changes immediately.
 5. `AiSdkStreamReducer` maps SDK parts into `AiStreamRenderModel`, then into `TimelineItemAiContent`, including markdown blocks, cursor mode, `toolCardEntries`, `firstToolPartIndex`, and terminal stream metadata.
 6. `TimelinePresentationReducer` decides standalone AI layout vs normal bubble layout.
-7. `TimelineItemAiView` renders from `TimelineItemAiContent` only. `ToolCallRootCard` consumes precomputed `AiToolCardEntry` values instead of reparsing tool stream parts.
+7. `TimelineItemAiView` renders from `TimelineItemAiContent` only. `ToolCallRootCard` consumes precomputed `ToolCallRootRenderModel` / `AiToolCardEntry` values instead of reparsing tool stream parts.
 8. If `AiStreamContentCache` already has terminal renderable content, `TimelineItemAiPresenter` skips SDK rebind for recycled cells.
 
 Verification on this branch:

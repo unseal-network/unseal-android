@@ -81,6 +81,7 @@ class AiSdkStreamReducer {
             .toImmutableList()
         val toolCardEntries = ToolCallRootCardAdapter.toolCallEntries(visibleToolCandidates)
             .toImmutableList()
+        val toolCallRoot = ToolCallRootCardAdapter.rootModel(toolCardEntries)
         val passthroughParts = visible.filterNot { part ->
             part is AiToolStreamPart && part.toolName.isRegisteredToolName
         }.toImmutableList()
@@ -142,6 +143,7 @@ class AiSdkStreamReducer {
             parts = streamParts.toImmutableList(),
             renderableToolParts = renderableToolParts,
             toolCardEntries = toolCardEntries,
+            toolCallRoot = toolCallRoot,
             passthroughParts = passthroughParts,
             visibleParts = visible.toImmutableList(),
             firstToolPartIndex = firstToolPartIndex,

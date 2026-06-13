@@ -272,6 +272,11 @@ class AiSdkStreamReducerTest {
 
         assertThat(result.visibleParts.map { it.id }).containsExactly("text-before", "ignored", "gmail", "text-after").inOrder()
         assertThat(result.toolCardEntries).hasSize(1)
+        assertThat(result.toolCallRoot?.title).isEqualTo("Emails")
+        assertThat(result.toolCallRoot?.selectedIndex).isEqualTo(0)
+        assertThat(result.toolCallRoot?.doneCount).isEqualTo(1)
+        assertThat(result.toolCallRoot?.callingCount).isEqualTo(0)
+        assertThat(result.toolCallRoot?.expandedByDefault).isFalse()
         assertThat(result.firstToolPartIndex).isEqualTo(1)
         assertThat(result.passthroughParts.map { it.id }).containsExactly("text-before", "text-after").inOrder()
         assertThat(result.lastPartIsStreamingText).isTrue()
@@ -303,6 +308,9 @@ class AiSdkStreamReducerTest {
         val props = JSONObject(result.toolCardEntries.single().props)
 
         assertThat(result.toolCardEntries.single().state).isEqualTo("calling")
+        assertThat(result.toolCallRoot?.title).isEqualTo("Create Schedule")
+        assertThat(result.toolCallRoot?.callingCount).isEqualTo(1)
+        assertThat(result.toolCallRoot?.expandedByDefault).isTrue()
         assertThat(props.getString("_cardType")).isEqualTo("createSchedule")
         assertThat(props.getString("name")).isEqualTo("Daily sync")
         assertThat(props.getString("cadence")).isEqualTo("Every day at 09:00")

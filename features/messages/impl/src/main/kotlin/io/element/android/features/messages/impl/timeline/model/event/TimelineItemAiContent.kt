@@ -31,6 +31,7 @@ data class AiStreamRenderModel(
     val parts: ImmutableList<AiStreamPart> = persistentListOf(),
     val renderableToolParts: ImmutableList<AiToolStreamPart> = persistentListOf(),
     val toolCardEntries: ImmutableList<AiToolCardEntry> = persistentListOf(),
+    val toolCallRoot: ToolCallRootRenderModel? = null,
     val passthroughParts: ImmutableList<AiStreamPart> = persistentListOf(),
     val visibleParts: ImmutableList<AiStreamPart> = persistentListOf(),
     val firstToolPartIndex: Int? = null,
@@ -60,6 +61,7 @@ data class AiStreamRenderModel(
             parts = parts,
             renderableToolParts = renderableToolParts,
             toolCardEntries = toolCardEntries,
+            toolCallRoot = toolCallRoot,
             passthroughParts = passthroughParts,
             visibleParts = visibleParts,
             firstToolPartIndex = firstToolPartIndex,
@@ -112,6 +114,7 @@ data class TimelineItemAiContent(
     val parts: ImmutableList<AiStreamPart> = persistentListOf(),
     val renderableToolParts: ImmutableList<AiToolStreamPart> = persistentListOf(),
     val toolCardEntries: ImmutableList<AiToolCardEntry> = persistentListOf(),
+    val toolCallRoot: ToolCallRootRenderModel? = null,
     val passthroughParts: ImmutableList<AiStreamPart> = persistentListOf(),
     /** Ordered, hidden-filtered parts (tool markers kept) — the render source, mirrors iOS groupedParts. */
     val visibleParts: ImmutableList<AiStreamPart> = persistentListOf(),
@@ -164,6 +167,20 @@ data class AiToolCardEntry(
     val state: String,
     /** JSON object string matching iOS ToolCallEntry.props, including `_cardType`. */
     val props: String,
+)
+
+@Immutable
+data class ToolCallRootRenderModel(
+    val id: String,
+    val title: String,
+    val entries: ImmutableList<AiToolCardEntry>,
+    val selectedIndex: Int,
+    val doneCount: Int,
+    val errorCount: Int,
+    val callingCount: Int,
+    val allFinished: Boolean,
+    val isSingleTool: Boolean,
+    val expandedByDefault: Boolean,
 )
 
 @Immutable

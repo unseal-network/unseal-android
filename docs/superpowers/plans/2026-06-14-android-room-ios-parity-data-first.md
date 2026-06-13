@@ -235,7 +235,7 @@ Rules:
 |---|---|---|---|---|
 | Stream lifecycle | Stream renderer state | Stream SDK | `StreamSnapshot.parts` | Existing with presenter/cache invariant tests. |
 | AI render model | `ToolCallRootCard` + text render flow | stream reducer | `AiStreamRenderModel` | Implemented with reducer tests; timeline content is derived from it. |
-| Tool root grouping | `ToolGroupUtils` semantics | tool root adapter | `ToolCallRootRenderModel` | Existing partial; needs parity tests. |
+| Tool root grouping | `ToolGroupUtils` semantics | tool root adapter | `ToolCallRootRenderModel` | Implemented first version with reducer tests; card-specific parity still pending. |
 | Timeline row policy | room timeline views | timeline presentation reducer | `TimelinePresentationModel` | Implemented with reducer tests; AI stream rows use standalone policy and adaptive right spacing. |
 | Markdown render | iOS markdown view | markdown reducer/cache | `MarkdownRenderModel` | Existing partial; needs parity/cache tests. |
 | Cards weather/finance/news/shopping/places/hotels/files/email/drive/github/schedule | iOS card implementations and screenshots | card adapters + Compose cards | typed card props | Existing partial; needs fixture-by-fixture parity. |
@@ -607,7 +607,7 @@ Steps:
 Steps:
 
 - [x] Add `AiStreamRenderModel`.
-- [ ] Add `ToolCallRootRenderModel`.
+- [x] Add `ToolCallRootRenderModel`.
 - [x] Ensure completed cached streams render completed state immediately.
 - [ ] Ensure no Compose card parses raw stream JSON.
 - [x] Run stream render tests.

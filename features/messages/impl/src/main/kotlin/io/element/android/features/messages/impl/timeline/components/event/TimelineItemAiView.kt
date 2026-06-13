@@ -86,6 +86,7 @@ import io.element.android.features.messages.impl.timeline.components.event.toolc
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.resolveToolCardType
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.toCardDataJson
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
+import io.element.android.features.messages.impl.timeline.model.event.ToolCallRootRenderModel
 import io.element.android.libraries.androidutils.text.LinkifyHelper
 import io.element.android.libraries.textcomposer.ElementRichTextEditorStyle
 import io.element.android.wysiwyg.compose.EditorStyledText
@@ -133,7 +134,7 @@ fun TimelineItemAiView(
         if (content.visibleParts.isNotEmpty()) {
             AiStreamPartsView(
                 visibleParts = content.visibleParts,
-                toolCardEntries = content.toolCardEntries,
+                toolCallRoot = content.toolCallRoot,
                 firstToolPartIndex = content.firstToolPartIndex,
                 lastPartIsStreamingText = content.lastPartIsStreamingText,
                 isStreaming = content.isStreaming,
@@ -205,7 +206,7 @@ private fun String.isStreamPlaceholderBody(streamId: String): Boolean {
 @Composable
 private fun AiStreamPartsView(
     visibleParts: List<AiStreamPart>,
-    toolCardEntries: List<AiToolCardEntry>,
+    toolCallRoot: ToolCallRootRenderModel?,
     firstToolPartIndex: Int?,
     lastPartIsStreamingText: Boolean,
     isStreaming: Boolean,
@@ -215,7 +216,7 @@ private fun AiStreamPartsView(
     // Mirror iOS BubbleMessageView: walk the ordered parts; insert ONE ToolCallRootCard at the
     // first tool part's position; render every other part inline in order; trailing streaming
     // cursor unless the last part is already a streaming text (which carries its own cursor).
-    val toolCardInserted = toolCardEntries.isNotEmpty()
+    val toolCardInserted = toolCallRoot != null
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -223,9 +224,10 @@ private fun AiStreamPartsView(
         visibleParts.forEachIndexed { index, part ->
             when (part) {
                 is AiToolStreamPart -> {
-                    if (toolCardInserted && index == firstToolPartIndex) {
+                    if (index == firstToolPartIndex) {
+                        val rootModel = toolCallRoot ?: return@forEachIndexed
                         ToolCallRootCard(
-                            entries = toolCardEntries,
+                            model = rootModel,
                             isStreaming = isStreaming,
                             onLinkClick = onLinkClick,
                             onLinkLongClick = onLinkLongClick,
@@ -461,28 +463,23 @@ private fun ReasoningPart(part: AiReasoningStreamPart) {
 
 @Composable
 private fun ToolCallRootCard(
-    entries: List<AiToolCardEntry>,
+    model: ToolCallRootRenderModel,
     isStreaming: Boolean,
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
 ) {
+    val entries = model.entries
     if (entries.isEmpty()) return
-    var selectedIndex by remember(entries.joinToString(separator = "|") { it.id }) { mutableStateOf(entries.lastIndex) }
-    var expanded by remember(entries.first().id) { mutableStateOf(false) }
+    var selectedIndex by remember(model.id) { mutableStateOf(model.selectedIndex) }
+    var expanded by remember(model.id) { mutableStateOf(model.expandedByDefault) }
     var userToggled by remember(entries.first().id) { mutableStateOf(false) }
-    if (selectedIndex !in entries.indices) selectedIndex = entries.lastIndex
+    if (selectedIndex !in entries.indices) selectedIndex = model.selectedIndex.coerceIn(entries.indices)
     val selectedEntry = entries[selectedIndex]
-    val doneCount = entries.count { it.state == "done" }
-    val errorCount = entries.count { it.state == "error" }
-    // Per-tool state drives "calling" (mirrors iOS, which renders tools by their own ToolState and
-    // does NOT gate on the message-level streaming flag).
-    val callingCount = entries.size - doneCount - errorCount
-    val allFinished = callingCount == 0
-    LaunchedEffect(allFinished, entries.size) {
-        if (allFinished && !userToggled) {
+    LaunchedEffect(model.allFinished, entries.size) {
+        if (model.allFinished && !userToggled) {
             expanded = false
-        } else if (!allFinished && !userToggled) {
-            selectedIndex = entries.lastIndex
+        } else if (!model.allFinished && !userToggled) {
+            selectedIndex = model.selectedIndex
             expanded = true
         }
     }
@@ -511,23 +508,23 @@ private fun ToolCallRootCard(
             ) {
                 ToolProgressIndicator(
                     total = entries.size,
-                    doneCount = doneCount,
-                    errorCount = errorCount,
-                    isCalling = callingCount > 0,
+                    doneCount = model.doneCount,
+                    errorCount = model.errorCount,
+                    isCalling = model.callingCount > 0,
                 )
                 Text(
-                    text = if (entries.size == 1) selectedEntry.name else "Tool Calls",
+                    text = model.title,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                if (doneCount > 0) {
-                    CountPill(icon = Icons.Filled.Check, count = doneCount, color = Color(0xFF2E7D32))
+                if (model.doneCount > 0) {
+                    CountPill(icon = Icons.Filled.Check, count = model.doneCount, color = Color(0xFF2E7D32))
                 }
-                if (errorCount > 0) {
-                    CountPill(icon = Icons.Filled.PriorityHigh, count = errorCount, color = MaterialTheme.colorScheme.error)
+                if (model.errorCount > 0) {
+                    CountPill(icon = Icons.Filled.PriorityHigh, count = model.errorCount, color = MaterialTheme.colorScheme.error)
                 }
                 Icon(
                     imageVector = Icons.Filled.KeyboardArrowDown,
@@ -543,7 +540,7 @@ private fun ToolCallRootCard(
                 enter = expandVertically(animationSpec = tween(durationMillis = 300)) + fadeIn(animationSpec = tween(durationMillis = 180)),
                 exit = shrinkVertically(animationSpec = tween(durationMillis = 250)) + fadeOut(animationSpec = tween(durationMillis = 140)),
             ) {
-                if (entries.size > 1) {
+                if (!model.isSingleTool) {
                     Column {
                         ToolSelectionTabs(
                             entries = entries,
@@ -556,7 +553,7 @@ private fun ToolCallRootCard(
                         ToolEntryContentViewport(
                             entry = selectedEntry,
                             isStreaming = isStreaming,
-                            allFinished = allFinished,
+                            allFinished = model.allFinished,
                             onLinkClick = onLinkClick,
                             onLinkLongClick = onLinkLongClick,
                         )
@@ -565,7 +562,7 @@ private fun ToolCallRootCard(
                     ToolEntryContentViewport(
                         entry = selectedEntry,
                         isStreaming = isStreaming,
-                        allFinished = allFinished,
+                        allFinished = model.allFinished,
                         onLinkClick = onLinkClick,
                         onLinkLongClick = onLinkLongClick,
                     )
