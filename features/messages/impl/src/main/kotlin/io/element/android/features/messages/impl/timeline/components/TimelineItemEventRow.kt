@@ -528,7 +528,7 @@ private fun TimelineItemEventRowContent(
         if (presentation.isStandalone) {
             BoxWithConstraints(
                 modifier = messageModifier,
-                contentAlignment = if (event.isMine) Alignment.CenterEnd else Alignment.CenterStart,
+                contentAlignment = if (presentation.alignment == TimelineItemAlignment.End) Alignment.CenterEnd else Alignment.CenterStart,
             ) {
                 Box(
                     modifier = Modifier.fillMaxWidth(),
