@@ -96,7 +96,6 @@ import io.element.android.features.messages.impl.timeline.aGroupedEvents
 import io.element.android.features.messages.impl.timeline.aTimelineItemDaySeparator
 import io.element.android.features.messages.impl.timeline.aTimelineItemEvent
 import io.element.android.features.messages.impl.timeline.aTimelineState
-import io.element.android.features.messages.impl.timeline.components.CallMenuItem
 import io.element.android.features.messages.impl.timeline.components.customreaction.CustomReactionBottomSheet
 import io.element.android.features.messages.impl.timeline.components.customreaction.CustomReactionEvent
 import io.element.android.features.messages.impl.timeline.components.reactionsummary.ReactionSummaryEvent
@@ -457,15 +456,7 @@ internal fun RowScope.MessagesMenuActions(
     onDeviceAgentChatClick: (RoomDeviceAgent) -> Unit = {},
     onDeviceAgentTerminalClick: (RoomDeviceAgent) -> Unit = {},
 ) {
-    if (roomMenu.hasTopbarAction(RoomTopbarAction.Threads)) {
-        Icon(
-            modifier = Modifier.clickable(enabled = true, onClick = onThreadsListClick),
-            imageVector = CompoundIcons.ThreadsSolid(),
-            contentDescription = stringResource(CommonStrings.common_threads),
-        )
-        Spacer(Modifier.width(8.dp))
-    }
-    CallMenuItem(
+    RoomCallButton(
         roomCallState = roomCallState,
         onJoinCallClick = onJoinCallClick,
     )
@@ -480,6 +471,44 @@ internal fun RowScope.MessagesMenuActions(
 }
 
 @Composable
+private fun RoomCallButton(
+    roomCallState: RoomCallState,
+    onJoinCallClick: (isAudioCall: Boolean) -> Unit,
+) {
+    when (roomCallState) {
+        RoomCallState.Unavailable -> Unit
+        is RoomCallState.StandBy -> {
+            ToolbarCircleButton(
+                onClick = { onJoinCallClick(false) },
+                enabled = roomCallState.canStartCall,
+            ) {
+                Icon(
+                    imageVector = CompoundIcons.VideoCallSolid(),
+                    contentDescription = stringResource(CommonStrings.a11y_start_call),
+                )
+            }
+        }
+        is RoomCallState.OnGoing -> {
+            if (!roomCallState.isUserLocallyInTheCall) {
+                ToolbarCircleButton(
+                    onClick = { onJoinCallClick(roomCallState.isAudioCall) },
+                    enabled = roomCallState.canJoinCall,
+                ) {
+                    Icon(
+                        imageVector = if (roomCallState.isAudioCall) {
+                            CompoundIcons.VoiceCallSolid()
+                        } else {
+                            CompoundIcons.VideoCallSolid()
+                        },
+                        contentDescription = stringResource(CommonStrings.action_join),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun RoomToolMenu(
     roomMenu: RoomMenuRenderModel,
     onRoomSchedulesClick: () -> Unit,
@@ -488,7 +517,6 @@ private fun RoomToolMenu(
     onDeviceAgentTerminalClick: (RoomDeviceAgent) -> Unit,
 ) {
     val hasTools = roomMenu.hasTopbarAction(RoomTopbarAction.Schedules) ||
-        roomMenu.hasTopbarAction(RoomTopbarAction.Webhooks) ||
         roomMenu.hasTopbarAction(RoomTopbarAction.DeviceAgentChat) ||
         roomMenu.hasTopbarAction(RoomTopbarAction.DeviceAgentTerminal)
     if (!hasTools) return
@@ -585,27 +613,6 @@ private fun RoomToolMenu(
                         )
                     }
                 }
-                if (roomMenu.hasTopbarAction(RoomTopbarAction.Webhooks)) {
-                    ToolbarCircleButton(
-                        onClick = {
-                            expanded = false
-                            onRoomWebhooksClick()
-                        },
-                        badgeContent = {
-                            val count = roomMenu.webhookSummary?.activeCount ?: 0
-                            if (count > 0) {
-                                Badge {
-                                    Text(count.toString())
-                                }
-                            }
-                        },
-                    ) {
-                        Icon(
-                            imageVector = CompoundIcons.Link(),
-                            contentDescription = "Webhook triggers",
-                        )
-                    }
-                }
             }
         }
     }
@@ -614,6 +621,7 @@ private fun RoomToolMenu(
 @Composable
 private fun ToolbarCircleButton(
     onClick: () -> Unit,
+    enabled: Boolean = true,
     isActive: Boolean = false,
     badgeContent: @Composable BoxScope.() -> Unit = {},
     content: @Composable () -> Unit,
@@ -623,10 +631,10 @@ private fun ToolbarCircleButton(
     ) {
         Box(
             modifier = Modifier
-                .size(36.dp)
+                .size(44.dp)
                 .clip(CircleShape)
                 .background(if (isActive) ElementTheme.colors.bgCanvasDefault else ElementTheme.colors.bgSubtleSecondary)
-                .clickable(onClick = onClick),
+                .clickable(enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
             content()
