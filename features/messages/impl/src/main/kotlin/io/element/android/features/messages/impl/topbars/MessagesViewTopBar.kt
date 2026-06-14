@@ -8,16 +8,23 @@
 
 package io.element.android.features.messages.impl.topbars
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,14 +50,12 @@ import io.element.android.libraries.designsystem.components.avatar.AvatarData
 import io.element.android.libraries.designsystem.components.avatar.AvatarSize
 import io.element.android.libraries.designsystem.components.avatar.AvatarType
 import io.element.android.libraries.designsystem.components.avatar.anAvatarData
-import io.element.android.libraries.designsystem.components.button.BackButton
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import io.element.android.libraries.designsystem.preview.ROOM_NAME
 import io.element.android.libraries.designsystem.theme.components.HorizontalDivider
 import io.element.android.libraries.designsystem.theme.components.Icon
 import io.element.android.libraries.designsystem.theme.components.Text
-import io.element.android.libraries.designsystem.theme.components.TopAppBar
 import io.element.android.libraries.matrix.api.encryption.identity.IdentityState
 import io.element.android.libraries.matrix.ui.components.aMatrixUserList
 import io.element.android.libraries.matrix.ui.model.getAvatarData
@@ -59,7 +64,6 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MessagesViewTopBar(
     roomName: String?,
@@ -73,72 +77,111 @@ internal fun MessagesViewTopBar(
     modifier: Modifier = Modifier,
     menuActions: @Composable RowScope.() -> Unit,
 ) {
-    TopAppBar(
-        modifier = modifier,
-        navigationIcon = {
-            BackButton(onClick = onBackClick)
-        },
-        title = {
-            val roundedCornerShape = RoundedCornerShape(8.dp)
-            Row(
-                modifier = Modifier
-                    .clip(roundedCornerShape)
-                    .clickable { onRoomDetailsClick() }
-                    .semantics { heading() },
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                val titleModifier = Modifier.weight(1f, fill = false)
-                RoomAvatarAndNameRow(
-                    roomName = roomName,
-                    roomAvatar = roomAvatar,
-                    isTombstoned = isTombstoned,
-                    heroes = heroes,
-                    modifier = titleModifier
-                )
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        FloatingCircleButton(onClick = onBackClick) {
+            Icon(
+                imageVector = CompoundIcons.ArrowLeft(),
+                contentDescription = stringResource(CommonStrings.action_back),
+            )
+        }
 
-                val iconModifier = Modifier.size(16.dp)
+        val roundedCornerShape = RoundedCornerShape(24.dp)
+        Row(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .widthIn(max = 260.dp)
+                .height(48.dp)
+                .clip(roundedCornerShape)
+                .background(ElementTheme.colors.bgSubtleSecondary)
+                .clickable { onRoomDetailsClick() }
+                .semantics { heading() }
+                .padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val titleModifier = Modifier.weight(1f, fill = false)
+            RoomAvatarAndNameRow(
+                roomName = roomName,
+                roomAvatar = roomAvatar,
+                isTombstoned = isTombstoned,
+                heroes = heroes,
+                modifier = titleModifier
+            )
 
-                when (dmUserIdentityState) {
-                    IdentityState.Verified -> {
-                        Icon(
-                            modifier = iconModifier,
-                            imageVector = CompoundIcons.Verified(),
-                            tint = ElementTheme.colors.iconSuccessPrimary,
-                            contentDescription = null,
-                        )
-                    }
-                    IdentityState.VerificationViolation -> {
-                        Icon(
-                            modifier = iconModifier,
-                            imageVector = CompoundIcons.ErrorSolid(),
-                            tint = ElementTheme.colors.iconCriticalPrimary,
-                            contentDescription = null,
-                        )
-                    }
-                    else -> Unit
-                }
+            val iconModifier = Modifier.size(16.dp)
 
-                when (sharedHistoryIcon) {
-                    SharedHistoryIcon.NONE -> Unit
-                    SharedHistoryIcon.SHARED -> Icon(
+            when (dmUserIdentityState) {
+                IdentityState.Verified -> {
+                    Icon(
                         modifier = iconModifier,
-                        imageVector = CompoundIcons.History(),
-                        tint = ElementTheme.colors.iconInfoPrimary,
-                        contentDescription = stringResource(CommonStrings.common_shared_history),
-                    )
-                    SharedHistoryIcon.WORLD_READABLE -> Icon(
-                        modifier = iconModifier,
-                        imageVector = CompoundIcons.UserProfileSolid(),
-                        tint = ElementTheme.colors.iconInfoPrimary,
-                        contentDescription = stringResource(CommonStrings.common_world_readable_history),
+                        imageVector = CompoundIcons.Verified(),
+                        tint = ElementTheme.colors.iconSuccessPrimary,
+                        contentDescription = null,
                     )
                 }
+                IdentityState.VerificationViolation -> {
+                    Icon(
+                        modifier = iconModifier,
+                        imageVector = CompoundIcons.ErrorSolid(),
+                        tint = ElementTheme.colors.iconCriticalPrimary,
+                        contentDescription = null,
+                    )
+                }
+                else -> Unit
             }
-        },
-        actions = menuActions,
-        windowInsets = WindowInsets(0.dp)
-    )
+
+            when (sharedHistoryIcon) {
+                SharedHistoryIcon.NONE -> Unit
+                SharedHistoryIcon.SHARED -> Icon(
+                    modifier = iconModifier,
+                    imageVector = CompoundIcons.History(),
+                    tint = ElementTheme.colors.iconInfoPrimary,
+                    contentDescription = stringResource(CommonStrings.common_shared_history),
+                )
+                SharedHistoryIcon.WORLD_READABLE -> Icon(
+                    modifier = iconModifier,
+                    imageVector = CompoundIcons.UserProfileSolid(),
+                    tint = ElementTheme.colors.iconInfoPrimary,
+                    contentDescription = stringResource(CommonStrings.common_world_readable_history),
+                )
+            }
+        }
+
+        Spacer(Modifier.weight(1f, fill = true))
+
+        Row(
+            modifier = Modifier.defaultMinSize(minHeight = 48.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+            content = menuActions,
+        )
+    }
+}
+
+@Composable
+private fun FloatingCircleButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    content: @Composable () -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .background(ElementTheme.colors.bgSubtleSecondary)
+            .clickable(onClick = onClick)
+            .padding(contentPadding),
+        contentAlignment = Alignment.Center,
+    ) {
+        content()
+    }
 }
 
 @Composable

@@ -30,7 +30,7 @@ class TimelinePresentationReducerTest {
     }
 
     @Test
-    fun `reduce keeps regular direct-room text in a standard bubble without sender row`() {
+    fun `reduce renders regular direct-room text as standalone content with sender row`() {
         val model = TimelinePresentationReducer.reduce(
             content = aTimelineItemTextContent(),
             isMine = false,
@@ -39,13 +39,28 @@ class TimelinePresentationReducerTest {
         )
 
         assertThat(model.alignment).isEqualTo(TimelineItemAlignment.Start)
-        assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.StandardBubble)
-        assertThat(model.showSenderInformation).isFalse()
-        assertThat(model.reserveAvatarColumn).isFalse()
+        assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
+        assertThat(model.showSenderInformation).isTrue()
+        assertThat(model.reserveAvatarColumn).isTrue()
     }
 
     @Test
-    fun `reduce aligns own messages to the end`() {
+    fun `reduce renders own direct-room text with the same standalone leading layout`() {
+        val model = TimelinePresentationReducer.reduce(
+            content = aTimelineItemTextContent(),
+            isMine = true,
+            groupPosition = TimelineItemGroupPosition.None,
+            isDirectRoom = true,
+        )
+
+        assertThat(model.alignment).isEqualTo(TimelineItemAlignment.Start)
+        assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
+        assertThat(model.showSenderInformation).isTrue()
+        assertThat(model.reserveAvatarColumn).isTrue()
+    }
+
+    @Test
+    fun `reduce keeps own non-direct-room text aligned to the end while using iOS plain style`() {
         val model = TimelinePresentationReducer.reduce(
             content = aTimelineItemTextContent(),
             isMine = true,
@@ -54,9 +69,9 @@ class TimelinePresentationReducerTest {
         )
 
         assertThat(model.alignment).isEqualTo(TimelineItemAlignment.End)
-        assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.StandardBubble)
-        assertThat(model.showSenderInformation).isFalse()
-        assertThat(model.reserveAvatarColumn).isFalse()
+        assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
+        assertThat(model.showSenderInformation).isTrue()
+        assertThat(model.reserveAvatarColumn).isTrue()
     }
 
     private fun aTimelineItemAiContent(): TimelineItemAiContent {

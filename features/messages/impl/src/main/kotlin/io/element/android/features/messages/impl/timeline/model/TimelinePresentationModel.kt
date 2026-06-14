@@ -10,6 +10,8 @@ package io.element.android.features.messages.impl.timeline.model
 import androidx.compose.runtime.Immutable
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEventContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRedactedContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextBasedContent
 
 @Immutable
 data class TimelinePresentationModel(
@@ -39,18 +41,28 @@ object TimelinePresentationReducer {
         groupPosition: TimelineItemGroupPosition,
         isDirectRoom: Boolean,
     ): TimelinePresentationModel {
-        val isAiStream = content is TimelineItemAiContent
-        val alignment = if (isMine) TimelineItemAlignment.End else TimelineItemAlignment.Start
-        val bubblePolicy = if (isAiStream) {
+        val usesPlainTimelineStyle = content is TimelineItemAiContent ||
+            content is TimelineItemTextBasedContent ||
+            content is TimelineItemRedactedContent
+        val alignment = if (usesPlainTimelineStyle && isDirectRoom) {
+            TimelineItemAlignment.Start
+        } else if (isMine) {
+            TimelineItemAlignment.End
+        } else {
+            TimelineItemAlignment.Start
+        }
+        val bubblePolicy = if (usesPlainTimelineStyle) {
             TimelineBubblePolicy.Standalone
         } else {
             TimelineBubblePolicy.StandardBubble
         }
+        val showSenderInformation = groupPosition.isNew() && (!isDirectRoom || usesPlainTimelineStyle || !isMine)
+        val reserveAvatarColumn = !isDirectRoom || usesPlainTimelineStyle || !isMine
         return TimelinePresentationModel(
             alignment = alignment,
             bubblePolicy = bubblePolicy,
-            showSenderInformation = groupPosition.isNew() && !isMine && (!isDirectRoom || isAiStream),
-            reserveAvatarColumn = !isMine && (!isDirectRoom || isAiStream),
+            showSenderInformation = showSenderInformation,
+            reserveAvatarColumn = reserveAvatarColumn,
         )
     }
 }
