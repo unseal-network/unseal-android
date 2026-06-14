@@ -25,6 +25,8 @@ class TimelinePresentationReducerTest {
 
         assertThat(model.alignment).isEqualTo(TimelineItemAlignment.Start)
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
+        assertThat(model.contentKind).isEqualTo(TimelineContentKind.AiStream)
+        assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.Hide)
         assertThat(model.showSenderInformation).isTrue()
         assertThat(model.reserveAvatarColumn).isTrue()
     }
@@ -40,6 +42,8 @@ class TimelinePresentationReducerTest {
 
         assertThat(model.alignment).isEqualTo(TimelineItemAlignment.Start)
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
+        assertThat(model.contentKind).isEqualTo(TimelineContentKind.PlainText)
+        assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.ShowWhenEdited)
         assertThat(model.showSenderInformation).isTrue()
         assertThat(model.reserveAvatarColumn).isTrue()
     }
@@ -55,6 +59,8 @@ class TimelinePresentationReducerTest {
 
         assertThat(model.alignment).isEqualTo(TimelineItemAlignment.Start)
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
+        assertThat(model.contentKind).isEqualTo(TimelineContentKind.PlainText)
+        assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.ShowWhenEdited)
         assertThat(model.showSenderInformation).isTrue()
         assertThat(model.reserveAvatarColumn).isTrue()
     }
@@ -70,16 +76,33 @@ class TimelinePresentationReducerTest {
 
         assertThat(model.alignment).isEqualTo(TimelineItemAlignment.End)
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
+        assertThat(model.contentKind).isEqualTo(TimelineContentKind.PlainText)
+        assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.ShowWhenEdited)
         assertThat(model.showSenderInformation).isTrue()
         assertThat(model.reserveAvatarColumn).isTrue()
     }
 
-    private fun aTimelineItemAiContent(): TimelineItemAiContent {
+    @Test
+    fun `edited policy still shows edited for inline AI content without stream parts`() {
+        val model = TimelinePresentationReducer.reduce(
+            content = aTimelineItemAiContent(streamId = null),
+            isMine = false,
+            groupPosition = TimelineItemGroupPosition.None,
+            isDirectRoom = true,
+        )
+
+        assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.ShowWhenEdited)
+    }
+
+    private fun aTimelineItemAiContent(
+        streamId: String? = "stream-id",
+    ): TimelineItemAiContent {
         return TimelineItemAiContent(
             body = "",
             isEdited = false,
             isStreaming = false,
             isTerminal = true,
+            streamId = streamId,
             thinkingSteps = persistentListOf(),
             toolCalls = persistentListOf(),
             sources = persistentListOf(),

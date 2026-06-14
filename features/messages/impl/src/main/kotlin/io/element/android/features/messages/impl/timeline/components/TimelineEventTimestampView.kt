@@ -28,7 +28,8 @@ import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.messages.impl.timeline.TimelineEvent
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
-import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
+import io.element.android.features.messages.impl.timeline.model.TimelineEditedPolicy
+import io.element.android.features.messages.impl.timeline.model.TimelinePresentationReducer
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEventContent
 import io.element.android.features.messages.impl.timeline.model.event.isEdited
 import io.element.android.features.messages.impl.timeline.model.event.isRedacted
@@ -128,8 +129,7 @@ fun TimelineEventTimestampView(
 
 private fun TimelineItemEventContent.shouldShowEditedSuffix(): Boolean {
     if (!isEdited()) return false
-    val aiContent = this as? TimelineItemAiContent ?: return true
-    return aiContent.streamId.isNullOrBlank() && !aiContent.hasRichParts
+    return TimelinePresentationReducer.editedPolicy(this) == TimelineEditedPolicy.ShowWhenEdited
 }
 
 @PreviewsDayNight

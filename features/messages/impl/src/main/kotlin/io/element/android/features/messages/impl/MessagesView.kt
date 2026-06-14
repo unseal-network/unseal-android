@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -53,6 +55,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -289,6 +293,18 @@ fun MessagesView(
                         )
 
                         if (state.timelineState.timelineMode !is Timeline.Mode.Thread) {
+                            TopChromeBackdrop(
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .fillMaxWidth()
+                                    .height(132.dp),
+                            )
+                            BottomChromeBackdrop(
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .fillMaxWidth()
+                                    .height(156.dp),
+                            )
                             MessagesViewTopBar(
                                 modifier = Modifier.align(Alignment.TopStart),
                                 roomName = state.roomName,
@@ -768,53 +784,117 @@ private fun MessagesViewComposerBottomSheetContents(
     onRoomSuccessorClick: (RoomId) -> Unit,
     onLinkClick: (String, Boolean) -> Unit,
 ) {
-    when {
-        state.successorRoom != null -> {
-            SuccessorRoomBanner(roomSuccessor = state.successorRoom, onRoomSuccessorClick = onRoomSuccessorClick)
-        }
-        state.userEventPermissions.canSendMessage -> {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                // Do not show the identity change if user is composing a Rich message or is seeing suggestion(s).
-                if (state.composerState.suggestions.isEmpty() &&
-                    state.composerState.textEditorState is TextEditorState.Markdown) {
-                    IdentityChangeStateView(
-                        state = state.identityChangeState,
-                        onLinkClick = onLinkClick,
-                    )
-                }
-                val verificationViolation = state.identityChangeState.roomMemberIdentityStateChanges.firstOrNull {
-                    it.identityState == IdentityState.VerificationViolation
-                }
-                if (verificationViolation != null) {
-                    DisabledComposerView(modifier = Modifier.fillMaxWidth())
-                } else {
-                    ComposerAgentSkillPickerView(
-                        state = state.composerState.agentSkillState,
-                        onTogglePicker = {
-                            state.composerState.eventSink(MessageComposerEvent.ToggleAgentSkillPicker)
-                        },
-                        onSelectTarget = {
-                            state.composerState.eventSink(MessageComposerEvent.SelectAgentSkillTarget(it))
-                        },
-                        onSelectSkill = {
-                            state.composerState.eventSink(MessageComposerEvent.SelectAgentSkill(it))
-                        },
-                        onRemoveSkill = {
-                            state.composerState.eventSink(MessageComposerEvent.RemoveSelectedAgentSkill(it))
-                        },
-                    )
-                    MessageComposerView(
-                        state = state.composerState,
-                        voiceMessageState = state.voiceMessageComposerState,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+    RoomComposerChrome {
+        when {
+            state.successorRoom != null -> {
+                SuccessorRoomBanner(roomSuccessor = state.successorRoom, onRoomSuccessorClick = onRoomSuccessorClick)
+            }
+            state.userEventPermissions.canSendMessage -> {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Do not show the identity change if user is composing a Rich message or is seeing suggestion(s).
+                    if (state.composerState.suggestions.isEmpty() &&
+                        state.composerState.textEditorState is TextEditorState.Markdown) {
+                        IdentityChangeStateView(
+                            state = state.identityChangeState,
+                            onLinkClick = onLinkClick,
+                        )
+                    }
+                    val verificationViolation = state.identityChangeState.roomMemberIdentityStateChanges.firstOrNull {
+                        it.identityState == IdentityState.VerificationViolation
+                    }
+                    if (verificationViolation != null) {
+                        DisabledComposerView(modifier = Modifier.fillMaxWidth())
+                    } else {
+                        ComposerAgentSkillPickerView(
+                            state = state.composerState.agentSkillState,
+                            onTogglePicker = {
+                                state.composerState.eventSink(MessageComposerEvent.ToggleAgentSkillPicker)
+                            },
+                            onSelectTarget = {
+                                state.composerState.eventSink(MessageComposerEvent.SelectAgentSkillTarget(it))
+                            },
+                            onSelectSkill = {
+                                state.composerState.eventSink(MessageComposerEvent.SelectAgentSkill(it))
+                            },
+                            onRemoveSkill = {
+                                state.composerState.eventSink(MessageComposerEvent.RemoveSelectedAgentSkill(it))
+                            },
+                        )
+                        MessageComposerView(
+                            state = state.composerState,
+                            voiceMessageState = state.voiceMessageComposerState,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
             }
-        }
-        else -> {
-            CantSendMessageBanner()
+            else -> {
+                CantSendMessageBanner()
+            }
         }
     }
+}
+
+@Composable
+private fun RoomComposerChrome(
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val canvas = ElementTheme.colors.bgCanvasDefault
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color.Transparent,
+                        canvas.copy(alpha = 0.86f),
+                        canvas,
+                    )
+                )
+            )
+            .padding(top = 14.dp, start = 12.dp, end = 12.dp, bottom = 8.dp),
+        content = content,
+    )
+}
+
+@Composable
+private fun TopChromeBackdrop(
+    modifier: Modifier = Modifier,
+) {
+    val canvas = ElementTheme.colors.bgCanvasDefault
+    Box(
+        modifier = modifier
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        canvas,
+                        canvas.copy(alpha = 0.86f),
+                        canvas.copy(alpha = 0.28f),
+                        Color.Transparent,
+                    )
+                )
+            )
+    )
+}
+
+@Composable
+private fun BottomChromeBackdrop(
+    modifier: Modifier = Modifier,
+) {
+    val canvas = ElementTheme.colors.bgCanvasDefault
+    Box(
+        modifier = modifier
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color.Transparent,
+                        canvas.copy(alpha = 0.35f),
+                        canvas.copy(alpha = 0.88f),
+                        canvas,
+                    )
+                )
+            )
+    )
 }
 
 @Composable

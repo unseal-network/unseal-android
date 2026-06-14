@@ -17,6 +17,8 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 data class TimelinePresentationModel(
     val alignment: TimelineItemAlignment,
     val bubblePolicy: TimelineBubblePolicy,
+    val contentKind: TimelineContentKind,
+    val editedPolicy: TimelineEditedPolicy,
     val showSenderInformation: Boolean,
     val reserveAvatarColumn: Boolean,
 ) {
@@ -34,6 +36,18 @@ enum class TimelineBubblePolicy {
     Standalone,
 }
 
+enum class TimelineContentKind {
+    AiStream,
+    PlainText,
+    Redacted,
+    RichEvent,
+}
+
+enum class TimelineEditedPolicy {
+    ShowWhenEdited,
+    Hide,
+}
+
 object TimelinePresentationReducer {
     fun reduce(
         content: TimelineItemEventContent,
@@ -41,9 +55,10 @@ object TimelinePresentationReducer {
         groupPosition: TimelineItemGroupPosition,
         isDirectRoom: Boolean,
     ): TimelinePresentationModel {
-        val usesPlainTimelineStyle = content is TimelineItemAiContent ||
-            content is TimelineItemTextBasedContent ||
-            content is TimelineItemRedactedContent
+        val contentKind = content.kind()
+        val usesPlainTimelineStyle = contentKind == TimelineContentKind.AiStream ||
+            contentKind == TimelineContentKind.PlainText ||
+            contentKind == TimelineContentKind.Redacted
         val alignment = if (usesPlainTimelineStyle && isDirectRoom) {
             TimelineItemAlignment.Start
         } else if (isMine) {
@@ -56,13 +71,34 @@ object TimelinePresentationReducer {
         } else {
             TimelineBubblePolicy.StandardBubble
         }
+        val editedPolicy = editedPolicy(content)
         val showSenderInformation = groupPosition.isNew() && (!isDirectRoom || usesPlainTimelineStyle || !isMine)
         val reserveAvatarColumn = !isDirectRoom || usesPlainTimelineStyle || !isMine
         return TimelinePresentationModel(
             alignment = alignment,
             bubblePolicy = bubblePolicy,
+            contentKind = contentKind,
+            editedPolicy = editedPolicy,
             showSenderInformation = showSenderInformation,
             reserveAvatarColumn = reserveAvatarColumn,
         )
+    }
+
+    fun editedPolicy(content: TimelineItemEventContent): TimelineEditedPolicy {
+        val aiContent = content as? TimelineItemAiContent ?: return TimelineEditedPolicy.ShowWhenEdited
+        return if (aiContent.streamId.isNullOrBlank() && !aiContent.hasRichParts) {
+            TimelineEditedPolicy.ShowWhenEdited
+        } else {
+            TimelineEditedPolicy.Hide
+        }
+    }
+
+    private fun TimelineItemEventContent.kind(): TimelineContentKind {
+        return when (this) {
+            is TimelineItemAiContent -> TimelineContentKind.AiStream
+            is TimelineItemTextBasedContent -> TimelineContentKind.PlainText
+            is TimelineItemRedactedContent -> TimelineContentKind.Redacted
+            else -> TimelineContentKind.RichEvent
+        }
     }
 }
