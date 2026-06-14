@@ -17,6 +17,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -297,7 +298,7 @@ fun MessagesView(
                                 modifier = Modifier
                                     .align(Alignment.TopStart)
                                     .fillMaxWidth()
-                                    .height(116.dp),
+                                    .height(124.dp),
                             )
                             BottomChromeBackdrop(
                                 modifier = Modifier
@@ -649,7 +650,14 @@ private fun ToolbarCircleButton(
             modifier = Modifier
                 .size(44.dp)
                 .clip(CircleShape)
-                .background(if (isActive) ElementTheme.colors.bgCanvasDefault else ElementTheme.colors.bgSubtleSecondary)
+                .background(
+                    if (isActive) {
+                        ElementTheme.colors.bgCanvasDefault.copy(alpha = 0.88f)
+                    } else {
+                        ElementTheme.colors.bgSubtleSecondary.copy(alpha = 0.88f)
+                    }
+                )
+                .border(1.dp, ElementTheme.colors.borderDisabled, CircleShape)
                 .clickable(enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
@@ -867,9 +875,9 @@ private fun TopChromeBackdrop(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        canvas.copy(alpha = 0.92f),
-                        canvas.copy(alpha = 0.64f),
-                        canvas.copy(alpha = 0.18f),
+                        canvas.copy(alpha = 0.96f),
+                        canvas.copy(alpha = 0.78f),
+                        canvas.copy(alpha = 0.28f),
                         Color.Transparent,
                     )
                 )

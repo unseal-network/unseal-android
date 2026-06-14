@@ -9,6 +9,7 @@
 package io.element.android.features.messages.impl.topbars
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -80,9 +81,9 @@ internal fun MessagesViewTopBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.Top,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         FloatingCircleButton(onClick = onBackClick) {
             Icon(
@@ -96,9 +97,10 @@ internal fun MessagesViewTopBar(
             modifier = Modifier
                 .weight(1f, fill = false)
                 .widthIn(max = 260.dp)
-                .height(48.dp)
+                .height(44.dp)
                 .clip(roundedCornerShape)
-                .background(ElementTheme.colors.bgSubtleSecondary)
+                .background(ElementTheme.colors.bgSubtleSecondary.copy(alpha = 0.88f))
+                .border(1.dp, ElementTheme.colors.borderDisabled, roundedCornerShape)
                 .clickable { onRoomDetailsClick() }
                 .semantics { heading() }
                 .padding(horizontal = 12.dp),
@@ -158,7 +160,7 @@ internal fun MessagesViewTopBar(
         Row(
             modifier = Modifier.defaultMinSize(minHeight = 48.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-            verticalAlignment = Alignment.Top,
+            verticalAlignment = Alignment.CenterVertically,
             content = menuActions,
         )
     }
@@ -175,7 +177,8 @@ private fun FloatingCircleButton(
         modifier = modifier
             .size(48.dp)
             .clip(CircleShape)
-            .background(ElementTheme.colors.bgSubtleSecondary)
+            .background(ElementTheme.colors.bgSubtleSecondary.copy(alpha = 0.88f))
+            .border(1.dp, ElementTheme.colors.borderDisabled, CircleShape)
             .clickable(onClick = onClick)
             .padding(contentPadding),
         contentAlignment = Alignment.Center,
