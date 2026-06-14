@@ -82,7 +82,7 @@ internal fun MessagesViewTopBar(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
     ) {
         FloatingCircleButton(onClick = onBackClick) {
             Icon(
@@ -158,7 +158,7 @@ internal fun MessagesViewTopBar(
         Row(
             modifier = Modifier.defaultMinSize(minHeight = 48.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.Top,
             content = menuActions,
         )
     }

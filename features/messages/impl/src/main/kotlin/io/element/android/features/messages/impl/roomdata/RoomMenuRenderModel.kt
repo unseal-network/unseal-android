@@ -85,12 +85,8 @@ object RoomMenuReducer {
         val context = roomUnsealContext.dataOrNull()
         val deviceAgent = context?.deviceAgentInRoom
         val actions = buildList {
-            if (!isThreadTimeline && hasThreads) {
-                add(RoomTopbarAction.Threads)
-            }
             if (context?.hasAgentInRoom == true) {
                 add(RoomTopbarAction.Schedules)
-                add(RoomTopbarAction.Webhooks)
             }
             if (deviceAgent != null) {
                 add(RoomTopbarAction.DeviceAgentChat)
