@@ -121,6 +121,33 @@ Every room feature must move through the same path. Do not implement a Compose-o
 | Link handling | Links in markdown/cards open correctly | Mixed | Link action model | Ensure cards do not swallow URL taps. |
 | Read receipts/reactions | iOS room behavior | Existing Element Android behavior | Menu/action model | P1 after stream/markdown. |
 
+### Message Long-Press Action Parity
+
+| iOS action | iOS file | Android action | Android status | Migration note |
+|---|---|---|---|---|
+| `selectText` | `ElementX/Sources/Screens/Timeline/View/ItemMenu/TimelineItemMenuAction.swift` | none | Missing | Needs a text-selection screen/sheet before exposing. Do not map to copy. |
+| `copy` | same | `CopyText` | Implemented | Android uses `handleCopyContents`. |
+| `translate` | same | none | Missing | Needs translation service + UI entry. |
+| `copyCaption` | same | `CopyCaption` | Implemented | Android handles media captions. |
+| `edit` | same | `Edit` | Implemented | Existing composer edit flow. |
+| `addCaption` | same | `AddCaption` | Implemented | Existing attachment caption flow. |
+| `editCaption` | same | `EditCaption` | Implemented | Existing attachment caption flow. |
+| `removeCaption` | same | `RemoveCaption` | Implemented | Destructive action section. |
+| `editPoll` | same | `EditPoll` | Implemented | Existing poll edit navigation. |
+| `copyPermalink` | same | `CopyLink` | Implemented | Android action label matches iOS copy link. |
+| `redact` | same | `Redact` | Implemented | Android remove action. |
+| `reply(isThread:)` | same | `Reply` / `ReplyInThread` | Implemented | Ordering differs; keep reducer-controlled. |
+| `forward` | same | `Forward` | Implemented | Existing forward flow. |
+| `viewSource` | same | `ViewSource` | Implemented | Developer-mode gated on Android. |
+| `report` | same | `ReportContent` | Implemented | Incoming only. |
+| `react` / `toggleReaction` | same | reaction row + custom reaction sheet | Partial | Android uses separate reaction UI; audit visual parity later. |
+| `endPoll` | same | `EndPoll` | Implemented | Existing confirmation flow. |
+| `pin` / `unpin` | same | `Pin` / `Unpin` | Implemented | Uses pinned event permissions. |
+| `saveMessage` / `unsaveMessage` | same | none | Missing | Requires saved-message backend/client equivalent. |
+| `viewInRoomTimeline` | same | `ViewInTimeline` | Partial | Enum exists; handler is currently `Unit`, so pinned/saved/media jump flow is incomplete. |
+| `share` | same | none | Missing | Needed for media/details parity. |
+| `save` | same | none | Missing | Needed for media/details parity. |
+
 ## P1 Follow-up Features
 
 | Feature | iOS source | Android target |
