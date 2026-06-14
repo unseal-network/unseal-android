@@ -249,7 +249,41 @@ class AiSdkStreamReducerTest {
         assertThat(result.streamStatus).isEqualTo(StreamStatus.Completed.name)
         assertThat(result.updatedAtMs).isEqualTo(42L)
         assertThat(result.completedAtMs).isEqualTo(64L)
-        assertThat(result.renderVersion).isEqualTo("stream-meta:1:42:64:Completed")
+        assertThat(result.renderVersion).startsWith("stream-meta:1:42:64:Completed:1:")
+    }
+
+    @Test
+    fun `render version changes when parts change without timestamp changes`() {
+        val base = StreamSnapshot(
+            schemaVersion = AGENT_STREAM_SCHEMA_VERSION,
+            streamId = "stream-meta",
+            status = StreamStatus.Streaming,
+            parts = listOf(StreamPart.Text(id = "text-1", text = "Hel", textState = "streaming")),
+            rawEvents = emptyList(),
+            updatedAtMs = 42L,
+            completedAtMs = null,
+            error = null,
+        )
+        val textPatched = base.copy(
+            parts = listOf(StreamPart.Text(id = "text-1", text = "Hello", textState = "streaming")),
+        )
+        val toolStatePatched = base.copy(
+            parts = listOf(
+                StreamPart.Tool(
+                    id = "tool-1",
+                    toolState = "output-available",
+                    toolName = "GMAIL_FETCH_EMAILS",
+                    output = Json.parseToJsonElement("""{"successful":true}"""),
+                ),
+            ),
+        )
+
+        val baseVersion = reducer.mapRenderModel(base).renderVersion
+        val textPatchedVersion = reducer.mapRenderModel(textPatched).renderVersion
+        val toolStatePatchedVersion = reducer.mapRenderModel(toolStatePatched).renderVersion
+
+        assertThat(textPatchedVersion).isNotEqualTo(baseVersion)
+        assertThat(toolStatePatchedVersion).isNotEqualTo(baseVersion)
     }
 
     @Test

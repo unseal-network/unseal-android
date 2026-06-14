@@ -108,13 +108,7 @@ class AiSdkStreamReducer {
                 lastPartIsStreamingText -> AiStreamCursorMode.None
                 else -> AiStreamCursorMode.TrailingCursor
             },
-            renderVersion = listOf(
-                snapshot.streamId,
-                snapshot.schemaVersion.toString(),
-                snapshot.updatedAtMs.toString(),
-                snapshot.completedAtMs?.toString().orEmpty(),
-                snapshot.status.name,
-            ).joinToString(":"),
+            renderVersion = snapshot.renderVersion(streamParts),
             markdownBlocks = textParts.map {
                 AiMarkdownBlock(
                     id = it.id,
@@ -248,6 +242,39 @@ class AiSdkStreamReducer {
             state = DEFAULT_ERROR_STATE,
             errorText = errorMessage,
         )
+    }
+
+    private fun StreamSnapshot.renderVersion(parts: List<AiStreamPart>): String {
+        val partsSignature = parts.joinToString(separator = "|") { part ->
+            listOf(
+                part.id,
+                part::class.simpleName.orEmpty(),
+                part.state,
+                part.contentSignature().hashCode().toString(16),
+            ).joinToString(separator = "/")
+        }.hashCode().toString(16)
+        return listOf(
+            streamId,
+            schemaVersion.toString(),
+            updatedAtMs.toString(),
+            completedAtMs?.toString().orEmpty(),
+            status.name,
+            parts.size.toString(),
+            partsSignature,
+        ).joinToString(":")
+    }
+
+    private fun AiStreamPart.contentSignature(): String {
+        return when (this) {
+            is AiTextStreamPart -> text
+            is AiReasoningStreamPart -> text
+            is AiToolStreamPart -> listOf(toolName, title, input, rawInput, output, errorText).joinToString()
+            is AiSourceStreamPart -> listOf(sourceType, title, url, filename, mediaType).joinToString()
+            is AiErrorStreamPart -> errorText
+            is AiDataStreamPart -> listOf(type, payload).joinToString()
+            is AiFileStreamPart -> listOf(mediaType, filename, url).joinToString()
+            is AiCustomStreamPart -> listOf(type, payload).joinToString()
+        }
     }
 
     private companion object {
