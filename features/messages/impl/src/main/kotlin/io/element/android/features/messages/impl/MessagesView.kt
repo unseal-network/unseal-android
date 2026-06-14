@@ -248,35 +248,6 @@ fun MessagesView(
                             isTombstoned = state.isTombstoned,
                             onBackClick = onBackClick,
                         )
-                    } else {
-                        MessagesViewTopBar(
-                            roomName = state.roomName,
-                            roomAvatar = state.roomAvatar,
-                            isTombstoned = state.isTombstoned,
-                            heroes = state.heroes,
-                            dmUserIdentityState = state.dmUserVerificationState,
-                            sharedHistoryIcon = state.topBarSharedHistoryIcon,
-                            onBackClick = { hidingKeyboard { onBackClick() } },
-                            onRoomDetailsClick = { hidingKeyboard { onRoomDetailsClick() } },
-                            menuActions = {
-                                MessagesMenuActions(
-                                    roomMenu = state.roomMenu,
-                                    roomCallState = state.roomCallState,
-                                    onJoinCallClick = onJoinCallClick,
-                                    onRoomSchedulesClick = onRoomSchedulesClick,
-                                    onRoomWebhooksClick = onRoomWebhooksClick,
-                                    onThreadsListClick = onThreadsListClick,
-                                    onDeviceAgentChatClick = {
-                                        state.eventSink(MessagesEvent.ToggleDeviceAgentChat(it))
-                                        onDeviceAgentChatClick(it)
-                                    },
-                                    onDeviceAgentTerminalClick = {
-                                        state.eventSink(MessagesEvent.OpenDeviceAgentTerminal(it))
-                                        onDeviceAgentTerminalClick(it)
-                                    },
-                                )
-                            }
-                        )
                     }
                 },
                 content = { padding ->
@@ -317,6 +288,38 @@ fun MessagesView(
                             onViewAllPinnedMessagesClick = onViewAllPinnedMessagesClick,
                             knockRequestsBannerView = knockRequestsBannerView,
                         )
+
+                        if (state.timelineState.timelineMode !is Timeline.Mode.Thread) {
+                            MessagesViewTopBar(
+                                modifier = Modifier.align(Alignment.TopStart),
+                                roomName = state.roomName,
+                                roomAvatar = state.roomAvatar,
+                                isTombstoned = state.isTombstoned,
+                                heroes = state.heroes,
+                                dmUserIdentityState = state.dmUserVerificationState,
+                                sharedHistoryIcon = state.topBarSharedHistoryIcon,
+                                onBackClick = { hidingKeyboard { onBackClick() } },
+                                onRoomDetailsClick = { hidingKeyboard { onRoomDetailsClick() } },
+                                menuActions = {
+                                    MessagesMenuActions(
+                                        roomMenu = state.roomMenu,
+                                        roomCallState = state.roomCallState,
+                                        onJoinCallClick = onJoinCallClick,
+                                        onRoomSchedulesClick = onRoomSchedulesClick,
+                                        onRoomWebhooksClick = onRoomWebhooksClick,
+                                        onThreadsListClick = onThreadsListClick,
+                                        onDeviceAgentChatClick = {
+                                            state.eventSink(MessagesEvent.ToggleDeviceAgentChat(it))
+                                            onDeviceAgentChatClick(it)
+                                        },
+                                        onDeviceAgentTerminalClick = {
+                                            state.eventSink(MessagesEvent.OpenDeviceAgentTerminal(it))
+                                            onDeviceAgentTerminalClick(it)
+                                        },
+                                    )
+                                }
+                            )
+                        }
 
                         SuggestionsPickerView(
                             modifier = Modifier
