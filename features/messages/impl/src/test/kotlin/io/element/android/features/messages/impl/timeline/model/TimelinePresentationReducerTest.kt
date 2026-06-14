@@ -66,7 +66,7 @@ class TimelinePresentationReducerTest {
     }
 
     @Test
-    fun `reduce keeps own non-direct-room text aligned to the end while using iOS plain style`() {
+    fun `reduce renders own non-direct-room text with the same standalone leading layout`() {
         val model = TimelinePresentationReducer.reduce(
             content = aTimelineItemTextContent(),
             isMine = true,
@@ -74,7 +74,7 @@ class TimelinePresentationReducerTest {
             isDirectRoom = false,
         )
 
-        assertThat(model.alignment).isEqualTo(TimelineItemAlignment.End)
+        assertThat(model.alignment).isEqualTo(TimelineItemAlignment.Start)
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
         assertThat(model.contentKind).isEqualTo(TimelineContentKind.PlainText)
         assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.ShowWhenEdited)

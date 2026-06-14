@@ -59,7 +59,7 @@ object TimelinePresentationReducer {
         val usesPlainTimelineStyle = contentKind == TimelineContentKind.AiStream ||
             contentKind == TimelineContentKind.PlainText ||
             contentKind == TimelineContentKind.Redacted
-        val alignment = if (usesPlainTimelineStyle && isDirectRoom) {
+        val alignment = if (usesPlainTimelineStyle) {
             TimelineItemAlignment.Start
         } else if (isMine) {
             TimelineItemAlignment.End

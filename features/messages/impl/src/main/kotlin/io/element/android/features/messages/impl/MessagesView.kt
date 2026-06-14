@@ -297,13 +297,13 @@ fun MessagesView(
                                 modifier = Modifier
                                     .align(Alignment.TopStart)
                                     .fillMaxWidth()
-                                    .height(132.dp),
+                                    .height(116.dp),
                             )
                             BottomChromeBackdrop(
                                 modifier = Modifier
                                     .align(Alignment.BottomStart)
                                     .fillMaxWidth()
-                                    .height(156.dp),
+                                    .height(132.dp),
                             )
                             MessagesViewTopBar(
                                 modifier = Modifier.align(Alignment.TopStart),
@@ -867,9 +867,9 @@ private fun TopChromeBackdrop(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        canvas,
-                        canvas.copy(alpha = 0.86f),
-                        canvas.copy(alpha = 0.28f),
+                        canvas.copy(alpha = 0.92f),
+                        canvas.copy(alpha = 0.64f),
+                        canvas.copy(alpha = 0.18f),
                         Color.Transparent,
                     )
                 )
@@ -888,9 +888,9 @@ private fun BottomChromeBackdrop(
                 Brush.verticalGradient(
                     colors = listOf(
                         Color.Transparent,
-                        canvas.copy(alpha = 0.35f),
-                        canvas.copy(alpha = 0.88f),
-                        canvas,
+                        canvas.copy(alpha = 0.24f),
+                        canvas.copy(alpha = 0.72f),
+                        canvas.copy(alpha = 0.96f),
                     )
                 )
             )

@@ -78,6 +78,7 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemImageContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemPollContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextBasedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemStickerContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVideoContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVoiceContent
@@ -859,7 +860,8 @@ private fun MessageEventBubbleContent(
             if (shouldHide) TimestampPosition.Hidden else TimestampPosition.Overlay
         }
         is TimelineItemPollContent,
-        is TimelineItemAiContent -> TimestampPosition.Below
+        is TimelineItemAiContent,
+        is TimelineItemTextBasedContent -> TimestampPosition.Below
         // Game cards render the timestamp inline inside the card itself — suppress the external one
         is TimelineItemGameContent -> TimestampPosition.Hidden
         else -> TimestampPosition.Default
