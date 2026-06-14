@@ -87,6 +87,7 @@ object RoomMenuReducer {
         val actions = buildList {
             if (context?.hasAgentInRoom == true) {
                 add(RoomTopbarAction.Schedules)
+                add(RoomTopbarAction.Webhooks)
             }
             if (deviceAgent != null) {
                 add(RoomTopbarAction.DeviceAgentChat)

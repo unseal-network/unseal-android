@@ -534,6 +534,7 @@ private fun RoomToolMenu(
     onDeviceAgentTerminalClick: (RoomDeviceAgent) -> Unit,
 ) {
     val hasTools = roomMenu.hasTopbarAction(RoomTopbarAction.Schedules) ||
+        roomMenu.hasTopbarAction(RoomTopbarAction.Webhooks) ||
         roomMenu.hasTopbarAction(RoomTopbarAction.DeviceAgentChat) ||
         roomMenu.hasTopbarAction(RoomTopbarAction.DeviceAgentTerminal)
     if (!hasTools) return
@@ -627,6 +628,29 @@ private fun RoomToolMenu(
                         Icon(
                             imageVector = CompoundIcons.Time(),
                             contentDescription = "Room AI Config",
+                        )
+                    }
+                }
+                if (roomMenu.hasTopbarAction(RoomTopbarAction.Webhooks)) {
+                    ToolbarCircleButton(
+                        onClick = {
+                            expanded = false
+                            onRoomWebhooksClick()
+                        },
+                        badgeContent = {
+                            val active = roomMenu.webhookSummary?.activeCount ?: 0
+                            val total = roomMenu.webhookSummary?.totalCount ?: 0
+                            val label = if (active > 0) active else total
+                            if (label > 0) {
+                                Badge {
+                                    Text(label.toString())
+                                }
+                            }
+                        },
+                    ) {
+                        Icon(
+                            imageVector = CompoundIcons.Link(),
+                            contentDescription = "Room triggers",
                         )
                     }
                 }
