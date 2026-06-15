@@ -338,7 +338,12 @@ class TimelineItemAiPresenterTest {
             )
         }
         val presenter = createPresenter(
-            content = aTimelineItemAiContent(streamId = "stream-1", sender = "@bot:keepsecret.io"),
+            content = aTimelineItemAiContent(
+                streamId = "stream-1",
+                sender = "@bot:keepsecret.io",
+                roomId = "!room:keepsecret.io",
+                eventId = "event-1",
+            ),
             agentStreamClient = client,
             streamHandleStore = streamHandleStore,
             streamContentCache = contentCache,
@@ -350,6 +355,9 @@ class TimelineItemAiPresenterTest {
 
             assertThat(initial.body).isEqualTo("already loaded")
             assertThat(initial.isStreaming).isFalse()
+            assertThat(initial.sender).isEqualTo("@bot:keepsecret.io")
+            assertThat(initial.roomId).isEqualTo("!room:keepsecret.io")
+            assertThat(initial.eventId).isEqualTo("event-1")
 
             cancelAndIgnoreRemainingEvents()
         }

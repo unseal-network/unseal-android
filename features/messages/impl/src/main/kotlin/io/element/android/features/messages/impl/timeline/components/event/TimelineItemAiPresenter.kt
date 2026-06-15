@@ -69,7 +69,7 @@ class TimelineItemAiPresenter(
         val streamId = initialContent.streamId
         val contentIdentity = streamId ?: initialContent.parts
         val cachedContent = remember(contentIdentity) {
-            streamId?.let(aiStreamContentCache::get)
+            streamId?.let(aiStreamContentCache::get)?.withFallbackMetadata(initialContent)
         }
         var currentContent by remember(contentIdentity) {
             mutableStateOf(
@@ -204,4 +204,13 @@ private fun TimelineItemAiContent.isTerminalRenderableStream(streamId: String): 
     return this.streamId == streamId &&
         isTerminal &&
         (hasRichParts || body.isNotBlank())
+}
+
+private fun TimelineItemAiContent.withFallbackMetadata(fallback: TimelineItemAiContent): TimelineItemAiContent {
+    return copy(
+        isEdited = fallback.isEdited,
+        sender = sender ?: fallback.sender,
+        roomId = roomId ?: fallback.roomId,
+        eventId = eventId ?: fallback.eventId,
+    )
 }

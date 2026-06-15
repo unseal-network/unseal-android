@@ -14,6 +14,7 @@ import dev.zacsweers.metro.binding
 import io.element.android.features.messages.impl.timeline.di.LiveTimeline
 import io.element.android.libraries.di.RoomScope
 import io.element.android.libraries.matrix.api.core.EventId
+import timber.log.Timber
 import io.element.android.libraries.matrix.api.core.ThreadId
 import io.element.android.libraries.matrix.api.room.CreateTimelineParams
 import io.element.android.libraries.matrix.api.room.JoinedRoom
@@ -131,7 +132,12 @@ class TimelineController(
     }
 
     fun retryDecryption(sessionIds: List<String>) {
-        currentTimelineFlow.value.retryDecryption(sessionIds)
+        // The timeline can be destroyed (e.g. the room/timeline is closed) while a background
+        // room-key recovery retry is still in flight, in which case the Rust FFI throws
+        // IllegalStateException("Timeline object has already been destroyed"). There is nothing to
+        // retry on a dead timeline, so swallow it instead of crashing.
+        runCatching { currentTimelineFlow.value.retryDecryption(sessionIds) }
+            .onFailure { Timber.w(it, "retryDecryption skipped: timeline unavailable") }
     }
 
     private val currentTimelineFlow = combine(liveTimelineFlow, detachedTimelineFlow) { live, detached ->
