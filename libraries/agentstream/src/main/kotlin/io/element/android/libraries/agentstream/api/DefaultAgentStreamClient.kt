@@ -180,11 +180,17 @@ class DefaultAgentStreamClient(
             try {
                 if (!skipStorageLoad) {
                     storageProvider.load(request.streamId)?.let { storedSnapshot ->
-                        val snapshot = storedSnapshot.withStreamIdFallback(request.streamId)
-                        if (!publishIfActive(runId, snapshot)) {
-                            return
-                        }
-                        if (snapshot.isTerminal) {
+                        val snapshot = storedSnapshot
+                            .withStreamIdFallback(request.streamId)
+                            .normalizedForTerminalState()
+                        // Only a Completed snapshot is a durable cache hit. Genuine stream-level
+                        // errors arrive as SSE data and are stored as Completed (with an error part),
+                        // so they stay cached. A stored Failed/Cancelled is a transient transport
+                        // failure (network/5xx) — ignore it and re-open the stream so it retries.
+                        if (snapshot.status == StreamStatus.Completed) {
+                            if (!publishIfActive(runId, snapshot)) {
+                                return
+                            }
                             if (isActiveRun(runId)) {
                                 rememberCompleted(snapshot)
                             }
@@ -224,6 +230,7 @@ class DefaultAgentStreamClient(
                         .parseOrFailed(activeSession.finish(), request.streamId)
                         .withStreamIdFallback(request.streamId)
                         .asCompleted(clock())
+                            .normalizedForTerminalState()
                     if (!isActiveRun(runId)) {
                         return
                     }
@@ -249,19 +256,15 @@ class DefaultAgentStreamClient(
                     }
                     if (previousSnapshot != null) {
                         val failed = failedSnapshot(request.streamId, throwable, previousSnapshot)
+                        // A thrown failure is transport-level (network blip, timeout, 5xx, HTTP error)
+                        // — never persist it, so re-opening the stream retries instead of serving a
+                        // stale failure. Genuine stream-level errors arrive as SSE data and are stored
+                        // via the Completed path, so they remain cached.
                         if (publishIfActive(runId, failed)) {
                             if (!isActiveRun(runId)) {
                                 return
                             }
-                            if (completedBeforeRefresh == null && !hasCompletedSnapshot(request.streamId)) {
-                                try {
-                                    storageProvider.save(failed)
-                                } catch (_: Throwable) {
-                                    // The failed snapshot is already visible; a persistence failure must not keep the stream in flight.
-                                }
-                            } else {
-                                completedBeforeRefresh?.let(::rememberCompleted)
-                            }
+                            completedBeforeRefresh?.let(::rememberCompleted)
                         }
                     }
                 } finally {
@@ -277,33 +280,42 @@ class DefaultAgentStreamClient(
         }
 
         private fun publishIfActive(runId: Long, snapshot: StreamSnapshot): Boolean {
+            val snapshotToPublish = snapshot.normalizedForTerminalState()
             val callbacks = synchronized(lock) {
                 if (!isActiveRunLocked(runId)) {
                     return false
                 }
-                currentSnapshot = snapshot
+                // Terminal Completed is monotonic: once a stream has completed, a stale non-completed
+                // snapshot (e.g. a late streaming chunk or a replayed run) must NOT overwrite it —
+                // otherwise the tool card regresses from done back to "Running tool…".
+                if (currentSnapshot.status == StreamStatus.Completed && snapshotToPublish.status != StreamStatus.Completed) {
+                    return false
+                }
+                currentSnapshot = snapshotToPublish
                 listeners.values.toList()
             }
             callbacks.forEach { listener ->
-                listener.onSnapshot(snapshot)
+                listener.onSnapshot(snapshotToPublish)
             }
             return true
         }
 
         private fun publish(snapshot: StreamSnapshot) {
+            val snapshotToPublish = snapshot.normalizedForTerminalState()
             val callbacks = synchronized(lock) {
-                currentSnapshot = snapshot
+                currentSnapshot = snapshotToPublish
                 listeners.values.toList()
             }
             callbacks.forEach { listener ->
-                listener.onSnapshot(snapshot)
+                listener.onSnapshot(snapshotToPublish)
             }
         }
 
         private fun rememberCompleted(snapshot: StreamSnapshot) {
-            if (snapshot.status == StreamStatus.Completed) {
+            val normalized = snapshot.normalizedForTerminalState()
+            if (normalized.status == StreamStatus.Completed) {
                 synchronized(lock) {
-                    completedCache[snapshot.streamId] = snapshot
+                    completedCache[normalized.streamId] = normalized
                 }
             }
         }
@@ -413,19 +425,10 @@ class DefaultAgentStreamClient(
     private fun StreamSnapshot.asCompleted(now: Long): StreamSnapshot {
         return copy(
             status = StreamStatus.Completed,
-            parts = parts.map { it.asCompletedPart() },
             updatedAtMs = now,
             completedAtMs = completedAtMs ?: now,
             error = null,
         )
-    }
-
-    private fun StreamPart.asCompletedPart(): StreamPart {
-        return when (this) {
-            is StreamPart.Text -> copy(textState = TextPartState.Complete.wireValue)
-            is StreamPart.Reasoning -> copy(reasoningState = TextPartState.Complete.wireValue)
-            else -> this
-        }
     }
 
     private companion object {

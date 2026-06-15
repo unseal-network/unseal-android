@@ -62,6 +62,7 @@ class FakeJoinedRoom(
     private val roomNotificationSettingsService: FakeNotificationSettingsService = FakeNotificationSettingsService(),
     private var createTimelineResult: (CreateTimelineParams) -> Result<Timeline> = { lambdaError() },
     private val editMessageLambda: (EventId, String, String?, List<IntentionalMention>) -> Result<Unit> = { _, _, _, _ -> lambdaError() },
+    private val sendRawRoomMessageResult: (String, String) -> Result<Unit> = { _, _ -> lambdaError() },
     private val progressCallbackValues: List<Pair<Long, Long>> = emptyList(),
     private val generateWidgetWebViewUrlResult: (MatrixWidgetSettings, String, String?, String?) -> Result<String> = { _, _, _, _ -> lambdaError() },
     private val getWidgetDriverResult: (MatrixWidgetSettings) -> Result<MatrixWidgetDriver> = { lambdaError() },
@@ -119,6 +120,10 @@ class FakeJoinedRoom(
 
     override suspend fun typingNotice(isTyping: Boolean): Result<Unit> = simulateLongTask {
         typingNoticeResult(isTyping)
+    }
+
+    override suspend fun sendRawRoomMessage(contentJson: String, eventType: String): Result<Unit> = simulateLongTask {
+        sendRawRoomMessageResult(contentJson, eventType)
     }
 
     override suspend fun inviteUserById(id: UserId): Result<Unit> = simulateLongTask {

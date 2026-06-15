@@ -9,6 +9,7 @@ package io.element.android.features.messages.impl.timeline.factories.event
 
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.messages.impl.timeline.model.event.AiErrorStreamPart
+import io.element.android.features.messages.impl.timeline.model.event.AiStreamCursorMode
 import io.element.android.features.messages.impl.timeline.model.event.AiReasoningStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiSourceStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiTextStreamPart
@@ -18,8 +19,10 @@ import io.element.android.libraries.agentstream.api.StreamError
 import io.element.android.libraries.agentstream.api.StreamPart
 import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.agentstream.api.StreamStatus
+import io.element.android.libraries.agentstream.api.normalizedForTerminalState
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
+import org.json.JSONObject
 import org.junit.Test
 
 class AiSdkStreamReducerTest {
@@ -106,6 +109,36 @@ class AiSdkStreamReducerTest {
     }
 
     @Test
+    fun `maps stream snapshot into explicit render model`() {
+        val snapshot = snapshot(
+            streamId = "stream-render",
+            status = StreamStatus.Streaming,
+            parts = listOf(
+                StreamPart.Text(id = "text-1", text = "Hello", textState = "done"),
+                StreamPart.Tool(
+                    id = "gmail",
+                    toolState = "input-available",
+                    toolName = "GMAIL_FETCH_EMAILS",
+                    input = Json.parseToJsonElement("""{"query":"from:alice"}"""),
+                ),
+            ),
+        )
+
+        val renderModel = reducer.mapRenderModel(snapshot)
+        val timelineContent = renderModel.toTimelineContent(isEdited = false, sender = "@agent:example.org")
+
+        assertThat(renderModel.streamId).isEqualTo("stream-render")
+        assertThat(renderModel.isStreaming).isTrue()
+        assertThat(renderModel.cursorMode).isEqualTo(AiStreamCursorMode.TrailingCursor)
+        assertThat(renderModel.markdownBlocks.single().text).isEqualTo("Hello")
+        assertThat(renderModel.firstToolPartIndex).isEqualTo(1)
+        assertThat(renderModel.toolCardEntries).hasSize(1)
+        assertThat(timelineContent.body).isEqualTo("Hello")
+        assertThat(timelineContent.sender).isEqualTo("@agent:example.org")
+        assertThat(timelineContent.visibleParts.map { it.id }).containsExactly("text-1", "gmail").inOrder()
+    }
+
+    @Test
     fun `maps tool name from tool type when sdk toolName is null`() {
         val snapshot = snapshot(
             parts = listOf(
@@ -131,6 +164,31 @@ class AiSdkStreamReducerTest {
         assertThat(result.toolCalls.single().name).isEqualTo("weather")
         assertThat(result.toolCalls.single().displayName).isEqualTo("weather")
         assertThat(result.toolCalls.single().error).isEqualTo("Tool failed")
+    }
+
+    @Test
+    fun `reducer consumes sdk-normalized completed part states`() {
+        val snapshot = snapshot(
+            status = StreamStatus.Completed,
+            parts = listOf(
+                StreamPart.Tool(
+                    id = "call-1",
+                    toolState = "input-available",
+                    toolName = "GMAIL_FETCH_EMAILS",
+                    input = Json.parseToJsonElement("""{"query":"from:alice@example.com"}"""),
+                    rawInput = JsonPrimitive("Find Alice emails"),
+                    output = Json.parseToJsonElement("""{"successful":true}"""),
+                ),
+            ),
+        ).normalizedForTerminalState()
+
+        val result = reducer.mapSnapshot(snapshot, isEdited = false, sender = null)
+
+        val tool = result.parts.single() as AiToolStreamPart
+        assertThat(tool.state).isEqualTo("output-available")
+        assertThat(tool.input).contains("alice@example.com")
+        assertThat(tool.rawInput).isEqualTo("Find Alice emails")
+        assertThat(tool.output).contains("successful")
     }
 
     @Test
@@ -169,6 +227,192 @@ class AiSdkStreamReducerTest {
         assertThat(source.title).isEqualTo("Docs")
         assertThat(source.url).isEqualTo("https://example.com/docs")
         assertThat(result.sources).isEmpty()
+    }
+
+    @Test
+    fun `render model preserves sdk snapshot metadata`() {
+        val snapshot = StreamSnapshot(
+            schemaVersion = AGENT_STREAM_SCHEMA_VERSION,
+            streamId = "stream-meta",
+            status = StreamStatus.Completed,
+            parts = listOf(StreamPart.Text(id = "text-1", text = "Done", textState = "done")),
+            rawEvents = emptyList(),
+            updatedAtMs = 42L,
+            completedAtMs = 64L,
+            error = null,
+        )
+
+        val result = reducer.mapSnapshot(snapshot, isEdited = false, sender = "@alice:example.org")
+
+        assertThat(result.streamId).isEqualTo("stream-meta")
+        assertThat(result.schemaVersion).isEqualTo(AGENT_STREAM_SCHEMA_VERSION)
+        assertThat(result.streamStatus).isEqualTo(StreamStatus.Completed.name)
+        assertThat(result.updatedAtMs).isEqualTo(42L)
+        assertThat(result.completedAtMs).isEqualTo(64L)
+        assertThat(result.renderVersion).startsWith("stream-meta:1:42:64:Completed:1:")
+    }
+
+    @Test
+    fun `render version changes when parts change without timestamp changes`() {
+        val base = StreamSnapshot(
+            schemaVersion = AGENT_STREAM_SCHEMA_VERSION,
+            streamId = "stream-meta",
+            status = StreamStatus.Streaming,
+            parts = listOf(StreamPart.Text(id = "text-1", text = "Hel", textState = "streaming")),
+            rawEvents = emptyList(),
+            updatedAtMs = 42L,
+            completedAtMs = null,
+            error = null,
+        )
+        val textPatched = base.copy(
+            parts = listOf(StreamPart.Text(id = "text-1", text = "Hello", textState = "streaming")),
+        )
+        val toolStatePatched = base.copy(
+            parts = listOf(
+                StreamPart.Tool(
+                    id = "tool-1",
+                    toolState = "output-available",
+                    toolName = "GMAIL_FETCH_EMAILS",
+                    output = Json.parseToJsonElement("""{"successful":true}"""),
+                ),
+            ),
+        )
+
+        val baseVersion = reducer.mapRenderModel(base).renderVersion
+        val textPatchedVersion = reducer.mapRenderModel(textPatched).renderVersion
+        val toolStatePatchedVersion = reducer.mapRenderModel(toolStatePatched).renderVersion
+
+        assertThat(textPatchedVersion).isNotEqualTo(baseVersion)
+        assertThat(toolStatePatchedVersion).isNotEqualTo(baseVersion)
+    }
+
+    @Test
+    fun `reducer inserts one tool root card at first registered tool candidate`() {
+        val snapshot = snapshot(
+            status = StreamStatus.Streaming,
+            parts = listOf(
+                StreamPart.Text(id = "text-before", text = "Before", textState = "done"),
+                StreamPart.Tool(id = "ignored", toolState = "input-available", toolName = "COMPOSIO_SEARCH_TOOLS"),
+                StreamPart.Tool(
+                    id = "gmail",
+                    toolState = "output-available",
+                    toolName = "GMAIL_FETCH_EMAILS",
+                    output = Json.parseToJsonElement("""{"successful":true,"data":{"messages":[{"subject":"Hello"}]}}"""),
+                ),
+                StreamPart.Text(id = "text-after", text = "After", textState = "streaming"),
+            ),
+        )
+
+        val result = reducer.mapSnapshot(snapshot, isEdited = false, sender = null)
+
+        assertThat(result.visibleParts.map { it.id }).containsExactly("text-before", "ignored", "gmail", "text-after").inOrder()
+        assertThat(result.toolCardEntries).hasSize(1)
+        assertThat(result.toolCallRoot?.title).isEqualTo("Emails")
+        assertThat(result.toolCallRoot?.selectedIndex).isEqualTo(0)
+        assertThat(result.toolCallRoot?.doneCount).isEqualTo(1)
+        assertThat(result.toolCallRoot?.callingCount).isEqualTo(0)
+        assertThat(result.toolCallRoot?.expandedByDefault).isFalse()
+        assertThat(result.firstToolPartIndex).isEqualTo(1)
+        assertThat(result.passthroughParts.map { it.id }).containsExactly("text-before", "text-after").inOrder()
+        assertThat(result.lastPartIsStreamingText).isTrue()
+    }
+
+    @Test
+    fun `schedule create tool props mirror ios friendly cron formatting`() {
+        val snapshot = snapshot(
+            parts = listOf(
+                StreamPart.Tool(
+                    id = "schedule-1",
+                    toolState = "input-available",
+                    toolName = "createSchedule",
+                    input = Json.parseToJsonElement(
+                        """
+                        {
+                          "name": " Daily sync ",
+                          "cron": "0 9 * * *",
+                          "timezone": "Asia/Shanghai",
+                          "action": "Send a summary"
+                        }
+                        """.trimIndent(),
+                    ),
+                ),
+            ),
+        )
+
+        val result = reducer.mapSnapshot(snapshot, isEdited = false, sender = null)
+        val props = JSONObject(result.toolCardEntries.single().props)
+
+        assertThat(result.toolCardEntries.single().state).isEqualTo("calling")
+        assertThat(result.toolCallRoot?.title).isEqualTo("Create Schedule")
+        assertThat(result.toolCallRoot?.callingCount).isEqualTo(1)
+        assertThat(result.toolCallRoot?.expandedByDefault).isTrue()
+        assertThat(props.getString("_cardType")).isEqualTo("createSchedule")
+        assertThat(props.getString("name")).isEqualTo("Daily sync")
+        assertThat(props.getString("cadence")).isEqualTo("Every day at 09:00")
+        assertThat(props.getBoolean("cadenceProvided")).isTrue()
+        assertThat(props.getString("timezone")).isEqualTo("Asia/Shanghai")
+        assertThat(props.getString("action")).isEqualTo("Send a summary")
+    }
+
+    @Test
+    fun `schedule status tool props mirror ios names summary formatting`() {
+        val snapshot = snapshot(
+            parts = listOf(
+                StreamPart.Tool(
+                    id = "schedule-status-1",
+                    toolState = "input-available",
+                    toolName = "updateScheduleStatus",
+                    input = Json.parseToJsonElement(
+                        """
+                        {
+                          "names": [" Morning report ", "Inbox sweep"],
+                          "status": "disabled"
+                        }
+                        """.trimIndent(),
+                    ),
+                ),
+            ),
+        )
+
+        val result = reducer.mapSnapshot(snapshot, isEdited = false, sender = null)
+        val props = JSONObject(result.toolCardEntries.single().props)
+
+        assertThat(props.getString("_cardType")).isEqualTo("updateScheduleStatus")
+        assertThat(props.getString("summary")).isEqualTo("2 schedules")
+        assertThat(props.getJSONArray("names").getString(0)).isEqualTo("Morning report")
+        assertThat(props.getJSONArray("names").getString(1)).isEqualTo("Inbox sweep")
+        assertThat(props.getBoolean("isEnable")).isFalse()
+    }
+
+    @Test
+    fun `schedule update without action mirrors ios empty action fallback`() {
+        val snapshot = snapshot(
+            parts = listOf(
+                StreamPart.Tool(
+                    id = "schedule-update-1",
+                    toolState = "input-available",
+                    toolName = "updateSchedule",
+                    input = Json.parseToJsonElement(
+                        """
+                        {
+                          "name": " Morning report ",
+                          "cron": "30 8 * * 1-5"
+                        }
+                        """.trimIndent(),
+                    ),
+                ),
+            ),
+        )
+
+        val result = reducer.mapSnapshot(snapshot, isEdited = false, sender = null)
+        val props = JSONObject(result.toolCardEntries.single().props)
+
+        assertThat(props.getString("_cardType")).isEqualTo("updateSchedule")
+        assertThat(props.getString("name")).isEqualTo("Morning report")
+        assertThat(props.getString("cadence")).isEqualTo("Every weekday at 08:30")
+        assertThat(props.getBoolean("cadenceChanged")).isTrue()
+        assertThat(props.getString("timezone")).isEmpty()
+        assertThat(props.getString("action")).isEmpty()
     }
 
     @Test

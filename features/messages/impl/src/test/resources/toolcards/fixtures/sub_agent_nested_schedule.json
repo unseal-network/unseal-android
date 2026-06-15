@@ -1,0 +1,19 @@
+{
+  "toolName": "agent-mailAgent",
+  "state": "output-available",
+  "output": {
+    "subAgentToolResults": [
+      {
+        "toolName": "createSchedule",
+        "args": { "name": "Daily mail triage", "cron": "0 9 * * *", "timezone": "Asia/Shanghai", "action": "Summarize inbox" },
+        "result": { "successful": true, "data": { "scheduleId": "sched-1" } }
+      }
+    ]
+  },
+  "expected": {
+    "_cardType": "createSchedule",
+    "entryName": "Create Schedule",
+    "entryState": "done",
+    "containsText": "Daily mail triage"
+  }
+}

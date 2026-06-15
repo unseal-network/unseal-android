@@ -89,4 +89,15 @@ class StreamModelsCompileTest {
         assertEquals(ToolPartState.OutputAvailable.wireValue, copied.state)
         assertEquals(ToolPartState.OutputAvailable.wireValue, copied.toolState)
     }
+
+    @Test
+    fun `tool part states include ai sdk approval and denied states`() {
+        assertEquals(ToolPartState.InputStreaming, ToolPartState.fromWire("input-streaming"))
+        assertEquals(ToolPartState.InputAvailable, ToolPartState.fromWire("input-available"))
+        assertEquals(ToolPartState.OutputAvailable, ToolPartState.fromWire("output-available"))
+        assertEquals(ToolPartState.ApprovalRequested, ToolPartState.fromWire("approval-requested"))
+        assertEquals(ToolPartState.ApprovalResponded, ToolPartState.fromWire("approval-responded"))
+        assertEquals(ToolPartState.OutputError, ToolPartState.fromWire("output-error"))
+        assertEquals(ToolPartState.OutputDenied, ToolPartState.fromWire("output-denied"))
+    }
 }

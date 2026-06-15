@@ -20,6 +20,8 @@ import io.element.android.libraries.matrix.api.core.ThreadId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.permalink.PermalinkData
 import io.element.android.libraries.matrix.api.room.JoinedRoom
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.parcelize.Parcelize
 
 interface MessagesEntryPoint : FeatureEntryPoint {
@@ -43,7 +45,10 @@ interface MessagesEntryPoint : FeatureEntryPoint {
         fun navigateToRoomSchedules(roomId: RoomId, roomName: String, joinedRoom: JoinedRoom)
     }
 
-    data class Params(val initialTarget: InitialTarget) : NodeInputs
+    data class Params(
+        val initialTarget: InitialTarget,
+        val roomConfigChangeRequests: Flow<Unit> = emptyFlow(),
+    ) : NodeInputs
 
     fun createNode(
         parentNode: Node,

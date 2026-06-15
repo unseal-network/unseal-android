@@ -19,6 +19,7 @@ import io.element.android.features.messages.impl.timeline.components.MessageShie
 import io.element.android.features.messages.impl.timeline.components.aCriticalShield
 import io.element.android.features.messages.impl.timeline.model.NewEventState
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
+import io.element.android.features.messages.impl.roomdata.FakeRoomUnsealDataClient
 import io.element.android.features.messages.impl.roomkey.RoomAgentResolver
 import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryTimelineRunner
 import io.element.android.features.messages.impl.typing.aTypingNotificationState
@@ -30,7 +31,6 @@ import io.element.android.features.poll.api.actions.SendPollResponseAction
 import io.element.android.features.poll.test.actions.FakeEndPollAction
 import io.element.android.features.poll.test.actions.FakeSendPollResponseAction
 import io.element.android.features.roomcall.api.aStandByCallState
-import io.element.android.libraries.chatbot.test.FakeChatbotApiServiceFactory
 import io.element.android.libraries.featureflag.test.FakeFeatureFlagService
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomId
@@ -1030,7 +1030,7 @@ class TimelinePresenterTest {
             sessionVerificationService = sessionVerificationService,
             sessionId = A_USER_ID,
             forwardingPolicy = MemberAwareRoomKeyForwardingPolicy(),
-            roomAgentResolver = RoomAgentResolver(matrixClient, FakeChatbotApiServiceFactory()),
+            roomAgentResolver = RoomAgentResolver(FakeRoomUnsealDataClient()),
             sessionCoroutineScope = this,
         ),
     ): TimelinePresenter {

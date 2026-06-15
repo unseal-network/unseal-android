@@ -151,4 +151,53 @@ class DefaultRoomDetailsEntryPointTest {
                 )
             )
     }
+
+    @Test
+    fun `test webhook trigger changes report room config changes`() {
+        val room = FakeJoinedRoom()
+        var capturedCallback: WebhookTriggersEntryPoint.Callback? = null
+        var roomConfigChangeCount = 0
+        val node = RoomDetailsFlowNode(
+            buildContext = BuildContext.root(null),
+            plugins = listOf(
+                RoomDetailsEntryPoint.Params(
+                    initialElement = RoomDetailsEntryPoint.InitialTarget.RoomDetails,
+                ),
+                object : RoomDetailsEntryPoint.Callback {
+                    override fun onDone() = lambdaError()
+                    override fun navigateToGlobalNotificationSettings() = lambdaError()
+                    override fun navigateToDeveloperSettings() = lambdaError()
+                    override fun navigateToRoom(roomId: RoomId, serverNames: List<String>, clearBackStack: Boolean) = lambdaError()
+                    override fun handlePermalinkClick(data: PermalinkData, pushToBackstack: Boolean) = lambdaError()
+                    override fun startForwardEventFlow(eventId: EventId, fromPinnedEvents: Boolean) = lambdaError()
+                    override fun onRoomConfigChanged() {
+                        roomConfigChangeCount++
+                    }
+                },
+            ),
+            pollHistoryEntryPoint = FakePollHistoryEntryPoint(),
+            elementCallEntryPoint = FakeElementCallEntryPoint(),
+            room = room,
+            analyticsService = FakeAnalyticsService(),
+            messagesEntryPoint = FakeMessagesEntryPoint(),
+            knockRequestsListEntryPoint = FakeKnockRequestsListEntryPoint(),
+            mediaViewerEntryPoint = FakeMediaViewerEntryPoint(),
+            mediaGalleryEntryPoint = FakeMediaGalleryEntryPoint(),
+            outgoingVerificationEntryPoint = FakeOutgoingVerificationEntryPoint(),
+            reportRoomEntryPoint = FakeReportRoomEntryPoint(),
+            changeRoomMemberRolesEntryPoint = FakeChangeRoomMemberRolesEntryPoint(),
+            rolesAndPermissionsEntryPoint = FakeRolesAndPermissionsEntryPoint(),
+            securityAndPrivacyEntryPoint = FakeSecurityAndPrivacyEntryPoint(),
+            roomDetailsEditEntryPoint = FakeRoomDetailsEditEntryPoint(),
+            webhookTriggersEntryPoint = FakeWebhookTriggersEntryPoint { parentNode, _, _, callback ->
+                capturedCallback = callback
+                parentNode
+            },
+        )
+
+        node.resolve(RoomDetailsFlowNode.NavTarget.WebhookTriggers, BuildContext.root(null))
+        capturedCallback?.onTriggersChanged()
+
+        assertThat(roomConfigChangeCount).isEqualTo(1)
+    }
 }

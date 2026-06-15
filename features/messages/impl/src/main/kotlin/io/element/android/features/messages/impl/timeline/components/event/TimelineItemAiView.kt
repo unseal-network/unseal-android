@@ -7,20 +7,47 @@
 
 package io.element.android.features.messages.impl.timeline.components.event
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.border
+import androidx.compose.ui.layout.onSizeChanged
+import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.PriorityHigh
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.CircularProgressIndicator
@@ -30,11 +57,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -49,15 +79,22 @@ import io.element.android.features.messages.impl.timeline.model.event.AiSourceSt
 import io.element.android.features.messages.impl.timeline.model.event.AiStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiThinkingStep
 import io.element.android.features.messages.impl.timeline.model.event.AiTextStreamPart
+import io.element.android.features.messages.impl.timeline.model.event.AiToolCardEntry
 import io.element.android.features.messages.impl.timeline.model.event.AiToolCall
 import io.element.android.features.messages.impl.timeline.model.event.AiToolStreamPart
+import io.element.android.features.messages.impl.timeline.components.event.toolcards.ToolCard
+import io.element.android.features.messages.impl.timeline.components.event.toolcards.ToolCardFinalProps
+import io.element.android.features.messages.impl.timeline.components.event.toolcards.resolveToolCardType
+import io.element.android.features.messages.impl.timeline.components.event.toolcards.toCardDataJson
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
+import io.element.android.features.messages.impl.timeline.model.event.ToolCallRootRenderModel
 import io.element.android.libraries.androidutils.text.LinkifyHelper
 import io.element.android.libraries.textcomposer.ElementRichTextEditorStyle
 import io.element.android.wysiwyg.compose.EditorStyledText
 import io.element.android.wysiwyg.link.Link
-import org.json.JSONArray
 import org.json.JSONObject
+
+private val ToolCallContentMaxHeight = 360.dp
 
 /**
  * Native (degraded) renderer for [TimelineItemAiContent]. Composes the AI stream sub-parts that
@@ -72,37 +109,57 @@ fun TimelineItemAiView(
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
     modifier: Modifier = Modifier,
+    onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit = {},
 ) {
     Column(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            // Report the body as full-width so the bubble's ContentAvoidingLayout places the
+            // timestamp / "edited" marker on its own row below, never overlapping the content.
+            .onSizeChanged { size ->
+                onContentLayoutChange(
+                    ContentAvoidingLayoutData(
+                        contentWidth = size.width,
+                        contentHeight = size.height,
+                        nonOverlappingContentWidth = size.width,
+                        nonOverlappingContentHeight = size.height,
+                    )
+                )
+            },
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (content.parts.isNotEmpty()) {
+        // Mirror iOS BubbleMessageView: render ONLY the (hidden-filtered, ordered) stream parts.
+        // There is no "thinking_process" concept in iOS — reasoning is a stream part. When parts
+        // haven't loaded yet, fall back to real body text only. Matrix stream placeholders such as
+        // "thinking", "loading", or the stream id itself render as a loading indicator instead.
+        if (content.visibleParts.isNotEmpty()) {
             AiStreamPartsView(
-                parts = content.parts,
+                visibleParts = content.visibleParts,
+                toolCallRoot = content.toolCallRoot,
+                firstToolPartIndex = content.firstToolPartIndex,
+                lastPartIsStreamingText = content.lastPartIsStreamingText,
                 isStreaming = content.isStreaming,
                 onLinkClick = onLinkClick,
                 onLinkLongClick = onLinkLongClick,
             )
-        } else {
-            if (content.thinkingSteps.isNotEmpty()) {
-                ThinkingSection(content.thinkingSteps)
-            }
-            content.toolCalls.forEach { ToolCallCard(it) }
-            if (content.body.isNotBlank()) {
-                LinkifiedAiText(
-                    text = content.body,
-                    onLinkClick = onLinkClick,
-                    onLinkLongClick = onLinkLongClick,
-                )
-            }
-        }
-        if (content.isStreaming) {
-            Text(
-                text = "…",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        } else if (content.shouldRenderBodyFallback()) {
+            MarkdownBody(
+                text = content.body,
+                isStreaming = content.isStreaming,
+                onLinkClick = onLinkClick,
             )
+            if (content.isStreaming) {
+                StreamingCursor()
+            }
+        } else {
+            // Nothing renderable: keep a loading state while the stream is still in flight,
+            // but once it reaches a terminal status with no content show a failure card
+            // instead of an empty bubble.
+            if (content.isTerminal) {
+                AiUnavailableCard()
+            } else {
+                AiLoadingIndicator()
+            }
         }
         if (content.sources.isNotEmpty()) {
             SourcesSection(content.sources)
@@ -126,141 +183,158 @@ fun TimelineItemAiView(
     }
 }
 
+internal fun TimelineItemAiContent.shouldRenderBodyFallback(): Boolean {
+    if (body.isBlank()) return false
+    val streamId = streamId ?: return true
+    return !body.isStreamPlaceholderBody(streamId)
+}
+
+private fun String.isStreamPlaceholderBody(streamId: String): Boolean {
+    val normalized = trim().lowercase()
+        .trim('.', '…', '。', '!', '！')
+    if (normalized == streamId.trim().lowercase()) return true
+    return normalized in setOf(
+        "thinking",
+        "loading",
+        "streaming",
+        "pending",
+        "running",
+        "思考中",
+        "处理中",
+    )
+}
+
 @Composable
 private fun AiStreamPartsView(
-    parts: List<AiStreamPart>,
+    visibleParts: List<AiStreamPart>,
+    toolCallRoot: ToolCallRootRenderModel?,
+    firstToolPartIndex: Int?,
+    lastPartIsStreamingText: Boolean,
     isStreaming: Boolean,
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
 ) {
-    val (toolParts, nonToolParts) = remember(parts) {
-        val registeredToolParts = parts.filterIsInstance<AiToolStreamPart>()
-            .filter { it.toolName.isRegisteredToolName }
-        registeredToolParts.flatMap { it.toRenderableToolParts() } to parts.filterNot { part ->
-            part is AiToolStreamPart && part.toolName.isRegisteredToolName
-        }
-    }
+    // Mirror iOS BubbleMessageView: walk the ordered parts; insert ONE ToolCallRootCard at the
+    // first tool part's position; render every other part inline in order; trailing streaming
+    // cursor unless the last part is already a streaming text (which carries its own cursor).
+    val toolCardInserted = toolCallRoot != null
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (toolParts.isNotEmpty()) {
-            ToolCallRootCard(
-                parts = toolParts,
-                isStreaming = isStreaming,
-                onLinkClick = onLinkClick,
-                onLinkLongClick = onLinkLongClick,
-            )
-        }
-        nonToolParts.forEach { part ->
+        visibleParts.forEachIndexed { index, part ->
             when (part) {
-                is AiTextStreamPart -> TextPart(
-                    part = part,
-                    onLinkClick = onLinkClick,
-                    onLinkLongClick = onLinkLongClick,
-                )
+                is AiToolStreamPart -> {
+                    if (index == firstToolPartIndex) {
+                        val rootModel = toolCallRoot ?: return@forEachIndexed
+                        ToolCallRootCard(
+                            model = rootModel,
+                            isStreaming = isStreaming,
+                            onLinkClick = onLinkClick,
+                            onLinkLongClick = onLinkLongClick,
+                        )
+                    }
+                    // Other tool parts are represented by the single root card above.
+                }
+                is AiTextStreamPart -> TextPart(part, onLinkClick, onLinkLongClick)
                 is AiReasoningStreamPart -> ReasoningPart(part)
-                is AiToolStreamPart -> GenericToolPart(
-                    part = part,
-                    onLinkClick = onLinkClick,
-                    onLinkLongClick = onLinkLongClick,
-                )
-                is AiSourceStreamPart -> SourcePart(
-                    part = part,
-                    onLinkClick = onLinkClick,
-                    onLinkLongClick = onLinkLongClick,
-                )
-                is AiFileStreamPart -> FilePart(
-                    part = part,
-                    onLinkClick = onLinkClick,
-                    onLinkLongClick = onLinkLongClick,
-                )
+                is AiSourceStreamPart -> SourcePart(part, onLinkClick, onLinkLongClick)
+                is AiFileStreamPart -> FilePart(part, onLinkClick, onLinkLongClick)
                 is AiErrorStreamPart -> ErrorPart(part)
-                is AiDataStreamPart -> DataPart(
-                    part = part,
-                    onLinkClick = onLinkClick,
-                    onLinkLongClick = onLinkLongClick,
-                    toolCardInserted = toolParts.isNotEmpty(),
-                )
+                is AiDataStreamPart -> DataPart(part, onLinkClick, onLinkLongClick, toolCardInserted)
                 is AiCustomStreamPart -> Unit
             }
         }
-    }
-}
-
-@Composable
-private fun GenericToolPart(
-    part: AiToolStreamPart,
-    onLinkClick: (Link) -> Unit,
-    onLinkLongClick: (Link) -> Unit,
-) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ToolStateDot(part.state)
-                Text(
-                    text = part.displayName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = toolStateLabel(part.state),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            part.errorText?.takeIf { it.isNotBlank() }?.let { errorText ->
-                Text(
-                    text = errorText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-            GenericToolPayloadSection("Output", part.output, onLinkClick, onLinkLongClick)
-            GenericToolPayloadSection("Input", part.input, onLinkClick, onLinkLongClick)
-            if (part.rawInput != part.input) {
-                GenericToolPayloadSection("Raw input", part.rawInput, onLinkClick, onLinkLongClick)
-            }
-            if (part.output.isNullOrBlank() && part.input.isNullOrBlank() && part.rawInput.isNullOrBlank() && part.errorText.isNullOrBlank()) {
-                Text(
-                    text = if (part.isDone) "Completed" else "Waiting for tool output.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+        if (isStreaming && !lastPartIsStreamingText) {
+            StreamingCursor()
         }
     }
 }
 
+/** Trailing streaming indicator (iOS StreamingCursor). */
 @Composable
-private fun GenericToolPayloadSection(
-    label: String,
-    payload: String?,
-    onLinkClick: (Link) -> Unit,
-    onLinkLongClick: (Link) -> Unit,
-) {
-    if (payload.isNullOrBlank()) return
+private fun StreamingCursor() {
+    val transition = rememberInfiniteTransition(label = "ai-streaming-cursor")
+    val alpha by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 500),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "ai-streaming-cursor-alpha",
+    )
+    Box(
+        modifier = Modifier
+            .width(2.dp)
+            .height(16.dp)
+            .alpha(alpha)
+            .background(MaterialTheme.colorScheme.onSurfaceVariant),
+    )
+}
+
+/** Three pulsing dots shown while a stream is still in flight but has no renderable content yet. */
+@Composable
+private fun AiLoadingIndicator() {
+    val transition = rememberInfiniteTransition(label = "ai-loading")
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(vertical = 6.dp),
+    ) {
+        repeat(3) { index ->
+            val alpha by transition.animateFloat(
+                initialValue = 0.25f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 600, delayMillis = index * 160),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+                label = "ai-dot-$index",
+            )
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha),
+                        shape = CircleShape,
+                    ),
+            )
+        }
+    }
+}
+
+/** Shown when a stream reaches a terminal status but produced no renderable content. */
+@Composable
+private fun AiUnavailableCard() {
     Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Row(
+            modifier = Modifier.padding(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.ErrorOutline,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
             )
-            LinkifiedAiText(
-                text = payload.take(MAX_VALUE_CHARS),
-                onLinkClick = onLinkClick,
-                onLinkLongClick = onLinkLongClick,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = "消息内容加载失败",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "该回复没有可显示的内容，请稍后重试。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -272,10 +346,10 @@ private fun TextPart(
     onLinkLongClick: (Link) -> Unit,
 ) {
     if (part.text.isNotBlank()) {
-        LinkifiedAiText(
+        MarkdownBody(
             text = part.text,
+            isStreaming = part.state == "streaming",
             onLinkClick = onLinkClick,
-            onLinkLongClick = onLinkLongClick,
         )
     }
 }
@@ -292,7 +366,7 @@ private fun ReasoningPart(part: AiReasoningStreamPart) {
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                text = (if (expanded) "▾ " else "▸ ") + if (isStreaming) "Thinking..." else "Thought",
+                text = (if (expanded) "▾ " else "▸ ") + if (isStreaming) "思考中" else "思考",
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -313,20 +387,31 @@ private fun ReasoningPart(part: AiReasoningStreamPart) {
 
 @Composable
 private fun ToolCallRootCard(
-    parts: List<AiToolStreamPart>,
+    model: ToolCallRootRenderModel,
     isStreaming: Boolean,
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
 ) {
-    if (parts.isEmpty()) return
-    var selectedIndex by remember(parts.joinToString(separator = "|") { it.id }) { mutableStateOf(parts.lastIndex) }
-    var expanded by remember(parts.first().id) { mutableStateOf(true) }
-    if (selectedIndex !in parts.indices) selectedIndex = parts.lastIndex
-    val selectedPart = parts[selectedIndex]
-    val doneCount = parts.count { it.isDone }
-    val errorCount = parts.count { it.isError }
-    val callingCount = if (isStreaming) parts.size - doneCount - errorCount else 0
-    val allFinished = callingCount == 0
+    val entries = model.entries
+    if (entries.isEmpty()) return
+    var selectedIndex by remember(model.id) { mutableStateOf(model.selectedIndex) }
+    var expanded by remember(model.id) { mutableStateOf(model.expandedByDefault) }
+    var userToggled by remember(entries.first().id) { mutableStateOf(false) }
+    if (selectedIndex !in entries.indices) selectedIndex = model.selectedIndex.coerceIn(entries.indices)
+    val selectedEntry = entries[selectedIndex]
+    LaunchedEffect(model.allFinished, entries.size) {
+        if (model.allFinished && !userToggled) {
+            expanded = false
+        } else if (!model.allFinished && !userToggled) {
+            selectedIndex = model.selectedIndex
+            expanded = true
+        }
+    }
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (expanded) 0f else -90f,
+        animationSpec = tween(durationMillis = 300),
+        label = "tool-card-chevron-rotation",
+    )
 
     Surface(
         shape = RoundedCornerShape(12.dp),
@@ -337,51 +422,75 @@ private fun ToolCallRootCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { expanded = !expanded }
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                    .clickable {
+                        userToggled = true
+                        expanded = !expanded
+                    }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 ToolProgressIndicator(
-                    total = parts.size,
-                    doneCount = doneCount,
-                    errorCount = errorCount,
-                    isCalling = callingCount > 0,
+                    total = entries.size,
+                    doneCount = model.doneCount,
+                    errorCount = model.errorCount,
+                    isCalling = model.callingCount > 0,
                 )
                 Text(
-                    text = if (parts.size == 1) selectedPart.displayName else "Tool Calls",
-                    style = MaterialTheme.typography.labelLarge,
+                    text = model.title,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                if (doneCount > 0) {
-                    CountPill(label = "✓", count = doneCount, color = Color(0xFF2E7D32))
+                if (model.doneCount > 0) {
+                    CountPill(icon = Icons.Filled.Check, count = model.doneCount, color = Color(0xFF2E7D32))
                 }
-                if (errorCount > 0) {
-                    CountPill(label = "!", count = errorCount, color = MaterialTheme.colorScheme.error)
+                if (model.errorCount > 0) {
+                    CountPill(icon = Icons.Filled.PriorityHigh, count = model.errorCount, color = MaterialTheme.colorScheme.error)
                 }
-                Text(
-                    text = if (expanded) "⌄" else "›",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Icon(
+                    imageVector = Icons.Filled.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                    modifier = Modifier
+                        .size(18.dp)
+                        .rotate(chevronRotation),
                 )
             }
-            if (expanded) {
-                if (parts.size > 1) {
-                    ToolSelectionTabs(
-                        parts = parts,
-                        selectedIndex = selectedIndex,
-                        onSelected = { selectedIndex = it },
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically(animationSpec = tween(durationMillis = 300)) + fadeIn(animationSpec = tween(durationMillis = 180)),
+                exit = shrinkVertically(animationSpec = tween(durationMillis = 250)) + fadeOut(animationSpec = tween(durationMillis = 140)),
+            ) {
+                if (!model.isSingleTool) {
+                    Column {
+                        ToolSelectionTabs(
+                            entries = entries,
+                            selectedIndex = selectedIndex,
+                            onSelected = {
+                                userToggled = true
+                                selectedIndex = it
+                            },
+                        )
+                        ToolEntryContentViewport(
+                            entry = selectedEntry,
+                            isStreaming = isStreaming,
+                            allFinished = model.allFinished,
+                            onLinkClick = onLinkClick,
+                            onLinkLongClick = onLinkLongClick,
+                        )
+                    }
+                } else {
+                    ToolEntryContentViewport(
+                        entry = selectedEntry,
+                        isStreaming = isStreaming,
+                        allFinished = model.allFinished,
+                        onLinkClick = onLinkClick,
+                        onLinkLongClick = onLinkLongClick,
                     )
                 }
-                ToolPartContent(
-                    part = selectedPart,
-                    showTitle = parts.size == 1,
-                    isStreaming = isStreaming,
-                    allFinished = allFinished,
-                    onLinkClick = onLinkClick,
-                    onLinkLongClick = onLinkLongClick,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                )
             }
         }
     }
@@ -389,7 +498,7 @@ private fun ToolCallRootCard(
 
 @Composable
 private fun ToolSelectionTabs(
-    parts: List<AiToolStreamPart>,
+    entries: List<AiToolCardEntry>,
     selectedIndex: Int,
     onSelected: (Int) -> Unit,
 ) {
@@ -400,7 +509,7 @@ private fun ToolSelectionTabs(
             .padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        parts.forEachIndexed { index, part ->
+        entries.forEachIndexed { index, entry ->
             val isSelected = index == selectedIndex
             Surface(
                 shape = RoundedCornerShape(18.dp),
@@ -411,9 +520,9 @@ private fun ToolSelectionTabs(
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    ToolStateDot(part.state)
+                    ToolStateDot(entry.state)
                     Text(
-                        text = part.displayName,
+                        text = entry.name,
                         style = MaterialTheme.typography.labelMedium,
                         color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -424,9 +533,40 @@ private fun ToolSelectionTabs(
 }
 
 @Composable
-private fun ToolPartContent(
-    part: AiToolStreamPart,
-    showTitle: Boolean,
+private fun ToolEntryContentViewport(
+    entry: AiToolCardEntry,
+    isStreaming: Boolean,
+    allFinished: Boolean,
+    onLinkClick: (Link) -> Unit,
+    onLinkLongClick: (Link) -> Unit,
+) {
+    val scrollState = remember(entry.id) { androidx.compose.foundation.ScrollState(0) }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = ToolCallContentMaxHeight)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(scrollState),
+        ) {
+            ToolEntryContent(
+                entry = entry,
+                isStreaming = isStreaming,
+                allFinished = allFinished,
+                onLinkClick = onLinkClick,
+                onLinkLongClick = onLinkLongClick,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ToolEntryContent(
+    entry: AiToolCardEntry,
     isStreaming: Boolean,
     allFinished: Boolean,
     onLinkClick: (Link) -> Unit,
@@ -434,38 +574,102 @@ private fun ToolPartContent(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (showTitle) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ToolStateDot(part.state)
-                Text(
-                    text = part.displayName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f),
+        when (entry.state) {
+            "calling" -> ToolCallingEntryContent(entry, allFinished)
+            "error" -> ToolErrorEntryContent(entry)
+            else -> {
+                val rendered = ToolEntryPayloadCard(
+                    entry = entry,
+                    onLinkClick = onLinkClick,
+                    onLinkLongClick = onLinkLongClick,
                 )
-                Text(
-                    text = toolStateLabel(part.state),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (!rendered) {
+                    ToolEmptyState(isStreaming = isStreaming)
+                }
             }
-        } else {
-            Text(
-                text = toolStateLabel(part.state),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
+    }
+}
+
+@Composable
+private fun ToolCallingEntryContent(
+    entry: AiToolCardEntry,
+    allFinished: Boolean,
+) {
+    val rendered = ToolEntryPayloadCard(
+        entry = entry,
+        onLinkClick = {},
+        onLinkLongClick = {},
+    )
+    if (!rendered) {
+        ToolEmptyState(isStreaming = !allFinished)
+    }
+}
+
+@Composable
+private fun ToolErrorEntryContent(entry: AiToolCardEntry) {
+    val props = remember(entry.props) { runCatching { JSONObject(entry.props) }.getOrNull() ?: JSONObject() }
+    val message = props.optString("errorText")
+        .takeIf { it.isNotBlank() && !it.looksLikeRawJsonError() }
+        ?: "Failed to get results"
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.ErrorOutline,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(18.dp),
+        )
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun ToolEntryPayloadCard(
+    entry: AiToolCardEntry,
+    onLinkClick: (Link) -> Unit,
+    onLinkLongClick: (Link) -> Unit,
+): Boolean {
+    val props = remember(entry.props) { runCatching { JSONObject(entry.props) }.getOrNull() ?: JSONObject() }
+    val cardType = props.optString("_cardType").takeIf { it.isNotBlank() } ?: "generic"
+    return ToolCardFinalProps(cardType = cardType, data = props, onLinkClick = {})
+}
+
+@Composable
+private fun ToolPartContent(
+    part: AiToolStreamPart,
+    isStreaming: Boolean,
+    allFinished: Boolean,
+    onLinkClick: (Link) -> Unit,
+    onLinkLongClick: (Link) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // Mirror iOS: the tool name lives only in the header; the body shows the card content
+    // (or a shimmer/state line while calling), never a repeated title.
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when {
-            part.isCalling && isStreaming -> ToolCallingContent(part, allFinished, onLinkClick, onLinkLongClick)
+            part.isCalling -> ToolCallingContent(part, allFinished, onLinkClick, onLinkLongClick)
             part.isError -> ToolErrorContent(part)
-            part.output?.isNotBlank() == true -> ToolPayloadCard(part, payload = part.output, onLinkClick, onLinkLongClick)
-            part.input?.isNotBlank() == true -> ToolPayloadCard(part, payload = part.input, onLinkClick, onLinkLongClick)
-            else -> Text(
-                text = if (part.isDone) "Completed" else "Waiting for tool output.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            else -> {
+                val rendered = ToolPayloadCandidates(
+                    part = part,
+                    payloads = listOf(part.output, part.input, part.rawInput),
+                    onLinkClick = onLinkClick,
+                    onLinkLongClick = onLinkLongClick,
+                )
+                if (!rendered) {
+                    ToolEmptyState(isStreaming = !part.isDone)
+                }
+            }
         }
     }
 }
@@ -478,10 +682,27 @@ private fun ToolCallingContent(
     onLinkLongClick: (Link) -> Unit,
 ) {
     if (part.input?.isNotBlank() == true) {
-        ToolPayloadCard(part, payload = part.input, onLinkClick, onLinkLongClick)
+        val rendered = ToolPayloadCandidates(
+            part = part,
+            payloads = listOf(part.input, part.rawInput),
+            onLinkClick = onLinkClick,
+            onLinkLongClick = onLinkLongClick,
+        )
+        if (!rendered) {
+            ToolEmptyState(isStreaming = !allFinished)
+        }
+    } else {
+        ToolEmptyState(isStreaming = !allFinished)
+    }
+}
+
+@Composable
+private fun ToolEmptyState(isStreaming: Boolean) {
+    if (isStreaming) {
+        AiLoadingIndicator()
     } else {
         Text(
-            text = if (allFinished) "Waiting for tool output." else "Running tool…",
+            text = "Completed",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -497,25 +718,62 @@ private fun ToolErrorContent(part: AiToolStreamPart) {
     )
 }
 
+private fun String.looksLikeRawJsonError(): Boolean {
+    val normalized = trim()
+    return normalized.startsWith("{") ||
+        normalized.contains("ToolNotFoundError") ||
+        normalized.contains("\"name\"") && normalized.contains("Error")
+}
+
+@Composable
+private fun ToolPayloadCandidates(
+    part: AiToolStreamPart,
+    payloads: List<String?>,
+    onLinkClick: (Link) -> Unit,
+    onLinkLongClick: (Link) -> Unit,
+): Boolean {
+    val distinctPayloads = payloads
+        .mapNotNull { it?.takeIf { value -> value.isNotBlank() } }
+        .distinct()
+    for (payload in distinctPayloads) {
+        if (ToolPayloadCard(part, payload = payload, onLinkClick, onLinkLongClick)) {
+            return true
+        }
+    }
+    return false
+}
+
 @Composable
 private fun ToolPayloadCard(
     part: AiToolStreamPart,
-    payload: String?,
+    payload: String,
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
-) {
+): Boolean {
+    // 1. Try the dispatched tool card (iOS ToolCallRootCardAdapter parity). If it renders, done.
+    val cardType = remember(part.toolName) { resolveToolCardType(part.toolName) }
+    val cardData = remember(payload) { payload.toCardDataJson() }
+    if (cardType != null && cardData != null && ToolCard(cardType, cardData)) {
+        return true
+    }
+    if (!part.allowsRawPayloadFallback()) {
+        return false
+    }
+    // 2. Otherwise show only structured, user-readable items. Raw payloads remain available through
+    // the stream snapshot/debug path, but the room timeline should not expose JSON to end users.
     val model = remember(part.toolName, payload) {
         payload.toToolCardModel(part.toolName)
-    } ?: return
-    if (model.items.isEmpty()) return
+    }
+    if (model == null || model.items.isEmpty()) return false
     Surface(
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(max = 260.dp),
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             model.items.take(MAX_RENDERED_ITEMS).forEach { item ->
                 ToolCardItem(item, onLinkClick, onLinkLongClick)
             }
@@ -528,6 +786,7 @@ private fun ToolPayloadCard(
             }
         }
     }
+    return true
 }
 
 @Composable
@@ -572,19 +831,10 @@ private fun DataPart(
         "data-tool-call-suspended" -> SuspendedToolCard(part.payload)
         "data-ui-spec", "data-json-render", "data-spec" -> {
             if (!toolCardInserted) {
-                part.payload.toToolCardModel(part.type)?.let { model ->
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            model.items.take(MAX_RENDERED_ITEMS).forEach { item ->
-                                ToolCardItem(item, onLinkClick, onLinkLongClick)
-                            }
-                        }
-                    }
-                }
+                JsonSpecRender(
+                    payload = part.payload,
+                    onLinkClick = onLinkClick,
+                )
             }
         }
         else -> Unit
@@ -660,306 +910,6 @@ private fun SuspendedToolCard(payload: String) {
     }
 }
 
-private fun String?.toToolCardModel(toolName: String): ToolCardModel? {
-    val payload = this?.trim().orEmpty()
-    if (payload.isBlank()) return null
-    val normalizedToolName = toolName.removePrefix("tool-")
-    if (META_TOOL_NAMES.contains(normalizedToolName)) return null
-    val cardType = TOOL_CARD_REGISTRY[normalizedToolName] ?: when {
-        normalizedToolName.startsWith("agent-") -> "subAgent"
-        normalizedToolName == "data-spec" || normalizedToolName == "data-ui-spec" || normalizedToolName == "data-json-render" -> "jsonSpec"
-        else -> return null
-    }
-    return runCatching {
-        when {
-            payload.startsWith("[") -> JSONArray(payload).toToolCardModel(cardType)
-            payload.startsWith("{") -> JSONObject(payload).toToolCardModel(cardType)
-            else -> ToolCardModel(listOf(ToolRenderableItem(title = payload.take(MAX_VALUE_CHARS))), moreCount = 0)
-        }
-    }.getOrNull()
-}
-
-private fun JSONObject.toToolCardModel(cardType: String): ToolCardModel {
-    val source = firstArrayOrSelf()
-    return source.toToolCardModel(cardType)
-}
-
-private fun JSONArray.toToolCardModel(cardType: String): ToolCardModel {
-    val items = (0 until length())
-        .asSequence()
-        .mapNotNull { index -> optJSONObject(index)?.toRenderableItem(cardType) }
-        .toList()
-    if (items.isNotEmpty()) {
-        return ToolCardModel(items = items, moreCount = (length() - items.size).coerceAtLeast(0))
-    }
-    return ToolCardModel(
-        items = (0 until length())
-            .asSequence()
-            .mapNotNull { index -> optString(index).takeIf { it.isNotBlank() } }
-            .take(MAX_RENDERED_ITEMS)
-            .map { ToolRenderableItem(title = it.take(MAX_VALUE_CHARS)) }
-            .toList(),
-        moreCount = (length() - MAX_RENDERED_ITEMS).coerceAtLeast(0),
-    )
-}
-
-private fun JSONObject.firstArrayOrSelf(): JSONArray {
-    KNOWN_LIST_KEYS.forEach { key ->
-        optJSONArray(key)?.let { return it }
-    }
-    val data = opt("data")
-    when (data) {
-        is JSONArray -> return data
-        is JSONObject -> return data.firstArrayOrSelf()
-    }
-    return JSONArray().put(this)
-}
-
-private fun AiToolStreamPart.toRenderableToolParts(): List<AiToolStreamPart> {
-    val normalizedToolName = toolName.removePrefix("tool-")
-    return when {
-        IGNORED_TOOL_NAMES.contains(normalizedToolName) -> emptyList()
-        META_TOOL_NAMES.contains(normalizedToolName) -> expandMultiExecute()
-        normalizedToolName.startsWith("agent-") -> expandSubAgent()
-        TOOL_CARD_REGISTRY.containsKey(normalizedToolName) -> listOf(this)
-        else -> emptyList()
-    }
-}
-
-private fun AiToolStreamPart.expandMultiExecute(): List<AiToolStreamPart> {
-    val outputJson = output?.jsonObjectOrNull()
-    val results = outputJson
-        ?.optJSONObject("data")
-        ?.optJSONArray("results")
-        ?: outputJson?.optJSONArray("results")
-    if ((isDone || isError) && results != null) {
-        return results.toSyntheticToolParts(idPrefix = id, fallbackState = state)
-    }
-
-    val tools = input
-        ?.jsonObjectOrNull()
-        ?.optJSONArray("tools")
-        ?: return emptyList()
-    val seen = mutableSetOf<String>()
-    return (0 until tools.length())
-        .asSequence()
-        .mapNotNull { index -> tools.optJSONObject(index)?.firstString(listOf("tool_slug", "toolSlug", "toolName", "tool_name")) }
-        .filter { TOOL_CARD_REGISTRY.containsKey(it) && seen.add(it) }
-        .map { slug ->
-            copy(
-                id = "${id}_$slug",
-                toolName = slug,
-                title = slug.toDisplayLabel(),
-                input = null,
-                output = null,
-                errorText = null,
-            )
-        }
-        .toList()
-}
-
-private fun AiToolStreamPart.expandSubAgent(): List<AiToolStreamPart> {
-    if (!isDone && !isError) {
-        return listOf(
-            copy(
-                title = toolName
-                    .removePrefix("tool-")
-                    .removePrefix("agent-")
-                    .removeSuffix("Agent")
-                    .toDisplayLabel()
-                    .ifBlank { "Agent" },
-                input = null,
-                output = null,
-                errorText = null,
-            )
-        )
-    }
-    val toolResults = output
-        ?.jsonObjectOrNull()
-        ?.optJSONArray("subAgentToolResults")
-        ?: return emptyList()
-    return (0 until toolResults.length())
-        .asSequence()
-        .mapNotNull { toolResults.optJSONObject(it) }
-        .flatMap { result ->
-            val resultToolName = result.firstString(listOf("toolName", "tool_name", "tool_slug", "toolSlug")) ?: return@flatMap emptySequence()
-            val normalizedResultToolName = resultToolName.removePrefix("tool-")
-            if (IGNORED_TOOL_NAMES.contains(normalizedResultToolName)) return@flatMap emptySequence()
-            val resultPayload = result.optJSONObject("result")?.toString()
-                ?: result.opt("result")?.toString()
-                ?: result.toString()
-            if (META_TOOL_NAMES.contains(normalizedResultToolName)) {
-                copy(
-                    id = "${id}_$normalizedResultToolName",
-                    toolName = normalizedResultToolName,
-                    title = normalizedResultToolName.toDisplayLabel(),
-                    input = null,
-                    output = resultPayload,
-                    errorText = null,
-                ).expandMultiExecute().asSequence()
-            } else if (TOOL_CARD_REGISTRY.containsKey(normalizedResultToolName)) {
-                sequenceOf(
-                    copy(
-                        id = "${id}_$normalizedResultToolName",
-                        toolName = normalizedResultToolName,
-                        title = normalizedResultToolName.toDisplayLabel(),
-                        input = result.opt("args")?.toString(),
-                        output = resultPayload,
-                        errorText = null,
-                    )
-                )
-            } else {
-                emptySequence()
-            }
-        }
-        .toList()
-}
-
-private fun JSONArray.toSyntheticToolParts(
-    idPrefix: String,
-    fallbackState: String,
-): List<AiToolStreamPart> {
-    return (0 until length())
-        .asSequence()
-        .mapNotNull { index -> optJSONObject(index) }
-        .mapNotNull { result ->
-            val slug = result.firstString(listOf("tool_slug", "toolSlug", "toolName", "tool_name", "name")) ?: return@mapNotNull null
-            val normalizedSlug = slug.removePrefix("tool-")
-            if (!TOOL_CARD_REGISTRY.containsKey(normalizedSlug)) return@mapNotNull null
-            val successful = when (val value = result.opt("successful")) {
-                is Boolean -> value
-                else -> true
-            }
-            AiToolStreamPart(
-                id = "${idPrefix}_$normalizedSlug",
-                state = if (successful) "output-available" else "output-error",
-                toolName = normalizedSlug,
-                title = normalizedSlug.toDisplayLabel(),
-                input = null,
-                output = result.toString(),
-                errorText = result.firstString(listOf("error", "message")).takeIf { !successful } ?: if (fallbackState == "output-error") "Tool call failed." else null,
-            )
-        }
-        .toList()
-}
-
-private fun JSONObject.toRenderableItem(cardType: String): ToolRenderableItem {
-    val titleKeys = when (cardType) {
-        "composeEmail" -> listOf("subject", "title", "snippet", "from", "to")
-        "fileAttachment" -> listOf("name", "filename", "title", "mimeType")
-        "githubIssue", "githubIssuesList", "linearIssue", "linearIssuesList" -> listOf("title", "name", "number", "id")
-        "finance" -> listOf("symbol", "ticker", "name", "title")
-        "imageGrid" -> listOf("title", "alt", "description", "url")
-        else -> listOf("title", "name", "subject", "headline", "query", "url", "text", "message")
-    }
-    val subtitleKeys = when (cardType) {
-        "composeEmail" -> listOf("from", "to", "date", "snippet", "body")
-        "finance" -> listOf("price", "change", "currency", "marketCap")
-        "githubIssue", "githubIssuesList", "linearIssue", "linearIssuesList" -> listOf("state", "status", "repository", "assignee", "body")
-        else -> listOf("description", "snippet", "summary", "content", "body", "status")
-    }
-    return ToolRenderableItem(
-        title = firstString(titleKeys) ?: cardType.toDisplayLabel(),
-        subtitle = firstString(subtitleKeys),
-        url = firstString(listOf("url", "html_url", "web_url", "link", "href")),
-    )
-}
-
-private fun JSONObject.firstString(keys: List<String>): String? {
-    keys.forEach { key ->
-        val value = opt(key) ?: return@forEach
-        when (value) {
-            is String -> value.takeIf { it.isNotBlank() }?.let { return it.take(MAX_VALUE_CHARS) }
-            is Number, is Boolean -> return value.toString()
-        }
-    }
-    return null
-}
-
-private fun String.jsonObjectOrNull(): JSONObject? =
-    runCatching { JSONObject(this) }.getOrNull()
-
-private fun String.errorTextFromJson(): String? {
-    val json = jsonObjectOrNull() ?: return takeIf { it.isNotBlank() && !it.looksLikeRawJson() }
-    return json.optString("errorText").takeIf { it.isNotBlank() }
-        ?: json.optString("message").takeIf { it.isNotBlank() }
-        ?: json.optString("title").takeIf { it.isNotBlank() }
-}
-
-private data class ToolCardModel(
-    val items: List<ToolRenderableItem>,
-    val moreCount: Int,
-)
-
-private data class ToolRenderableItem(
-    val title: String,
-    val subtitle: String? = null,
-    val url: String? = null,
-)
-
-private val TOOL_CARD_REGISTRY = mapOf(
-    "COMPOSIO_SEARCH_FLIGHTS" to "flightAlert",
-    "COMPOSIO_SEARCH_HOTELS" to "hotelBooking",
-    "COMPOSIO_SEARCH_NEWS" to "headlineList",
-    "COMPOSIO_SEARCH_WEB" to "headlineList",
-    "COMPOSIO_SEARCH_TAVILY" to "headlineList",
-    "COMPOSIO_SEARCH_SCHOLAR" to "headlineList",
-    "COMPOSIO_SEARCH_IMAGE" to "imageGrid",
-    "COMPOSIO_SEARCH_SHOPPING" to "productList",
-    "COMPOSIO_SEARCH_AMAZON" to "productList",
-    "COMPOSIO_SEARCH_WALMART" to "productList",
-    "COMPOSIO_SEARCH_FINANCE" to "finance",
-    "COMPOSIO_SEARCH_EVENT" to "eventList",
-    "COMPOSIO_SEARCH_GOOGLE_MAPS" to "placeList",
-    "COMPOSIO_SEARCH_FETCH_URL_CONTENT" to "urlContent",
-    "GITHUB_LIST_REPOSITORY_ISSUES" to "githubIssuesList",
-    "GITHUB_SEARCH_ISSUES_AND_PULL_REQUESTS" to "githubIssuesList",
-    "GITHUB_LIST_PULL_REQUESTS" to "githubIssuesList",
-    "GITHUB_CREATE_AN_ISSUE" to "githubIssue",
-    "GITHUB_GET_AN_ISSUE" to "githubIssue",
-    "GITHUB_LIST_CHECK_RUNS_FOR_A_REF" to "checkRuns",
-    "GITHUB_COMPARE_TWO_COMMITS" to "commitComparison",
-    "GITHUB_LIST_REPOSITORY_CONTRIBUTORS" to "contributors",
-    "GITHUB_LIST_DEPLOYMENTS" to "deployments",
-    "GITHUB_LIST_NOTIFICATIONS" to "notifications",
-    "GITHUB_LIST_ORGANIZATIONS_FOR_A_USER" to "orgsList",
-    "GITHUB_LIST_ORGANIZATIONS_FOR_THE_AUTHENTICATED_USER" to "orgsList",
-    "GITHUB_CREATE_A_RELEASE" to "release",
-    "GITHUB_FIND_REPOSITORIES" to "repoList",
-    "GITHUB_SEARCH_REPOSITORIES" to "repoList",
-    "GITHUB_LIST_REPOSITORIES_STARRED_BY_THE_AUTHENTICATED_USER" to "repoList",
-    "GITHUB_LIST_SECRET_SCANNING_ALERTS_FOR_A_REPOSITORY" to "secretAlerts",
-    "GITHUB_LIST_REPOSITORY_WORKFLOWS" to "workflows",
-    "GITHUB_CREATE_AN_ISSUE_COMMENT" to "commentThread",
-    "GITHUB_LIST_REVIEW_COMMENTS_ON_A_PULL_REQUEST" to "commentThread",
-    "GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID" to "composeEmail",
-    "GMAIL_FETCH_EMAILS" to "composeEmail",
-    "GMAIL_CREATE_EMAIL_DRAFT" to "composeEmail",
-    "GOOGLEDRIVE_FIND_FILE" to "fileAttachment",
-    "GOOGLEDRIVE_GET_FILE_METADATA" to "fileAttachment",
-    "LINEAR_CREATE_LINEAR_ISSUE" to "linearIssue",
-    "LINEAR_LIST_LINEAR_ISSUES" to "linearIssuesList",
-    "TWITTER_USER_HOME_TIMELINE_BY_USER_ID" to "socialPostFeed",
-    "TWITTER_FULL_ARCHIVE_SEARCH" to "socialPostFeed",
-    "TWITTER_POST_LOOKUP_BY_POST_ID" to "socialPostFeed",
-    "createSchedule" to "createSchedule",
-    "updateSchedule" to "updateSchedule",
-    "updateScheduleStatus" to "updateScheduleStatus",
-)
-
-private val IGNORED_TOOL_NAMES = setOf("COMPOSIO_SEARCH_TOOLS")
-private val META_TOOL_NAMES = setOf("COMPOSIO_MULTI_EXECUTE_TOOL")
-private val KNOWN_LIST_KEYS = listOf("items", "results", "data", "files", "issues", "repositories", "messages", "posts", "events")
-
-private val String.isRegisteredToolName: Boolean
-    get() {
-        val name = removePrefix("tool-")
-        return TOOL_CARD_REGISTRY.containsKey(name) || META_TOOL_NAMES.contains(name) || IGNORED_TOOL_NAMES.contains(name) || name.startsWith("agent-")
-    }
-
-private val String.isIgnoredToolName: Boolean
-    get() = IGNORED_TOOL_NAMES.contains(removePrefix("tool-"))
-
 @Composable
 private fun ToolProgressIndicator(
     total: Int,
@@ -967,24 +917,27 @@ private fun ToolProgressIndicator(
     errorCount: Int,
     isCalling: Boolean,
 ) {
-    Box(modifier = Modifier.size(22.dp)) {
+    // Thin progress ring + check/error glyph, mirroring iOS ToolProgressRing (no big filled disc).
+    Box(modifier = Modifier.size(20.dp), contentAlignment = Alignment.Center) {
         if (isCalling) {
             CircularProgressIndicator(
-                strokeWidth = 2.dp,
-                modifier = Modifier.size(22.dp),
+                strokeWidth = 1.5.dp,
+                modifier = Modifier.size(20.dp),
                 color = MaterialTheme.colorScheme.primary,
             )
         } else {
-            Surface(
-                shape = CircleShape,
-                color = if (errorCount > 0) MaterialTheme.colorScheme.errorContainer else Color(0xFFE3F6E8),
-                modifier = Modifier.size(22.dp),
+            val ringColor = if (errorCount > 0) MaterialTheme.colorScheme.error else Color(0xFF2E7D32)
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .border(1.5.dp, ringColor, CircleShape),
+                contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = if (errorCount > 0) "!" else "✓",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (errorCount > 0) MaterialTheme.colorScheme.onErrorContainer else Color(0xFF2E7D32),
-                    modifier = Modifier.padding(4.dp),
+                Icon(
+                    imageVector = if (errorCount > 0) Icons.Filled.PriorityHigh else Icons.Filled.Check,
+                    contentDescription = null,
+                    tint = ringColor,
+                    modifier = Modifier.size(12.dp),
                 )
             }
         }
@@ -992,9 +945,12 @@ private fun ToolProgressIndicator(
 }
 
 @Composable
-private fun CountPill(label: String, count: Int, color: Color) {
-    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(text = label, style = MaterialTheme.typography.labelSmall, color = color)
+private fun CountPill(icon: ImageVector, count: Int, color: Color) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(imageVector = icon, contentDescription = null, tint = color, modifier = Modifier.size(13.dp))
         Text(
             text = count.toString(),
             style = MaterialTheme.typography.labelSmall,
@@ -1092,30 +1048,6 @@ private fun toolStateColor(state: String): Color {
     }
 }
 
-private fun toolStateLabel(state: String): String =
-    when (state) {
-        "input-streaming" -> "Streaming input"
-        "input-available" -> "Input ready"
-        "output-available" -> "Completed"
-        "output-error" -> "Failed"
-        "approval-requested" -> "Approval requested"
-        "approval-responded" -> "Approval responded"
-        "output-denied" -> "Denied"
-        else -> state
-    }
-
-private val AiToolStreamPart.displayName: String
-    get() = title ?: toolName.removePrefix("tool-").replace("_", " ").ifBlank { id }
-
-private val AiToolStreamPart.isDone: Boolean
-    get() = state == "output-available" || state == "approval-responded"
-
-private val AiToolStreamPart.isError: Boolean
-    get() = state == "output-error" || state == "output-denied"
-
-private val AiToolStreamPart.isCalling: Boolean
-    get() = !isDone && !isError
-
 @Composable
 private fun LinkifiedAiText(
     text: String,
@@ -1123,12 +1055,13 @@ private fun LinkifiedAiText(
     onLinkLongClick: (Link) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val linkifiedText = remember(text) { LinkifyHelper.linkify(text) }
     CompositionLocalProvider(
         LocalContentColor provides ElementTheme.colors.textPrimary,
         LocalTextStyle provides ElementTheme.typography.fontBodyMdRegular,
     ) {
         EditorStyledText(
-            text = LinkifyHelper.linkify(text),
+            text = linkifiedText,
             onLinkClickedListener = onLinkClick,
             onLinkLongClickedListener = onLinkLongClick,
             style = ElementRichTextEditorStyle.textStyle(),
@@ -1137,19 +1070,6 @@ private fun LinkifiedAiText(
         )
     }
 }
-
-private fun String.looksLikeRawJson(): Boolean =
-    (startsWith("{") && endsWith("}")) || (startsWith("[") && endsWith("]"))
-
-private fun String.toDisplayLabel(): String =
-    replace("_", " ")
-        .replace("-", " ")
-        .split(" ")
-        .filter { it.isNotBlank() }
-        .joinToString(" ") { word -> word.replaceFirstChar { it.uppercaseChar() } }
-
-private const val MAX_RENDERED_ITEMS = 5
-private const val MAX_VALUE_CHARS = 240
 
 @Composable
 private fun ThinkingSection(steps: List<AiThinkingStep>) {
@@ -1161,7 +1081,7 @@ private fun ThinkingSection(steps: List<AiThinkingStep>) {
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
-                text = (if (expanded) "▾ " else "▸ ") + "Thinking (${steps.size})",
+                text = (if (expanded) "▾ " else "▸ ") + "思考 (${steps.size})",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier

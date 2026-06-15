@@ -18,11 +18,17 @@ import io.element.android.features.messages.impl.FakeMessagesNavigator
 import io.element.android.features.messages.impl.MessagesNavigator
 import io.element.android.features.messages.impl.draft.ComposerDraftService
 import io.element.android.features.messages.impl.draft.FakeComposerDraftService
+import io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerPresenter
+import io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillCatalogLoader
 import io.element.android.features.messages.impl.messagecomposer.suggestions.SuggestionsProcessor
+import io.element.android.features.messages.impl.roomdata.FakeRoomUnsealDataClient
+import io.element.android.features.messages.impl.roomdata.FakeRoomUnsealContextStore
 import io.element.android.features.messages.impl.timeline.TimelineController
 import io.element.android.features.messages.impl.utils.FakeMentionSpanFormatter
 import io.element.android.features.messages.impl.utils.FakeTextPillificationHelper
 import io.element.android.features.messages.impl.utils.TextPillificationHelper
+import io.element.android.libraries.chatbot.api.ChatbotBaseUrlResolver
+import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.designsystem.utils.snackbar.SnackbarDispatcher
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.permalink.PermalinkBuilder
@@ -32,6 +38,7 @@ import io.element.android.libraries.matrix.api.timeline.Timeline
 import io.element.android.libraries.matrix.test.A_FAILURE_REASON
 import io.element.android.libraries.matrix.test.A_MESSAGE
 import io.element.android.libraries.matrix.test.A_USER_ID
+import io.element.android.libraries.matrix.test.FakeMatrixClient
 import io.element.android.libraries.matrix.test.permalink.FakePermalinkBuilder
 import io.element.android.libraries.matrix.test.permalink.FakePermalinkParser
 import io.element.android.libraries.matrix.test.room.FakeJoinedRoom
@@ -65,8 +72,10 @@ import io.element.android.tests.testutils.test
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import okhttp3.OkHttpClient
 import org.junit.Rule
 import org.junit.Test
 
@@ -308,9 +317,21 @@ class MessageComposerPresenterSlashCommandTest {
         mentionSpanProvider = mentionSpanProvider,
         pillificationHelper = textPillificationHelper,
         suggestionsProcessor = SuggestionsProcessor(slashCommandService = slashCommandService),
+        roomUnsealContextStore = FakeRoomUnsealContextStore(),
+        composerAgentSkillCatalogLoader = ComposerAgentSkillCatalogLoader(
+            room = room,
+            roomUnsealDataClient = FakeRoomUnsealDataClient(),
+            dispatchers = CoroutineDispatchers(UnconfinedTestDispatcher(testScheduler), UnconfinedTestDispatcher(testScheduler), UnconfinedTestDispatcher(testScheduler)),
+        ),
         mediaOptimizationConfigProvider = mediaOptimizationConfigProvider,
         notificationConversationService = notificationConversationService,
         slashCommandService = slashCommandService,
+        gamePickerPresenter = GamePickerPresenter(
+            matrixClient = FakeMatrixClient(),
+            room = room,
+            baseUrlResolver = SlashCommandFakeChatbotBaseUrlResolver,
+            okHttpClient = { OkHttpClient() },
+        ),
     ).apply {
         isTesting = true
         showTextFormatting = isRichTextEditorEnabled
@@ -320,4 +341,10 @@ class MessageComposerPresenterSlashCommandTest {
         skipItems(1)
         return awaitItem()
     }
+}
+
+private object SlashCommandFakeChatbotBaseUrlResolver : ChatbotBaseUrlResolver {
+    override suspend fun resolveUnsealApiBaseUrl(serverName: String?): String = "https://keepsecret.io"
+
+    override suspend fun resolveHomeserverBaseUrl(serverName: String?): String = "https://keepsecret.io"
 }

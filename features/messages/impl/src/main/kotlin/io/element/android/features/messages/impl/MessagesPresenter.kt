@@ -38,6 +38,11 @@ import io.element.android.features.messages.impl.link.LinkState
 import io.element.android.features.messages.impl.messagecomposer.MessageComposerEvent
 import io.element.android.features.messages.impl.messagecomposer.MessageComposerState
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerState
+import io.element.android.features.messages.impl.roomdata.AgentChatModeMemoryCache
+import io.element.android.features.messages.impl.roomdata.RoomMenuReducer
+import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
+import io.element.android.features.messages.impl.roomdata.RoomUnsealContextStore
+import io.element.android.features.messages.impl.roomdata.roomUnsealMemberSignature
 import io.element.android.features.messages.impl.timeline.MarkAsFullyRead
 import io.element.android.features.messages.impl.timeline.TimelineController
 import io.element.android.features.messages.impl.timeline.TimelineEvent
@@ -57,7 +62,7 @@ import io.element.android.features.roomcall.api.RoomCallState
 import io.element.android.features.roommembermoderation.api.RoomMemberModerationEvents
 import io.element.android.features.roommembermoderation.api.RoomMemberModerationState
 import io.element.android.features.roomschedules.api.room.RoomScheduleBadgeEvents
-import io.element.android.features.roomschedules.api.room.RoomScheduleBadgePresenter
+import io.element.android.features.roomschedules.api.room.RoomScheduleBadgeState
 import io.element.android.libraries.androidutils.clipboard.ClipboardHelper
 import io.element.android.libraries.architecture.AsyncData
 import io.element.android.libraries.architecture.Presenter
@@ -95,6 +100,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -116,7 +122,6 @@ class MessagesPresenter(
     private val reactionSummaryPresenter: Presenter<ReactionSummaryState>,
     private val readReceiptBottomSheetPresenter: Presenter<ReadReceiptBottomSheetState>,
     private val pinnedMessagesBannerPresenter: Presenter<PinnedMessagesBannerState>,
-    roomScheduleBadgePresenterFactory: RoomScheduleBadgePresenter.Factory,
     private val roomCallStatePresenter: Presenter<RoomCallState>,
     private val roomMemberModerationPresenter: Presenter<RoomMemberModerationState>,
     private val snackbarDispatcher: SnackbarDispatcher,
@@ -132,7 +137,9 @@ class MessagesPresenter(
     private val addRecentEmoji: AddRecentEmoji,
     private val markAsFullyRead: MarkAsFullyRead,
     private val liveLocationShareManager: ActiveLiveLocationShareManager,
+    private val roomUnsealContextStore: RoomUnsealContextStore,
     @SessionCoroutineScope private val sessionCoroutineScope: CoroutineScope,
+    @Assisted private val roomConfigChangeRequests: Flow<Unit>,
 ) : Presenter<MessagesState> {
     @AssistedFactory
     interface Factory {
@@ -142,17 +149,13 @@ class MessagesPresenter(
             timelinePresenter: Presenter<TimelineState>,
             actionListPresenter: Presenter<ActionListState>,
             timelineController: TimelineController,
+            roomConfigChangeRequests: Flow<Unit>,
         ): MessagesPresenter
     }
 
     private val voiceMessageComposerPresenter = voiceMessageComposerPresenterFactory.create(
         timelineMode = timelineController.mainTimelineMode()
     )
-    private val roomScheduleBadgePresenter = roomScheduleBadgePresenterFactory.create(
-        roomId = room.roomId,
-        joinedRoom = room,
-    )
-
     private val markingAsReadAndExiting = AtomicBoolean(false)
 
     @Composable
@@ -173,9 +176,16 @@ class MessagesPresenter(
         val reactionSummaryState = reactionSummaryPresenter.present()
         val readReceiptBottomSheetState = readReceiptBottomSheetPresenter.present()
         val pinnedMessagesBannerState = pinnedMessagesBannerPresenter.present()
-        val roomScheduleBadgeState = roomScheduleBadgePresenter.present()
         val roomCallState = roomCallStatePresenter.present()
         val roomMemberModerationState = roomMemberModerationPresenter.present()
+        val roomUnsealContextState by roomUnsealContextStore.context.collectAsState()
+        var activeDeviceAgentBoundDeviceId by remember(room.roomId) {
+            mutableStateOf(AgentChatModeMemoryCache.targetDeviceIdFor(room.roomId))
+        }
+        val membersState by room.membersStateFlow.collectAsState()
+        val roomMemberSignature = remember(membersState) {
+            membersState.roomUnsealMemberSignature()
+        }
         val threadsList by produceState(persistentListOf()) {
             room.threadsListService.subscribeToItemUpdates()
                 .onStart { room.threadsListService.paginate() }
@@ -199,8 +209,20 @@ class MessagesPresenter(
         var hasDismissedInviteDialog by rememberSaveable {
             mutableStateOf(false)
         }
+        fun handleRoomScheduleBadgeEvent(event: RoomScheduleBadgeEvents) {
+            when (event) {
+                RoomScheduleBadgeEvents.OnAppear -> if (roomUnsealContextState.isUninitialized()) {
+                    coroutineScope.launch { roomUnsealContextStore.refresh() }
+                }
+                RoomScheduleBadgeEvents.Refresh -> if (!roomUnsealContextState.isLoading()) {
+                    coroutineScope.launch { roomUnsealContextStore.refresh(force = true) }
+                }
+            }
+        }
+
+        val roomScheduleBadgeState = roomUnsealContextState.toRoomScheduleBadgeState(::handleRoomScheduleBadgeEvent)
+
         LaunchedEffect(Unit) {
-            roomScheduleBadgeState.eventSink(RoomScheduleBadgeEvents.OnAppear)
             // Remove the unread flag on entering but don't send read receipts
             // as those will be handled by the timeline.
             withContext(dispatchers.io) {
@@ -212,8 +234,33 @@ class MessagesPresenter(
                 }
             }
         }
+        LaunchedEffect(room.roomId) {
+            roomUnsealContextStore.refresh()
+        }
+        LaunchedEffect(activeDeviceAgentBoundDeviceId) {
+            composerState.eventSink(MessageComposerEvent.SetAgentChatTargetDeviceId(activeDeviceAgentBoundDeviceId))
+        }
+        LaunchedEffect(roomUnsealContextState, activeDeviceAgentBoundDeviceId) {
+            val deviceAgent = roomUnsealContextState.dataOrNull()?.deviceAgentInRoom
+            if (activeDeviceAgentBoundDeviceId != null && deviceAgent?.boundDeviceId != activeDeviceAgentBoundDeviceId) {
+                activeDeviceAgentBoundDeviceId = null
+                AgentChatModeMemoryCache.setTargetDeviceId(room.roomId, null)
+            }
+        }
+        LaunchedEffect(roomConfigChangeRequests) {
+            roomConfigChangeRequests.collectLatest {
+                roomUnsealContextStore.refresh(force = true)
+            }
+        }
+        LaunchedEffect(roomMemberSignature) {
+            if (roomMemberSignature != null && roomUnsealContextState.dataOrNull() != null && !roomUnsealContextState.isLoading()) {
+                roomUnsealContextStore.refresh(force = true)
+            }
+        }
         LifecycleResumeEffect(Unit) {
-            roomScheduleBadgeState.eventSink(RoomScheduleBadgeEvents.Refresh)
+            if (!roomUnsealContextState.isLoading()) {
+                coroutineScope.launch { roomUnsealContextStore.refresh(force = true) }
+            }
             onPauseOrDispose {}
         }
 
@@ -230,7 +277,6 @@ class MessagesPresenter(
 
         var dmUserVerificationState by remember { mutableStateOf<IdentityState?>(null) }
 
-        val membersState by room.membersStateFlow.collectAsState()
         val dmRoomMember by room.getDirectRoomMember(membersState)
         val roomMemberIdentityStateChanges = identityChangeState.roomMemberIdentityStateChanges
 
@@ -289,6 +335,22 @@ class MessagesPresenter(
                 MessagesEvent.ShowLiveLocationShare -> {
                     navigator.navigateToCurrentLiveLocation()
                 }
+                is MessagesEvent.ToggleDeviceAgentChat -> {
+                    val nextTargetDeviceId = if (activeDeviceAgentBoundDeviceId == event.deviceAgent.boundDeviceId) {
+                        null
+                    } else {
+                        event.deviceAgent.boundDeviceId
+                    }
+                    activeDeviceAgentBoundDeviceId = nextTargetDeviceId
+                    AgentChatModeMemoryCache.setTargetDeviceId(room.roomId, nextTargetDeviceId)
+                    composerState.eventSink(MessageComposerEvent.SetAgentChatTargetDeviceId(nextTargetDeviceId))
+                }
+                is MessagesEvent.OpenDeviceAgentTerminal -> {
+                    Timber.i("Device agent terminal requested for boundDeviceId=${event.deviceAgent.boundDeviceId}")
+                    coroutineScope.launch {
+                        snackbarDispatcher.post(SnackbarMessage(CommonStrings.common_unsupported_event))
+                    }
+                }
                 is MessagesEvent.MarkAsFullyReadAndExit -> if (!markingAsReadAndExiting.getAndSet(true)) {
                     coroutineScope.launch {
                         val latestEventId = room.liveTimeline.getLatestEventId().getOrElse {
@@ -307,6 +369,12 @@ class MessagesPresenter(
                 }
             }
         }
+
+        val threads = Threads(
+            hasThreads = canOpenThreadList && threadsList.isNotEmpty(),
+            // TODO calculate this properly based on the thread list and the read state of each thread
+            hasUnreadThreads = false,
+        )
 
         return MessagesState(
             roomId = room.roomId,
@@ -330,17 +398,22 @@ class MessagesPresenter(
             enableTextFormatting = MessageComposerConfig.ENABLE_RICH_TEXT_EDITING,
             roomCallState = roomCallState,
             roomScheduleBadgeState = roomScheduleBadgeState,
+            roomUnsealContext = roomUnsealContextState,
+            roomMenu = RoomMenuReducer.reduce(
+                roomUnsealContext = roomUnsealContextState,
+                hasThreads = threads.hasThreads,
+                isThreadTimeline = timelineState.timelineMode is Timeline.Mode.Thread,
+                canShareLocation = composerState.canShareLocation,
+                enableTextFormatting = MessageComposerConfig.ENABLE_RICH_TEXT_EDITING,
+                activeDeviceAgentBoundDeviceId = activeDeviceAgentBoundDeviceId,
+            ),
             appName = buildMeta.applicationName,
             pinnedMessagesBannerState = pinnedMessagesBannerState,
             dmUserVerificationState = dmUserVerificationState,
             roomMemberModerationState = roomMemberModerationState,
             topBarSharedHistoryIcon = topBarSharedHistoryIcon,
             successorRoom = roomInfo.successorRoom,
-            threads = Threads(
-                hasThreads = canOpenThreadList && threadsList.isNotEmpty(),
-                // TODO calculate this properly based on the thread list and the read state of each thread
-                hasUnreadThreads = false,
-            ),
+            threads = threads,
             showLiveLocationShareBanner = isCurrentlySharingLiveLocationInRoom && timelineState.timelineMode !is Timeline.Mode.Thread,
             eventSink = ::handleEvent,
         )
@@ -626,4 +699,17 @@ class MessagesPresenter(
             snackbarDispatcher.post(SnackbarMessage(CommonStrings.common_copied_to_clipboard))
         }
     }
+}
+
+private fun AsyncData<RoomUnsealContext>.toRoomScheduleBadgeState(
+    eventSink: (RoomScheduleBadgeEvents) -> Unit,
+): RoomScheduleBadgeState {
+    val context = dataOrNull()
+    return RoomScheduleBadgeState(
+        isLoading = isLoading(),
+        isVisible = context?.hasAgentInRoom == true,
+        activeScheduleCount = context?.activeScheduleCount ?: 0,
+        error = errorOrNull()?.message,
+        eventSink = eventSink,
+    )
 }

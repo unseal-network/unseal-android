@@ -44,12 +44,12 @@ class DefaultChatbotBaseUrlResolverTest {
     }
 
     @Test
-    fun `resolveUnsealApiBaseUrl - falls back when well-known is missing or invalid`() = runTest {
+    fun `resolveUnsealApiBaseUrl - falls back to server host when well-known is missing or invalid`() = runTest {
         val missingResolver = DefaultChatbotBaseUrlResolver(ChatbotWellKnownFetcher { null })
         val invalidResolver = DefaultChatbotBaseUrlResolver(ChatbotWellKnownFetcher { "not-json" })
 
-        assertThat(missingResolver.resolveUnsealApiBaseUrl("matrix.example")).isEqualTo(ChatbotConfig.UNSEAL_API_FALLBACK_BASE_URL)
-        assertThat(invalidResolver.resolveUnsealApiBaseUrl("matrix.example")).isEqualTo(ChatbotConfig.UNSEAL_API_FALLBACK_BASE_URL)
+        assertThat(missingResolver.resolveUnsealApiBaseUrl("matrix.example")).isEqualTo("https://matrix.example")
+        assertThat(invalidResolver.resolveUnsealApiBaseUrl("matrix.example")).isEqualTo("https://matrix.example")
     }
 
     @Test

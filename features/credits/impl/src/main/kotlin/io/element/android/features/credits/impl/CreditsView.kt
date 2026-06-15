@@ -395,11 +395,12 @@ private fun DailyUsageCard(state: CreditsState) {
 private fun DailyUsageRangeSelector(state: CreditsState) {
     CreditPillPicker(
         options = listOf(
-            DailyUsageRange.SevenDays to "7 天",
-            DailyUsageRange.ThirtyDays to "30 天",
+            DailyUsageRange.SevenDays to "7天",
+            DailyUsageRange.ThirtyDays to "30天",
         ),
         selected = state.dailyUsageRange,
         onSelect = { state.eventSink(CreditsEvents.SelectDailyUsageRange(it)) },
+        compact = true,
     )
 }
 
@@ -474,12 +475,13 @@ private fun RankingTabSelector(state: CreditsState) {
 private fun AnalyticsPeriodSelector(state: CreditsState) {
     CreditPillPicker(
         options = listOf(
-            CreditsPeriod.SevenDays to "7 天",
-            CreditsPeriod.ThirtyDays to "30 天",
+            CreditsPeriod.SevenDays to "7天",
+            CreditsPeriod.ThirtyDays to "30天",
             CreditsPeriod.All to "全部",
         ),
         selected = state.analyticsPeriod,
         onSelect = { state.eventSink(CreditsEvents.SelectAnalyticsPeriod(it)) },
+        compact = true,
     )
 }
 

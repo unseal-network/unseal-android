@@ -9,6 +9,8 @@
 package io.element.android.features.messages.impl.messagecomposer
 
 import android.net.Uri
+import io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillCandidate
+import io.element.android.features.messages.impl.messagecomposer.skills.ComposerSelectedAgentSkill
 import io.element.android.libraries.textcomposer.mentions.ResolvedSuggestion
 import io.element.android.libraries.textcomposer.model.MessageComposerMode
 import io.element.android.libraries.textcomposer.model.Suggestion
@@ -39,4 +41,9 @@ sealed interface MessageComposerEvent {
     data object ClearSlashError : MessageComposerEvent
     data object ShowGamePicker : MessageComposerEvent
     data object DismissGamePicker : MessageComposerEvent
+    data object ToggleAgentSkillPicker : MessageComposerEvent
+    data class SelectAgentSkill(val candidate: ComposerAgentSkillCandidate) : MessageComposerEvent
+    data class RemoveSelectedAgentSkill(val selected: ComposerSelectedAgentSkill) : MessageComposerEvent
+    data class SelectAgentSkillTarget(val agentMxid: String) : MessageComposerEvent
+    data class SetAgentChatTargetDeviceId(val deviceId: String?) : MessageComposerEvent
 }

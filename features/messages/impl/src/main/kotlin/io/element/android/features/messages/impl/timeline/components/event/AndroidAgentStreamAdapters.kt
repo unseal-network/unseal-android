@@ -19,12 +19,15 @@ import io.element.android.libraries.agentstream.api.AgentStreamClient
 import io.element.android.libraries.agentstream.api.DefaultAgentStreamClient
 import io.element.android.libraries.agentstream.api.StreamHttpClient
 import io.element.android.libraries.agentstream.api.StreamRequest
+import io.element.android.libraries.agentstream.api.StreamTransportException
+import timber.log.Timber
 import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.agentstream.api.StreamSnapshotJsonCodec
 import io.element.android.libraries.agentstream.api.StreamStatus
 import io.element.android.libraries.agentstream.api.StreamStorageProvider
 import io.element.android.libraries.agentstream.api.StreamTask
 import io.element.android.libraries.agentstream.api.StreamTaskRunner
+import io.element.android.libraries.chatbot.api.ChatbotApiError
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.di.RoomScope
@@ -64,11 +67,39 @@ class ChatbotStreamHttpClient(
         request: StreamRequest,
         onChunk: suspend (String) -> Unit,
     ) {
+        Timber.tag("AiStreamDbg").d("HTTP openStream START stream=%s sender=%s", request.streamId, request.sender)
+        var chunks = 0
+        var bytes = 0
         chatbotApiServiceFactory
             .createForAiStream(matrixClient)
-            .streamAgentMessage(request.streamId, request.sender.takeIf { it.isNotBlank() }, onChunk)
-            .getOrThrow()
+            .streamAgentMessage(request.streamId, request.sender.takeIf { it.isNotBlank() }) { chunk ->
+                chunks++
+                bytes += chunk.length
+                onChunk(chunk)
+            }
+            .onSuccess { Timber.tag("AiStreamDbg").d("HTTP openStream DONE stream=%s chunks=%d bytes=%d (connection closed)", request.streamId, chunks, bytes) }
+            .onFailure { Timber.tag("AiStreamDbg").w(it, "HTTP openStream FAILED stream=%s chunks=%d bytes=%d", request.streamId, chunks, bytes) }
+            .getOrElse { throwable -> throw throwable.toStreamTransportException() }
     }
+}
+
+/**
+ * Classifies a stream-fetch failure as retryable (transport-level) vs durable (stream-level).
+ * Network blips, timeouts, 5xx and rate limiting are retryable; a definitive 4xx is not.
+ */
+private fun Throwable.toStreamTransportException(): StreamTransportException {
+    val retryable = when (this) {
+        is ChatbotApiError.NetworkError -> true
+        is ChatbotApiError.HttpError -> statusCode >= 500 || statusCode == 408 || statusCode == 429
+        is ChatbotApiError.MissingAccessToken,
+        is ChatbotApiError.InvalidBaseUrl -> true
+        else -> this is java.io.IOException
+    }
+    return StreamTransportException(
+        message = message.orEmpty().ifBlank { "Failed to open stream." },
+        retryable = retryable,
+        cause = this,
+    )
 }
 
 @SingleIn(RoomScope::class)
@@ -119,16 +150,27 @@ class SQLiteStreamStorageProvider(
             null,
         ).use { cursor ->
             if (!cursor.moveToFirst()) {
+                Timber.tag("AiStreamDbg").d("sqlite cache MISS stream=%s", streamId)
                 return@withContext null
             }
             val json = cursor.getString(0)
             val snapshot = runCatching { codec.decode(json) }
-                .onFailure { deleteSync(streamId) }
+                .onFailure {
+                    Timber.tag("AiStreamDbg").w(it, "sqlite cache CORRUPT stream=%s", streamId)
+                    deleteSync(streamId)
+                }
                 .getOrNull()
             if (snapshot?.status == StreamStatus.Completed && snapshot.parts.isEmpty()) {
+                Timber.tag("AiStreamDbg").d("sqlite cache STALE_EMPTY stream=%s", streamId)
                 deleteSync(streamId)
                 null
             } else {
+                Timber.tag("AiStreamDbg").d(
+                    "sqlite cache HIT stream=%s status=%s parts=%d",
+                    streamId,
+                    snapshot?.status,
+                    snapshot?.parts?.size ?: 0,
+                )
                 snapshot
             }
         }
@@ -136,6 +178,7 @@ class SQLiteStreamStorageProvider(
 
     override suspend fun save(snapshot: StreamSnapshot) = withContext(dispatchers.io) {
         if (!shouldSave(snapshot)) {
+            Timber.tag("AiStreamDbg").d("sqlite cache SKIP_SAVE stream=%s status=%s parts=%d", snapshot.streamId, snapshot.status, snapshot.parts.size)
             return@withContext
         }
         val json = codec.encode(snapshot)
@@ -151,6 +194,7 @@ class SQLiteStreamStorageProvider(
         database.beginTransaction()
         try {
             if (snapshot.status == StreamStatus.Failed && hasCompletedSnapshotWithParts(database, snapshot.streamId)) {
+                Timber.tag("AiStreamDbg").d("sqlite cache KEEP_COMPLETED stream=%s", snapshot.streamId)
                 return@withContext
             }
             database.insertWithOnConflict(
@@ -160,6 +204,7 @@ class SQLiteStreamStorageProvider(
                 SQLiteDatabase.CONFLICT_REPLACE,
             )
             database.setTransactionSuccessful()
+            Timber.tag("AiStreamDbg").d("sqlite cache SAVE stream=%s status=%s parts=%d", snapshot.streamId, snapshot.status, snapshot.parts.size)
         } finally {
             database.endTransaction()
         }

@@ -25,6 +25,7 @@ import io.element.android.libraries.chatbot.api.model.voices.ChatbotCreateVoiceP
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotCreateVoiceShareRequest
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotDeleteVoiceProfileResponse
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotProviderVoice
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotUploadVoiceProfileRequest
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceProfile
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceShare
 import io.element.android.libraries.chatbot.api.model.credits.CreditBalance
@@ -121,6 +122,7 @@ interface ChatbotApiService {
     suspend fun listProviderVoices(provider: String?, availabilityStatus: String?, search: String?, limit: Int?, offset: Int?): Result<List<ChatbotProviderVoice>>
     suspend fun listVoiceProfiles(provider: String?, status: String?, search: String?, limit: Int?, offset: Int?): Result<List<ChatbotVoiceProfile>>
     suspend fun createVoiceProfile(request: ChatbotCreateVoiceProfileRequest): Result<ChatbotVoiceProfile>
+    suspend fun uploadVoiceProfile(request: ChatbotUploadVoiceProfileRequest): Result<ChatbotVoiceProfile>
     suspend fun deleteVoiceProfile(voiceProfileId: String): Result<ChatbotDeleteVoiceProfileResponse>
     suspend fun createVoiceShare(request: ChatbotCreateVoiceShareRequest): Result<ChatbotVoiceShare>
     suspend fun importVoiceShare(shareId: String): Result<ChatbotVoiceProfile>
@@ -142,7 +144,7 @@ interface ChatbotApiService {
     suspend fun getVaultValue(key: String): Result<String>
     suspend fun createVaultEntry(key: String, value: String, description: String?): Result<Unit>
     suspend fun updateVaultEntry(key: String, value: String, description: String?): Result<Unit>
-    suspend fun deleteVaultEntry(vaultId: String): Result<Unit>
+    suspend fun deleteVaultEntry(key: String): Result<Unit>
 
     suspend fun streamAgentMessage(
         streamId: String,

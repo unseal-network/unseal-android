@@ -8,15 +8,21 @@
 package io.element.android.features.messages.impl.timeline.factories.event
 
 import dev.zacsweers.metro.Inject
+import io.element.android.features.messages.impl.timeline.components.event.isHiddenStreamPart
+import io.element.android.features.messages.impl.timeline.components.event.toolcards.ToolCallRootCardAdapter
+import io.element.android.features.messages.impl.timeline.components.event.toolcards.isRegisteredToolName
 import io.element.android.features.messages.impl.timeline.model.event.AiCustomStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiDataStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiErrorStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiFileStreamPart
+import io.element.android.features.messages.impl.timeline.model.event.AiMarkdownBlock
 import io.element.android.features.messages.impl.timeline.model.event.AiQuickAction
 import io.element.android.features.messages.impl.timeline.model.event.AiReasoningStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiSource
 import io.element.android.features.messages.impl.timeline.model.event.AiSourceStreamPart
+import io.element.android.features.messages.impl.timeline.model.event.AiStreamCursorMode
 import io.element.android.features.messages.impl.timeline.model.event.AiStreamPart
+import io.element.android.features.messages.impl.timeline.model.event.AiStreamRenderModel
 import io.element.android.features.messages.impl.timeline.model.event.AiThinkingStep
 import io.element.android.features.messages.impl.timeline.model.event.AiTextStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiToolCall
@@ -42,22 +48,74 @@ class AiSdkStreamReducer {
         isEdited: Boolean,
         sender: String?,
     ): TimelineItemAiContent {
+        return mapRenderModel(snapshot).toTimelineContent(
+            isEdited = isEdited,
+            sender = sender,
+        )
+    }
+
+    fun mapRenderModel(snapshot: StreamSnapshot): AiStreamRenderModel {
         val mappedParts = snapshot.parts.map { it.toAiStreamPart() }
         val streamParts = mappedParts.withSnapshotErrorIfNeeded(snapshot)
         Timber.tag(TAG).d(
-            "AI stream parts: %s",
+            "AI snapshot stream=%s status=%s isStreaming=%s parts: %s",
+            snapshot.streamId,
+            snapshot.status,
+            (snapshot.status == StreamStatus.Loading || snapshot.status == StreamStatus.Streaming),
             streamParts.joinToString(separator = ", ") { it.safeLogLabel() }
         )
         val textParts = streamParts.filterIsInstance<AiTextStreamPart>()
         val reasoningParts = streamParts.filterIsInstance<AiReasoningStreamPart>()
         val toolParts = streamParts.filterIsInstance<AiToolStreamPart>()
 
-        return TimelineItemAiContent(
-            body = textParts.joinToString(separator = "\n\n") { it.text },
-            isEdited = isEdited,
-            isStreaming = snapshot.status == StreamStatus.Loading || snapshot.status == StreamStatus.Streaming,
+        // Mirror iOS ToolCallRootCardAdapter: parse/expand tool parts off the Compose thread so the
+        // view only renders precomputed lists.
+        // Mirror iOS ToolGroupUtils.isHiddenPart: internal/noise tool & data parts are not rendered.
+        val visible = streamParts.filterNot { it.isHiddenStreamPart }
+        val visibleToolCandidates = visible.filterIsInstance<AiToolStreamPart>()
+            .filter { it.toolName.isRegisteredToolName }
+        val firstToolPartIndex = visible.indexOfFirst { part ->
+            part is AiToolStreamPart && part.toolName.isRegisteredToolName
+        }.takeIf { it >= 0 }
+        val renderableToolParts = ToolCallRootCardAdapter.renderableToolParts(visibleToolCandidates)
+            .toImmutableList()
+        val toolCardEntries = ToolCallRootCardAdapter.toolCallEntries(visibleToolCandidates)
+            .toImmutableList()
+        val toolCallRoot = ToolCallRootCardAdapter.rootModel(toolCardEntries)
+        val passthroughParts = visible.filterNot { part ->
+            part is AiToolStreamPart && part.toolName.isRegisteredToolName
+        }.toImmutableList()
+        val lastPartIsStreamingText = visible.lastOrNull().let { part ->
+            part is AiTextStreamPart && part.state == STREAMING_TEXT_STATE
+        }
+        val isStreaming = snapshot.status == StreamStatus.Loading || snapshot.status == StreamStatus.Streaming
+        val isTerminal = snapshot.status == StreamStatus.Completed ||
+            snapshot.status == StreamStatus.Failed ||
+            snapshot.status == StreamStatus.Cancelled
+
+        return AiStreamRenderModel(
             streamId = snapshot.streamId,
-            sender = sender,
+            schemaVersion = snapshot.schemaVersion,
+            streamStatus = snapshot.status.name,
+            updatedAtMs = snapshot.updatedAtMs,
+            completedAtMs = snapshot.completedAtMs,
+            streamError = snapshot.error?.message,
+            isStreaming = isStreaming,
+            isTerminal = isTerminal,
+            cursorMode = when {
+                !isStreaming -> AiStreamCursorMode.None
+                visible.isEmpty() -> AiStreamCursorMode.Loading
+                lastPartIsStreamingText -> AiStreamCursorMode.None
+                else -> AiStreamCursorMode.TrailingCursor
+            },
+            renderVersion = snapshot.renderVersion(streamParts),
+            markdownBlocks = textParts.map {
+                AiMarkdownBlock(
+                    id = it.id,
+                    text = it.text,
+                    state = it.state,
+                )
+            }.toImmutableList(),
             thinkingSteps = reasoningParts.mapIndexed { index, part ->
                 AiThinkingStep(
                     title = "Thinking ${index + 1}",
@@ -77,6 +135,13 @@ class AiSdkStreamReducer {
             sources = emptyList<AiSource>().toImmutableList(),
             quickActions = emptyList<AiQuickAction>().toImmutableList(),
             parts = streamParts.toImmutableList(),
+            renderableToolParts = renderableToolParts,
+            toolCardEntries = toolCardEntries,
+            toolCallRoot = toolCallRoot,
+            passthroughParts = passthroughParts,
+            visibleParts = visible.toImmutableList(),
+            firstToolPartIndex = firstToolPartIndex,
+            lastPartIsStreamingText = lastPartIsStreamingText,
         )
     }
 
@@ -179,11 +244,45 @@ class AiSdkStreamReducer {
         )
     }
 
+    private fun StreamSnapshot.renderVersion(parts: List<AiStreamPart>): String {
+        val partsSignature = parts.joinToString(separator = "|") { part ->
+            listOf(
+                part.id,
+                part::class.simpleName.orEmpty(),
+                part.state,
+                part.contentSignature().hashCode().toString(16),
+            ).joinToString(separator = "/")
+        }.hashCode().toString(16)
+        return listOf(
+            streamId,
+            schemaVersion.toString(),
+            updatedAtMs.toString(),
+            completedAtMs?.toString().orEmpty(),
+            status.name,
+            parts.size.toString(),
+            partsSignature,
+        ).joinToString(":")
+    }
+
+    private fun AiStreamPart.contentSignature(): String {
+        return when (this) {
+            is AiTextStreamPart -> text
+            is AiReasoningStreamPart -> text
+            is AiToolStreamPart -> listOf(toolName, title, input, rawInput, output, errorText).joinToString()
+            is AiSourceStreamPart -> listOf(sourceType, title, url, filename, mediaType).joinToString()
+            is AiErrorStreamPart -> errorText
+            is AiDataStreamPart -> listOf(type, payload).joinToString()
+            is AiFileStreamPart -> listOf(mediaType, filename, url).joinToString()
+            is AiCustomStreamPart -> listOf(type, payload).joinToString()
+        }
+    }
+
     private companion object {
         const val TAG = "AiSdkStreamReducer"
         const val DEFAULT_DONE_STATE = "done"
         const val DEFAULT_ERROR_STATE = "error"
         const val DEFAULT_STREAM_ERROR_MESSAGE = "Stream error"
+        const val STREAMING_TEXT_STATE = "streaming"
     }
 }
 

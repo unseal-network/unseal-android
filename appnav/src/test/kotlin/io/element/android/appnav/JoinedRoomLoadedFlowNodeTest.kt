@@ -46,7 +46,10 @@ import io.element.android.services.analytics.test.watchers.FakeAnalyticsSendMess
 import io.element.android.services.appnavstate.api.ActiveRoomsHolder
 import io.element.android.services.appnavstate.test.FakeActiveRoomsHolder
 import io.element.android.services.appnavstate.test.FakeAppNavigationStateService
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -99,6 +102,7 @@ class JoinedRoomLoadedFlowNodeTest {
 
     private class FakeRoomDetailsEntryPoint : RoomDetailsEntryPoint {
         var nodeId: String? = null
+        var callback: RoomDetailsEntryPoint.Callback? = null
 
         override fun createNode(
             parentNode: Node,
@@ -106,6 +110,7 @@ class JoinedRoomLoadedFlowNodeTest {
             params: RoomDetailsEntryPoint.Params,
             callback: RoomDetailsEntryPoint.Callback,
         ) = node(buildContext) {}.also {
+            this.callback = callback
             nodeId = it.id
         }
     }
@@ -149,12 +154,15 @@ class JoinedRoomLoadedFlowNodeTest {
     )
 
     private class FakeRoomSchedulesEntryPoint : RoomSchedulesEntryPoint {
+        var callback: RoomSchedulesEntryPoint.Callback? = null
+
         override fun createNode(
             parentNode: Node,
             buildContext: BuildContext,
             params: RoomSchedulesEntryPoint.Params,
             callback: RoomSchedulesEntryPoint.Callback,
         ): Node {
+            this.callback = callback
             return node(buildContext) {}
         }
     }
@@ -218,6 +226,50 @@ class JoinedRoomLoadedFlowNodeTest {
         roomFlowNodeTestHelper.assertChildHasLifecycle(JoinedRoomLoadedFlowNode.NavTarget.RoomDetails, Lifecycle.State.CREATED)
         val roomDetailsNode = roomFlowNode.childNode(JoinedRoomLoadedFlowNode.NavTarget.RoomDetails)!!
         assertThat(roomDetailsNode.id).isEqualTo(fakeRoomDetailsEntryPoint.nodeId)
+    }
+
+    @Test
+    fun `given room schedules change then messages room config flow emits`() = runTest {
+        val room = FakeJoinedRoom(baseRoom = FakeBaseRoom(updateMembersResult = {}))
+        val fakeMessagesEntryPoint = FakeMessagesEntryPoint()
+        val fakeRoomSchedulesEntryPoint = FakeRoomSchedulesEntryPoint()
+        val inputs = JoinedRoomLoadedFlowNode.Inputs(room, RoomNavigationTarget.Root())
+        val roomFlowNode = createJoinedRoomLoadedFlowNode(
+            plugins = listOf(inputs, FakeJoinedRoomLoadedFlowNodeCallback()),
+            messagesEntryPoint = fakeMessagesEntryPoint,
+            roomSchedulesEntryPoint = fakeRoomSchedulesEntryPoint,
+        )
+        val roomFlowNodeTestHelper = roomFlowNode.parentNodeTestHelper()
+
+        fakeMessagesEntryPoint.callback?.navigateToRoomSchedules(room.roomId, "Room", room)
+        roomFlowNodeTestHelper.assertChildHasLifecycle(JoinedRoomLoadedFlowNode.NavTarget.RoomSchedules("Room"), Lifecycle.State.CREATED)
+        val signal = async { fakeMessagesEntryPoint.parameters!!.roomConfigChangeRequests.first() }
+        runCurrent()
+        fakeRoomSchedulesEntryPoint.callback?.onSchedulesChanged()
+
+        signal.await()
+    }
+
+    @Test
+    fun `given room details config changes then messages room config flow emits`() = runTest {
+        val room = FakeJoinedRoom(baseRoom = FakeBaseRoom(updateMembersResult = {}))
+        val fakeMessagesEntryPoint = FakeMessagesEntryPoint()
+        val fakeRoomDetailsEntryPoint = FakeRoomDetailsEntryPoint()
+        val inputs = JoinedRoomLoadedFlowNode.Inputs(room, RoomNavigationTarget.Root())
+        val roomFlowNode = createJoinedRoomLoadedFlowNode(
+            plugins = listOf(inputs, FakeJoinedRoomLoadedFlowNodeCallback()),
+            messagesEntryPoint = fakeMessagesEntryPoint,
+            roomDetailsEntryPoint = fakeRoomDetailsEntryPoint,
+        )
+        val roomFlowNodeTestHelper = roomFlowNode.parentNodeTestHelper()
+
+        fakeMessagesEntryPoint.callback?.navigateToRoomDetails()
+        roomFlowNodeTestHelper.assertChildHasLifecycle(JoinedRoomLoadedFlowNode.NavTarget.RoomDetails, Lifecycle.State.CREATED)
+        val signal = async { fakeMessagesEntryPoint.parameters!!.roomConfigChangeRequests.first() }
+        runCurrent()
+        fakeRoomDetailsEntryPoint.callback?.onRoomConfigChanged()
+
+        signal.await()
     }
 
     @Test

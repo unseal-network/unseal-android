@@ -54,6 +54,7 @@ import io.element.android.services.analytics.api.finishLongRunningTransaction
 import io.element.android.services.appnavstate.api.ActiveRoomsHolder
 import io.element.android.services.appnavstate.api.AppNavigationStateService
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.parcelize.Parcelize
 import timber.log.Timber
@@ -98,6 +99,7 @@ class JoinedRoomLoadedFlowNode(
 
     private val inputs: Inputs = inputs()
     private val callback: Callback = callback()
+    private val roomConfigChangeRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     override val graph = roomGraphFactory.create(inputs.room)
 
     private val sendMessageWatcher = (graph as? TimelineBindings)?.analyticsSendMessageWatcher
@@ -167,6 +169,10 @@ class JoinedRoomLoadedFlowNode(
 
             override fun startForwardEventFlow(eventId: EventId, fromPinnedEvents: Boolean) {
                 backstack.push(NavTarget.ForwardEvent(eventId, fromPinnedEvents))
+            }
+
+            override fun onRoomConfigChanged() {
+                roomConfigChangeRequests.tryEmit(Unit)
             }
         }
         return roomDetailsEntryPoint.createNode(
@@ -249,7 +255,9 @@ class JoinedRoomLoadedFlowNode(
                 backstack.pop()
             }
 
-            override fun onSchedulesChanged() = Unit
+            override fun onSchedulesChanged() {
+                roomConfigChangeRequests.tryEmit(Unit)
+            }
         }
         return roomSchedulesEntryPoint.createNode(
             parentNode = this,
@@ -297,7 +305,8 @@ class JoinedRoomLoadedFlowNode(
             }
         }
         val params = MessagesEntryPoint.Params(
-            MessagesEntryPoint.InitialTarget.Messages(navTarget.focusedEventId)
+            initialTarget = MessagesEntryPoint.InitialTarget.Messages(navTarget.focusedEventId),
+            roomConfigChangeRequests = roomConfigChangeRequests,
         )
         return messagesEntryPoint.createNode(
             parentNode = this,

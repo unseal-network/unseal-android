@@ -81,6 +81,7 @@ fun TimelineItemEventContentView(
                 onLinkClick = onLinkClick,
                 onLinkLongClick = onLinkLongClick,
                 modifier = modifier,
+                onContentLayoutChange = onContentLayoutChange,
             )
         }
         is TimelineItemGameContent -> TimelineItemGameView(

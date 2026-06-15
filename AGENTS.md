@@ -302,3 +302,25 @@ Do not start a long planning flow for routine migration work. Read the relevant 
 | Voice library | Pending dependency classification; no standalone Android spec or implementation yet. | Find iOS Voice Library behavior and classify as native list/detail/manage or component-library dependent recording/playback/generation work. |
 
 The migration index is `docs/superpowers/specs/2026-06-08-unseal-android-feature-migration-index-design.md`.
+
+## Agent Stream SDK For Android AI Rendering
+
+Android AI stream rendering must consume `libraries/agentstream` through `AgentStreamClient`.
+
+Required flow:
+
+1. Matrix timeline event exposes `streamId`.
+2. Room/timeline binding calls `AgentStreamClient.getStream(StreamRequest(...))`.
+3. The binding subscribes to `StreamHandle` snapshots.
+4. `AiSdkStreamReducer.mapSnapshot()` converts SDK `StreamSnapshot` to `TimelineItemAiContent`.
+5. Compose renders `TimelineItemAiContent` only.
+
+Do not fetch SSE, parse full stream JSON, or write stream store from Compose or messages UI code.
+
+Useful commands:
+
+```bash
+./gradlew :libraries:agentstream:testDebugUnitTest
+./gradlew :features:messages:impl:testDebugUnitTest
+./gradlew :features:messages:impl:compileDebugKotlin
+```

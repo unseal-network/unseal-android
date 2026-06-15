@@ -161,6 +161,39 @@ class StreamSnapshotParserTest {
     }
 
     @Test
+    fun `parser preserves approval and denied tool states`() {
+        val snapshot = StreamSnapshotParser().parseOrFailed(
+            """
+            {
+              "streamId": "stream-approval",
+              "status": "done",
+              "parts": [
+                {
+                  "type": "tool-mail",
+                  "id": "tool-approval",
+                  "state": "approval-requested",
+                  "input": { "subject": "Confirm" }
+                },
+                {
+                  "type": "tool-mail",
+                  "id": "tool-denied",
+                  "state": "output-denied",
+                  "errorText": "User denied"
+                }
+              ]
+            }
+            """.trimIndent()
+        )
+
+        val approval = snapshot.parts[0] as StreamPart.Tool
+        val denied = snapshot.parts[1] as StreamPart.Tool
+        assertEquals("approval-requested", approval.toolState)
+        assertEquals(ToolPartState.ApprovalRequested, approval.toolPartState)
+        assertEquals("output-denied", denied.toolState)
+        assertEquals(ToolPartState.OutputDenied, denied.toolPartState)
+    }
+
+    @Test
     fun `preserves unknown present part states and only defaults absent states`() {
         val parser = StreamSnapshotParser(clock = { 987L })
 

@@ -20,8 +20,9 @@ enum class DailyUsageRange(val days: Long) {
 }
 
 enum class CreditsPeriod(val apiValue: String) {
-    SevenDays("sevendays"),
-    ThirtyDays("thirtydays"),
+    // Server expects 7d / 30d / all (M_INVALID_PARAM otherwise).
+    SevenDays("7d"),
+    ThirtyDays("30d"),
     All("all"),
 }
 

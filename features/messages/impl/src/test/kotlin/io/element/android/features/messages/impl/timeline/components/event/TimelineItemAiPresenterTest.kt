@@ -8,6 +8,8 @@
 package io.element.android.features.messages.impl.timeline.components.event
 
 import com.google.common.truth.Truth.assertThat
+import io.element.android.features.messages.impl.timeline.factories.event.AiStreamContentCache
+import io.element.android.features.messages.impl.timeline.factories.event.AiStreamHandleStore
 import io.element.android.features.messages.impl.timeline.factories.event.AiSdkStreamReducer
 import io.element.android.features.messages.impl.timeline.model.event.AiStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiTextStreamPart
@@ -20,6 +22,7 @@ import io.element.android.libraries.agentstream.api.StreamPart
 import io.element.android.libraries.agentstream.api.StreamRequest
 import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.agentstream.api.StreamStatus
+import io.element.android.libraries.agentstream.api.StreamStorageProvider
 import io.element.android.libraries.agentstream.api.StreamSubscription
 import io.element.android.libraries.agentstream.api.TextPartState
 import io.element.android.libraries.agentstream.api.ToolPartState
@@ -41,7 +44,12 @@ class TimelineItemAiPresenterTest {
     fun `present - uses sdk stream id and maps subscribed snapshots`() = runTest {
         val client = FakeAgentStreamClient()
         val presenter = createPresenter(
-            content = aTimelineItemAiContent(streamId = "stream-1", sender = "@bot:keepsecret.io"),
+            content = aTimelineItemAiContent(
+                streamId = "stream-1",
+                sender = "@bot:keepsecret.io",
+                roomId = "!room:keepsecret.io",
+                eventId = "\$event-1",
+            ),
             agentStreamClient = client,
             dispatchers = testCoroutineDispatchers(useUnconfinedTestDispatcher = true),
         )
@@ -72,8 +80,8 @@ class TimelineItemAiPresenterTest {
             StreamRequest(
                 streamId = "stream-1",
                 sender = "@bot:keepsecret.io",
-                roomId = "",
-                eventId = "",
+                roomId = "!room:keepsecret.io",
+                eventId = "\$event-1",
                 includeRawEvents = false,
             )
         )
@@ -299,14 +307,145 @@ class TimelineItemAiPresenterTest {
         }
     }
 
+    @Test
+    fun `present - uses reduced content cache as initial state after recycled timeline item rebinds`() = runTest {
+        val client = FakeAgentStreamClient(
+            initialSnapshot = snapshot(
+                streamId = "stream-1",
+                status = StreamStatus.Completed,
+                parts = listOf(
+                    StreamPart.Text(id = "text-1", text = "already loaded", textState = TextPartState.Complete),
+                ),
+            )
+        )
+        val streamHandleStore = AiStreamHandleStore(client, FakeStreamStorageProvider())
+        streamHandleStore.bind(
+            StreamRequest(
+                streamId = "stream-1",
+                sender = "@bot:keepsecret.io",
+                roomId = "",
+                eventId = "",
+                includeRawEvents = false,
+            )
+        ) { }.close()
+        val contentCache = AiStreamContentCache().apply {
+            put(
+                AiSdkStreamReducer().mapSnapshot(
+                    snapshot = client.handle.snapshot(),
+                    isEdited = false,
+                    sender = "@bot:keepsecret.io",
+                )
+            )
+        }
+        val presenter = createPresenter(
+            content = aTimelineItemAiContent(streamId = "stream-1", sender = "@bot:keepsecret.io"),
+            agentStreamClient = client,
+            streamHandleStore = streamHandleStore,
+            streamContentCache = contentCache,
+            dispatchers = testCoroutineDispatchers(useUnconfinedTestDispatcher = true),
+        )
+
+        presenter.test {
+            val initial = awaitItem().content
+
+            assertThat(initial.body).isEqualTo("already loaded")
+            assertThat(initial.isStreaming).isFalse()
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - terminal cached content does not rebind sdk stream after recycled timeline item rebinds`() = runTest {
+        val client = FakeAgentStreamClient(
+            initialSnapshot = snapshot(
+                streamId = "stream-1",
+                status = StreamStatus.Loading,
+            )
+        )
+        val contentCache = AiStreamContentCache().apply {
+            put(
+                AiSdkStreamReducer().mapSnapshot(
+                    snapshot = snapshot(
+                        streamId = "stream-1",
+                        status = StreamStatus.Completed,
+                        parts = listOf(
+                            StreamPart.Text(id = "text-1", text = "cached final", textState = TextPartState.Complete),
+                        ),
+                    ),
+                    isEdited = false,
+                    sender = "@bot:keepsecret.io",
+                )
+            )
+        }
+        val presenter = createPresenter(
+            content = aTimelineItemAiContent(streamId = "stream-1", sender = "@bot:keepsecret.io"),
+            agentStreamClient = client,
+            streamContentCache = contentCache,
+            dispatchers = testCoroutineDispatchers(useUnconfinedTestDispatcher = true),
+        )
+
+        presenter.test {
+            val initial = awaitItem().content
+
+            assertThat(initial.body).isEqualTo("cached final")
+            assertThat(initial.isStreaming).isFalse()
+            assertThat(client.requests).isEmpty()
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - completed durable snapshot renders before binding sdk stream`() = runTest {
+        val client = FakeAgentStreamClient(
+            initialSnapshot = snapshot(
+                streamId = "stream-1",
+                status = StreamStatus.Loading,
+            )
+        )
+        val streamHandleStore = AiStreamHandleStore(
+            client = client,
+            storageProvider = FakeStreamStorageProvider(
+                loadResult = snapshot(
+                    streamId = "stream-1",
+                    status = StreamStatus.Completed,
+                    parts = listOf(
+                        StreamPart.Text(id = "text-1", text = "stored final", textState = TextPartState.Complete),
+                    ),
+                )
+            ),
+        )
+        val presenter = createPresenter(
+            content = aTimelineItemAiContent(streamId = "stream-1", sender = "@bot:keepsecret.io"),
+            agentStreamClient = client,
+            streamHandleStore = streamHandleStore,
+            dispatchers = testCoroutineDispatchers(useUnconfinedTestDispatcher = true),
+        )
+
+        presenter.test {
+            val first = awaitItem().content
+            val updated = if (first.body == "stored final") first else awaitItem().content
+
+            assertThat(updated.body).isEqualTo("stored final")
+            assertThat(updated.isStreaming).isFalse()
+            assertThat(client.requests).isEmpty()
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     private fun createPresenter(
         content: TimelineItemAiContent,
         agentStreamClient: AgentStreamClient = FakeAgentStreamClient(),
+        streamHandleStore: AiStreamHandleStore = AiStreamHandleStore(agentStreamClient, FakeStreamStorageProvider()),
+        streamContentCache: AiStreamContentCache = AiStreamContentCache(),
         dispatchers: CoroutineDispatchers,
     ): TimelineItemAiPresenter {
         return TimelineItemAiPresenter(
             content = content,
-            agentStreamClient = agentStreamClient,
+            aiStreamHandleStore = streamHandleStore,
+            aiStreamContentCache = streamContentCache,
             aiSdkStreamReducer = AiSdkStreamReducer(),
             dispatchers = dispatchers,
         )
@@ -357,10 +496,22 @@ class TimelineItemAiPresenterTest {
         }
     }
 
+    private class FakeStreamStorageProvider(
+        private val loadResult: StreamSnapshot? = null,
+    ) : StreamStorageProvider {
+        override suspend fun load(streamId: String): StreamSnapshot? = loadResult
+
+        override suspend fun save(snapshot: StreamSnapshot) = Unit
+
+        override suspend fun delete(streamId: String) = Unit
+    }
+
     private companion object {
         fun aTimelineItemAiContent(
             streamId: String? = null,
             sender: String? = null,
+            roomId: String? = null,
+            eventId: String? = null,
             parts: ImmutableList<AiStreamPart> = persistentListOf(),
         ): TimelineItemAiContent {
             return TimelineItemAiContent(
@@ -369,6 +520,8 @@ class TimelineItemAiPresenterTest {
                 isStreaming = true,
                 streamId = streamId,
                 sender = sender,
+                roomId = roomId,
+                eventId = eventId,
                 thinkingSteps = persistentListOf(),
                 toolCalls = persistentListOf(),
                 sources = persistentListOf(),

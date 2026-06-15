@@ -11,6 +11,80 @@ import androidx.compose.runtime.Immutable
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 
+@Immutable
+data class AiStreamRenderModel(
+    val streamId: String?,
+    val schemaVersion: Int,
+    val streamStatus: String?,
+    val updatedAtMs: Long?,
+    val completedAtMs: Long?,
+    val streamError: String?,
+    val renderVersion: String?,
+    val isStreaming: Boolean,
+    val isTerminal: Boolean,
+    val cursorMode: AiStreamCursorMode,
+    val markdownBlocks: ImmutableList<AiMarkdownBlock>,
+    val thinkingSteps: ImmutableList<AiThinkingStep>,
+    val toolCalls: ImmutableList<AiToolCall>,
+    val sources: ImmutableList<AiSource>,
+    val quickActions: ImmutableList<AiQuickAction>,
+    val parts: ImmutableList<AiStreamPart> = persistentListOf(),
+    val renderableToolParts: ImmutableList<AiToolStreamPart> = persistentListOf(),
+    val toolCardEntries: ImmutableList<AiToolCardEntry> = persistentListOf(),
+    val toolCallRoot: ToolCallRootRenderModel? = null,
+    val passthroughParts: ImmutableList<AiStreamPart> = persistentListOf(),
+    val visibleParts: ImmutableList<AiStreamPart> = persistentListOf(),
+    val firstToolPartIndex: Int? = null,
+    val lastPartIsStreamingText: Boolean = false,
+) {
+    val body: String
+        get() = markdownBlocks.joinToString(separator = "\n\n") { it.text }
+
+    fun toTimelineContent(isEdited: Boolean, sender: String?): TimelineItemAiContent {
+        return TimelineItemAiContent(
+            body = body,
+            isEdited = isEdited,
+            isStreaming = isStreaming,
+            isTerminal = isTerminal,
+            streamId = streamId,
+            schemaVersion = schemaVersion,
+            streamStatus = streamStatus,
+            updatedAtMs = updatedAtMs,
+            completedAtMs = completedAtMs,
+            streamError = streamError,
+            renderVersion = renderVersion,
+            sender = sender,
+            roomId = null,
+            eventId = null,
+            thinkingSteps = thinkingSteps,
+            toolCalls = toolCalls,
+            sources = sources,
+            quickActions = quickActions,
+            parts = parts,
+            renderableToolParts = renderableToolParts,
+            toolCardEntries = toolCardEntries,
+            toolCallRoot = toolCallRoot,
+            passthroughParts = passthroughParts,
+            visibleParts = visibleParts,
+            firstToolPartIndex = firstToolPartIndex,
+            lastPartIsStreamingText = lastPartIsStreamingText,
+        )
+    }
+}
+
+enum class AiStreamCursorMode {
+    None,
+    Loading,
+    TrailingCursor,
+}
+
+@Immutable
+data class AiMarkdownBlock(
+    val id: String,
+    val text: String,
+    val state: String,
+)
+
 /**
  * Native (degraded) rendering of an Unseal AI/assistant "stream" message.
  *
@@ -25,13 +99,31 @@ data class TimelineItemAiContent(
     val body: String,
     override val isEdited: Boolean,
     val isStreaming: Boolean,
+    /** True once the stream reached a terminal status (Completed/Failed/Cancelled). */
+    val isTerminal: Boolean = false,
     val streamId: String? = null,
+    val schemaVersion: Int = 1,
+    val streamStatus: String? = null,
+    val updatedAtMs: Long? = null,
+    val completedAtMs: Long? = null,
+    val streamError: String? = null,
+    val renderVersion: String? = null,
     val sender: String? = null,
+    val roomId: String? = null,
+    val eventId: String? = null,
     val thinkingSteps: ImmutableList<AiThinkingStep>,
     val toolCalls: ImmutableList<AiToolCall>,
     val sources: ImmutableList<AiSource>,
     val quickActions: ImmutableList<AiQuickAction>,
     val parts: ImmutableList<AiStreamPart> = persistentListOf(),
+    val renderableToolParts: ImmutableList<AiToolStreamPart> = persistentListOf(),
+    val toolCardEntries: ImmutableList<AiToolCardEntry> = persistentListOf(),
+    val toolCallRoot: ToolCallRootRenderModel? = null,
+    val passthroughParts: ImmutableList<AiStreamPart> = persistentListOf(),
+    /** Ordered, hidden-filtered parts (tool markers kept) — the render source, mirrors iOS groupedParts. */
+    val visibleParts: ImmutableList<AiStreamPart> = persistentListOf(),
+    val firstToolPartIndex: Int? = null,
+    val lastPartIsStreamingText: Boolean = false,
 ) : TimelineItemEventContent, TimelineItemEventMutableContent {
     override val type: String = "TimelineItemAiContent"
 
@@ -70,6 +162,30 @@ data class AiToolStreamPart(
     val errorText: String?,
     val rawInput: String? = null,
 ) : AiStreamPart
+
+@Immutable
+data class AiToolCardEntry(
+    val id: String,
+    val name: String,
+    /** Mirrors iOS CardToolState: "calling", "done", or "error". */
+    val state: String,
+    /** JSON object string matching iOS ToolCallEntry.props, including `_cardType`. */
+    val props: String,
+)
+
+@Immutable
+data class ToolCallRootRenderModel(
+    val id: String,
+    val title: String,
+    val entries: ImmutableList<AiToolCardEntry>,
+    val selectedIndex: Int,
+    val doneCount: Int,
+    val errorCount: Int,
+    val callingCount: Int,
+    val allFinished: Boolean,
+    val isSingleTool: Boolean,
+    val expandedByDefault: Boolean,
+)
 
 @Immutable
 data class AiSourceStreamPart(

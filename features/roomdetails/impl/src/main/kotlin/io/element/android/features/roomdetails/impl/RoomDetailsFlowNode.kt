@@ -463,7 +463,9 @@ class RoomDetailsFlowNode(
                             }
                         }
 
-                        override fun onTriggersChanged() = Unit
+                        override fun onTriggersChanged() {
+                            callback.onRoomConfigChanged()
+                        }
 
                         override fun onOpenConnectUrl(url: String) {
                             learnMoreUrl.value = url

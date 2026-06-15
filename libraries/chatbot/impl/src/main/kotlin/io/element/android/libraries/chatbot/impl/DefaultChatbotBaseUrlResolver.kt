@@ -32,8 +32,16 @@ class DefaultChatbotBaseUrlResolver(
 
         return mutex.withLock {
             cachedApiBaseUrls[normalized]?.let { return@withLock it }
-            val resolved = wellKnown(normalized)?.unsealApi?.baseUrl?.takeIf { it.isNotBlank() }
-                ?: ChatbotConfig.UNSEAL_API_FALLBACK_BASE_URL
+            val wk = wellKnown(normalized)
+            // Prefer the explicit agent-api base; otherwise fall back to the SAME homeserver host the
+            // stream/chatbot calls use (self-hosted / dev deployments serve /api/* on the homeserver
+            // itself). Only when there is no server name at all do we use the prod agent-api constant.
+            // Falling back to the prod constant here was the cause of credits 404s on dev: the dev
+            // homeserver has no `.well-known` `org.unseal.api.base_url`, so requests went to prod
+            // agent-api where the dev account does not exist.
+            val resolved = wk?.unsealApi?.baseUrl?.takeIf { it.isNotBlank() }
+                ?: wk?.homeserver?.baseUrl?.takeIf { it.isNotBlank() }
+                ?: "https://$normalized"
             cachedApiBaseUrls[normalized] = resolved
             resolved
         }

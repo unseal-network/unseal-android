@@ -144,6 +144,7 @@ class RoomSchedulesPresenter(
                     editingMemoryText = ""
                     isEditingMemory = false
                     memoryError = null
+                    navigator.onSchedulesChanged()
                 }
                 .onFailure {
                     memoryError = errorMessage(it)

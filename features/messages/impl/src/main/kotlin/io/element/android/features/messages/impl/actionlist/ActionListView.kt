@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.messages.impl.actionlist.model.TimelineItemAction
+import io.element.android.features.messages.impl.actionlist.model.MessageActionMenuReducer
 import io.element.android.features.messages.impl.crypto.sendfailure.VerifiedUserSendFailure
 import io.element.android.features.messages.impl.crypto.sendfailure.VerifiedUserSendFailure.ChangedIdentity
 import io.element.android.features.messages.impl.crypto.sendfailure.VerifiedUserSendFailure.None
@@ -191,7 +192,7 @@ private fun ActionListViewContent(
         }
 
         is ActionListState.Target.Success -> {
-            val actions = target.actions
+            val renderModel = remember(target) { MessageActionMenuReducer.reduce(target) }
             LazyColumn(
                 modifier = modifier.fillMaxWidth()
             ) {
@@ -219,7 +220,7 @@ private fun ActionListViewContent(
                 if (target.verifiedUserSendFailure != None) {
                     item {
                         VerifiedUserSendFailureView(
-                            sendFailure = target.verifiedUserSendFailure,
+                            sendFailure = renderModel.verifiedUserSendFailure,
                             modifier = Modifier.fillMaxWidth(),
                             onClick = onVerifiedUserSendFailureClick
                         )
@@ -229,7 +230,7 @@ private fun ActionListViewContent(
                 if (target.displayEmojiReactions) {
                     item {
                         EmojiReactionsRow(
-                            recentEmojis = target.recentEmojis,
+                            recentEmojis = renderModel.recentEmojis,
                             highlightedEmojis = target.event.reactionsState.highlightedKeys,
                             onEmojiReactionClick = onEmojiReactionClick,
                             onCustomReactionClick = onCustomReactionClick,
@@ -238,22 +239,30 @@ private fun ActionListViewContent(
                         HorizontalDivider()
                     }
                 }
-                items(
-                    items = actions,
-                ) { action ->
-                    ListItem(
-                        modifier = Modifier.clickable {
-                            onActionClick(action)
-                        },
-                        headlineContent = {
-                            Text(text = stringResource(id = action.titleRes))
-                        },
-                        leadingContent = ListItemContent.Icon(IconSource.Resource(action.icon)),
-                        style = when {
-                            action.destructive -> ListItemStyle.Destructive
-                            else -> ListItemStyle.Default
+                renderModel.sections.forEachIndexed { sectionIndex, section ->
+                    if (sectionIndex > 0) {
+                        item(key = "divider-${section.kind}") {
+                            HorizontalDivider()
                         }
-                    )
+                    }
+                    items(
+                        items = section.entries,
+                        key = { entry -> entry.action.name },
+                    ) { entry ->
+                        ListItem(
+                            modifier = Modifier.clickable {
+                                onActionClick(entry.action)
+                            },
+                            headlineContent = {
+                                Text(text = stringResource(id = entry.titleRes))
+                            },
+                            leadingContent = ListItemContent.Icon(IconSource.Resource(entry.icon)),
+                            style = when {
+                                entry.destructive -> ListItemStyle.Destructive
+                                else -> ListItemStyle.Default
+                            },
+                        )
+                    }
                 }
             }
         }

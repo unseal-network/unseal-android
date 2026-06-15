@@ -33,6 +33,20 @@ data class StreamSnapshot(
         get() = status in setOf(StreamStatus.Completed, StreamStatus.Failed, StreamStatus.Cancelled)
 }
 
+/**
+ * Returns a display/storage safe completed snapshot.
+ *
+ * The AI SDK stream is a patch state machine: in well-formed streams, each part receives its own
+ * terminal state. Some historic server/cache payloads completed the stream without sending an
+ * explicit tool/text/reasoning end event, leaving parts stuck at input/streaming states. Completed
+ * snapshots are terminal for UI and storage, so non-terminal part states must be closed here rather
+ * than leaving every client renderer to guess.
+ */
+fun StreamSnapshot.normalizedForTerminalState(): StreamSnapshot {
+    if (status != StreamStatus.Completed) return this
+    return copy(parts = parts.map { it.normalizedCompletedPart() })
+}
+
 enum class StreamStatus {
     Idle,
     Loading,
@@ -220,10 +234,30 @@ enum class ToolPartState(val wireValue: String) {
     InputStreaming("input-streaming"),
     InputAvailable("input-available"),
     OutputAvailable("output-available"),
+    ApprovalRequested("approval-requested"),
+    ApprovalResponded("approval-responded"),
     OutputError("output-error"),
+    OutputDenied("output-denied"),
     ;
 
     companion object {
         fun fromWire(value: String?): ToolPartState? = entries.firstOrNull { it.wireValue == value }
     }
 }
+
+private fun StreamPart.normalizedCompletedPart(): StreamPart {
+    return when (this) {
+        is StreamPart.Text -> if (textState == TextPartState.Done.wireValue) this else copy(textState = TextPartState.Done.wireValue)
+        is StreamPart.Reasoning -> if (reasoningState == TextPartState.Done.wireValue) this else copy(reasoningState = TextPartState.Done.wireValue)
+        is StreamPart.Tool -> if (toolState in TERMINAL_TOOL_STATES) this else copy(toolState = ToolPartState.OutputAvailable.wireValue)
+        else -> this
+    }
+}
+
+private val TERMINAL_TOOL_STATES = setOf(
+    ToolPartState.OutputAvailable.wireValue,
+    ToolPartState.ApprovalRequested.wireValue,
+    ToolPartState.ApprovalResponded.wireValue,
+    ToolPartState.OutputError.wireValue,
+    ToolPartState.OutputDenied.wireValue,
+)
