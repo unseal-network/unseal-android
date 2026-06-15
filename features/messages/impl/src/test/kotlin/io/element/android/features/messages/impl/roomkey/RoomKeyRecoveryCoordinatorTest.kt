@@ -73,6 +73,28 @@ class RoomKeyRecoveryCoordinatorTest {
     }
 
     @Test
+    fun `recover resumes expired progress from next stage even when request is pending`() = runRoomKeyRecoveryTest {
+        val memberTarget = RoomKeyRecoveryTarget(UserId("@bob:example.org"), null)
+        val planStages = listOf(RoomKeyRecoveryDisplayStage.Sender, RoomKeyRecoveryDisplayStage.Members)
+        pendingStore.markPendingIfNeeded(aRequest())
+        progressStore.startStage(
+            stage = RoomKeyRecoveryDisplayStage.Sender,
+            request = aRequest(),
+            planStages = planStages,
+            duration = 60.seconds,
+        )
+        clock.advanceBy(60.seconds)
+
+        val result = aCoordinator().recover(
+            aInput(canUseKeyBackup = false, roomMemberTargets = listOf(memberTarget))
+        )
+
+        assertThat(result.statusFor(aRequest())).isInstanceOf(RoomKeyRecoveryStatus.Failed::class.java)
+        assertThat(requester.requests.map { it.scope }).containsExactly(RoomKeyRecoveryScope.RoomMember)
+        assertThat(requester.requests.single().targets).containsExactly(memberTarget)
+    }
+
+    @Test
     fun `recover coalesces duplicate requests`() = runRoomKeyRecoveryTest {
         val result = aCoordinator(waitForDecryption = { _, _ -> true }).recover(
             aInput(requests = listOf(aRequest(), aRequest()))

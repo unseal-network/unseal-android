@@ -156,7 +156,10 @@ class RoomKeyRecoveryCoordinator(
             )
         }
 
-        if (!pendingStore.markPendingIfNeeded(request, force = force)) {
+        val resumableRecord = existingRecord
+            ?.takeUnless { force }
+            ?.takeIf { it.planStages.isNotEmpty() }
+        if (resumableRecord == null && !pendingStore.markPendingIfNeeded(request, force = force)) {
             return RoomKeyRecoveryStatus.Pending(
                 request = request,
                 eventCount = eventCount,
@@ -164,27 +167,33 @@ class RoomKeyRecoveryCoordinator(
             )
         }
 
-        val plan = planner.buildPlan(
+        val planStages = resumableRecord?.planStages ?: planner.buildPlan(
             isOwnMessage = request.senderUserId == input.ownUserId,
             canUseKeyBackup = input.canUseKeyBackup,
             hasMemberFallback = input.roomMemberTargets.isNotEmpty(),
-        )
+        ).stages
+        val startIndex = resumableRecord?.nextStageIndex() ?: 0
 
-        for (stage in plan.stages) {
-            progressStore.startStage(stage, request, plan.stages, stageWaitDuration)
+        if (startIndex >= planStages.size) {
+            progressStore.markFailed(request, planStages)
+            return RoomKeyRecoveryStatus.Failed(request, eventCount, planStages)
+        }
+
+        for (stage in planStages.drop(startIndex)) {
+            progressStore.startStage(stage, request, planStages, stageWaitDuration)
             onStatusChanged(
                 RoomKeyRecoveryStatus.Active(
                     request = request,
                     eventCount = eventCount,
                     currentStage = stage,
-                    planStages = plan.stages,
+                    planStages = planStages,
                     remaining = progressStore.remainingInterval(request),
                 )
             )
             val requestResult = requestStage(stage, request, input)
             if (requestResult.isFailure) {
-                progressStore.markFailed(request, plan.stages)
-                return RoomKeyRecoveryStatus.Failed(request, eventCount, plan.stages)
+                progressStore.markFailed(request, planStages)
+                return RoomKeyRecoveryStatus.Failed(request, eventCount, planStages)
             }
             if (waitForDecryption(request, stageWaitDuration)) {
                 progressStore.remove(request)
@@ -193,8 +202,8 @@ class RoomKeyRecoveryCoordinator(
             }
         }
 
-        progressStore.markFailed(request, plan.stages)
-        return RoomKeyRecoveryStatus.Failed(request, eventCount, plan.stages)
+        progressStore.markFailed(request, planStages)
+        return RoomKeyRecoveryStatus.Failed(request, eventCount, planStages)
     }
 
     private suspend fun requestStage(
@@ -225,4 +234,9 @@ class RoomKeyRecoveryCoordinator(
             RoomKeyRecoveryDisplayStage.Failed -> Result.success(Unit)
         }
     }
+}
+
+private fun RoomKeyRecoveryProgressRecord.nextStageIndex(): Int {
+    val currentIndex = planStages.indexOf(currentStage)
+    return if (currentIndex < 0) 0 else currentIndex + 1
 }
