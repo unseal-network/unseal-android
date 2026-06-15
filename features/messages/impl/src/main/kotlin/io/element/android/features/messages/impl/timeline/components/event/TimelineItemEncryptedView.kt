@@ -8,7 +8,6 @@
 
 package io.element.android.features.messages.impl.timeline.components.event
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
@@ -37,7 +35,6 @@ import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import io.element.android.libraries.designsystem.theme.components.ButtonSize
 import io.element.android.libraries.designsystem.theme.components.Icon
 import io.element.android.libraries.designsystem.theme.components.LinearProgressIndicator
-import io.element.android.libraries.designsystem.theme.components.Surface
 import io.element.android.libraries.designsystem.theme.components.Text
 import io.element.android.libraries.designsystem.theme.components.TextButton
 import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryRequest
@@ -133,49 +130,51 @@ private fun TimelineItemRoomKeyRecoveryView(
     modifier: Modifier = Modifier,
 ) {
     val display = recovery.display()
-    Surface(
-        modifier = modifier.onSizeChanged { size ->
-            onContentLayoutChange(
-                ContentAvoidingLayoutData(
-                    contentWidth = size.width,
-                    contentHeight = size.height,
-                )
-            )
-        },
-        color = ElementTheme.colors.bgSubtleSecondary,
-        border = BorderStroke(1.dp, ElementTheme.colors.borderDisabled),
-        shape = RoundedCornerShape(8.dp),
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(
-                    resourceId = display.iconResourceId,
-                    tint = ElementTheme.colors.iconSecondary,
-                    contentDescription = display.title,
-                    modifier = Modifier.size(16.dp),
-                )
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = display.title,
-                        color = ElementTheme.colors.textPrimary,
-                        style = ElementTheme.typography.fontBodyMdMedium,
+    Column(
+        modifier = modifier
+            .onSizeChanged { size ->
+                onContentLayoutChange(
+                    ContentAvoidingLayoutData(
+                        contentWidth = size.width,
+                        contentHeight = size.height,
                     )
-                    Text(
-                        text = display.detail,
-                        color = ElementTheme.colors.textSecondary,
-                        style = ElementTheme.typography.fontBodySmRegular,
-                    )
-                }
+                )
             }
-            if (recovery.planStages.isNotEmpty()) {
+            .padding(horizontal = 4.dp, vertical = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Icon(
+                resourceId = display.iconResourceId,
+                tint = ElementTheme.colors.iconSecondary,
+                contentDescription = display.title,
+                modifier = Modifier.size(22.dp),
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(
+                    text = display.title,
+                    color = ElementTheme.colors.textSecondary,
+                    style = ElementTheme.typography.fontBodyMdMedium,
+                )
+                Text(
+                    text = recovery.eventCount.messageCountLabel(),
+                    color = ElementTheme.colors.textSecondary,
+                    style = ElementTheme.typography.fontBodySmRegular,
+                )
+            }
+        }
+        if (recovery.planStages.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Text(
+                    text = display.title,
+                    color = ElementTheme.colors.textPrimary,
+                    style = ElementTheme.typography.fontBodySmMedium,
+                )
                 LinearProgressIndicator(
                     progress = { recovery.progress() },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(3.dp),
+                        .height(5.dp),
                 )
                 Text(
                     text = recovery.stageSummary(),
@@ -183,22 +182,27 @@ private fun TimelineItemRoomKeyRecoveryView(
                     style = ElementTheme.typography.fontBodySmRegular,
                 )
             }
-            display.action?.let { action ->
-                TextButton(
-                    text = when (action) {
-                        RoomKeyRecoveryAction.VerifyDevice -> stringResource(id = CommonStrings.common_verify_device)
-                        RoomKeyRecoveryAction.Retry -> stringResource(id = CommonStrings.action_retry_decryption)
-                    },
-                    size = ButtonSize.Small,
-                    onClick = {
-                        when (action) {
-                            RoomKeyRecoveryAction.VerifyDevice -> onVerifyDeviceClick()
-                            RoomKeyRecoveryAction.Retry -> onRetryClick(recovery.request)
-                        }
-                    },
-                )
-            } ?: Spacer(modifier = Modifier.height(0.dp))
         }
+        Text(
+            text = display.detail,
+            color = ElementTheme.colors.textSecondary,
+            style = ElementTheme.typography.fontBodyMdRegular,
+        )
+        display.action?.let { action ->
+            TextButton(
+                text = when (action) {
+                    RoomKeyRecoveryAction.VerifyDevice -> stringResource(id = CommonStrings.common_verify_device)
+                    RoomKeyRecoveryAction.Retry -> stringResource(id = CommonStrings.action_retry_decryption)
+                },
+                size = ButtonSize.Small,
+                onClick = {
+                    when (action) {
+                        RoomKeyRecoveryAction.VerifyDevice -> onVerifyDeviceClick()
+                        RoomKeyRecoveryAction.Retry -> onRetryClick(recovery.request)
+                    }
+                },
+            )
+        } ?: Spacer(modifier = Modifier.height(0.dp))
     }
 }
 
