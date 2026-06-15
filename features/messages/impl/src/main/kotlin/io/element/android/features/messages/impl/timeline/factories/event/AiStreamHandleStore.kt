@@ -10,8 +10,10 @@ package io.element.android.features.messages.impl.timeline.factories.event
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import io.element.android.libraries.agentstream.api.AgentStreamClient
+import io.element.android.libraries.agentstream.api.StreamError
 import io.element.android.libraries.agentstream.api.StreamHandle
 import io.element.android.libraries.agentstream.api.StreamListener
+import io.element.android.libraries.agentstream.api.StreamPart
 import io.element.android.libraries.agentstream.api.StreamRequest
 import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.agentstream.api.StreamStatus
@@ -20,7 +22,6 @@ import io.element.android.libraries.agentstream.api.StreamSubscription
 import io.element.android.libraries.agentstream.api.normalizedForTerminalState
 import io.element.android.libraries.di.RoomScope
 import java.io.Closeable
-import timber.log.Timber
 
 @SingleIn(RoomScope::class)
 @Inject
@@ -36,14 +37,6 @@ class AiStreamHandleStore(
         return synchronized(lock) {
             handles[streamId]?.snapshot()?.normalizedForTerminalState()?.takeIf { it.hasUsableContent() }
                 ?: snapshots[streamId]
-        }.also { snapshot ->
-            Timber.tag(DBG).d(
-                "room cache %s stream=%s status=%s parts=%d",
-                if (snapshot == null) "MISS" else "HIT",
-                streamId,
-                snapshot?.status,
-                snapshot?.parts?.size ?: 0,
-            )
         }
     }
 
@@ -77,9 +70,23 @@ class AiStreamHandleStore(
         synchronized(lock) {
             rememberSnapshotLocked(request.streamId, initialSnapshot)
         }
+        val deliveryLock = Any()
+        var lastDeliveredSignature = initialSnapshot.deliverySignature()
         onSnapshot(initialSnapshot)
         val subscription = handle.subscribe(StreamListener { snapshot ->
             val normalizedSnapshot = snapshot.normalizedForTerminalState()
+            val deliverySignature = normalizedSnapshot.deliverySignature()
+            val shouldDeliver = synchronized(deliveryLock) {
+                if (deliverySignature == lastDeliveredSignature) {
+                    false
+                } else {
+                    lastDeliveredSignature = deliverySignature
+                    true
+                }
+            }
+            if (!shouldDeliver) {
+                return@StreamListener
+            }
             synchronized(lock) {
                 rememberSnapshotLocked(request.streamId, normalizedSnapshot)
             }
@@ -116,7 +123,6 @@ class AiStreamHandleStore(
             return
         }
         snapshots[streamId] = snapshot
-        Timber.tag(DBG).d("room cache PUT stream=%s status=%s parts=%d", streamId, snapshot.status, snapshot.parts.size)
         while (snapshots.size > MAX_CACHED_SNAPSHOTS) {
             val eldestKey = snapshots.keys.firstOrNull() ?: return
             snapshots.remove(eldestKey)
@@ -124,7 +130,6 @@ class AiStreamHandleStore(
     }
 
     private companion object {
-        const val DBG = "AiStreamDbg"
         const val MAX_CACHED_SNAPSHOTS = 256
     }
 }
@@ -136,3 +141,21 @@ private fun StreamStatus.isRetryableTerminalCache(): Boolean {
 private fun StreamSnapshot.hasUsableContent(): Boolean {
     return parts.isNotEmpty() || isTerminal
 }
+
+private fun StreamSnapshot.deliverySignature(): SnapshotDeliverySignature {
+    return SnapshotDeliverySignature(
+        status = status,
+        parts = parts,
+        updatedAtMs = updatedAtMs,
+        completedAtMs = completedAtMs,
+        error = error,
+    )
+}
+
+private data class SnapshotDeliverySignature(
+    val status: StreamStatus,
+    val parts: List<StreamPart>,
+    val updatedAtMs: Long,
+    val completedAtMs: Long?,
+    val error: StreamError?,
+)

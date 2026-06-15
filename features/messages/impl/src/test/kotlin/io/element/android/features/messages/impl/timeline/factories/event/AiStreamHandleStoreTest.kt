@@ -44,6 +44,19 @@ class AiStreamHandleStoreTest {
     }
 
     @Test
+    fun `bind delivers current snapshot once when sdk subscription immediately replays it`() {
+        val client = FakeAgentStreamClient()
+        val store = AiStreamHandleStore(client, FakeStreamStorageProvider())
+        val delivered = mutableListOf<StreamStatus>()
+
+        store.bind(StreamRequest("stream-1", "@a:b", "!room:b", "event-1")) { snapshot ->
+            delivered += snapshot.status
+        }.close()
+
+        assertThat(delivered).containsExactly(StreamStatus.Completed)
+    }
+
+    @Test
     fun `unbind cancels listener subscription but does not cancel sdk handle`() {
         val client = FakeAgentStreamClient()
         val store = AiStreamHandleStore(client, FakeStreamStorageProvider())
