@@ -431,7 +431,7 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 |---|---|---|---|
 | `data-ui-spec` / `data-json-render` / `data-spec` | `JsonRenderView` → `Renderer` 递归渲染 Spec 树 | 🟡 `JsonSpecRender` 已接入 stream data parts，支持 flat spec + nested fallback | 🟡 第一版覆盖核心组件，未完整覆盖 iOS Shadcn 目录 |
 | 组件目录（Shadcn） | stack/text/heading/button/image/input/select/switch/radio/checkbox/progress/alert/card/divider/spacer/scroll/group + 富卡片 | 🟡 stack/card/text/heading/button/image/divider/badge/progress/alert/file/hotel/product/news | ❌ input/select/switch/radio/checkbox/conditional/repeat/action 等未迁移 |
-| 高级特性 | `$state` 绑定、`visible` 条件、`repeat` 重复、`on.click` 事件、`$template` | 🟡 文本 `$state` 与节点 `visible` 已支持 | ❌ `repeat` / `on.click` / `$template` 待迁移 |
+| 高级特性 | `$state` 绑定、`visible` 条件、`repeat` 重复、`on.click` 事件、`$template` | 🟡 文本 `$state`、节点 `visible`、基础 `repeat` 局部 item state 已支持 | ❌ `on.click` / `$template` 待迁移，复杂 repeat template 仍需继续对齐 iOS |
 | markdown 中 ` ```json/```spec ` 代码块 | iOS `CustomCodeBlockView` 把 spec/json 渲染成 Renderer | ✅ `MarkdownBody` 已按 `canRenderAsJsonSpec()` 分流到 `JsonSpecRender` | 🟡 继续补 renderer 组件能力 |
 
 ### 4.4 菜单页面
@@ -460,7 +460,7 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 ## 5. 待完成 TODO（按优先级）
 
 **P0 — 内容/交互对齐（影响可用性）**
-1. **JsonRender 组件目录补全**（task #14 follow-up）：`data-ui-spec`/`data-json-render`/`data-spec` 已接第一版 `JsonSpecRender`；文本 `$state`、节点 `visible`、markdown `json/spec` code-block 分流已支持；继续补 iOS Shadcn 目录、`repeat/on.click/$template`。
+1. **JsonRender 组件目录补全**（task #14 follow-up）：`data-ui-spec`/`data-json-render`/`data-spec` 已接第一版 `JsonSpecRender`；文本 `$state`、节点 `visible`、基础 `repeat` 局部 item state、markdown `json/spec` code-block 分流已支持；继续补 iOS Shadcn 目录、`on.click/$template` 和复杂 repeat template。
 2. **Suspended/审批卡片交互**：Android 目前 display-only；iOS 卡片会调用 `AgentMessageViewDelegate.updateMessage(eventId, ToUnsealUpdateData(mAgentSuspended: ...))`，但当前 ElementX host `AIAgentProxy.updateMessage` 也是 `not implemented`。不要在 Android 里自造协议；等 iOS host wire shape 落地后按同一接口迁移。
 3. **真机逐卡核对**：用 §1.4 抓 `AiSdkStreamReducer` 日志，确认每个 cardType 的 payload 经 CardTransforms 后字段命中、内容与 iOS 一致（尤其 GitHub activity 类、composio search 富卡片）。
 

@@ -50,4 +50,30 @@ class JsonSpecRenderTest {
         assertThat(spec.elements.getValue("shown").isVisible(spec)).isTrue()
         assertThat(spec.elements.getValue("hidden").isVisible(spec)).isFalse()
     }
+
+    @Test
+    fun `JsonRenderElement renderChildren repeats children with local item state`() {
+        val spec = """
+            {
+              "root": "root",
+              "state": {
+                "items": [
+                  { "title": "First" },
+                  { "title": "Second" }
+                ]
+              },
+              "elements": {
+                "root": { "type": "stack", "props": { "repeat": { "${"$"}state": "/items" } }, "children": ["row"] },
+                "row": { "type": "text", "props": { "text": { "${"$"}state": "/title" } } }
+              }
+            }
+        """.trimIndent().toJsonRenderSpec()!!
+
+        val renderChildren = spec.elements.getValue("root").renderChildren(spec)
+
+        assertThat(renderChildren.map { it.id }).containsExactly("row", "row").inOrder()
+        assertThat(renderChildren.map { spec.elements.getValue(it.id).props.firstString(it.state, "text") })
+            .containsExactly("First", "Second")
+            .inOrder()
+    }
 }

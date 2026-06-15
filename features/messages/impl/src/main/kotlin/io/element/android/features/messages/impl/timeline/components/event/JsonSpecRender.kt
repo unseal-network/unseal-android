@@ -66,6 +66,11 @@ internal data class JsonRenderSpec(
     val state: JSONObject?,
 )
 
+internal data class JsonRenderChild(
+    val id: String,
+    val state: JSONObject?,
+)
+
 @Composable
 internal fun JsonSpecRender(
     payload: String,
@@ -86,7 +91,7 @@ internal fun JsonSpecRender(
             modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            JsonRenderNode(spec = spec, id = spec.root, onLinkClick = onLinkClick, depth = 0)
+            JsonRenderNode(spec = spec, id = spec.root, onLinkClick = onLinkClick, depth = 0, state = spec.state)
         }
     }
 }
@@ -97,58 +102,59 @@ private fun JsonRenderNode(
     id: String,
     onLinkClick: (Link) -> Unit,
     depth: Int,
+    state: JSONObject?,
 ) {
     if (depth > MAX_JSON_RENDER_DEPTH) return
     val element = spec.elements[id] ?: return
-    if (!element.isVisible(spec)) return
+    if (!element.isVisible(spec, state)) return
     val type = element.type.normalizedJsonType()
     when (type) {
-        "stack", "vstack", "hstack", "group", "section", "scroll", "container" -> JsonRenderStack(spec, element, onLinkClick, depth)
-        "card" -> JsonRenderCard(spec, element, onLinkClick, depth)
-        "text", "paragraph", "span", "label" -> JsonRenderText(spec, element)
-        "heading", "title", "headline" -> JsonRenderHeading(spec, element)
-        "button", "link" -> JsonRenderButton(element, onLinkClick)
+        "stack", "vstack", "hstack", "group", "section", "scroll", "container" -> JsonRenderStack(spec, element, onLinkClick, depth, state)
+        "card" -> JsonRenderCard(spec, element, onLinkClick, depth, state)
+        "text", "paragraph", "span", "label" -> JsonRenderText(state, element)
+        "heading", "title", "headline" -> JsonRenderHeading(state, element)
+        "button", "link" -> JsonRenderButton(state, element, onLinkClick)
         "image", "avatar" -> JsonRenderImage(element)
         "divider", "separator" -> androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
-        "badge", "chip" -> JsonRenderBadge(element)
-        "progress" -> JsonRenderProgress(element)
-        "alert" -> JsonRenderAlert(element)
+        "badge", "chip" -> JsonRenderBadge(state, element)
+        "progress" -> JsonRenderProgress(state, element)
+        "alert" -> JsonRenderAlert(state, element)
         "file", "fileattachment", "fileattachmentcard" -> JsonRenderFile(element, onLinkClick)
         "hotel", "hotelcard", "hotelbookingcard" -> JsonRenderHotel(element, onLinkClick)
         "product", "productcard", "shoppingitem", "universalproductcard" -> JsonRenderProduct(element, onLinkClick)
         "news", "headline", "headlineitem", "headlinecard", "urlcontent" -> JsonRenderNews(element, onLinkClick)
         else -> {
             if (element.children.isNotEmpty()) {
-                JsonRenderStack(spec, element, onLinkClick, depth)
+                JsonRenderStack(spec, element, onLinkClick, depth, state)
             } else {
-                JsonRenderText(spec, element)
+                JsonRenderText(state, element)
             }
         }
     }
 }
 
 @Composable
-private fun JsonRenderStack(spec: JsonRenderSpec, element: JsonRenderElement, onLinkClick: (Link) -> Unit, depth: Int) {
+private fun JsonRenderStack(spec: JsonRenderSpec, element: JsonRenderElement, onLinkClick: (Link) -> Unit, depth: Int, state: JSONObject?) {
     val horizontal = element.type.contains("hstack", ignoreCase = true) || element.props.string("direction") == "horizontal"
     if (horizontal) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            element.children.take(MAX_JSON_RENDER_ITEMS).forEach { child ->
+            element.renderChildren(spec, state).forEach { child ->
                 Box(modifier = Modifier.weight(1f, fill = false)) {
-                    JsonRenderNode(spec, child, onLinkClick, depth + 1)
+                    JsonRenderNode(spec, child.id, onLinkClick, depth + 1, child.state)
                 }
             }
         }
     } else {
         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            element.children.take(MAX_JSON_RENDER_ITEMS).forEach { child ->
-                JsonRenderNode(spec, child, onLinkClick, depth + 1)
+            element.renderChildren(spec, state).forEach { child ->
+                JsonRenderNode(spec, child.id, onLinkClick, depth + 1, child.state)
             }
         }
     }
 }
 
 @Composable
-private fun JsonRenderCard(spec: JsonRenderSpec, element: JsonRenderElement, onLinkClick: (Link) -> Unit, depth: Int) {
+private fun JsonRenderCard(spec: JsonRenderSpec, element: JsonRenderElement, onLinkClick: (Link) -> Unit, depth: Int, state: JSONObject?) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -161,16 +167,16 @@ private fun JsonRenderCard(spec: JsonRenderSpec, element: JsonRenderElement, onL
             element.props.firstString("subtitle", "description")?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
-            element.children.take(MAX_JSON_RENDER_ITEMS).forEach { child ->
-                JsonRenderNode(spec, child, onLinkClick, depth + 1)
+            element.renderChildren(spec, state).forEach { child ->
+                JsonRenderNode(spec, child.id, onLinkClick, depth + 1, child.state)
             }
         }
     }
 }
 
 @Composable
-private fun JsonRenderText(spec: JsonRenderSpec, element: JsonRenderElement) {
-    val text = element.props.firstString(spec.state, "text", "content", "value", "label", "title").orEmpty()
+private fun JsonRenderText(state: JSONObject?, element: JsonRenderElement) {
+    val text = element.props.firstString(state, "text", "content", "value", "label", "title").orEmpty()
     if (text.isBlank()) return
     Text(
         text = text,
@@ -180,8 +186,8 @@ private fun JsonRenderText(spec: JsonRenderSpec, element: JsonRenderElement) {
 }
 
 @Composable
-private fun JsonRenderHeading(spec: JsonRenderSpec, element: JsonRenderElement) {
-    val text = element.props.firstString(spec.state, "text", "content", "title", "label").orEmpty()
+private fun JsonRenderHeading(state: JSONObject?, element: JsonRenderElement) {
+    val text = element.props.firstString(state, "text", "content", "title", "label").orEmpty()
     if (text.isBlank()) return
     Text(
         text = text,
@@ -192,9 +198,9 @@ private fun JsonRenderHeading(spec: JsonRenderSpec, element: JsonRenderElement) 
 }
 
 @Composable
-private fun JsonRenderButton(element: JsonRenderElement, onLinkClick: (Link) -> Unit) {
-    val label = element.props.firstString("label", "text", "title").orEmpty()
-    val url = element.props.firstString("url", "href")
+private fun JsonRenderButton(state: JSONObject?, element: JsonRenderElement, onLinkClick: (Link) -> Unit) {
+    val label = element.props.firstString(state, "label", "text", "title").orEmpty()
+    val url = element.props.firstString(state, "url", "href")
     if (label.isBlank() && url.isNullOrBlank()) return
     Text(
         text = label.ifBlank { url.orEmpty() },
@@ -215,22 +221,22 @@ private fun JsonRenderImage(element: JsonRenderElement) {
 }
 
 @Composable
-private fun JsonRenderBadge(element: JsonRenderElement) {
-    val text = element.props.firstString("label", "text", "title", "value").orEmpty()
+private fun JsonRenderBadge(state: JSONObject?, element: JsonRenderElement) {
+    val text = element.props.firstString(state, "label", "text", "title", "value").orEmpty()
     if (text.isBlank()) return
     CardChip(text = text)
 }
 
 @Composable
-private fun JsonRenderProgress(element: JsonRenderElement) {
-    val value = element.props.double("value") ?: element.props.double("progress") ?: return
+private fun JsonRenderProgress(state: JSONObject?, element: JsonRenderElement) {
+    val value = element.props.double(state, "value") ?: element.props.double(state, "progress") ?: return
     LinearProgressIndicator(progress = { value.coerceIn(0.0, 1.0).toFloat() }, modifier = Modifier.fillMaxWidth())
 }
 
 @Composable
-private fun JsonRenderAlert(element: JsonRenderElement) {
-    val title = element.props.firstString("title", "heading").orEmpty()
-    val text = element.props.firstString("message", "description", "text", "content").orEmpty()
+private fun JsonRenderAlert(state: JSONObject?, element: JsonRenderElement) {
+    val title = element.props.firstString(state, "title", "heading").orEmpty()
+    val text = element.props.firstString(state, "message", "description", "text", "content").orEmpty()
     Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.70f), modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
             Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.size(18.dp))
@@ -559,7 +565,7 @@ private fun JSONArray?.toStringList(): List<String> {
 
 private fun JSONObject.firstString(vararg keys: String): String? = firstString(state = null, *keys)
 
-private fun JSONObject.firstString(state: JSONObject?, vararg keys: String): String? {
+internal fun JSONObject.firstString(state: JSONObject?, vararg keys: String): String? {
     keys.forEach { key ->
         val value = opt(key)
         when (value) {
@@ -576,9 +582,25 @@ private fun JSONObject.firstString(state: JSONObject?, vararg keys: String): Str
     return null
 }
 
-internal fun JsonRenderElement.isVisible(spec: JsonRenderSpec): Boolean {
+internal fun JsonRenderElement.isVisible(spec: JsonRenderSpec, state: JSONObject? = spec.state): Boolean {
     if (!props.has("visible")) return true
-    return props.opt("visible").toJsonRenderBoolean(spec.state) != false
+    return props.opt("visible").toJsonRenderBoolean(state) != false
+}
+
+internal fun JsonRenderElement.renderChildren(spec: JsonRenderSpec, state: JSONObject? = spec.state): List<JsonRenderChild> {
+    val repeatItems = props.opt("repeat").toJsonRenderArray(state)
+    if (repeatItems.isEmpty()) {
+        return children.take(MAX_JSON_RENDER_ITEMS).map { childId -> JsonRenderChild(childId, state) }
+    }
+    return repeatItems
+        .flatMap { item ->
+            val itemState = when (item) {
+                is JSONObject -> item
+                else -> JSONObject().put("value", item)
+            }
+            children.map { childId -> JsonRenderChild(childId, itemState) }
+        }
+        .take(MAX_JSON_RENDER_ITEMS)
 }
 
 private fun Any?.toJsonRenderBoolean(state: JSONObject?): Boolean? {
@@ -601,6 +623,21 @@ private fun Any?.toJsonRenderBoolean(state: JSONObject?): Boolean? {
     }
 }
 
+private fun Any?.toJsonRenderArray(state: JSONObject?): List<Any?> {
+    return when (this) {
+        null, JSONObject.NULL -> emptyList()
+        is JSONArray -> (0 until length()).map { index -> opt(index) }
+        is JSONObject -> {
+            optString("$" + "state").takeIf { it.isNotBlank() }?.let { path ->
+                return state?.getJsonPointer(path).toJsonRenderArray(state)
+            }
+            optJSONArray("items")?.let { return it.toJsonRenderArray(state) }
+            emptyList()
+        }
+        else -> emptyList()
+    }
+}
+
 private fun JSONObject.string(key: String): String? = firstString(key)
 
 private fun JSONObject.double(key: String): Double? {
@@ -608,6 +645,19 @@ private fun JSONObject.double(key: String): Double? {
         is Number -> value.toDouble()
         is String -> value.toDoubleOrNull()
         else -> null
+    }
+}
+
+private fun JSONObject.double(state: JSONObject?, key: String): Double? {
+    return when (val value = opt(key)) {
+        is JSONObject -> value.optString("$" + "state").takeIf { it.isNotBlank() }?.let { path ->
+            when (val resolved = state?.getJsonPointer(path)) {
+                is Number -> resolved.toDouble()
+                is String -> resolved.toDoubleOrNull()
+                else -> null
+            }
+        }
+        else -> double(key)
     }
 }
 
