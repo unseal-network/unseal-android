@@ -613,6 +613,7 @@ class MessageComposerPresenter(
                     currentUserId = currentUserId,
                     canSendRoomMention = ::canSendRoomMention,
                     isInThread = isInThread,
+                    roomUnsealContext = roomUnsealContextState.dataOrNull(),
                 )
                 suggestions.clear()
                 suggestions.addAll(result)
