@@ -12,6 +12,7 @@ import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -63,6 +64,7 @@ import io.element.android.features.messages.impl.timeline.TimelineEvent
 import io.element.android.features.messages.impl.timeline.TimelineRoomInfo
 import io.element.android.features.messages.impl.timeline.aTimelineItemEvent
 import io.element.android.features.messages.impl.timeline.components.event.TimelineItemEventContentView
+import io.element.android.features.messages.impl.timeline.components.event.LocalTimelineTextLayoutMeasurementEnabled
 import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayout
 import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
 import io.element.android.features.messages.impl.timeline.components.receipt.ReadReceiptViewState
@@ -71,7 +73,9 @@ import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.timeline.model.TimelineItemGroupPosition
 import io.element.android.features.messages.impl.timeline.model.TimelineItemThreadInfo
 import io.element.android.features.messages.impl.timeline.model.TimelineItemAlignment
+import io.element.android.features.messages.impl.timeline.model.TimelinePresentationModel
 import io.element.android.features.messages.impl.timeline.model.TimelinePresentationReducer
+import io.element.android.features.messages.impl.timeline.model.TimelineReplySwipePolicy
 import io.element.android.features.messages.impl.timeline.model.bubble.BubbleState
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemGameContent
@@ -221,69 +225,94 @@ fun TimelineItemEventRow(
         } else {
             Spacer(modifier = Modifier.height(2.dp))
         }
-        val canReply = timelineRoomInfo.userHasPermissionToSendMessage &&
-            event.canBeRepliedTo &&
-            event.content !is TimelineItemAiContent
-        if (canReply) {
-            val state: SwipeableActionsState = rememberSwipeableActionsState()
-            val offset = state.offset.floatValue
-            val swipeThresholdPx = 40.dp.toPx()
-            val thresholdCrossed = abs(offset) > swipeThresholdPx
-            SwipeSensitivity(3f) {
-                Box(Modifier.fillMaxWidth()) {
-                    Row(modifier = Modifier.matchParentSize()) {
-                        ReplySwipeIndicator({ offset / 120 })
-                    }
-                    TimelineItemEventRowContent(
-                        event = event,
-                        timelineMode = timelineMode,
-                        timelineProtectionState = timelineProtectionState,
-                        timelineRoomInfo = timelineRoomInfo,
-                        interactionSource = interactionSource,
-                        onContentClick = onContentClick,
-                        onLongClick = onLongClick,
-                        inReplyToClick = ::inReplyToClick,
-                        onUserDataClick = ::onUserDataClick,
-                        onReactionClick = { emoji -> onReactionClick(emoji, event) },
-                        onReactionLongClick = { emoji -> onReactionLongClick(emoji, event) },
-                        onMoreReactionsClick = { onMoreReactionsClick(event) },
-                        modifier = Modifier
-                            .absoluteOffset { IntOffset(x = offset.roundToInt(), y = 0) }
-                            .draggable(
-                                orientation = Orientation.Horizontal,
-                                enabled = !state.isResettingOnRelease,
-                                onDragStopped = {
-                                    coroutineScope.launch {
-                                        if (thresholdCrossed) {
-                                            onSwipeToReply()
-                                        }
-                                        state.resetOffset()
-                                    }
-                                },
-                                state = state.draggableState,
-                            ),
-                        eventSink = eventSink,
-                        eventContentView = eventContentView,
-                    )
-                }
-            }
-        } else {
-            TimelineItemEventRowContent(
+
+        val presentation = remember(event.content, event.isMine, event.groupPosition, timelineRoomInfo.isDm) {
+            TimelinePresentationReducer.reduce(
+                content = event.content,
+                isMine = event.isMine,
+                groupPosition = event.groupPosition,
+                isDirectRoom = timelineRoomInfo.isDm,
+            )
+        }
+        val canUseStandaloneFastPath = presentation.isStandalone &&
+            event.inReplyTo == null &&
+            event.reactionsState.reactions.isEmpty()
+
+        if (canUseStandaloneFastPath) {
+            TimelineItemStandaloneRow(
                 event = event,
-                timelineMode = timelineMode,
-                timelineProtectionState = timelineProtectionState,
                 timelineRoomInfo = timelineRoomInfo,
-                interactionSource = interactionSource,
-                onContentClick = onContentClick,
+                presentation = presentation,
                 onLongClick = onLongClick,
-                inReplyToClick = ::inReplyToClick,
                 onUserDataClick = ::onUserDataClick,
-                onReactionClick = { emoji -> onReactionClick(emoji, event) },
-                onReactionLongClick = { emoji -> onReactionLongClick(emoji, event) },
-                onMoreReactionsClick = { onMoreReactionsClick(event) },
                 eventSink = eventSink,
                 eventContentView = eventContentView,
             )
+        } else {
+            val canReply = timelineRoomInfo.userHasPermissionToSendMessage &&
+                event.canBeRepliedTo &&
+                presentation.replySwipePolicy == TimelineReplySwipePolicy.Enabled
+            if (canReply) {
+                val state: SwipeableActionsState = rememberSwipeableActionsState()
+                val offset = state.offset.floatValue
+                val swipeThresholdPx = 40.dp.toPx()
+                val thresholdCrossed = abs(offset) > swipeThresholdPx
+                SwipeSensitivity(3f) {
+                    Box(Modifier.fillMaxWidth()) {
+                        Row(modifier = Modifier.matchParentSize()) {
+                            ReplySwipeIndicator({ offset / 120 })
+                        }
+                        TimelineItemEventRowContent(
+                            event = event,
+                            timelineMode = timelineMode,
+                            timelineProtectionState = timelineProtectionState,
+                            timelineRoomInfo = timelineRoomInfo,
+                            interactionSource = interactionSource,
+                            onContentClick = onContentClick,
+                            onLongClick = onLongClick,
+                            inReplyToClick = ::inReplyToClick,
+                            onUserDataClick = ::onUserDataClick,
+                            onReactionClick = { emoji -> onReactionClick(emoji, event) },
+                            onReactionLongClick = { emoji -> onReactionLongClick(emoji, event) },
+                            onMoreReactionsClick = { onMoreReactionsClick(event) },
+                            modifier = Modifier
+                                .absoluteOffset { IntOffset(x = offset.roundToInt(), y = 0) }
+                                .draggable(
+                                    orientation = Orientation.Horizontal,
+                                    enabled = !state.isResettingOnRelease,
+                                    onDragStopped = {
+                                        coroutineScope.launch {
+                                            if (thresholdCrossed) {
+                                                onSwipeToReply()
+                                            }
+                                            state.resetOffset()
+                                        }
+                                    },
+                                    state = state.draggableState,
+                                ),
+                            eventSink = eventSink,
+                            eventContentView = eventContentView,
+                        )
+                    }
+                }
+            } else {
+                TimelineItemEventRowContent(
+                    event = event,
+                    timelineMode = timelineMode,
+                    timelineProtectionState = timelineProtectionState,
+                    timelineRoomInfo = timelineRoomInfo,
+                    interactionSource = interactionSource,
+                    onContentClick = onContentClick,
+                    onLongClick = onLongClick,
+                    inReplyToClick = ::inReplyToClick,
+                    onUserDataClick = ::onUserDataClick,
+                    onReactionClick = { emoji -> onReactionClick(emoji, event) },
+                    onReactionLongClick = { emoji -> onReactionLongClick(emoji, event) },
+                    onMoreReactionsClick = { onMoreReactionsClick(event) },
+                    eventSink = eventSink,
+                    eventContentView = eventContentView,
+                )
+            }
         }
 
         if (displayThreadSummaries && timelineMode !is Timeline.Mode.Thread && event.threadInfo is TimelineItemThreadInfo.ThreadRoot) {
@@ -313,10 +342,79 @@ fun TimelineItemEventRow(
                 isLastOutgoingMessage = isLastOutgoingMessage,
                 receipts = event.readReceiptState.receipts,
             ),
-            renderReadReceipts = renderReadReceipts,
+            renderReadReceipts = renderReadReceipts && event.content !is TimelineItemAiContent,
             onReadReceiptsClick = { onReadReceiptClick(event) },
             modifier = Modifier.padding(top = 4.dp)
         )
+    }
+}
+
+@Composable
+private fun TimelineItemStandaloneRow(
+    event: TimelineItem.Event,
+    timelineRoomInfo: TimelineRoomInfo,
+    presentation: TimelinePresentationModel,
+    onLongClick: () -> Unit,
+    onUserDataClick: () -> Unit,
+    eventSink: (TimelineEvent.TimelineItemEvent) -> Unit,
+    eventContentView: @Composable (Modifier, (ContentAvoidingLayoutData) -> Unit) -> Unit,
+) {
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val contentStartMargin = when {
+            timelineRoomInfo.isDm || maxWidth < 360.dp -> TIMELINE_ROW_HORIZONTAL_PADDING + AvatarSize.TimelineSender.dp
+            maxWidth < 430.dp -> AI_INCOMING_CONTENT_START + 4.dp
+            else -> AI_INCOMING_CONTENT_START + 16.dp
+        }
+        val contentEndMargin = when {
+            maxWidth < 390.dp -> 32.dp
+            maxWidth < 600.dp -> 48.dp
+            else -> 72.dp
+        }
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            if (presentation.showSenderInformation) {
+                MessageSenderInformation(
+                    event.senderId,
+                    event.senderProfile,
+                    event.senderAvatar,
+                    onUserDataClick,
+                    Modifier.padding(horizontal = TIMELINE_ROW_HORIZONTAL_PADDING),
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = contentStartMargin, end = contentEndMargin)
+                    .combinedClickable(
+                        onClick = {},
+                        onLongClick = onLongClick,
+                    )
+                    .semantics(mergeDescendants = false) {
+                        isTraversalGroup = true
+                        traversalIndex = -1f
+                    },
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    CompositionLocalProvider(
+                        LocalTimelineTextLayoutMeasurementEnabled provides false,
+                    ) {
+                        eventContentView(Modifier.fillMaxWidth()) {}
+                    }
+                    if (event.content !is TimelineItemAiContent) {
+                        TimelineEventTimestampView(
+                            event = event,
+                            eventSink = eventSink,
+                            modifier = Modifier
+                                .align(Alignment.End)
+                                .padding(top = 4.dp),
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -460,7 +558,7 @@ private fun TimelineItemEventRowContent(
             else -> AI_INCOMING_CONTENT_START
         }
         val standaloneContentEndMargin = when {
-            maxWidth < 390.dp -> 20.dp
+            maxWidth < 390.dp -> 32.dp
             maxWidth < 600.dp -> 48.dp
             else -> 64.dp
         }
@@ -860,8 +958,10 @@ private fun MessageEventBubbleContent(
             if (shouldHide) TimestampPosition.Hidden else TimestampPosition.Overlay
         }
         is TimelineItemPollContent,
-        is TimelineItemAiContent,
         is TimelineItemTextBasedContent -> TimestampPosition.Below
+        // AI stream messages mirror iOS: cards + markdown are standalone timeline content and
+        // should not pay the normal bubble/timestamp avoidance layout cost.
+        is TimelineItemAiContent -> TimestampPosition.Hidden
         // Game cards render the timestamp inline inside the card itself — suppress the external one
         is TimelineItemGameContent -> TimestampPosition.Hidden
         else -> TimestampPosition.Default

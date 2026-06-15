@@ -577,6 +577,13 @@ Game picker route parity:
 - Android `GamePickerPresenter` 现在只消费 `RoomGameApiServiceProvider` 产出的 `RoomGameApiServiceHandle`，不再自己解析 homeserver URL 或构造 `DefaultGameApiService`。
 - 后续 game picker UI/分页/插入消息对齐时，继续扩展 provider/service 或 reducer，不要把 Matrix client、OkHttp、homeserver resolver 重新塞回 Composable/Presenter 分支里。
 
+Timeline presentation parity:
+
+- `TimelinePresentationModel` now owns content kind, bubble policy, edited policy, avatar-column reservation, and reply-swipe policy.
+- `TimelinePresentationReducer` classifies AI stream, plain text, room-key recovery, redacted, and rich events before Compose layout decisions.
+- Room-key recovery is treated as standalone timeline content and disables reply-swipe, while ordinary encrypted events remain standard rich-event bubbles.
+- `TimelineItemEventRow` consumes the model for standalone layout and reply-swipe gating; do not reintroduce content-type checks directly in the row except as render-only branches.
+
 Room action menu data parity:
 
 - `MessageActionMenuReducer` now converts the existing `ActionListState.Target.Success` into sectioned render data (`Primary`, `Edit`, `Copy`, `Pin`, `Debug`, `Danger`) while preserving emoji reactions and verified send-failure state.

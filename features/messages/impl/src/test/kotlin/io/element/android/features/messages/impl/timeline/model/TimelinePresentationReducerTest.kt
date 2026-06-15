@@ -8,8 +8,16 @@
 package io.element.android.features.messages.impl.timeline.model
 
 import com.google.common.truth.Truth.assertThat
+import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryDisplayStage
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRoomKeyRecovery
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRoomKeyRecoveryState
 import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemTextContent
+import io.element.android.libraries.matrix.api.core.RoomId
+import io.element.android.libraries.matrix.api.core.UserId
+import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryRequest
+import io.element.android.libraries.matrix.api.timeline.item.event.UnableToDecryptContent
 import kotlinx.collections.immutable.persistentListOf
 import org.junit.Test
 
@@ -27,6 +35,7 @@ class TimelinePresentationReducerTest {
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
         assertThat(model.contentKind).isEqualTo(TimelineContentKind.AiStream)
         assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.Hide)
+        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Disabled)
         assertThat(model.showSenderInformation).isTrue()
         assertThat(model.reserveAvatarColumn).isTrue()
     }
@@ -44,6 +53,7 @@ class TimelinePresentationReducerTest {
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
         assertThat(model.contentKind).isEqualTo(TimelineContentKind.PlainText)
         assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.ShowWhenEdited)
+        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Enabled)
         assertThat(model.showSenderInformation).isTrue()
         assertThat(model.reserveAvatarColumn).isTrue()
     }
@@ -61,6 +71,7 @@ class TimelinePresentationReducerTest {
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
         assertThat(model.contentKind).isEqualTo(TimelineContentKind.PlainText)
         assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.ShowWhenEdited)
+        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Enabled)
         assertThat(model.showSenderInformation).isTrue()
         assertThat(model.reserveAvatarColumn).isTrue()
     }
@@ -78,8 +89,42 @@ class TimelinePresentationReducerTest {
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
         assertThat(model.contentKind).isEqualTo(TimelineContentKind.PlainText)
         assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.ShowWhenEdited)
+        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Enabled)
         assertThat(model.showSenderInformation).isTrue()
         assertThat(model.reserveAvatarColumn).isTrue()
+    }
+
+    @Test
+    fun `reduce renders room key recovery as standalone content`() {
+        val model = TimelinePresentationReducer.reduce(
+            content = aTimelineItemEncryptedRecoveryContent(),
+            isMine = false,
+            groupPosition = TimelineItemGroupPosition.None,
+            isDirectRoom = true,
+        )
+
+        assertThat(model.alignment).isEqualTo(TimelineItemAlignment.Start)
+        assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
+        assertThat(model.contentKind).isEqualTo(TimelineContentKind.RoomKeyRecovery)
+        assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.ShowWhenEdited)
+        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Disabled)
+        assertThat(model.showSenderInformation).isTrue()
+        assertThat(model.reserveAvatarColumn).isTrue()
+    }
+
+    @Test
+    fun `reduce keeps ordinary encrypted events in the standard bubble`() {
+        val model = TimelinePresentationReducer.reduce(
+            content = TimelineItemEncryptedContent(data = UnableToDecryptContent.Data.Unknown),
+            isMine = true,
+            groupPosition = TimelineItemGroupPosition.None,
+            isDirectRoom = true,
+        )
+
+        assertThat(model.alignment).isEqualTo(TimelineItemAlignment.End)
+        assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.StandardBubble)
+        assertThat(model.contentKind).isEqualTo(TimelineContentKind.RichEvent)
+        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Enabled)
     }
 
     @Test
@@ -107,6 +152,26 @@ class TimelinePresentationReducerTest {
             toolCalls = persistentListOf(),
             sources = persistentListOf(),
             quickActions = persistentListOf(),
+        )
+    }
+
+    private fun aTimelineItemEncryptedRecoveryContent(): TimelineItemEncryptedContent {
+        return TimelineItemEncryptedContent(
+            data = UnableToDecryptContent.Data.Unknown,
+            recovery = TimelineItemRoomKeyRecovery(
+                request = RoomKeyRecoveryRequest(
+                    roomId = RoomId("!room:example.org"),
+                    senderUserId = UserId("@alice:example.org"),
+                    senderDeviceId = "ALICEDEVICE",
+                    senderKey = "senderKey",
+                    sessionId = "sessionId",
+                    ciphertext = "ciphertext",
+                ),
+                eventCount = 1,
+                state = TimelineItemRoomKeyRecoveryState.Active,
+                planStages = listOf(RoomKeyRecoveryDisplayStage.Backup, RoomKeyRecoveryDisplayStage.Sender),
+                currentStage = RoomKeyRecoveryDisplayStage.Backup,
+            )
         )
     }
 }

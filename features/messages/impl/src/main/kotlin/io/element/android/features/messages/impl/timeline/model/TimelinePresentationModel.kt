@@ -9,6 +9,7 @@ package io.element.android.features.messages.impl.timeline.model
 
 import androidx.compose.runtime.Immutable
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEventContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRedactedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextBasedContent
@@ -19,6 +20,7 @@ data class TimelinePresentationModel(
     val bubblePolicy: TimelineBubblePolicy,
     val contentKind: TimelineContentKind,
     val editedPolicy: TimelineEditedPolicy,
+    val replySwipePolicy: TimelineReplySwipePolicy,
     val showSenderInformation: Boolean,
     val reserveAvatarColumn: Boolean,
 ) {
@@ -39,6 +41,7 @@ enum class TimelineBubblePolicy {
 enum class TimelineContentKind {
     AiStream,
     PlainText,
+    RoomKeyRecovery,
     Redacted,
     RichEvent,
 }
@@ -46,6 +49,11 @@ enum class TimelineContentKind {
 enum class TimelineEditedPolicy {
     ShowWhenEdited,
     Hide,
+}
+
+enum class TimelineReplySwipePolicy {
+    Enabled,
+    Disabled,
 }
 
 object TimelinePresentationReducer {
@@ -58,6 +66,7 @@ object TimelinePresentationReducer {
         val contentKind = content.kind()
         val usesPlainTimelineStyle = contentKind == TimelineContentKind.AiStream ||
             contentKind == TimelineContentKind.PlainText ||
+            contentKind == TimelineContentKind.RoomKeyRecovery ||
             contentKind == TimelineContentKind.Redacted
         val alignment = if (usesPlainTimelineStyle) {
             TimelineItemAlignment.Start
@@ -72,6 +81,7 @@ object TimelinePresentationReducer {
             TimelineBubblePolicy.StandardBubble
         }
         val editedPolicy = editedPolicy(content)
+        val replySwipePolicy = replySwipePolicy(contentKind)
         val showSenderInformation = groupPosition.isNew() && (!isDirectRoom || usesPlainTimelineStyle || !isMine)
         val reserveAvatarColumn = !isDirectRoom || usesPlainTimelineStyle || !isMine
         return TimelinePresentationModel(
@@ -79,6 +89,7 @@ object TimelinePresentationReducer {
             bubblePolicy = bubblePolicy,
             contentKind = contentKind,
             editedPolicy = editedPolicy,
+            replySwipePolicy = replySwipePolicy,
             showSenderInformation = showSenderInformation,
             reserveAvatarColumn = reserveAvatarColumn,
         )
@@ -93,9 +104,20 @@ object TimelinePresentationReducer {
         }
     }
 
+    private fun replySwipePolicy(contentKind: TimelineContentKind): TimelineReplySwipePolicy {
+        return when (contentKind) {
+            TimelineContentKind.PlainText,
+            TimelineContentKind.RichEvent -> TimelineReplySwipePolicy.Enabled
+            TimelineContentKind.AiStream,
+            TimelineContentKind.RoomKeyRecovery,
+            TimelineContentKind.Redacted -> TimelineReplySwipePolicy.Disabled
+        }
+    }
+
     private fun TimelineItemEventContent.kind(): TimelineContentKind {
         return when (this) {
             is TimelineItemAiContent -> TimelineContentKind.AiStream
+            is TimelineItemEncryptedContent -> if (recovery != null) TimelineContentKind.RoomKeyRecovery else TimelineContentKind.RichEvent
             is TimelineItemTextBasedContent -> TimelineContentKind.PlainText
             is TimelineItemRedactedContent -> TimelineContentKind.Redacted
             else -> TimelineContentKind.RichEvent
