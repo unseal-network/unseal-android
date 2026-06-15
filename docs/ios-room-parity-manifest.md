@@ -48,13 +48,13 @@ Every room feature must move through the same path. Do not implement a Compose-o
 | Approval/suspended tools | iOS suspended/approval flow | Missing interaction | Add render model and host callback for approvals; current Android is display-only. |
 | Mention suggestions | `CompletionSuggestionService`, `ComposerToolbarViewModel` | Partial | Use enriched agent members everywhere, agent badges, `@room` gating, direct agent slash flow. |
 | Skill picker | `ComposerToolbarViewModel` skill catalog flow | Partial | Match room-agent runtime skill catalog, legacy fallback, pinned picker behavior after mention tap/long press. |
-| Attachment menu | `RoomAttachmentPicker` | Partial | Align order, icons, enabled states, game/poll/media/location actions. |
+| Attachment menu | `RoomAttachmentPicker` | Partial | Android `RoomMenuRenderModel.attachmentActions` now follows the iOS-supported subset order: game, text formatting, poll, location, files, gallery, camera photo/video. Remaining iOS-only gaps: ping and sketch actions, plus final visual/icon polish. |
 | Game picker | `GamePickerViewModel`, `GamePickerSheet` | Partial | Match homeserver app package request flow, pagination, preview layout, insert/send behavior. |
-| Message long press menu | iOS timeline item menu providers | Partial | Add/select text, translate, save/unsave, share/save media parity; align ordering and destructive styling. |
+| Message long press menu | iOS timeline item menu providers | Partial | Select text exists for copyable plain text events and AI stream/markdown events, and opens a selectable dialog. Still missing iOS floating preview/menu style, translate, save/unsave, share/save media parity, and final destructive/action ordering polish. |
 | Reactions/read receipts | iOS timeline interaction views | Existing Element behavior | Audit visual and action parity after timeline layout stabilizes. |
 | Pinned banner | `PinnedItemsBannerView` | Partial | Match floating blur/banner behavior and scroll visibility. |
 | Room footer/security | `RoomScreenFooterView` | Partial | Align pin violation, identity violation, history visible, encrypted/unencrypted footer placement. |
-| Remote terminal | `UnsealTerminalPanelView`, D2D terminal APIs | Missing bottom layer | Implement Android D2D terminal client/panel before enabling terminal as functional. |
+| Remote terminal | `UnsealTerminalPanelView`, D2D terminal APIs | Partial bottom layer | Android now has Matrix D2D send API plus terminal panel/reducer/transport for `cmd.open/input/close`. Remaining: observe incoming D2D terminal events and wire presenter lifecycle before enabling as fully functional. |
 
 ## P0 Data Workflow
 
@@ -114,10 +114,90 @@ Every room feature must move through the same path. Do not implement a Compose-o
 
 | Feature | iOS behavior | Android current source | Target model | Gap |
 |---|---|---|---|---|
-| Topbar actions | Call, video, schedules, terminal, device-agent chat, room settings | `MessagesView`, `RoomMenuRenderModel` | `RoomMenuRenderModel.topbarActions` + active state | Schedules and device-agent chat are derived from room context; terminal has no Android D2D client yet and currently shows unsupported feedback. |
-| Remote terminal | `RoomScreen.unsealTerminalPanel`, `UnsealTerminalPanelView`, `ClientProxy.openUnsealRemoteTerminal/sendUnsealRemoteTerminalInput/resize/close`, `UnsealD2DTarget.deviceId` | iOS opens a panel and talks to the bound device agent over D2D terminal messages | No Android D2D terminal client/entry point found | Future `RoomTerminalRenderModel` + D2D client facade | Missing bottom-layer client, panel, session lifecycle, resize/input/close handling. Do not pretend the button is functional until this is implemented. |
-| Attachment menu | iOS order/content/icons | Android bottom sheet | `RoomMenuRenderModel.attachmentActions` | Keep bottom sheet if needed, but align data/order. |
-| Long press menu | `TimelineItemMenuActionProvider`, `TimelineItemMenuAction` | Reply/thread/pin/report/view source/select/translate/save/share/save media | Existing `ActionListPresenter`, `MessageActionMenuRenderModel` | `MessageActionMenuRenderModel` | Android has a render model and existing reply/thread/forward/edit/copy/pin/report/source/remove actions. Missing bottom-layer support for iOS-only select text, translate, saved messages, and media share/save. |
+| Topbar actions | Call, video, schedules, terminal, device-agent chat, room settings | `MessagesView`, `RoomMenuRenderModel` | `RoomMenuRenderModel.topbarActions` + `RoomTopbarToolRenderModel` | Schedules, webhook summary, device-agent chat, and terminal are derived from shared `RoomUnsealContext`. Android now exposes the expanded vertical room tools from `topbarTools` in iOS-aligned order: terminal, device-agent chat, schedules. Webhook data stays in `webhookSummary` but is not shown in the iOS-parity topbar menu. This preserves the iOS core interaction (`ellipsis -> vertical floating buttons -> click collapses`). Terminal still needs incoming D2D observation and presenter lifecycle wiring before it is fully functional. |
+| Remote terminal | `RoomScreen.unsealTerminalPanel`, `UnsealTerminalPanelView`, `ClientProxy.openUnsealRemoteTerminal/sendUnsealRemoteTerminalInput/resize/close`, `UnsealD2DTarget.deviceId` | iOS opens a panel and talks to the bound device agent over D2D terminal messages | Android has `MatrixDeviceAgentTerminalTransport` for `cmd.open/input/close`, `DeviceAgentTerminalReducer`, and a room panel shell | `RoomTerminalRenderModel` + D2D client facade | Missing incoming `cmd.ready/output/closed` observer, presenter lifecycle binding, resize handling, and final UI action wiring. |
+| Attachment menu | iOS order/content/icons | Android bottom sheet | `RoomMenuRenderModel.attachmentActions` | Data order now matches the iOS-supported subset. Android still uses a bottom sheet and splits camera into photo/video; ping/sketch are not implemented. |
+| Long press menu | `TimelineItemMenuActionProvider`, `TimelineItemMenuAction` | Existing `ActionListPresenter`, `MessageActionMenuRenderModel` | `MessageActionMenuRenderModel` | Android has a render model and existing reply/thread/forward/edit/copy/select-text/pin/report/source/remove actions. `SelectText` is functional for copyable text events and AI stream/markdown events via a selectable dialog; iOS menu chrome is still incomplete. Missing translate, saved messages, and media share/save. |
+
+### Device Verification Notes
+
+- 2026-06-15 true-device check on PHK110 after installing `:app:installGplayDebug`:
+  - Room list launched after install: `/tmp/unseal-latest-launched-settled.png`.
+  - `geminirayson` room entered by UIAutomator bounds click (`[0,1825][1240,2120]`): `/tmp/unseal-latest-geminirayson-room-uiauto.png`.
+  - Expanded room tool menu: `/tmp/unseal-latest-geminirayson-menu-expanded.png`.
+- 2026-06-15 attachment menu true-device check after reinstall:
+  - Room list after launch: `/tmp/unseal-after-install-settled.png`.
+  - `geminirayson` room: `/tmp/unseal-room-geminirayson-after-install.png`.
+  - Attachment sheet after tapping composer plus: `/tmp/unseal-attachment-menu-after-order-fix.png`.
+  - UIAutomator order: `Game`, `文本格式化`, `投票`, `附件`, `照片和视频库`, `拍摄照片`, `录制视频`.
+- 2026-06-15 topbar title width true-device check:
+  - Before fix, the room header capsule could collapse to `g...` when call/menu actions were present.
+  - Android now gives the room header capsule a stable readable width and lets the text ellipsize inside the capsule.
+  - Verification screenshot: `/tmp/unseal-room-topbar-title-after-width-fix.png`; UIAutomator exposes full `geminirayson` text in the topbar.
+- 2026-06-15 room chrome/menu true-device check:
+  - Current Android room state used for iOS comparison: `/tmp/unseal-current-room-for-ios-compare.png`.
+  - Topbar tool menu expanded by tapping the UIAutomator `Room tools` bounds: `/tmp/unseal-current-room-tools-menu.png`.
+  - Message long-press menu opened by adb long press: `/tmp/unseal-current-longpress-menu.png`.
+  - The topbar ellipsis now animates like iOS and only shows the green status dot when `DeviceAgentChat` is visible and `isDeviceAgentChatActive == true`; device-agent presence or schedule-only rooms must not show the active indicator.
+  - Post-fix true-device verification after reinstall: `/tmp/unseal-after-topbar-agent-badge-fix-room.png`, `/tmp/unseal-after-topbar-agent-badge-fix-expanded.png`.
+- 2026-06-15 latest true-device projection check after reinstall:
+  - Current Android room baseline from PHK110 after `:app:installGplayDebug`: `/tmp/unseal-android-room-after-latest-install.png`.
+  - Current Android right topbar tool menu expanded by tapping the real `Room tools` bounds: `/tmp/unseal-android-room-menu-expanded-latest.png`.
+  - Verified behavior: timeline is not pushed by the expanded menu; topbar remains a floating overlay; self and other text messages render as standalone left-flow text instead of ordinary right/left chat bubbles. Remaining visual gaps: header capsule sizing/opacity, composer chrome polish, and exact text gray/spacing parity.
+- 2026-06-15 room tool render-model check after reinstall:
+  - Reducer test: `./gradlew :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.roomdata.RoomMenuReducerTest'`.
+  - True-device Home calibration: `/tmp/unseal-room-topbar-home-calibrate.png`; UIAutomator bounds for `geminirayson`: `[0,1825][1240,2120]`.
+  - Correct `geminirayson` room entry: `/tmp/unseal-room-topbar-geminirayson-room-correct.png`.
+  - Expanded topbar tools from PHK110 projection: `/tmp/unseal-room-topbar-geminirayson-tools-expanded.png`.
+  - Verified behavior: call button and ellipsis remain independent floating buttons; expanded tools render downward as circular overlay controls without shifting the title capsule or timeline. Current visible Android extension: Webhook link button appears before schedules when webhook action is present.
+- 2026-06-15 top chrome polish check after reinstall:
+  - Targeted tests: `./gradlew :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.roomdata.RoomMenuReducerTest' --tests 'io.element.android.features.messages.impl.timeline.model.TimelinePresentationReducerTest'`.
+  - Installed to PHK110 with `./gradlew :app:installGplayDebug`.
+  - Room screenshot after settling: `/tmp/unseal-after-topchrome-polish-room-settled.png`.
+  - Expanded room tools screenshot: `/tmp/unseal-after-topchrome-polish-menu-expanded.png`.
+  - Verified behavior: self and other text messages still use standalone left-flow layout with no ordinary chat bubble; back/title/call/tools remain floating overlay controls; expanding tools rotates ellipsis and stacks the tool buttons without pushing the timeline. Remaining visual gap: Android glass color/opacity and title capsule weighting are closer but still not a pixel match to iOS.
+- 2026-06-15 composer chrome projection/mock check after reinstall:
+  - Compile: `./gradlew :features:messages:impl:compileDebugKotlin --no-daemon -Pkotlin.incremental=false --console=plain`.
+  - Installed to PHK110 with `./gradlew :app:installGplayDebug --no-daemon -Pkotlin.incremental=false --console=plain`.
+  - Room screenshot from PHK110 projection: `/tmp/unseal-after-composer-polish-room.png`.
+  - Expanded room tools screenshot after tapping the real `Room tools` bounds: `/tmp/unseal-after-composer-polish-menu-expanded.png`.
+  - Mock composer interaction after tapping `text_editor` and typing `mock_test`: `/tmp/unseal-after-composer-polish-input-focused.png`.
+  - Verified behavior: bottom chrome is shorter and lighter than the previous full-width slab; `未加密` stays above the composer; attachment, text editor, and voice/send controls remain independent floating controls; keyboard focus switches the trailing control from voice to send without moving the topbar tool overlay. Remaining visual gap: `TextComposer` inner field/keyboard state still uses Android-native styling and needs a dedicated iOS parity pass in the text composer layer.
+- iOS source parity: `RoomScreen.toolMenu` only renders when `deviceAgentInRoom != nil` or `hasAgentInRoom == true`. Android should therefore show the ellipsis menu in agent/device-agent rooms and hide it in ordinary rooms such as `London`.
+- Current verified result: Android agent room shows floating back/title/call/ellipsis chrome, and ellipsis expands vertical tool actions without shifting the other floating topbar controls. This matches the iOS `roomTopOverlay` / `toolMenu` interaction model at the data/visibility level; webhook is no longer shown as a visible topbar extension and should move behind a secondary room/webhook surface if needed. Remaining work is visual polish and terminal incoming-event completion.
+- 2026-06-15 latest PHK110 projection check:
+  - Home UIAutomator row bounds for `geminirayson`: `[0,2122][1240,2417]`; room entry screenshot: `/tmp/unseal-gemini-room-bounds.png`.
+  - `Room tools` UIAutomator bounds in the room: `[1023,160][1191,328]`; expanded screenshot: `/tmp/unseal-gemini-tools-expanded.png`.
+  - Verified behavior: call and ellipsis are separate floating controls, the schedule tool expands downward from ellipsis without affecting title/timeline layout, and plain/self text is rendered as standalone left-flow content. Remaining visual gaps are header glass opacity/sizing, exact iOS composer chrome, and remaining room detail/menu pages.
+- 2026-06-15 constrained-layout projection check:
+  - Android layout change: standalone stream/markdown rows now calculate content margins from parent constraints (`BoxWithConstraints.maxWidth`) instead of global screen width; topbar control icons are explicitly `22.dp`.
+  - Compile/install: `./gradlew :features:messages:impl:compileDebugKotlin --no-daemon -Pkotlin.incremental=false --console=plain`; `./gradlew :app:installGplayDebug --no-daemon -Pkotlin.incremental=false --console=plain`.
+  - PHK110 screenshots: stable room `/tmp/unseal-room-verify-after-scroll.png`, expanded room tools `/tmp/unseal-room-verify-tools-expanded.png`, delayed settled state `/tmp/unseal-room-verify-delayed.png`.
+  - Verified behavior: room tools overlay does not push content, AI root card is outside ordinary message bubbles, markdown text flows in the iOS-style content column with right gutter.
+  - Remaining gap: immediate room-entry capture `/tmp/unseal-room-verify-stable.png` showed possible first-frame under-paint while UIAutomator already exposed timeline nodes. Investigate LazyColumn / stream-row render readiness and scroll performance before declaring room timeline projection complete.
+- 2026-06-15 follow-up PHK110 projection/mock check:
+  - Mock path: Home `geminirayson` row was opened via `adb input tap 620 2269`, then the real `Room tools` floating button was tapped to expand the right-side tool overlay.
+  - Android layout change: compact standalone AI/markdown content now reserves a larger right gutter (`32.dp` on narrow widths) so stream cards/text do not run as far right as ordinary Android chat content.
+  - Compile/install: `./gradlew :features:messages:impl:compileDebugKotlin --no-daemon -Pkotlin.incremental=false --console=plain`; `./gradlew :app:installGplayDebug --no-daemon -Pkotlin.incremental=false --console=plain`.
+  - PHK110 screenshots: settled room `/tmp/unseal-room-after-standalone-margin.png`; expanded room tools `/tmp/unseal-room-menu-after-standalone-margin.png`.
+  - UIAutomator evidence: standalone content right bound is about `1128` after the margin change, down from the previous wider bound around `1156`. Verified behavior remains: no outer AI bubble, menu is overlay-only, self/other plain text stays in left-flow standalone layout. Remaining gaps: iOS glass blur/opacity, title capsule weight, composer chrome, long-press chrome, and first-frame/timeline scroll performance.
+- 2026-06-15 webhook-topbar filter verification:
+  - Unit/compile: `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.roomdata.RoomMenuReducerTest' --no-daemon -Pkotlin.incremental=false --console=plain`
+  - Device install: `./gradlew :app:installGplayDebug --no-daemon -Pkotlin.incremental=false --console=plain`
+  - PHK110 screenshots: `/tmp/unseal-geminirayson-after-webhook-topbar-filter.png`, `/tmp/unseal-geminirayson-tools-after-webhook-topbar-filter.png`
+  - UIAutomator evidence: `Room tools` exists; `Webhook triggers` and `Room AI Config` were absent before expansion, and the expanded menu screenshot shows only the schedule clock for this agent room.
+- 2026-06-15 long-press action projection/mock check:
+  - Unit/compile: `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.actionlist.*' --no-daemon -Pkotlin.incremental=false --console=plain`
+  - Device install: `./gradlew :app:installGplayDebug --no-daemon -Pkotlin.incremental=false --console=plain`
+  - PHK110 screenshot after adb long press and action-sheet scroll: `/tmp/unseal-action-menu-scrolled.png`; `Select text` appears before `复制文本`.
+  - Latest post-install long-press screenshot: `/tmp/unseal-selecttext-menu-latest.png`; current Android still uses a bottom sheet rather than iOS' floating preview/action menu.
+  - Mock composer attempt screenshot: `/tmp/unseal-selecttext-sent-message.png`; adb tapped voice recording instead of text send, so recording was discarded at `/tmp/unseal-after-discard-recording.png`.
+- 2026-06-15 AI stream/markdown long-press check:
+  - Code path: `TimelineItemEventContent.canBeCopied()` now includes non-empty `TimelineItemAiContent`; `MessagesPresenter.selectableText()` returns `TimelineItemAiContent.body`.
+  - Unit/compile: `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.actionlist.*' --no-daemon -Pkotlin.incremental=false --console=plain`.
+  - Device install: `./gradlew :app:installGplayDebug --no-daemon -Pkotlin.incremental=false --console=plain`.
+  - PHK110 AI stream long-press menu screenshot: `/tmp/unseal-ai-longpress-menu.png`; menu contains `Select text` and `复制文本`.
+  - PHK110 selectable dialog screenshot: `/tmp/unseal-ai-selecttext-dialog.png`; dialog contains the full AI markdown/body text (`https://keepsecret.io`, `Welcome to nginx!`, nginx paragraphs).
 | Link handling | Links in markdown/cards open correctly | Mixed | Link action model | Ensure cards do not swallow URL taps. |
 | Read receipts/reactions | iOS room behavior | Existing Element Android behavior | Menu/action model | P1 after stream/markdown. |
 
@@ -125,7 +205,7 @@ Every room feature must move through the same path. Do not implement a Compose-o
 
 | iOS action | iOS file | Android action | Android status | Migration note |
 |---|---|---|---|---|
-| `selectText` | `ElementX/Sources/Screens/Timeline/View/ItemMenu/TimelineItemMenuAction.swift` | none | Missing | Needs a text-selection screen/sheet before exposing. Do not map to copy. |
+| `selectText` | `ElementX/Sources/Screens/Timeline/View/ItemMenu/TimelineItemMenuAction.swift` | `SelectText` | Partial | Implemented for copyable plain text events and AI stream/markdown events with `MessagesState.selectableMessageText` and a `SelectionContainer` dialog. Still needs iOS-style floating menu chrome. |
 | `copy` | same | `CopyText` | Implemented | Android uses `handleCopyContents`. |
 | `translate` | same | none | Missing | Needs translation service + UI entry. |
 | `copyCaption` | same | `CopyCaption` | Implemented | Android handles media captions. |

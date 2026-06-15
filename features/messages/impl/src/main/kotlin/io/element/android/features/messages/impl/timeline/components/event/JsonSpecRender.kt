@@ -63,6 +63,7 @@ private data class JsonRenderElement(
 private data class JsonRenderSpec(
     val root: String,
     val elements: Map<String, JsonRenderElement>,
+    val state: JSONObject?,
 )
 
 @Composable
@@ -103,8 +104,8 @@ private fun JsonRenderNode(
     when (type) {
         "stack", "vstack", "hstack", "group", "section", "scroll", "container" -> JsonRenderStack(spec, element, onLinkClick, depth)
         "card" -> JsonRenderCard(spec, element, onLinkClick, depth)
-        "text", "paragraph", "span", "label" -> JsonRenderText(element)
-        "heading", "title", "headline" -> JsonRenderHeading(element)
+        "text", "paragraph", "span", "label" -> JsonRenderText(spec, element)
+        "heading", "title", "headline" -> JsonRenderHeading(spec, element)
         "button", "link" -> JsonRenderButton(element, onLinkClick)
         "image", "avatar" -> JsonRenderImage(element)
         "divider", "separator" -> androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
@@ -119,7 +120,7 @@ private fun JsonRenderNode(
             if (element.children.isNotEmpty()) {
                 JsonRenderStack(spec, element, onLinkClick, depth)
             } else {
-                JsonRenderText(element)
+                JsonRenderText(spec, element)
             }
         }
     }
@@ -167,8 +168,8 @@ private fun JsonRenderCard(spec: JsonRenderSpec, element: JsonRenderElement, onL
 }
 
 @Composable
-private fun JsonRenderText(element: JsonRenderElement) {
-    val text = element.props.firstString("text", "content", "value", "label", "title").orEmpty()
+private fun JsonRenderText(spec: JsonRenderSpec, element: JsonRenderElement) {
+    val text = element.props.firstString(spec.state, "text", "content", "value", "label", "title").orEmpty()
     if (text.isBlank()) return
     Text(
         text = text,
@@ -178,8 +179,8 @@ private fun JsonRenderText(element: JsonRenderElement) {
 }
 
 @Composable
-private fun JsonRenderHeading(element: JsonRenderElement) {
-    val text = element.props.firstString("text", "content", "title", "label").orEmpty()
+private fun JsonRenderHeading(spec: JsonRenderSpec, element: JsonRenderElement) {
+    val text = element.props.firstString(spec.state, "text", "content", "title", "label").orEmpty()
     if (text.isBlank()) return
     Text(
         text = text,
@@ -353,7 +354,7 @@ private fun JsonRenderNews(element: JsonRenderElement, onLinkClick: (Link) -> Un
 
 @Composable
 private fun JsonSpecReadableFallback(payload: String, onLinkClick: (Link) -> Unit, modifier: Modifier = Modifier) {
-    val json = remember(payload) { payload.jsonObjectOrNull() }
+    val json = remember(payload) { payload.jsonRenderObjectOrNull() }
     val items = remember(payload) { json?.readableItems().orEmpty() }
     if (items.isEmpty()) return
     Surface(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.66f)) {
@@ -377,10 +378,24 @@ private fun JsonSpecReadableFallback(payload: String, onLinkClick: (Link) -> Uni
     }
 }
 
+internal fun String.canRenderAsJsonSpec(): Boolean {
+    toJsonRenderSpecFromPatchStream()?.let { return true }
+    val json = jsonRenderObjectOrNull()?.let { root ->
+        root.optJSONObject("data") ?: root.optJSONObject("spec") ?: root
+    } ?: return false
+    if (json.toJsonRenderSpecFromPatchContainer() != null) return true
+    if (json.toJsonRenderSpecFromTypedData() != null) return true
+    val rootId = json.optString("root").takeIf { it.isNotBlank() } ?: return false
+    return json.optJSONObject("elements")?.optJSONObject(rootId) != null
+}
+
 private fun String.toJsonRenderSpec(): JsonRenderSpec? {
-    val json = jsonObjectOrNull()?.let { root ->
+    toJsonRenderSpecFromPatchStream()?.let { return it }
+    val json = jsonRenderObjectOrNull()?.let { root ->
         root.optJSONObject("data") ?: root.optJSONObject("spec") ?: root
     } ?: return null
+    json.toJsonRenderSpecFromPatchContainer()?.let { return it }
+    json.toJsonRenderSpecFromTypedData()?.let { return it }
     val rootId = json.optString("root").takeIf { it.isNotBlank() } ?: json.optString("id").takeIf { it.isNotBlank() } ?: "root"
     val elementsObject = json.optJSONObject("elements")
     return if (elementsObject != null) {
@@ -388,11 +403,133 @@ private fun String.toJsonRenderSpec(): JsonRenderSpec? {
         elementsObject.keys().forEach { key ->
             elementsObject.optJSONObject(key)?.toJsonRenderElement(key)?.let { elements[key] = it }
         }
-        if (elements[rootId] == null) null else JsonRenderSpec(root = rootId, elements = elements)
+        if (elements[rootId] == null) null else JsonRenderSpec(root = rootId, elements = elements, state = json.optJSONObject("state"))
     } else {
         val element = json.toJsonRenderElement(rootId)
-        JsonRenderSpec(root = rootId, elements = mapOf(rootId to element))
+        JsonRenderSpec(root = rootId, elements = mapOf(rootId to element), state = json.optJSONObject("state"))
     }
+}
+
+private fun String.toJsonRenderSpecFromPatchStream(): JsonRenderSpec? {
+    jsonRenderArrayOrNull()?.let { array ->
+        val patches = (0 until array.length()).mapNotNull { index -> array.optJSONObject(index).toSpecPatchOrNull() }
+        if (patches.size == array.length() && patches.isNotEmpty()) {
+            return patches.toJsonRenderSpec()
+        }
+    }
+
+    jsonRenderObjectOrNull()?.toSpecPatchOrNull()?.let { patch ->
+        listOf(patch).toJsonRenderSpec()?.let { return it }
+    }
+
+    val lines = lineSequence()
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .toList()
+    if (lines.isEmpty()) return null
+    val patches = lines.mapNotNull { line -> line.jsonRenderObjectOrNull().toSpecPatchOrNull() }
+    return if (patches.size == lines.size && patches.isNotEmpty()) patches.toJsonRenderSpec() else null
+}
+
+private fun JSONObject.toJsonRenderSpecFromPatchContainer(): JsonRenderSpec? {
+    toSpecPatchOrNull()?.let { return listOf(it).toJsonRenderSpec() }
+    return null
+}
+
+private fun JSONObject.toJsonRenderSpecFromTypedData(): JsonRenderSpec? {
+    val type = optString("type").takeIf { it.isNotBlank() } ?: return null
+    val data = optJSONObject("data") ?: return null
+    val element = JsonRenderElement(id = "root", type = type, props = data, children = emptyList())
+    return JsonRenderSpec(root = "root", elements = mapOf("root" to element), state = null)
+}
+
+private data class JsonSpecPatch(
+    val op: String,
+    val path: String,
+    val value: Any?,
+    val from: String?,
+)
+
+private fun JSONObject?.toSpecPatchOrNull(): JsonSpecPatch? {
+    if (this == null) return null
+    val patchObject = optJSONObject("patch") ?: this
+    val op = patchObject.optString("op").takeIf { it.isNotBlank() } ?: return null
+    if (!patchObject.has("path")) return null
+    return JsonSpecPatch(
+        op = op,
+        path = patchObject.optString("path"),
+        value = patchObject.opt("value"),
+        from = patchObject.optString("from").takeIf { it.isNotBlank() },
+    )
+}
+
+private fun List<JsonSpecPatch>.toJsonRenderSpec(): JsonRenderSpec? {
+    val json = JSONObject()
+        .put("root", "")
+        .put("elements", JSONObject())
+    forEach { json.applySpecPatch(it) }
+    val rootId = json.optString("root").takeIf { it.isNotBlank() } ?: return null
+    val elementsObject = json.optJSONObject("elements") ?: return null
+    val elements = mutableMapOf<String, JsonRenderElement>()
+    elementsObject.keys().forEach { key ->
+        elementsObject.optJSONObject(key)?.toJsonRenderElement(key)?.let { elements[key] = it }
+    }
+    return if (elements[rootId] == null) {
+        null
+    } else {
+        JsonRenderSpec(root = rootId, elements = elements, state = json.optJSONObject("state"))
+    }
+}
+
+private fun JSONObject.applySpecPatch(patch: JsonSpecPatch) {
+    when (patch.op.lowercase()) {
+        "add", "replace" -> setJsonPointer(patch.path, patch.value)
+        "remove" -> removeJsonPointer(patch.path)
+        "copy" -> patch.from?.let { from -> setJsonPointer(patch.path, getJsonPointer(from)) }
+        "move" -> patch.from?.let { from ->
+            val value = getJsonPointer(from)
+            removeJsonPointer(from)
+            setJsonPointer(patch.path, value)
+        }
+    }
+}
+
+private fun JSONObject.setJsonPointer(path: String, value: Any?) {
+    val segments = path.jsonPointerSegments()
+    if (segments.isEmpty()) return
+    var current = this
+    segments.dropLast(1).forEach { segment ->
+        val next = current.optJSONObject(segment) ?: JSONObject().also { current.put(segment, it) }
+        current = next
+    }
+    current.put(segments.last(), value)
+}
+
+private fun JSONObject.removeJsonPointer(path: String) {
+    val segments = path.jsonPointerSegments()
+    if (segments.isEmpty()) return
+    var current = this
+    segments.dropLast(1).forEach { segment ->
+        current = current.optJSONObject(segment) ?: return
+    }
+    current.remove(segments.last())
+}
+
+private fun JSONObject.getJsonPointer(path: String): Any? {
+    val segments = path.jsonPointerSegments()
+    if (segments.isEmpty()) return this
+    var current: Any? = this
+    segments.forEach { segment ->
+        current = (current as? JSONObject)?.opt(segment) ?: return null
+    }
+    return current
+}
+
+private fun String.jsonPointerSegments(): List<String> {
+    if (isBlank() || this == "/") return emptyList()
+    val raw = if (startsWith("/")) drop(1) else this
+    if (raw.isBlank()) return emptyList()
+    return raw.split("/").map { it.replace("~1", "/").replace("~0", "~") }
 }
 
 private fun JSONObject.toJsonRenderElement(id: String): JsonRenderElement {
@@ -419,13 +556,20 @@ private fun JSONArray?.toStringList(): List<String> {
     }
 }
 
-private fun JSONObject.firstString(vararg keys: String): String? {
+private fun JSONObject.firstString(vararg keys: String): String? = firstString(state = null, *keys)
+
+private fun JSONObject.firstString(state: JSONObject?, vararg keys: String): String? {
     keys.forEach { key ->
         val value = opt(key)
         when (value) {
             is String -> value.takeIf { it.isNotBlank() }?.let { return it }
             is Number, is Boolean -> return value.toString()
-            is JSONObject -> value.firstString("label", "text", "value")?.let { return it }
+            is JSONObject -> {
+                value.optString("$" + "state").takeIf { it.isNotBlank() }?.let { path ->
+                    state?.getJsonPointer(path)?.let { return it.toString() }
+                }
+                value.firstString(state, "label", "text", "value")?.let { return it }
+            }
         }
     }
     return null
@@ -471,3 +615,7 @@ private fun JSONObject.readableItems(): List<Pair<String, String?>> {
         }
         .toList()
 }
+
+private fun String.jsonRenderObjectOrNull(): JSONObject? = runCatching { JSONObject(this) }.getOrNull()
+
+private fun String.jsonRenderArrayOrNull(): JSONArray? = runCatching { JSONArray(this) }.getOrNull()

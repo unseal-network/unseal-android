@@ -13,6 +13,12 @@ iOS 源（事实标准）：
 Android worktree：`/Users/Ruihan/.config/superpowers/worktrees/unseal-android/chatbot-api-service`
 分支：`feature/agent-management`
 
+页面迁移清单：
+- Room/timeline 专项：`docs/ios-room-parity-manifest.md`
+- Agent/Skills/Vault/Credits/Connectors/Voice/Webhooks/Schedules/Welcome 等其他页面：`docs/ios-pages-parity-manifest.md`
+
+后续页面迁移必须按“iOS 数据来源 → Android state/render model → Compose UI”的顺序做，不要先凭截图改 UI。每个页面都要确认 API route、screen state、empty/error/success、picker/menu/gesture，再做视觉对齐。
+
 ---
 
 ## 1. 启动 / 安装 / 调试（基础流程，保持不变）
@@ -187,7 +193,7 @@ Device-agent chat mode 也由 `MessagesPresenter` 管理：
 - `RoomMenuRenderModel.isDeviceAgentChatActive` 给 topbar 展示 active 状态。
 - `MessagesEvent.ToggleDeviceAgentChat` 切换目标设备，并通过 `MessageComposerEvent.SetAgentChatTargetDeviceId` 同步到 composer。
 - `MessageComposerPresenter` 发送 normal/reply 消息时，如果存在 target device，就走 `JoinedRoom.sendRawRoomMessage`，顶层注入 `"device_id": boundDeviceId`；如果同时选择 skill，也同时保留顶层 `skills`。这对齐 iOS `TimelineViewModel.sendAgentChatMessage`。
-- `MessagesEvent.OpenDeviceAgentTerminal` 目前已经进入事件层并记录日志，同时弹出 unsupported snackbar。真实 terminal destination 仍缺 Android D2D terminal client/panel，不要把它当作已完成能力。
+- `MessagesEvent.OpenDeviceAgentTerminal` 已进入事件层并打开 room-scoped terminal panel。Android 现在已有 Matrix D2D 发送 API（`MatrixClient.sendUnsealD2DMessage`）和 `MatrixDeviceAgentTerminalTransport`，可按 iOS 协议发送 `cmd.open` / `cmd.input` / `cmd.close` 到 bound device。剩余缺口是接收 `cmd.ready` / `cmd.output` / `cmd.closed` 等 to-device action，并把 open/input/close 按 presenter 生命周期真正接起来；在这之前不要把 terminal 标成完整可用。
 
 ### RoomUnsealContext 共享 store
 
@@ -317,9 +323,44 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
   - mention 开始：Composer force refresh 一次，用于追上最新 agent/member。
 - **UI 约束**：Compose 只能消费 render model/context，不要在 card、composer、topbar、action sheet 里直接调用 Chatbot API 或重新 parse room-agent JSON。
 
+### 2026-06-15 真机投屏验证
+
+- 已安装最新 `:app:installGplayDebug` 到 PHK110，并用 scrcpy + `adb screencap` 验证 room chrome：
+  - room list：`/tmp/unseal-latest-launched-settled.png`
+  - `geminirayson` agent room：`/tmp/unseal-latest-geminirayson-room-uiauto.png`
+  - 右上角 ellipsis 展开：`/tmp/unseal-latest-geminirayson-menu-expanded.png`
+- 2026-06-15 后续实机复验已重新安装最新 APK，并通过投屏 + `adb input tap` mock 操作：
+  - install 后 room list：`/tmp/unseal-after-install-settled.png`
+  - `geminirayson` room：`/tmp/unseal-room-geminirayson-after-install.png`
+  - 左下角 attachment sheet：`/tmp/unseal-attachment-menu-after-order-fix.png`
+- Attachment menu 数据顺序已经按 iOS 支持子集落地并真机验证：`Game -> 文本格式化 -> 投票 -> 附件 -> 照片和视频库 -> 拍摄照片 -> 录制视频`。iOS 还有 `ping` / `sketch`，Android 目前没有对应底层能力；Android 仍是 Material bottom sheet，视觉形态后续再做 composer popover parity。
+- Room topbar title 截断问题已修：`MessagesViewTopBar` 不再让标题胶囊和 spacer 平分剩余宽度，改为给 room header 稳定的可读宽度，内部文字自行 ellipsis。真机截图：`/tmp/unseal-room-topbar-title-after-width-fix.png`。UIAutomator 验证标题节点为完整 `geminirayson`，不再显示成 `g...`。
+- iOS 源码结论：`RoomScreen.toolMenu` 仅在 `deviceAgentInRoom != nil` 或 `hasAgentInRoom == true` 时显示。Android 普通房间（如 `London`）不显示 ellipsis 是正确的；agent/device-agent 房间才显示并向下展开。
+- 当前 Android agent room 已验证：浮动 back/title/call/ellipsis chrome 可见，ellipsis 展开 schedule action 时不会挤走其它浮层。最新实机截图：`/tmp/unseal-current-room-for-ios-compare.png`、`/tmp/unseal-current-room-tools-menu.png`、`/tmp/unseal-current-longpress-menu.png`。
+- Room tools 状态修正：ellipsis 旋转现在走 Compose animation；右上角绿点只表示 `DeviceAgentChat` action 可见且 `isDeviceAgentChatActive == true`，不再把“房间里存在 device agent”或 schedule-only 房间误显示成 active 状态；schedule badge 颜色改为接近 iOS 的紫色胶囊。修复后重新安装真机并 mock 展开验证：`/tmp/unseal-after-topbar-agent-badge-fix-room.png`、`/tmp/unseal-after-topbar-agent-badge-fix-expanded.png`。
+- Room topbar tools 现在有独立 render model：`RoomMenuRenderModel.topbarTools: List<RoomTopbarToolRenderModel>`。Compose `RoomToolMenu` 只遍历该 model，不再在 UI 里分散判断 schedules/device-agent/terminal。model 顺序为 terminal、device-agent chat、schedules；前两个对齐 iOS device-agent 工具，schedules 对齐 iOS schedule button。Webhooks 继续保留在 `RoomMenuRenderModel.webhookSummary` 给后续专门入口使用，但不再混入 iOS 顶栏工具菜单。验证：
+  - 单测：`./gradlew :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.roomdata.RoomMenuReducerTest'`
+  - 真机：`/tmp/unseal-room-topbar-geminirayson-room-correct.png`、`/tmp/unseal-room-topbar-geminirayson-tools-expanded.png`
+  - 注意：`MessagesViewTest` 目前仍有多项 timeline interaction 断言失败（click/long-click/swipe/pinned banner），这批失败覆盖面大，疑似现有 overlay/test fixture 风险，不能作为 room topbar model 的通过证据；后续处理 timeline gesture parity 时需要单独排查。
+- 2026-06-15 重新按 iOS `RoomScreen.toolMenu` 收敛顶栏工具：agent room 展开后只显示 schedule，Webhooks 不再显示链条按钮。已跑 `:features:messages:impl:compileDebugKotlin` 和 `RoomMenuReducerTest`，并安装 PHK110 真机验证：默认态 `/tmp/unseal-geminirayson-after-webhook-topbar-filter.png`，展开态 `/tmp/unseal-geminirayson-tools-after-webhook-topbar-filter.png`。UIAutomator 验证 `Room tools` 存在，`Webhook triggers` 不存在。
+- 2026-06-15 最新投屏复核：先用 adb/UIAutomator 回到 Home，读取 `geminirayson` row bounds `[0,2122][1240,2417]`，再点中心 `(620,2269)` 进入 agent room。当前安装包里 `Room tools` 的真实 bounds 是 `[1023,160][1191,328]`，点击后展开为右侧纵向悬浮工具列，未推动 timeline/title/call 按钮。截图：默认态 `/tmp/unseal-gemini-room-bounds.png`，展开态 `/tmp/unseal-gemini-tools-expanded.png`。同一截图也确认普通文本/自己发言使用 standalone 左流布局，不再是普通右侧气泡；如果后续仍看到旧气泡，优先确认安装包是否为最新或内容是否未被识别为 `TimelineItemTextBasedContent`。
+- 2026-06-15 最新 layout pass 后再次真机投屏复核：
+  - 改动：`TimelineItemStandaloneRow` 改用 parent `BoxWithConstraints.maxWidth` 计算 iOS-style 内容列 start/end margin，避免投屏/转场/窗口尺寸变化时用全局 screen width 造成错位；room topbar 的 back/call/tools icon 约束为 `22.dp`，更接近 iOS 44pt floating control 的比例。
+  - 验证命令：`./gradlew :features:messages:impl:compileDebugKotlin --no-daemon -Pkotlin.incremental=false --console=plain` 通过；`./gradlew :app:installGplayDebug --no-daemon -Pkotlin.incremental=false --console=plain` 通过并安装到 PHK110。
+  - 真机截图：稳定 room `/tmp/unseal-room-verify-after-scroll.png`；展开 `Room tools` `/tmp/unseal-room-verify-tools-expanded.png`；延迟 settle `/tmp/unseal-room-verify-delayed.png`。
+  - 已验证：AI card + markdown 是独立 timeline content，不被普通大气泡包住；展开的右上角工具是 overlay，不推动 timeline；content column 有左侧 sender/avatar 列和右侧留白。
+  - 仍需处理：刚进入 room 的 immediate 截图 `/tmp/unseal-room-verify-stable.png` 曾出现 UIAutomator 已有节点但画面未完整绘制的首帧空白/迟绘制现象，滚动或 settle 后恢复。后续要把它当作 render readiness / LazyColumn 首帧性能问题继续追，不能因为 settle 截图正常就标完成。顶部 glass/blur、title capsule、composer chrome 和 long-press 菜单 chrome 也仍不是 iOS 级别。
+- 2026-06-15 用户追问后重新做投屏/mock 操作复核：
+  - 操作：PHK110 上通过 UIAutomator 找到 Home 的 `geminirayson` row bounds `[294,2161][965,2238]`，用 `adb input tap 620 2269` 进入 room；再点击真实 `Room tools` 展开右上角工具。
+  - 改动：compact standalone content 的右侧留白再放大，`TimelineItemEventRow.kt` 在窄屏下把 AI/markdown standalone content 的 end margin 调整为 `32.dp`，避免 Android 看起来贴右边、比 iOS 更歪。
+  - 验证命令：`./gradlew :features:messages:impl:compileDebugKotlin --no-daemon -Pkotlin.incremental=false --console=plain` 通过；`./gradlew :app:installGplayDebug --no-daemon -Pkotlin.incremental=false --console=plain` 通过并安装到 PHK110。
+  - 真机截图：room settle 后 `/tmp/unseal-room-after-standalone-margin.png`；右上角工具展开 `/tmp/unseal-room-menu-after-standalone-margin.png`。
+  - UIAutomator 证据：安装后 standalone 文本/card 内容右边界约为 `1128`，比前一版约 `1156` 更早收束，右侧 gutter 更接近 iOS。仍未完成：顶部悬浮 glass 的 opacity/blur、title capsule 权重、composer chrome、long-press 菜单 chrome、首帧空白/迟绘制与 timeline 滑动卡顿。
+- 长按菜单实机验证：Android 目前仍是 bottom sheet，已有 reply/thread/forward/edit/copy/select-text/pin/report/view source/remove 等底层能力；`SelectText` 已覆盖普通文本和 AI stream/markdown body。iOS 的 translate、save/unsave、share/save media 仍缺 Android 底层能力，不能先暴露假按钮。剩余不是显隐逻辑，而是继续做视觉 polish、terminal incoming D2D、attachment/long-press/composer parity。
+
 ### 后续执行顺序
 
-1. 继续做 attachment menu、long press menu、topbar overlay 的 iOS parity；其中 device-agent chat/terminal 已有数据模型，但 Android 还缺最终 destination，不能先暴露死入口。
+1. 继续做 attachment menu、long press menu、topbar overlay 的 iOS parity；device-agent chat 已有数据模型和发送路径，terminal 已有 panel/reducer/D2D send transport，但还缺 incoming D2D action observer 和 presenter 生命周期接入，不能先标成完整能力。
 2. 继续逐个 card fixture 做视觉和交互 parity。
 3. 为 `ToolCallRootRenderModel` 增加 snapshot / screenshot 覆盖，验证单 tool、多 tool、error、calling、done 的 UI 行为。
 4. 真机验证 composer：direct room 输入 `/` 应打开 skill picker，选择 skill 后发送的 Matrix event content 应包含顶层 `skills`。
@@ -373,9 +414,11 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 | Skills | My/Marketplace tab、搜索、创建、详情含代码 File Editor、分页 | ✅ 多屏齐全 | 🟡 Detail「Files」段缺失（Android 模型无 `presignedUrls`）；核对分页 |
 | Connectors | 真实图标、分类筛选 chip、OAuth WebView、成功撒花 | 🟡 已迁移 | 🟡 需对齐真实图标/数据/OAuth 流/撒花 |
 | Webhooks | 全局：room 筛选；room 内：agent 筛选；启停开关 | 🟡 已迁移 | 🟡 「选了 room 后无法选 agent」需回归验证（疑似 power level / VPN） |
-| Credits | Balance/Daily Usage/Usage Ranking 三 tab、sparkline、Top Up、交易记录 | 🟡 已迁移 | 🟡 布局/图标/按钮样式与 iOS 差异大；Usage 的 7day/30day/all 需对齐 |
-| Voice Library | My/Public tab、录音（mic/录/放）、列表试听、删除确认 | 🟡 已迁移 | ❌ 录制已暂时关闭；试听/playback 未接（无 events） |
-| Vault 管理 | 独立 `VaultManagementScreen` + `VaultEditScreen`（key/value/desc 增删改查） | ❌ 仅在 Agent Edit 内做 secret-variable 选择 | ❌ 缺独立 Vault 管理页 |
+| Credits | Balance/Daily Usage/Usage Ranking 三 tab、sparkline、Top Up、交易记录 | 🟡 数据层与 Settings 入口已迁移 | 🟡 Credits period 已对齐 iOS `sevendays/thirtydays/all`；Topup 已有 state/presenter/子页面、PaymentIntent 创建和 status polling；Settings root 现在通过 `PreferencesFlowNode` refresh flow 在 topup 完成后触发 `PreferencesRootPresenter.loadCreditBalance()`，对齐 iOS `loadCreditBalance()`。剩余：Android Stripe PaymentSheet bridge、视觉/图标/按钮样式与 View 测试刷新 |
+| Settings AI Hub | iOS Settings AI 区：余额卡 + Agent / Voice / Skills / Vault / Connectors / Triggers 固定顺序入口 | 🟡 数据结构已迁移 | ✅ Android 新增 `SettingsAiAssistantRenderModel`，入口顺序对齐 iOS `SettingsScreenViewModel`，`PreferencesRootPresenter/View` 只消费 model；已补 model/presenter/view 单测，并安装到 PHK110，真机截图 `/tmp/unseal-settings-ai-hub-render-model.png`。剩余：图标/分组/浅深色视觉 polish、逐入口转场截图 |
+| Voice Library | My/Public tab、录音（mic/录/放）、列表试听、删除确认、分享/导入 | 🟡 Mine/Public、catalog、save/delete/share/import/delete notice、presenter-owned preview state、下载缓存式 preview、recording upload API、current-recording state/events、`RECORD_AUDIO` 权限、原生 m4a/base64 录音 bridge + 已录音本地回放/进度/seek/scrub 状态与设计系统 waveform UI 已接入并有测试/编译验证 | ❌ 真实录音 waveform 采样未接；视觉需继续对齐 |
+| Vault 管理 | 独立 `VaultManagementScreen` + `VaultEditScreen`（key/value/desc 增删改查） | 🟡 已有独立列表/编辑页，CRUD/search 已接入 | 🟡 删除接口已对齐 iOS key 路由；编辑 value 加载/create/update 校验已有 presenter 测试；仍需本地化和视觉 |
+| Onboarding / FTUE | iOS `OnboardingFlowCoordinator`：Identity -> AppLock -> Analytics -> Notifications；另有 `PostLoginWelcome` logo/theme/updates flow | 🟡 状态顺序与 PostLoginWelcome 数据语义已迁移 | ✅ Android `DefaultFtueService` 现在按 iOS post-verification 顺序走 `LockscreenSetup -> AnalyticsOptIn -> NotificationsOptIn`；`DefaultFtueServiceTest` 覆盖 full traversal、skipped verification、verification acknowledgement gating；`PostLoginWelcomeView` 现在通过 `PostLoginWelcomeCompletion` 把 `selectedTheme/subscribeChangelog/subscribeMarketing` 传回 `RootFlowNode`，并由 `AppPreferencesStore` 持久化 theme 与两个 onboarding subscription flags，对齐 iOS `PostLoginWelcomeScreenViewModel` 的完成语义。已安装 PHK110，当前登录态未误入引导页，截图 `/tmp/unseal-ftue-order-after-install-current.png`、`/tmp/unseal-after-postlogin-prefs-install-loaded.png`。剩余：iOS identity-confirmed 中间页、copy/dismiss 语义、PostLoginWelcome clean-session 截图/视觉 polish、订阅 flags 是否要同步后端 |
 
 ### 4.5 本地化（全局问题）
 
@@ -392,18 +435,34 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 3. **真机逐卡核对**：用 §1.4 抓 `AiSdkStreamReducer` 日志，确认每个 cardType 的 payload 经 CardTransforms 后字段命中、内容与 iOS 一致（尤其 GitHub activity 类、composio search 富卡片）。
 
 **P1 — 菜单打磨对齐**
-4. Credits 布局/图标/按钮 + Usage 7day/30day/all 对齐 iOS。
+4. Credits 布局/图标/按钮 + Topup Stripe PaymentSheet bridge 对齐 iOS；Settings 余额刷新链路和 AI hub render model 已有 presenter/view/model 单测与真机入口截图验证。
 5. Connectors 真实图标 + OAuth WebView + 数据交互。
 6. 独立 Vault 管理页（List + Edit，CRUD）。
-7. Voice Library 试听/playback；录制功能（当前关闭）。
+7. Voice Library 真实录音 waveform 采样与最终样式对齐（上传 API、current-recording presenter state、下载缓存式试听、原生 recorder bridge、已录音本地回放/进度/seek/scrub、设计系统 waveform UI 已接）。
 8. Webhooks「选 room 后选 agent」回归。
+9. Onboarding 继续补 iOS identity-confirmed 中间页与 PostLoginWelcome 产品决策；FTUE 基础状态顺序已经对齐。
+
+### 5.8 2026-06-15 PostLoginWelcome 数据语义与真机验证
+
+- iOS 事实标准：`PostLoginWelcomeScreenViewModel` 在 `selectTheme` 时立即写 `appSettings.appAppearance`，在 `complete` 时写 `appSettings.onboardingSubscribeChangelog` / `appSettings.onboardingSubscribeMarketing`，然后发出 `.completed`。
+- Android 已补齐对应数据语义：
+  - `PostLoginWelcomeCompletion(selectedTheme, subscribeChangelog, subscribeMarketing)` 从 `PostLoginWelcomeView` 返回 root。
+  - `RootFlowNode.NavTarget.PostLoginWelcome` 完成时写 `AppPreferencesStore.setTheme(...)` 和 `setOnboardingSubscriptions(...)`。
+  - `AppPreferencesStore` / `DefaultAppPreferencesStore` / `InMemoryAppPreferencesStore` 增加 onboarding subscription get/set。
+  - `DefaultAppPreferencesStoreTest` 覆盖默认 false 与持久化 true。
+- 验证：
+  - `./gradlew :appnav:compileDebugKotlin :libraries:preferences:api:compileDebugKotlin :libraries:preferences:impl:compileDebugKotlin --no-daemon -Pkotlin.incremental=false --console=plain` 通过。
+  - `./gradlew :libraries:preferences:impl:testDebugUnitTest --tests 'io.element.android.libraries.preferences.impl.store.DefaultAppPreferencesStoreTest' :app:installGplayDebug --no-daemon -Pkotlin.incremental=false --console=plain` 中 preference 单测通过，但第一次安装在 `:app:packageGplayDebug` 因 Mac 磁盘只剩约 267MB 失败。
+  - 已执行 `./gradlew clean --no-daemon --console=plain` 清理项目构建产物，释放到约 6.7GB；随后 `./gradlew :app:installGplayDebug --no-daemon -Pkotlin.incremental=false --console=plain` 安装成功到 PHK110。
+  - 安装后真机 loaded 截图：`/tmp/unseal-after-postlogin-prefs-install-loaded.png`。当前登录态进入 Home，未误入引导页。
+- 注意：当前 Mac 空间仍只有约 4.5GB，后续大量 screenshot/full install 前建议先确认 `df -h`；不要清用户数据来验证 clean onboarding，应该使用模拟器或独立测试 profile。
 
 **P2 — 工程/质量**
-9. **本地化**：统一中文，迁字符串资源；确认弹窗文案区分 create/overwrite/reclone。
-10. 流式光标做闪烁动画；step-start 分隔线。
-11. Paparazzi 快照重录并接 CI。
-12. 新增 presenter 单测（sandbox/vault/skills/voice/timeline）。
-13. 清理无用代码：`shared/AgentModalScaffold.kt`、`shared/AgentFormComponents.kt`。
+10. **本地化**：统一中文，迁字符串资源；确认弹窗文案区分 create/overwrite/reclone。
+11. 流式光标做闪烁动画；step-start 分隔线。
+12. Paparazzi 快照重录并接 CI。
+13. 新增 presenter 单测（sandbox/vault/skills/voice/timeline）。
+14. 清理无用代码：`shared/AgentModalScaffold.kt`、`shared/AgentFormComponents.kt`。
 
 **已诊断、非 bug**
 - clone-owner 返回 200 正常；create-empty 500 = 账号 `credits_exhausted`，需有额度账号验证。
@@ -513,7 +572,58 @@ Room action menu data parity:
 
 - `MessageActionMenuReducer` now converts the existing `ActionListState.Target.Success` into sectioned render data (`Primary`, `Edit`, `Copy`, `Pin`, `Debug`, `Danger`) while preserving emoji reactions and verified send-failure state.
 - `ActionListView` now renders action rows from `MessageActionMenuRenderModel.sections`, so the sheet UI consumes sectioned render entries instead of iterating raw `TimelineItemAction` directly.
-- Remaining parity work is to add missing iOS actions such as select text, translate, save/unsave, share/save media where Android has the underlying handlers.
+- 2026-06-15 update: Android now exposes `TimelineItemAction.SelectText` for copyable text timeline events, sorts it before `CopyText`, and opens a real selectable-text dialog (`MessagesState.selectableMessageText`) instead of mapping the action to clipboard copy. This is a first functional slice, not full iOS parity.
+- 2026-06-15 AI stream update: `TimelineItemAiContent` with non-empty `body` is now copyable/selectable too. `MessagesPresenter.selectableText()` returns the AI stream markdown/body text, so long-pressing rendered stream output exposes `Select text` and `复制文本`.
+- True-device projection/mock evidence:
+  - Current Android action sheet after long press and scroll: `/tmp/unseal-action-menu-scrolled.png`.
+  - Latest post-install action sheet with the same bottom-sheet behavior: `/tmp/unseal-selecttext-menu-latest.png`.
+  - Attempted composer mock operation after reinstall: `/tmp/unseal-selecttext-sent-message.png`; this exposed a coordinate issue where adb tapped the voice recorder, so the recording was discarded at `/tmp/unseal-after-discard-recording.png`.
+  - AI stream long-press action sheet after reinstall: `/tmp/unseal-ai-longpress-menu.png`; `Select text` and `复制文本` are visible.
+  - AI stream selectable-text dialog after tapping `Select text`: `/tmp/unseal-ai-selecttext-dialog.png`; dialog contains the full markdown/body text.
+- Verified commands:
+  - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.actionlist.*' --no-daemon -Pkotlin.incremental=false --console=plain`
+  - `./gradlew :app:installGplayDebug --no-daemon -Pkotlin.incremental=false --console=plain`
+- Remaining parity work: iOS-style floating preview/menu chrome, `Translate`, `saveMessage/unsaveMessage`, media `share/save`, and action menu ordering/visibility for all event types.
+
+## Home / Room List Parity Status
+
+Home room-list rows now have a first-pass iOS-style render model. The goal is to stop `RoomSummaryRow` from deriving room row semantics directly in Compose and instead mirror the iOS `HomeScreenRoom` data shape.
+
+Important files:
+
+- `features/home/impl/src/main/kotlin/io/element/android/features/home/impl/model/HomeRoomRowRenderModel.kt`
+- `features/home/impl/src/main/kotlin/io/element/android/features/home/impl/model/RoomListItemActionsPresentation.kt`
+- `features/home/impl/src/main/kotlin/io/element/android/features/home/impl/components/RoomSummaryRow.kt`
+- `features/home/impl/src/main/kotlin/io/element/android/features/home/impl/roomlist/RoomListContextMenu.kt`
+- `features/home/impl/src/main/kotlin/io/element/android/features/home/impl/roomlist/RoomListState.kt`
+- `features/home/impl/src/test/kotlin/io/element/android/features/home/impl/model/HomeRoomRowRenderModelTest.kt`
+- `features/home/impl/src/test/kotlin/io/element/android/features/home/impl/roomlist/RoomListContextMenuRenderModelTest.kt`
+- `docs/ios-pages-parity-manifest.md`
+
+Current Home row data flow:
+
+1. `RoomListRoomSummary` is converted to `HomeRoomRowRenderModel`.
+2. The model owns row type, display name, timestamp, preview state, dot/mention/mute/call badges, numeric unread policy, highlight state, pinned/favourite/archive flags, selected/invite-seen slots, text emphasis, and shared action presentation.
+3. `RoomSummaryRow` consumes this model for room row name/timestamp, preview state, unread indicators, and swipe actions.
+4. Swipe actions are powered by `RoomListItemActionsPresentation`, with iOS ordering: pin/read/favourite.
+5. Long-press context menu now also derives from `HomeRoomRowRenderModel.actions` via `RoomListState.ContextMenu.Shown.toHomeRoomRowRenderModel(canReportRoom)`, so row swipe and bottom-sheet menu share the same action ordering and availability rules.
+
+Remaining Home row parity work:
+
+- Wire a real iOS-equivalent `roomListActivityVisibility` from settings/shell state into `RoomListContentState.Rooms.activityVisibility`.
+- Wire a real selected room id from the future split/sidebar shell into `RoomListContentState.Rooms.selectedRoomId`.
+- Implement real pin/archive/mute event routes, or keep those actions explicitly disabled when Android has no handler yet.
+- Tune row visual polish and swipe motion/colors against iOS screenshots.
+
+2026-06-15 Home row data-model continuation:
+
+- `RoomListContentState.Rooms` now has explicit `selectedRoomId` and `activityVisibility` fields, so the Home shell/sidebar can feed iOS row state into the list without rewriting `RoomSummaryRow`.
+- `RoomListContentView` passes those fields into each row and fixes invite seen semantics so non-invite rows are treated as seen while invite rows only show the dot when absent from `seenRoomInvites`.
+- `RoomSummaryRow` now consumes `HomeRoomRowRenderModel` for normal, invite, and knocked rows. The row model drives display name, timestamp, preview state, invite dot, selected background, call/mute/mention/unread badges, and header/preview text emphasis.
+- `HomeRoomRowRenderModelTest` now covers seen invite dot removal and selected row state.
+- Verification:
+  - `./gradlew :features:home:impl:compileDebugKotlin --no-daemon -Pkotlin.incremental=false --console=plain`
+  - `./gradlew :features:home:impl:testDebugUnitTest --tests 'io.element.android.features.home.impl.model.HomeRoomRowRenderModelTest' --no-daemon -Pkotlin.incremental=false --console=plain`
 
 Verification on this branch:
 
@@ -538,3 +648,13 @@ Verification on this branch:
   - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.actionlist.model.MessageActionMenuReducerTest'`
   - `./gradlew :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.timeline.factories.event.AiStreamHandleStoreTest' --tests 'io.element.android.features.messages.impl.timeline.components.event.TimelineItemAiPresenterTest'`
   - `./gradlew :features:messages:impl:compileDebugKotlin :features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.timeline.factories.event.AiSdkStreamReducerTest' --tests 'io.element.android.features.messages.impl.timeline.components.event.toolcards.ToolCallRootCardAdapterTest' --tests 'io.element.android.features.messages.impl.timeline.components.event.toolcards.ToolCardDispatcherTest'`
+  - `./gradlew :features:home:impl:compileDebugKotlin :features:home:impl:testDebugUnitTest --tests 'io.element.android.features.home.impl.model.HomeRoomRowRenderModelTest' --no-daemon -Pkotlin.incremental=false --console=plain`
+  - `./gradlew :features:home:impl:compileDebugKotlin :features:home:impl:testDebugUnitTest --tests 'io.element.android.features.home.impl.roomlist.RoomListContextMenuRenderModelTest' --tests 'io.element.android.features.home.impl.roomlist.RoomListPresenterTest' --no-daemon -Pkotlin.incremental=false --console=plain`
+  - `./gradlew :app:installGplayDebug --no-daemon -Pkotlin.incremental=false --console=plain`
+
+PHK110 device evidence:
+
+- Focused Home after install: `/tmp/unseal-after-home-row-model-focused-8s.png`
+- Home swipe after render model hookup: `/tmp/unseal-after-home-row-model-swipe.png`
+- Latest installed Home screen after context-menu model hookup: `/tmp/unseal-context-home-loaded.png`
+- Mock long-press on `geminirayson` room row opened the Android bottom-sheet context menu: `/tmp/unseal-context-menu-model-open.png`

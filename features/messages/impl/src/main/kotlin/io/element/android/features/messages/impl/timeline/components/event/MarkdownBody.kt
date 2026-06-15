@@ -92,16 +92,16 @@ internal fun MarkdownBody(
     }
     val colors = aiMarkdownColors()
     val typography = aiMarkdownTypography()
-    val components = remember {
+    val components = remember(onLinkClick) {
         markdownComponents(
             codeBlock = { model ->
                 MarkdownCodeBlock(model.content, model.node, model.typography.code) { code, language, _ ->
-                    AiCodeBlock(code = code, language = language)
+                    AiCodeOrJsonSpecBlock(code = code, language = language, onLinkClick = onLinkClick)
                 }
             },
             codeFence = { model ->
                 MarkdownCodeFence(model.content, model.node, model.typography.code) { code, language, _ ->
-                    AiCodeBlock(code = code, language = language)
+                    AiCodeOrJsonSpecBlock(code = code, language = language, onLinkClick = onLinkClick)
                 }
             },
         )
@@ -192,6 +192,36 @@ private fun aiMarkdownTypography() = run {
  * language-coloured dot + uppercase language name and a copy button, then the horizontally
  * scrollable monospace code, wrapped in a rounded surface with a language-coloured accent.
  */
+@Composable
+private fun AiCodeOrJsonSpecBlock(
+    code: String,
+    language: String?,
+    onLinkClick: (Link) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    when (markdownCodeBlockRenderMode(language = language, code = code)) {
+        MarkdownCodeBlockRenderMode.JsonSpec -> JsonSpecRender(payload = code, onLinkClick = onLinkClick, modifier = modifier.padding(vertical = 6.dp))
+        MarkdownCodeBlockRenderMode.Code -> AiCodeBlock(code = code, language = language, modifier = modifier)
+    }
+}
+
+internal enum class MarkdownCodeBlockRenderMode {
+    Code,
+    JsonSpec,
+}
+
+internal fun markdownCodeBlockRenderMode(language: String?, code: String): MarkdownCodeBlockRenderMode {
+    return when (language?.lowercase()) {
+        "spec" -> MarkdownCodeBlockRenderMode.JsonSpec
+        "json", "jsonl" -> if (code.canRenderAsJsonSpec()) {
+            MarkdownCodeBlockRenderMode.JsonSpec
+        } else {
+            MarkdownCodeBlockRenderMode.Code
+        }
+        else -> MarkdownCodeBlockRenderMode.Code
+    }
+}
+
 @Composable
 private fun AiCodeBlock(
     code: String,
