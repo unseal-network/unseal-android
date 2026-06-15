@@ -125,7 +125,15 @@ class SuggestionsProcessor(
                 .filterUpTo(MAX_BATCH_ITEMS) { member ->
                     isJoinedMemberAndNotSelf(member) && memberMatchesQuery(member, query)
                 }
-                .map(ResolvedSuggestion::Member)
+                .map { member ->
+                    val enrichedMember = enrichedMembersByUserId[member.userId]
+                    ResolvedSuggestion.Member(
+                        member.copy(
+                            displayName = enrichedMember?.displayName ?: member.displayName,
+                            avatarUrl = enrichedMember?.avatarUrl ?: member.avatarUrl,
+                        )
+                    )
+                }
 
             if ("room".contains(query) && canSendRoomMention) {
                 listOf(ResolvedSuggestion.AtRoom) + matchingMembers

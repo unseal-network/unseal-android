@@ -370,7 +370,7 @@ class SuggestionsProcessorTest {
     }
 
     @Test
-    fun `processing Mention suggestion matches enriched agent display name`() = runTest {
+    fun `processing Mention suggestion returns enriched agent member data`() = runTest {
         val agentMember = aRoomMember(
             userId = UserId("@agent:server.org"),
             displayName = "Matrix fallback",
@@ -404,7 +404,16 @@ class SuggestionsProcessorTest {
             roomUnsealContext = context,
         )
 
-        assertThat(result).isEqualTo(listOf(ResolvedSuggestion.Member(agentMember)))
+        assertThat(result).isEqualTo(
+            listOf(
+                ResolvedSuggestion.Member(
+                    agentMember.copy(
+                        displayName = "Rayson",
+                        avatarUrl = "mxc://agent/avatar",
+                    )
+                )
+            )
+        )
     }
 
     @Test
