@@ -11,97 +11,110 @@ import com.google.common.truth.Truth.assertThat
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.room.RoomMembershipState
-import io.element.android.libraries.matrix.api.room.RoomMembersState
 import io.element.android.libraries.matrix.test.room.aRoomMember
-import kotlinx.collections.immutable.persistentListOf
 import org.junit.Test
 
 class RoomUnsealContextTest {
     @Test
-    fun `from derives agent state schedules and device agent`() {
-        val members = listOf(
-            aRoomMember(userId = AGENT_ID, membership = RoomMembershipState.JOIN),
-            aRoomMember(userId = USER_ID, membership = RoomMembershipState.JOIN),
-        )
-        val snapshot = RoomUnsealDataSnapshot(
-            roomAgents = RoomUnsealResource.success(
-                listOf(RoomAgentDescriptor(userId = AGENT_ID.value, displayName = "Agent", avatarUrl = null, userType = null, membership = "join"))
+    fun `from exposes room agents and skill targets from active room members`() {
+        val context = RoomUnsealContext.from(
+            roomId = ROOM_ID,
+            members = listOf(
+                aRoomMember(userId = ACTIVE_AGENT_ID, displayName = "Gemini", membership = RoomMembershipState.JOIN),
+                aRoomMember(userId = INVITED_AGENT_ID, displayName = "Invited", membership = RoomMembershipState.INVITE),
             ),
-            allAgents = RoomUnsealResource.success(
-                listOf(
-                    AgentAccountDescriptor(
-                        botName = "device",
-                        localpart = "agent",
-                        serverName = "example.org",
-                        matrixUserId = AGENT_ID.value,
-                        displayName = "Device",
-                        avatarUrl = null,
-                        isDeviceAgent = true,
-                        boundDeviceId = "DEVICEID",
+            snapshot = RoomUnsealDataSnapshot(
+                roomAgents = RoomUnsealResource.success(
+                    listOf(
+                        RoomAgentDescriptor(ACTIVE_AGENT_ID.value, "Gemini", null, "agent", "join"),
+                        RoomAgentDescriptor(INVITED_AGENT_ID.value, "Invited", null, "agent", "invite"),
+                    )
+                ),
+                allAgents = RoomUnsealResource.success(
+                    listOf(
+                        agentAccount(mxid = ACTIVE_AGENT_ID.value, label = "Gemini"),
+                        agentAccount(mxid = INVITED_AGENT_ID.value, label = "Invited"),
+                    )
+                ),
+            ),
+        )
+
+        assertThat(context.agentsInRoom.map { it.mxid }).containsExactly(ACTIVE_AGENT_ID.value)
+        assertThat(context.agentSkillTargets.map { it.mxid }).containsExactly(ACTIVE_AGENT_ID.value)
+        assertThat(context.hasAgentInRoom).isTrue()
+    }
+
+    @Test
+    fun `from keeps member agent skill target when all agents response is incomplete`() {
+        val context = RoomUnsealContext.from(
+            roomId = ROOM_ID,
+            members = listOf(aRoomMember(userId = ACTIVE_AGENT_ID, displayName = "Mail Agent", membership = RoomMembershipState.JOIN)),
+            snapshot = RoomUnsealDataSnapshot(
+                roomAgents = RoomUnsealResource.success(
+                    listOf(RoomAgentDescriptor(ACTIVE_AGENT_ID.value, "Mail Agent", null, "agent", "join"))
+                ),
+                allAgents = RoomUnsealResource.success(emptyList()),
+            ),
+        )
+
+        assertThat(context.agentsInRoom).isEmpty()
+        assertThat(context.agentSkillTargets.single()).isEqualTo(
+            RoomAgentSkillTargetDescriptor(
+                agentId = ACTIVE_AGENT_ID.value,
+                mxid = ACTIVE_AGENT_ID.value,
+                label = "Mail Agent",
+            )
+        )
+        assertThat(context.hasAgentInRoom).isTrue()
+    }
+
+    @Test
+    fun `from exposes webhook summary from room context`() {
+        val context = RoomUnsealContext.from(
+            roomId = ROOM_ID,
+            members = emptyList(),
+            snapshot = RoomUnsealDataSnapshot(
+                webhookTriggers = RoomUnsealResource.success(
+                    listOf(
+                        webhookTrigger(id = "enabled", status = "enabled"),
+                        webhookTrigger(id = "active", status = "ACTIVE"),
+                        webhookTrigger(id = "disabled", status = "disabled"),
                     )
                 )
             ),
-            schedules = RoomUnsealResource.success(
-                listOf(
-                    RoomScheduleDescriptor("enabled", "Enabled", "* * * * *", "ping", AGENT_ID.value, ROOM_ID.value, null, isEnabled = true),
-                    RoomScheduleDescriptor("disabled", "Disabled", "* * * * *", "ping", AGENT_ID.value, ROOM_ID.value, null, isEnabled = false),
-                )
-            ),
-            workingMemory = RoomUnsealResource.success("memory"),
         )
 
-        val context = RoomUnsealContext.from(ROOM_ID, members, snapshot)
-
-        assertThat(context.members.single { it.userId == AGENT_ID }.isAgent).isTrue()
-        assertThat(context.hasAgentInRoom).isTrue()
-        assertThat(context.deviceAgentInRoom?.boundDeviceId).isEqualTo("DEVICEID")
-        assertThat(context.activeScheduleCount).isEqualTo(1)
-        assertThat(context.workingMemory).isEqualTo("memory")
-        assertThat(context.errors).isEmpty()
+        assertThat(context.webhookSummary).isEqualTo(RoomWebhookSummary(totalCount = 3, activeCount = 2))
     }
 
-    @Test
-    fun `from preserves partial errors`() {
-        val error = IllegalStateException("room agents failed")
-        val snapshot = RoomUnsealDataSnapshot(
-            roomAgents = RoomUnsealResource.failure(emptyList(), error),
+    private fun agentAccount(mxid: String, label: String): AgentAccountDescriptor {
+        return AgentAccountDescriptor(
+            botName = label,
+            localpart = mxid.substringAfter("@").substringBefore(":"),
+            serverName = mxid.substringAfter(":"),
+            matrixUserId = mxid,
+            displayName = label,
+            avatarUrl = null,
+            isDeviceAgent = false,
+            boundDeviceId = null,
         )
-
-        val context = RoomUnsealContext.from(ROOM_ID, emptyList(), snapshot)
-
-        assertThat(context.hasAgentInRoom).isFalse()
-        assertThat(context.errors).containsExactly(error)
     }
 
-    @Test
-    fun `member signature is stable and includes fields that affect agent room context`() {
-        val alice = aRoomMember(
-            userId = USER_ID,
-            displayName = "Alice",
-            avatarUrl = "mxc://avatar",
-            membership = RoomMembershipState.JOIN,
+    private fun webhookTrigger(id: String, status: String): RoomWebhookTriggerDescriptor {
+        return RoomWebhookTriggerDescriptor(
+            id = id,
+            agentId = "agent",
+            name = "Trigger $id",
+            source = "gmail",
+            roomId = ROOM_ID.value,
+            status = status,
+            actionPrompt = "Run",
         )
-        val agent = aRoomMember(
-            userId = AGENT_ID,
-            displayName = "Agent",
-            membership = RoomMembershipState.INVITE,
-        )
-
-        val signature = RoomMembersState.Ready(persistentListOf(alice, agent)).roomUnsealMemberSignature()
-        val reorderedSignature = RoomMembersState.Ready(persistentListOf(agent, alice)).roomUnsealMemberSignature()
-        val changedMembershipSignature = RoomMembersState.Ready(
-            persistentListOf(alice, agent.copy(membership = RoomMembershipState.JOIN))
-        ).roomUnsealMemberSignature()
-
-        assertThat(signature).isEqualTo(reorderedSignature)
-        assertThat(signature).isNotEqualTo(changedMembershipSignature)
-        assertThat(signature).contains("@agent:example.org|INVITE|Agent|")
-        assertThat(signature).contains("@user:example.org|JOIN|Alice|mxc://avatar")
     }
 
     private companion object {
         val ROOM_ID = RoomId("!room:example.org")
-        val AGENT_ID = UserId("@agent:example.org")
-        val USER_ID = UserId("@user:example.org")
+        val ACTIVE_AGENT_ID = UserId("@agent:example.org")
+        val INVITED_AGENT_ID = UserId("@invited:example.org")
     }
 }

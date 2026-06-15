@@ -125,8 +125,8 @@ object RoomMenuReducer {
         }
         val webhookSummary = context?.let {
             RoomWebhookMenuSummary(
-                totalCount = it.webhookTriggers.size,
-                activeCount = it.webhookTriggers.count { trigger -> trigger.isEnabled() },
+                totalCount = it.webhookSummary.totalCount,
+                activeCount = it.webhookSummary.activeCount,
                 isLoading = roomUnsealContext.isLoading(),
                 error = roomUnsealContext.errorOrNull()?.message,
             )
@@ -170,10 +170,6 @@ private fun List<RoomTopbarAction>.toTopbarTools(
             add(RoomTopbarToolRenderModel(action = RoomTopbarAction.Schedules, badgeCount = scheduleBadge?.activeScheduleCount?.takeIf { it > 0 }))
         }
     }
-}
-
-private fun RoomWebhookTriggerDescriptor.isEnabled(): Boolean {
-    return status.equals("enabled", ignoreCase = true) || status.equals("active", ignoreCase = true)
 }
 
 private fun String.toWorkingMemoryPreview(maxLength: Int = 120): String {

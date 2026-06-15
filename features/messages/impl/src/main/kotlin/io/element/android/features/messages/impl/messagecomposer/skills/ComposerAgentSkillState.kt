@@ -112,16 +112,14 @@ object ComposerAgentSkillReducer {
     }
 
     fun agentDescriptors(context: RoomUnsealContext): Map<String, ComposerAgentDescriptor> {
-        val memberIds = context.members.map { it.userId.value }.toSet()
-        val accountDescriptors = context.allAgents.mapNotNull { agent ->
-            val mxid = agent.matrixUserId?.takeIf { it in memberIds } ?: return@mapNotNull null
+        val contextTargets = context.agentSkillTargets.map { target ->
             ComposerAgentDescriptor(
-                agentId = mxid,
-                mxid = mxid,
-                label = agent.displayName ?: agent.botName,
+                agentId = target.agentId,
+                mxid = target.mxid,
+                label = target.label,
             )
         }
-        return (accountDescriptors + memberAgentDescriptors(context.members))
+        return (contextTargets + memberAgentDescriptors(context.members))
             .distinctBy { it.mxid }
             .sortedWith(compareBy<ComposerAgentDescriptor> { it.label }.thenBy { it.mxid })
             .associateBy { it.mxid }
