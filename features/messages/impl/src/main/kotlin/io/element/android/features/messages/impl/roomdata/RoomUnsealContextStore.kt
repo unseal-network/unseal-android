@@ -25,7 +25,22 @@ import timber.log.Timber
 interface RoomUnsealContextStore {
     val context: StateFlow<AsyncData<RoomUnsealContext>>
 
-    suspend fun refresh(force: Boolean = false)
+    suspend fun refresh(
+        reason: RoomUnsealRefreshReason = RoomUnsealRefreshReason.Initial,
+        force: Boolean = reason.force,
+    )
+}
+
+enum class RoomUnsealRefreshReason(val force: Boolean) {
+    Initial(force = false),
+    ScheduleChanged(force = true),
+    WebhookChanged(force = true),
+    SkillCatalogChanged(force = true),
+    MembersChanged(force = true),
+    AppResumed(force = true),
+    RoomConfigChanged(force = true),
+    ComposerMentionStarted(force = true),
+    Manual(force = true),
 }
 
 @SingleIn(RoomScope::class)
@@ -40,7 +55,7 @@ class DefaultRoomUnsealContextStore(
 
     override val context: StateFlow<AsyncData<RoomUnsealContext>> = mutableContext.asStateFlow()
 
-    override suspend fun refresh(force: Boolean) {
+    override suspend fun refresh(reason: RoomUnsealRefreshReason, force: Boolean) {
         if (!force && mutableContext.value.isLoading()) return
         refreshMutex.withLock {
             if (!force && mutableContext.value.isLoading()) return
@@ -53,14 +68,14 @@ class DefaultRoomUnsealContextStore(
             }.onSuccess { context ->
                 mutableContext.value = AsyncData.Success(context)
                 Timber.i(
-                    "RoomUnsealContext loaded roomId=${context.roomId.value} " +
+                    "RoomUnsealContext loaded reason=$reason roomId=${context.roomId.value} " +
                         "members=${context.members.size} agents=${context.roomAgents.size} " +
                         "hasAgent=${context.hasAgentInRoom} activeSchedules=${context.activeScheduleCount} " +
                         "webhooks=${context.webhookTriggers.size} errors=${context.errors.size}"
                 )
             }.onFailure { error ->
                 mutableContext.value = AsyncData.Failure(error, prevData = previousContext)
-                Timber.w(error, "Failed to load RoomUnsealContext")
+                Timber.w(error, "Failed to load RoomUnsealContext reason=$reason")
             }
         }
     }

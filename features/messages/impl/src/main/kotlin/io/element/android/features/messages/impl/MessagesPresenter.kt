@@ -42,6 +42,7 @@ import io.element.android.features.messages.impl.roomdata.AgentChatModeMemoryCac
 import io.element.android.features.messages.impl.roomdata.RoomMenuReducer
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContextStore
+import io.element.android.features.messages.impl.roomdata.RoomUnsealRefreshReason
 import io.element.android.features.messages.impl.roomdata.roomUnsealMemberSignature
 import io.element.android.features.messages.impl.terminal.DeviceAgentTerminalPanelState
 import io.element.android.features.messages.impl.timeline.MarkAsFullyRead
@@ -220,10 +221,10 @@ class MessagesPresenter(
         fun handleRoomScheduleBadgeEvent(event: RoomScheduleBadgeEvents) {
             when (event) {
                 RoomScheduleBadgeEvents.OnAppear -> if (roomUnsealContextState.isUninitialized()) {
-                    coroutineScope.launch { roomUnsealContextStore.refresh() }
+                    coroutineScope.launch { roomUnsealContextStore.refresh(RoomUnsealRefreshReason.Initial) }
                 }
                 RoomScheduleBadgeEvents.Refresh -> if (!roomUnsealContextState.isLoading()) {
-                    coroutineScope.launch { roomUnsealContextStore.refresh(force = true) }
+                    coroutineScope.launch { roomUnsealContextStore.refresh(RoomUnsealRefreshReason.ScheduleChanged) }
                 }
             }
         }
@@ -243,7 +244,7 @@ class MessagesPresenter(
             }
         }
         LaunchedEffect(room.roomId) {
-            roomUnsealContextStore.refresh()
+            roomUnsealContextStore.refresh(RoomUnsealRefreshReason.Initial)
         }
         LaunchedEffect(activeDeviceAgentBoundDeviceId) {
             composerState.eventSink(MessageComposerEvent.SetAgentChatTargetDeviceId(activeDeviceAgentBoundDeviceId))
@@ -260,17 +261,17 @@ class MessagesPresenter(
         }
         LaunchedEffect(roomConfigChangeRequests) {
             roomConfigChangeRequests.collectLatest {
-                roomUnsealContextStore.refresh(force = true)
+                roomUnsealContextStore.refresh(RoomUnsealRefreshReason.RoomConfigChanged)
             }
         }
         LaunchedEffect(roomMemberSignature) {
             if (roomMemberSignature != null && roomUnsealContextState.dataOrNull() != null && !roomUnsealContextState.isLoading()) {
-                roomUnsealContextStore.refresh(force = true)
+                roomUnsealContextStore.refresh(RoomUnsealRefreshReason.MembersChanged)
             }
         }
         LifecycleResumeEffect(Unit) {
             if (!roomUnsealContextState.isLoading()) {
-                coroutineScope.launch { roomUnsealContextStore.refresh(force = true) }
+                coroutineScope.launch { roomUnsealContextStore.refresh(RoomUnsealRefreshReason.AppResumed) }
             }
             onPauseOrDispose {}
         }

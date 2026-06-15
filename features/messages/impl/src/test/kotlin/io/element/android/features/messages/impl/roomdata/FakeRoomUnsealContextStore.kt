@@ -22,10 +22,13 @@ class FakeRoomUnsealContextStore(
         private set
     var lastRefreshForce: Boolean? = null
         private set
+    var lastRefreshReason: RoomUnsealRefreshReason? = null
+        private set
 
-    override suspend fun refresh(force: Boolean) {
+    override suspend fun refresh(reason: RoomUnsealRefreshReason, force: Boolean) {
         refreshCount++
         lastRefreshForce = force
+        lastRefreshReason = reason
     }
 
     fun givenContext(context: RoomUnsealContext) {

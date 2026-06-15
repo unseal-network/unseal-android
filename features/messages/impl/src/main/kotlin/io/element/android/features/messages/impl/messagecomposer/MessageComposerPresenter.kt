@@ -48,6 +48,7 @@ import io.element.android.features.messages.impl.messagecomposer.suggestions.Com
 import io.element.android.features.messages.impl.messagecomposer.suggestions.RoomAliasSuggestionsDataSource
 import io.element.android.features.messages.impl.messagecomposer.suggestions.SuggestionsProcessor
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContextStore
+import io.element.android.features.messages.impl.roomdata.RoomUnsealRefreshReason
 import io.element.android.features.messages.impl.timeline.TimelineController
 import io.element.android.features.messages.impl.utils.TextPillificationHelper
 import io.element.android.libraries.architecture.AsyncAction
@@ -286,14 +287,14 @@ class MessageComposerPresenter(
         ResolveSuggestionsEffect(suggestions, suggestionRenderModels)
 
         LaunchedEffect(Unit) {
-            roomUnsealContextStore.refresh()
+            roomUnsealContextStore.refresh(RoomUnsealRefreshReason.Initial)
         }
         LaunchedEffect(Unit) {
             var mentionWasActive = false
             suggestionSearchTrigger.collect { suggestion ->
                 val mentionIsActive = suggestion?.type == SuggestionType.Mention
                 if (mentionIsActive && !mentionWasActive) {
-                    roomUnsealContextStore.refresh(force = true)
+                    roomUnsealContextStore.refresh(RoomUnsealRefreshReason.ComposerMentionStarted)
                 }
                 mentionWasActive = mentionIsActive
             }
