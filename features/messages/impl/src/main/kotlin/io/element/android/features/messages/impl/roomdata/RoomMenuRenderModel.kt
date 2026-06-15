@@ -96,6 +96,7 @@ object RoomMenuReducer {
         val actions = buildList {
             if (context?.hasAgentInRoom == true) {
                 add(RoomTopbarAction.Schedules)
+                add(RoomTopbarAction.Webhooks)
             }
             if (deviceAgent != null) {
                 add(RoomTopbarAction.DeviceAgentChat)
@@ -135,6 +136,7 @@ object RoomMenuReducer {
             topbarActions = actions,
             topbarTools = actions.toTopbarTools(
                 scheduleBadge = scheduleBadge,
+                webhookSummary = webhookSummary,
                 isDeviceAgentChatActive = deviceAgent?.boundDeviceId == activeDeviceAgentBoundDeviceId,
             ),
             attachmentActions = attachmentActions,
@@ -156,6 +158,7 @@ object RoomMenuReducer {
 
 private fun List<RoomTopbarAction>.toTopbarTools(
     scheduleBadge: RoomScheduleMenuBadge?,
+    webhookSummary: RoomWebhookMenuSummary?,
     isDeviceAgentChatActive: Boolean,
 ): List<RoomTopbarToolRenderModel> {
     val actionSet = toSet()
@@ -165,6 +168,9 @@ private fun List<RoomTopbarAction>.toTopbarTools(
         }
         if (RoomTopbarAction.DeviceAgentChat in actionSet) {
             add(RoomTopbarToolRenderModel(action = RoomTopbarAction.DeviceAgentChat, isActive = isDeviceAgentChatActive))
+        }
+        if (RoomTopbarAction.Webhooks in actionSet) {
+            add(RoomTopbarToolRenderModel(action = RoomTopbarAction.Webhooks, badgeCount = webhookSummary?.activeCount?.takeIf { it > 0 }))
         }
         if (RoomTopbarAction.Schedules in actionSet) {
             add(RoomTopbarToolRenderModel(action = RoomTopbarAction.Schedules, badgeCount = scheduleBadge?.activeScheduleCount?.takeIf { it > 0 }))
