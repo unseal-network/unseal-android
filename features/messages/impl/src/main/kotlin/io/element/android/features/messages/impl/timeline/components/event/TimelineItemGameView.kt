@@ -93,7 +93,11 @@ internal fun TimelineItemGameView(
             .clip(RoundedCornerShape(12.dp))
             .clickable {
                 clicked = true
-                eventSink(TimelineEvent.OpenGame(content.gameId, content.gameRoomId))
+                eventSink(TimelineEvent.OpenGame(
+                    gameId = content.gameId,
+                    gameRoomId = content.gameRoomId,
+                    remoteUrl = content.remoteUrl,
+                ))
             },
     ) {
         Row(
@@ -177,6 +181,7 @@ internal fun TimelineItemGameViewPreview() = ElementPreview {
             homeserverHost = null,
             gameRoomId = "game-room-abc-123",
             gameId = 1,
+            remoteUrl = null,
             creatorUserId = "@alice:matrix.example.com",
             fallbackBody = "邀请大家开始一局 Chess 游戏",
         ),
@@ -195,6 +200,7 @@ internal fun TimelineItemGameViewNoBriefPreview() = ElementPreview {
             homeserverHost = null,
             gameRoomId = "game-room-xyz-456",
             gameId = 2,
+            remoteUrl = null,
             creatorUserId = "@bob:matrix.example.com",
             fallbackBody = "邀请大家开始一局 Poker 游戏",
         ),

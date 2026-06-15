@@ -41,6 +41,7 @@ import io.element.android.features.messages.impl.attachments.Attachment
 import io.element.android.features.messages.impl.attachments.preview.AttachmentsPreviewNode
 import io.element.android.features.messages.impl.pinned.DefaultPinnedEventsTimelineProvider
 import io.element.android.features.messages.impl.pinned.list.PinnedMessagesListNode
+import io.element.android.features.messages.impl.miniapp.MiniAppNode
 import io.element.android.features.messages.impl.report.ReportMessageNode
 import io.element.android.features.messages.impl.threads.ThreadedMessagesNode
 import io.element.android.features.messages.impl.threads.list.ThreadsListNode
@@ -191,6 +192,13 @@ class MessagesFlowNode(
 
         @Parcelize
         data object ThreadsList : NavTarget
+
+        @Parcelize
+        data class MiniApp(
+            val appId: Long,
+            val remoteUrl: String,
+            val meetId: String,
+        ) : NavTarget
     }
 
     private val callback: MessagesEntryPoint.Callback = callback()
@@ -331,6 +339,14 @@ class MessagesFlowNode(
 
                     override fun navigateToDeveloperSettings() {
                         callback.navigateToDeveloperSettings()
+                    }
+
+                    override fun navigateToMiniApp(appId: Long, remoteUrl: String?, meetId: String) {
+                        backstack.push(NavTarget.MiniApp(
+                            appId = appId,
+                            remoteUrl = remoteUrl ?: "",
+                            meetId = meetId,
+                        ))
                     }
                 }
                 val inputs = MessagesNode.Inputs(focusedEventId = navTarget.focusedEventId)
@@ -577,6 +593,14 @@ class MessagesFlowNode(
                     }
                 }
                 createNode<ThreadsListNode>(buildContext, listOf(callback))
+            }
+            is NavTarget.MiniApp -> {
+                val inputs = MiniAppNode.Inputs(
+                    appId = navTarget.appId,
+                    remoteUrl = navTarget.remoteUrl,
+                    meetId = navTarget.meetId,
+                )
+                createNode<MiniAppNode>(buildContext, plugins = listOf(inputs))
             }
         }
     }

@@ -74,6 +74,7 @@ import io.element.android.services.appnavstate.api.AppNavigationStateService
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 @ContributesNode(RoomScope::class)
 @AssistedInject
@@ -247,6 +248,11 @@ class ThreadedMessagesNode(
     override fun navigateToCurrentLiveLocation() {
         // Shouldn't happen because LiveLocationSharingBanner is not shown in threads.
         callback.navigateToCurrentLiveLocation()
+    }
+
+    override fun navigateToMiniApp(appId: Long, remoteUrl: String?, meetId: String) {
+        // MiniApp navigation is not supported from thread view.
+        Timber.d("navigateToMiniApp called from thread, ignoring")
     }
 
     override fun close() = navigateUp()

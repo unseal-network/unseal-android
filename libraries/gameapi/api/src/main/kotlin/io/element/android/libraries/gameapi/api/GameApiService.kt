@@ -34,6 +34,18 @@ interface GameApiService {
     suspend fun createGameRoom(gameId: Int, meetRoomId: String): Result<CreateGameRoomResult>
 
     /**
+     * Fetches bundle information for a single game app, including the ZIP download URL
+     * and load mode.
+     *
+     * GET {homeserver}/app-mgr/package/json?method=pkg.app.check.update&app_id={appId}
+     * Header: APP-U: s={homeserverHost}
+     *
+     * Mirrors iOS `requestAppModelFromServer(appId:)` which calls `pkg.app.check.update`
+     * and returns an `AppModel` used to decide between remote load and local ZIP bundle.
+     */
+    suspend fun fetchAppBundle(appId: Int): Result<AppBundleInfo>
+
+    /**
      * Sends a game invite message to the chat room via the Matrix REST API.
      * PUT {homeserver}/_matrix/client/v3/rooms/{roomId}/send/m.room.message/{txnId}
      * Header: Authorization: Bearer {accessToken}

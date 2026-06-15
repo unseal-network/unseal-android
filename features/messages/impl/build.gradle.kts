@@ -60,6 +60,7 @@ dependencies {
     implementation(projects.libraries.chatbot.api)
     implementation(projects.libraries.gameapi.api)
     implementation(projects.libraries.gameapi.impl)
+    implementation(projects.libraries.miniapp.impl)
     implementation(platform(libs.network.okhttp.bom))
     implementation(libs.network.okhttp)
     implementation(projects.libraries.voiceplayer.api)

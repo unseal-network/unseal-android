@@ -49,6 +49,11 @@ data class TimelineItemGameContent(
     val gameRoomId: String,
     /** Numeric game app ID in the Unseal game catalogue. */
     val gameId: Int,
+    /**
+     * WebView URL from `m.game.info.remote_url`.
+     * Null for older messages that predate the remote_url field.
+     */
+    val remoteUrl: String?,
     /** Matrix user ID of the room creator. */
     val creatorUserId: String?,
     /** Fallback plain text body ("邀请大家..."). */

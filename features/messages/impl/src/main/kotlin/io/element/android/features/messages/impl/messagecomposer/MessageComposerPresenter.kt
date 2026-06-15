@@ -134,7 +134,7 @@ class MessageComposerPresenter(
     private val mediaOptimizationConfigProvider: MediaOptimizationConfigProvider,
     private val notificationConversationService: NotificationConversationService,
     private val slashCommandService: SlashCommandService,
-    private val gamePickerPresenter: GamePickerPresenter,
+    private val gamePickerPresenterFactory: GamePickerPresenter.Factory,
 ) : Presenter<MessageComposerState> {
     @AssistedFactory
     interface Factory {
@@ -195,6 +195,13 @@ class MessageComposerPresenter(
         }
         var showAttachmentSourcePicker: Boolean by remember { mutableStateOf(false) }
         var showGamePicker: Boolean by remember { mutableStateOf(false) }
+        val gamePickerPresenter = remember {
+            gamePickerPresenterFactory.create(
+                onNavigateToMiniApp = { appId, remoteUrl, meetId ->
+                    navigator.navigateToMiniApp(appId, remoteUrl, meetId)
+                }
+            )
+        }
         val gamePickerState: GamePickerState? = if (showGamePicker) gamePickerPresenter.present() else null
 
         val sendTypingNotifications by remember {

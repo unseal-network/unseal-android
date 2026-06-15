@@ -70,6 +70,7 @@ class GameMessageContentParser {
             homeserverHost = homeserverHost,
             gameRoomId = gameRoomId,
             gameId = gameInfoObj?.int("id") ?: 0,
+            remoteUrl = gameInfoObj?.string("remote_url"),
             creatorUserId = content.string("m.game.creator"),
             fallbackBody = fallbackBody,
         )

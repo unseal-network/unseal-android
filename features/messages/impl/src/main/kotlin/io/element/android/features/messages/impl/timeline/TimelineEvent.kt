@@ -64,9 +64,15 @@ sealed interface TimelineEvent {
     data object StopLiveLocationShare : TimelineItemEvent
 
     /**
-     * User tapped the game card in the timeline.
-     * Phase 1: no-op (MiniApp runtime not yet implemented).
-     * Phase 2: navigator.navigateToGame(gameId, gameRoomId, meetRoomId).
+     * User tapped the game card in the timeline — open the MiniApp WebView.
+     *
+     * @param gameId      Numeric Unseal game ID (maps to MiniApp appId).
+     * @param gameRoomId  Game-server room ID (maps to MiniApp meetId).
+     * @param remoteUrl   Optional WebView URL from [TimelineItemGameContent.remoteUrl].
      */
-    data class OpenGame(val gameId: Int, val gameRoomId: String) : TimelineItemEvent
+    data class OpenGame(
+        val gameId: Int,
+        val gameRoomId: String,
+        val remoteUrl: String?,
+    ) : TimelineItemEvent
 }

@@ -135,6 +135,7 @@ class MessagesNode(
         fun navigateToRoomSchedules(roomId: RoomId, roomName: String, joinedRoom: JoinedRoom)
         fun navigateToKnockRequestsList()
         fun navigateToDeveloperSettings()
+        fun navigateToMiniApp(appId: Long, remoteUrl: String?, meetId: String)
 
         fun navigateToThreadsList()
     }
@@ -243,6 +244,10 @@ class MessagesNode(
 
     override fun navigateToCurrentLiveLocation() {
         callback.navigateToCurrentLiveLocation()
+    }
+
+    override fun navigateToMiniApp(appId: Long, remoteUrl: String?, meetId: String) {
+        callback.navigateToMiniApp(appId, remoteUrl, meetId)
     }
 
     private fun displaySameRoomToast() {

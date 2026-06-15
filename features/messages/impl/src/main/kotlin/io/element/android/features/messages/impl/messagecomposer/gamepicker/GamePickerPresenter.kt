@@ -14,7 +14,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import dev.zacsweers.metro.Inject
+import dev.zacsweers.metro.Assisted
+import dev.zacsweers.metro.AssistedFactory
+import dev.zacsweers.metro.AssistedInject
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.chatbot.api.ChatbotBaseUrlResolver
 import io.element.android.libraries.gameapi.api.GameInfo
@@ -32,13 +34,19 @@ import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import timber.log.Timber
 
-@Inject
+@AssistedInject
 class GamePickerPresenter(
     private val matrixClient: MatrixClient,
     private val room: JoinedRoom,
     private val baseUrlResolver: ChatbotBaseUrlResolver,
     private val okHttpClient: () -> OkHttpClient,
+    @Assisted private val onNavigateToMiniApp: (appId: Long, remoteUrl: String?, meetId: String) -> Unit,
 ) : Presenter<GamePickerState> {
+
+    @AssistedFactory
+    interface Factory {
+        fun create(onNavigateToMiniApp: (appId: Long, remoteUrl: String?, meetId: String) -> Unit): GamePickerPresenter
+    }
 
     @Composable
     override fun present(): GamePickerState {
@@ -126,8 +134,8 @@ class GamePickerPresenter(
                 }
 
                 is GamePickerEvent.EnterPlayingRoom -> {
-                    // TODO: dispatch Action.OpenLocalGame when MiniApp runtime is ready
-                    Timber.d("GamePicker: EnterPlayingRoom appId=${event.appId} roomId=${event.room.roomId}")
+                    val gameInfo = allGames?.find { it.id == event.appId }
+                    onNavigateToMiniApp(event.appId.toLong(), gameInfo?.remoteUrl, event.room.meetId)
                 }
 
                 GamePickerEvent.DismissError -> error = null

@@ -7,6 +7,7 @@
 
 package io.element.android.libraries.gameapi.impl
 
+import io.element.android.libraries.gameapi.api.AppBundleInfo
 import io.element.android.libraries.gameapi.api.CreateGameRoomResult
 import io.element.android.libraries.gameapi.api.GameApiService
 import io.element.android.libraries.gameapi.api.GameInfo
@@ -137,6 +138,78 @@ class DefaultGameApiService(
             gameRoomId = gameRoomId,
             creatorUserId = creatorUserId,
             gameInfo = gameInfo,
+        )
+    }
+
+    /**
+     * Calls `pkg.app.check.update` and returns [AppBundleInfo].
+     *
+     * Mirrors iOS `requestAppModelFromServer(appId:)` which returns an `AppModel`
+     * used by `checkLoad()` to decide between remote-load and local-ZIP-bundle.
+     *
+     * Expected response shape:
+     * ```json
+     * {
+     *   "code": 0,
+     *   "data": {
+     *     "app_id":      42,
+     *     "version":     "1.0.5",
+     *     "load_mode":   "local",          // "remote" | "local"
+     *     "remote_url":  null,             // set when load_mode=remote
+     *     "update_host": "https://cdn.unseal.network",
+     *     "update_url":  "/packages/42/bundle.zip"
+     *   }
+     * }
+     * ```
+     *
+     * The full ZIP URL is constructed as `update_host + update_url`; if `update_url`
+     * is already absolute it is used as-is.
+     */
+    override suspend fun fetchAppBundle(appId: Int): Result<AppBundleInfo> = runCatching {
+        val url = "$homeserverUrl/app-mgr/package/json?method=pkg.app.check.update&app_id=$appId"
+        val request = Request.Builder()
+            .url(url)
+            .header("APP-U", "s=$homeserverHost")
+            .get()
+            .build()
+        val responseBody = executeRequest(request)
+        val root = json.parseToJsonElement(responseBody).jsonObject
+        val code = root["code"]?.jsonPrimitive?.int
+        if (code != 0) error("fetchAppBundle failed: code=$code body=$responseBody")
+
+        val data = root["data"]?.jsonObject ?: error("fetchAppBundle: missing data field")
+
+        val version = data["version"]?.jsonPrimitive?.content ?: ""
+        val rawLoadMode = data["load_mode"]?.jsonPrimitive?.content
+            ?: data["loadMode"]?.jsonPrimitive?.content
+            ?: "local"
+        val loadMode = if (rawLoadMode == "remote") AppBundleInfo.LoadMode.Remote
+                       else AppBundleInfo.LoadMode.Local
+        val remoteUrl = data["remote_url"]?.jsonPrimitive?.content
+            ?: data["remoteUrl"]?.jsonPrimitive?.content
+
+        // Construct the ZIP download URL from update_host + update_url.
+        // Fall back to a standalone download_url / bundle_url field if present.
+        val zipUrl = run {
+            val direct = data["download_url"]?.jsonPrimitive?.content
+                ?: data["bundle_url"]?.jsonPrimitive?.content
+            if (!direct.isNullOrBlank()) return@run direct
+
+            val host = (data["update_host"]?.jsonPrimitive?.content
+                ?: data["updateHost"]?.jsonPrimitive?.content)
+                ?.trimEnd('/') ?: return@run null
+            val path = (data["update_url"]?.jsonPrimitive?.content
+                ?: data["updateUrl"]?.jsonPrimitive?.content) ?: return@run null
+            if (path.startsWith("http://") || path.startsWith("https://")) path
+            else "$host/${path.trimStart('/')}"
+        }
+
+        AppBundleInfo(
+            appId = appId,
+            version = version,
+            loadMode = loadMode,
+            remoteUrl = remoteUrl,
+            zipUrl = zipUrl,
         )
     }
 
