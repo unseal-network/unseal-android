@@ -53,7 +53,7 @@ class TimelinePresentationReducerTest {
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
         assertThat(model.contentKind).isEqualTo(TimelineContentKind.PlainText)
         assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.ShowWhenEdited)
-        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Enabled)
+        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Disabled)
         assertThat(model.showSenderInformation).isTrue()
         assertThat(model.reserveAvatarColumn).isTrue()
     }
@@ -71,7 +71,7 @@ class TimelinePresentationReducerTest {
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
         assertThat(model.contentKind).isEqualTo(TimelineContentKind.PlainText)
         assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.ShowWhenEdited)
-        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Enabled)
+        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Disabled)
         assertThat(model.showSenderInformation).isTrue()
         assertThat(model.reserveAvatarColumn).isTrue()
     }
@@ -89,7 +89,7 @@ class TimelinePresentationReducerTest {
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
         assertThat(model.contentKind).isEqualTo(TimelineContentKind.PlainText)
         assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.ShowWhenEdited)
-        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Enabled)
+        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Disabled)
         assertThat(model.showSenderInformation).isTrue()
         assertThat(model.reserveAvatarColumn).isTrue()
     }

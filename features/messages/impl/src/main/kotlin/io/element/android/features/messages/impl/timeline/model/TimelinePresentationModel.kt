@@ -106,8 +106,8 @@ object TimelinePresentationReducer {
 
     private fun replySwipePolicy(contentKind: TimelineContentKind): TimelineReplySwipePolicy {
         return when (contentKind) {
-            TimelineContentKind.PlainText,
             TimelineContentKind.RichEvent -> TimelineReplySwipePolicy.Enabled
+            TimelineContentKind.PlainText,
             TimelineContentKind.AiStream,
             TimelineContentKind.RoomKeyRecovery,
             TimelineContentKind.Redacted -> TimelineReplySwipePolicy.Disabled
