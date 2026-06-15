@@ -31,8 +31,7 @@ import io.element.android.features.knockrequests.api.list.KnockRequestsListEntry
 import androidx.lifecycle.lifecycleScope
 import io.element.android.features.agentmanagement.api.AgentManagementEntryPoint
 import io.element.android.features.messages.api.MessagesEntryPoint
-import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
-import io.element.android.libraries.matrix.api.MatrixClient
+import io.element.android.libraries.chatbot.api.RoomAgentProfileRouter
 import kotlinx.coroutines.launch
 import io.element.android.features.poll.api.history.PollHistoryEntryPoint
 import io.element.android.features.reportroom.api.ReportRoomEntryPoint
@@ -97,8 +96,7 @@ class RoomDetailsFlowNode(
     private val roomDetailsEditEntryPoint: RoomDetailsEditEntryPoint,
     private val webhookTriggersEntryPoint: WebhookTriggersEntryPoint,
     private val agentManagementEntryPoint: AgentManagementEntryPoint,
-    private val chatbotApiServiceFactory: ChatbotApiServiceFactory,
-    private val matrixClient: MatrixClient,
+    private val roomAgentProfileRouter: RoomAgentProfileRouter,
 ) : BaseFlowNode<RoomDetailsFlowNode.NavTarget>(
     backstack = BackStack(
         initialElement = plugins.filterIsInstance<RoomDetailsEntryPoint.Params>().first().initialElement.toNavTarget(),
@@ -190,49 +188,21 @@ class RoomDetailsFlowNode(
         }
     }
 
-    // Agent routing: a room member that is an agent opens the agent profile instead of the normal
-    // Matrix user profile. The agent set is prefetched once (on first resolve) so member taps route
-    // synchronously from cache and the normal-user flow keeps its original latency.
-    private var cachedAgentIds: Set<String>? = null
-    private var agentPrefetchStarted = false
-
-    private fun ensureAgentPrefetch() {
-        if (agentPrefetchStarted) return
-        agentPrefetchStarted = true
-        lifecycleScope.launch { cachedAgentIds = fetchRoomAgentIds() }
-    }
-
-    private suspend fun fetchRoomAgentIds(): Set<String> = runCatching {
-        chatbotApiServiceFactory.createForHomeserver(matrixClient)
-            .getRoomAgents(room.roomId.value)
-            .getOrNull()
-            ?.agents
-            ?.flatMap { listOfNotNull(it.agentId, it.mxid) }
-            ?.toSet()
-    }.getOrNull() ?: emptySet()
-
+    // Agent routing goes through the shared RoomAgentProfileRouter (the single decision point for
+    // member→profile navigation) so a member that is an agent opens the agent profile instead of the
+    // normal Matrix user profile, and no entry point diverges.
     private fun openMemberOrAgentProfile(userId: UserId) {
-        val cached = cachedAgentIds
-        if (cached != null) {
-            routeMemberOrAgent(userId, cached)
-        } else {
-            lifecycleScope.launch { routeMemberOrAgent(userId, fetchRoomAgentIds().also { cachedAgentIds = it }) }
-        }
-    }
-
-    private fun routeMemberOrAgent(userId: UserId, agentIds: Set<String>) {
-        if (userId.value in agentIds) {
-            val localpart = userId.value.substringAfter("@").substringBefore(":")
-            if (localpart.isNotBlank()) {
-                backstack.push(NavTarget.AgentProfile(localpart))
-                return
+        lifecycleScope.launch {
+            val botName = roomAgentProfileRouter.agentBotNameFor(room.roomId, userId)
+            if (botName != null) {
+                backstack.push(NavTarget.AgentProfile(botName))
+            } else {
+                backstack.push(NavTarget.RoomMemberDetails(userId))
             }
         }
-        backstack.push(NavTarget.RoomMemberDetails(userId))
     }
 
     override fun resolve(navTarget: NavTarget, buildContext: BuildContext): Node {
-        ensureAgentPrefetch()
         return when (navTarget) {
             NavTarget.RoomDetails -> {
                 val roomDetailsCallback = object : RoomDetailsNode.Callback {
