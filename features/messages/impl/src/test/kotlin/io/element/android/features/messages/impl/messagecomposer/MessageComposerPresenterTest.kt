@@ -1260,7 +1260,8 @@ class MessageComposerPresenterTest {
         }
     }
 
-    fun `present - InsertSuggestion`() = runTest {
+    @Test
+    fun `present - InsertSuggestion uses member display name as visible mention text`() = runTest {
         val presenter = createPresenter(
             permalinkBuilder = FakePermalinkBuilder(
                 permalinkForUserLambda = {
@@ -1271,10 +1272,17 @@ class MessageComposerPresenterTest {
         presenter.test {
             val initialState = awaitFirstItem()
             initialState.textEditorState.setHtml("Hey @bo")
-            initialState.eventSink(MessageComposerEvent.InsertSuggestion(ResolvedSuggestion.Member(aRoomMember(userId = A_USER_ID_2))))
+            initialState.eventSink(
+                MessageComposerEvent.InsertSuggestion(
+                    ResolvedSuggestion.Member(
+                        aRoomMember(userId = A_USER_ID_2, displayName = "Bob")
+                    )
+                )
+            )
 
             assertThat(initialState.textEditorState.messageHtml())
-                .isEqualTo("Hey <a href='https://matrix.to/#/${A_USER_ID_2.value}'>${A_USER_ID_2.value}</a>")
+                .isEqualTo("Hey <a href='https://matrix.to/#/${A_USER_ID_2.value}'>Bob</a>")
+            cancelAndIgnoreRemainingEvents()
         }
     }
 

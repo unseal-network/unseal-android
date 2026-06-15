@@ -466,7 +466,7 @@ class MessageComposerPresenter(
                                     richTextEditorState.insertAtRoomMentionAtSuggestion()
                                 }
                                 is ResolvedSuggestion.Member -> {
-                                    val text = suggestion.roomMember.userId.value
+                                    val text = suggestion.roomMember.displayName ?: suggestion.roomMember.userId.value
                                     val link = permalinkBuilder.permalinkForUser(suggestion.roomMember.userId).getOrNull() ?: return@launch
                                     richTextEditorState.insertMentionAtSuggestion(text = text, link = link)
                                 }
