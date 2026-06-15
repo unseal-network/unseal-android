@@ -282,11 +282,19 @@ class JoinedRoomLoadedFlowNode(
     ): Node {
         val callback = object : MessagesEntryPoint.Callback {
             override fun navigateToRoomDetails() {
-                backstack.push(NavTarget.RoomDetails)
+                // DM with an agent: open the agent profile first; otherwise the normal room details.
+                lifecycleScope.launch {
+                    val botName = roomAgentProfileRouter.directRoomAgentBotName(inputs.room.roomId)
+                    backstack.push(if (botName != null) NavTarget.AgentProfile(botName) else NavTarget.RoomDetails)
+                }
             }
 
             override fun navigateToRoomMemberDetails(userId: UserId) {
-                backstack.push(NavTarget.RoomMemberDetails(userId))
+                // Timeline avatar / mention: agent → agent profile, normal user → user profile.
+                lifecycleScope.launch {
+                    val botName = roomAgentProfileRouter.agentBotNameFor(inputs.room.roomId, userId)
+                    backstack.push(if (botName != null) NavTarget.AgentProfile(botName) else NavTarget.RoomMemberDetails(userId))
+                }
             }
 
             override fun handlePermalinkClick(data: PermalinkData, pushToBackstack: Boolean) {
@@ -343,6 +351,9 @@ class JoinedRoomLoadedFlowNode(
 
         @Parcelize
         data class RoomMemberDetails(val userId: UserId) : NavTarget
+
+        @Parcelize
+        data class AgentProfile(val botName: String) : NavTarget
 
         @Parcelize
         data class ForwardEvent(val eventId: EventId, val fromPinnedEvents: Boolean) : NavTarget

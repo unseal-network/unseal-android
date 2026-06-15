@@ -31,7 +31,6 @@ internal fun ImageAvatar(
     forcedAvatarSize: Dp?,
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
-    placeholderType: AvatarPlaceholderType = AvatarPlaceholderType.User,
 ) {
     val size = forcedAvatarSize ?: avatarData.size.dp
     SubcomposeAsyncImage(
@@ -57,7 +56,6 @@ internal fun ImageAvatar(
                     avatarShape = avatarShape,
                     forcedAvatarSize = forcedAvatarSize,
                     contentDescription = contentDescription,
-                    placeholderType = placeholderType,
                 )
             }
             else -> InitialLetterAvatar(
@@ -65,7 +63,6 @@ internal fun ImageAvatar(
                 avatarShape = avatarShape,
                 forcedAvatarSize = forcedAvatarSize,
                 contentDescription = contentDescription,
-                placeholderType = placeholderType,
             )
         }
     }

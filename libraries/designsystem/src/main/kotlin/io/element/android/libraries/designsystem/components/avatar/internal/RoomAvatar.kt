@@ -42,7 +42,6 @@ internal fun RoomAvatar(
                 forcedAvatarSize = forcedAvatarSize,
                 modifier = modifier,
                 contentDescription = contentDescription,
-                placeholderType = AvatarPlaceholderType.Room,
             )
         }
         else -> {

@@ -30,6 +30,5 @@ internal fun UserAvatar(
         modifier = modifier,
         contentDescription = contentDescription,
         forcedAvatarSize = forcedAvatarSize,
-        placeholderType = AvatarPlaceholderType.User,
     )
 }
