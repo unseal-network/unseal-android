@@ -40,17 +40,21 @@ data class AgentDetailState(
     val copyableAgentId: String = agent?.copyableAgentId() ?: botName
     val canStartChat: Boolean = agentMatrixUserId != null && !isLoading && !isStartingChat
 
-    /**
-     * Public web profile page for the agent: `https://<agent host>/@<localpart>`. The host is the
-     * agent's own server (e.g. keepsecret.io), NOT a hardcoded website — only falling back to the
-     * configured website base when the agent has no server name.
-     */
-    val agentProfileUrl: String? = (agent?.localpart ?: botName)
-        .takeIf { it.isNotBlank() }
-        ?.let { localpart ->
-            val host = agent?.serverName?.takeIf { it.isNotBlank() }
-            if (host != null) "https://$host/@$localpart" else "${ChatbotConfig.WEBSITE_BASE_URL}/@$localpart"
-        }
+    /** The agent's own host (e.g. keepsecret.io), taken from its Matrix id (`@localpart:host`). */
+    private val agentHost: String? = agentMatrixUserId?.substringAfterLast(":")?.takeIf { it.isNotBlank() }
+        ?: agent?.serverName?.takeIf { it.isNotBlank() }
+
+    private val agentLocalpart: String? = (agent?.localpart ?: botName).takeIf { it.isNotBlank() }
+
+    /** Public web profile page for the agent: `https://<agent host>/@<localpart>` (top-bar link). */
+    val agentProfileUrl: String? = agentLocalpart?.let { localpart ->
+        agentHost?.let { "https://$it/@$localpart" } ?: "${ChatbotConfig.WEBSITE_BASE_URL}/@$localpart"
+    }
+
+    /** Connect link given to another agent: `https://<host>/a2a/@<localpart>.md` (the md self-describes). */
+    val agentConnectUrl: String? = agentLocalpart?.let { localpart ->
+        agentHost?.let { "https://$it/a2a/@$localpart.md" }
+    }
 }
 
 fun ChatbotAgentRoom.displayName(): String = roomName?.takeIf { it.isNotBlank() } ?: alias?.takeIf { it.isNotBlank() } ?: roomId

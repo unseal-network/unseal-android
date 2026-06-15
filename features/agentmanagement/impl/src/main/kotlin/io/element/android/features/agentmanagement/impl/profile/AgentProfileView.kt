@@ -97,7 +97,7 @@ fun AgentProfileView(
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             item { Hero(state) }
-            item { ConnectCard(agentProfileUrl = model.agentProfileUrl) }
+            item { ConnectCard(connectUrl = state.agentConnectUrl) }
             if (model.skills.items.isNotEmpty()) {
                 item { SkillsSection(state) }
             }
@@ -195,10 +195,8 @@ private fun ProfileChip(text: String) {
 }
 
 @Composable
-private fun ConnectCard(agentProfileUrl: String?) {
-    if (agentProfileUrl.isNullOrBlank()) return
-    // Connect link given to an agent / unseal-cli (mirrors webapp `{origin}/@handle.md`).
-    val connectUrl = "$agentProfileUrl.md"
+private fun ConnectCard(connectUrl: String?) {
+    if (connectUrl.isNullOrBlank()) return
     val clipboard = LocalClipboardManager.current
     Surface(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -211,7 +209,7 @@ private fun ConnectCard(agentProfileUrl: String?) {
                 Text(text = "连接", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             }
             Text(
-                text = "把这个链接交给你的 Agent 或 unseal-cli",
+                text = "把这个链接发给你的 Agent 即可连接",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
