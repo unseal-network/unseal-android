@@ -23,8 +23,10 @@ import io.element.android.libraries.chatbot.api.model.voices.ChatbotCreateVoiceP
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotCreateVoiceShareRequest
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotDeleteVoiceProfileResponse
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotProviderVoice
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotUploadVoiceProfileRequest
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceProfile
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceShare
+import io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem
 import io.element.android.libraries.chatbot.api.model.credits.CreditBalance
 import io.element.android.libraries.chatbot.api.model.credits.CreditDailyUsageResponse
 import io.element.android.libraries.chatbot.api.model.credits.CreditLedgerResponse
@@ -108,9 +110,15 @@ class FakeChatbotApiService : ChatbotApiService {
     var listProviderVoicesResult: (String?, String?, String?, Int?, Int?) -> Result<List<ChatbotProviderVoice>> = { _, _, _, _, _ -> Result.success(emptyList()) }
     var listVoiceProfilesResult: (String?, String?, String?, Int?, Int?) -> Result<List<ChatbotVoiceProfile>> = { _, _, _, _, _ -> Result.success(emptyList()) }
     var createVoiceProfileResult: (ChatbotCreateVoiceProfileRequest) -> Result<ChatbotVoiceProfile> = { Result.success(aChatbotVoiceProfile(displayName = it.displayName)) }
+    var uploadVoiceProfileResult: (ChatbotUploadVoiceProfileRequest) -> Result<ChatbotVoiceProfile> = { Result.success(aChatbotVoiceProfile(displayName = it.displayName)) }
     var deleteVoiceProfileResult: (String) -> Result<ChatbotDeleteVoiceProfileResponse> = { Result.success(ChatbotDeleteVoiceProfileResponse(deleted = true)) }
     var createVoiceShareResult: (ChatbotCreateVoiceShareRequest) -> Result<ChatbotVoiceShare> = { Result.success(ChatbotVoiceShare(id = "share-1", voiceProfileId = it.voiceProfileId)) }
     var importVoiceShareResult: (String) -> Result<ChatbotVoiceProfile> = { Result.success(aChatbotVoiceProfile()) }
+    var listVaultResult: () -> Result<List<ChatbotVaultItem>> = { Result.success(emptyList()) }
+    var getVaultValueResult: (String) -> Result<String> = { Result.success("") }
+    var createVaultEntryResult: (String, String, String?) -> Result<Unit> = { _, _, _ -> Result.success(Unit) }
+    var updateVaultEntryResult: (String, String, String?) -> Result<Unit> = { _, _, _ -> Result.success(Unit) }
+    var deleteVaultEntryResult: (String) -> Result<Unit> = { Result.success(Unit) }
     var streamAgentMessageResult: suspend (String, String?, suspend (String) -> Unit) -> Result<Unit> = { _, _, _ -> Result.success(Unit) }
 
     override suspend fun listAgents() = simulateLongTask { listAgentsResult() }
@@ -171,6 +179,7 @@ class FakeChatbotApiService : ChatbotApiService {
     override suspend fun listProviderVoices(provider: String?, availabilityStatus: String?, search: String?, limit: Int?, offset: Int?) = simulateLongTask { listProviderVoicesResult(provider, availabilityStatus, search, limit, offset) }
     override suspend fun listVoiceProfiles(provider: String?, status: String?, search: String?, limit: Int?, offset: Int?) = simulateLongTask { listVoiceProfilesResult(provider, status, search, limit, offset) }
     override suspend fun createVoiceProfile(request: ChatbotCreateVoiceProfileRequest) = simulateLongTask { createVoiceProfileResult(request) }
+    override suspend fun uploadVoiceProfile(request: ChatbotUploadVoiceProfileRequest) = simulateLongTask { uploadVoiceProfileResult(request) }
     override suspend fun deleteVoiceProfile(voiceProfileId: String) = simulateLongTask { deleteVoiceProfileResult(voiceProfileId) }
     override suspend fun createVoiceShare(request: ChatbotCreateVoiceShareRequest) = simulateLongTask { createVoiceShareResult(request) }
     override suspend fun importVoiceShare(shareId: String) = simulateLongTask { importVoiceShareResult(shareId) }
@@ -210,17 +219,15 @@ class FakeChatbotApiService : ChatbotApiService {
         Result.success(Unit)
     }
 
-    override suspend fun listVault() = simulateLongTask {
-        Result.success(emptyList<io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem>())
-    }
+    override suspend fun listVault() = simulateLongTask { listVaultResult() }
 
-    override suspend fun getVaultValue(key: String) = simulateLongTask { Result.success("") }
+    override suspend fun getVaultValue(key: String) = simulateLongTask { getVaultValueResult(key) }
 
-    override suspend fun createVaultEntry(key: String, value: String, description: String?) = simulateLongTask { Result.success(Unit) }
+    override suspend fun createVaultEntry(key: String, value: String, description: String?) = simulateLongTask { createVaultEntryResult(key, value, description) }
 
-    override suspend fun updateVaultEntry(key: String, value: String, description: String?) = simulateLongTask { Result.success(Unit) }
+    override suspend fun updateVaultEntry(key: String, value: String, description: String?) = simulateLongTask { updateVaultEntryResult(key, value, description) }
 
-    override suspend fun deleteVaultEntry(vaultId: String) = simulateLongTask { Result.success(Unit) }
+    override suspend fun deleteVaultEntry(vaultId: String) = simulateLongTask { deleteVaultEntryResult(vaultId) }
 
     override suspend fun streamAgentMessage(
         streamId: String,

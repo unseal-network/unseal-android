@@ -12,6 +12,7 @@ import io.element.android.libraries.chatbot.api.ChatbotApiError
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotCreateScheduleRequest
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotUploadVoiceProfileRequest
 import io.element.android.libraries.matrix.test.FakeMatrixClient
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
@@ -152,6 +153,53 @@ class DefaultChatbotApiServiceTest {
 
         assertThat(service.getRoomWorkingMemory("!room:example").getOrThrow()).isEqualTo("note")
         assertThat(server.takeRequest().path).isEqualTo("/chatbot/v1/rooms/%21room%3Aexample/working-memory")
+    }
+
+    @Test
+    fun `vault endpoints - use chatbot vault route and key path segment`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"items":[{"id":"id-1","key":"API_KEY"}]}"""))
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"item":{"id":"id-1","key":"API_KEY"},"value":"secret"}"""))
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{}"""))
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{}"""))
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{}"""))
+
+        service.listVault().getOrThrow()
+        service.getVaultValue("API/KEY").getOrThrow()
+        service.createVaultEntry("API_KEY", "secret", "desc").getOrThrow()
+        service.updateVaultEntry("API/KEY", "secret", "desc").getOrThrow()
+        service.deleteVaultEntry("API/KEY").getOrThrow()
+
+        assertThat(server.takeRequest().path).isEqualTo("/chatbot/v1/vault")
+        assertThat(server.takeRequest().path).isEqualTo("/chatbot/v1/vault/API%2FKEY")
+        assertThat(server.takeRequest().path).isEqualTo("/chatbot/v1/vault")
+        assertThat(server.takeRequest().path).isEqualTo("/chatbot/v1/vault/API%2FKEY")
+        assertThat(server.takeRequest().path).isEqualTo("/chatbot/v1/vault/API%2FKEY")
+    }
+
+    @Test
+    fun `uploadVoiceProfile - uses iOS upload clone route and body`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"id":"voice-1","provider":"elevenlabs","providerVoiceId":"generated","displayName":"Recorded","sourceType":"voice_clone","visibility":"private","status":"available"}"""))
+
+        val response = service.uploadVoiceProfile(
+            ChatbotUploadVoiceProfileRequest(
+                displayName = "Recorded",
+                description = null,
+                audioBase64 = "YWJj",
+                filename = "voice.m4a",
+                mimeType = "audio/m4a",
+                removeBackgroundNoise = true,
+            )
+        ).getOrThrow()
+
+        assertThat(response.id).isEqualTo("voice-1")
+        val request = server.takeRequest()
+        assertThat(request.path).isEqualTo("/api/voices/profiles/upload-clone")
+        val body = request.body.readUtf8()
+        assertThat(body).contains("\"displayName\":\"Recorded\"")
+        assertThat(body).contains("\"audioBase64\":\"YWJj\"")
+        assertThat(body).contains("\"filename\":\"voice.m4a\"")
+        assertThat(body).contains("\"mimeType\":\"audio/m4a\"")
+        assertThat(body).contains("\"removeBackgroundNoise\":true")
     }
 
     @Test

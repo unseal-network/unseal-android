@@ -71,6 +71,16 @@ data class ChatbotCreateVoiceProfileRequest(
 )
 
 @Serializable
+data class ChatbotUploadVoiceProfileRequest(
+    val displayName: String,
+    val description: String? = null,
+    val audioBase64: String,
+    val filename: String,
+    val mimeType: String,
+    val removeBackgroundNoise: Boolean? = null,
+)
+
+@Serializable
 data class ChatbotCreateVoiceShareRequest(
     val voiceProfileId: String,
     val visibility: String = "private_link",

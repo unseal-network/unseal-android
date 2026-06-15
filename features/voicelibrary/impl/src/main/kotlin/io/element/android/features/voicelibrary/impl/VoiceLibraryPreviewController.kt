@@ -9,33 +9,45 @@ package io.element.android.features.voicelibrary.impl
 
 import android.media.AudioAttributes
 import android.media.MediaPlayer
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.net.URL
 
 /**
- * Streams a remote voice-preview URL with a single shared [MediaPlayer], mirroring iOS
- * `togglePreview`/`stopPreview`. Tapping a playing/loading row stops it; tapping another switches.
+ * Plays a remote voice preview through a single shared [MediaPlayer]. Like iOS, previews are
+ * downloaded to a local .mp3 cache before playback so malformed remote content-types do not break
+ * media format detection.
  */
 internal class VoicePreviewController {
-    var playingUrl by mutableStateOf<String?>(null)
-        private set
-    var loadingUrl by mutableStateOf<String?>(null)
-        private set
-
     private var player: MediaPlayer? = null
+    private val progressHandler = Handler(Looper.getMainLooper())
+    private var progressRunnable: Runnable? = null
 
-    fun toggle(url: String) {
-        if (url == playingUrl || url == loadingUrl) {
-            stop()
+    suspend fun play(
+        item: VoiceLibraryPreviewItem,
+        fileCache: VoicePreviewFileCache,
+        onPlaying: (String) -> Unit,
+        onStopped: () -> Unit,
+        onFailed: (String, String) -> Unit,
+    ) {
+        if (!item.hasPreview) {
+            onFailed(item.id, "No preview audio is available for this voice.")
             return
         }
+        val localFile = runCatching { fileCache.get(item) }
+            .onFailure {
+                stop()
+                onFailed(item.id, "Could not load the preview audio.")
+            }
+            .getOrNull() ?: return
         release()
-        loadingUrl = url
         player = MediaPlayer().apply {
             setAudioAttributes(
                 AudioAttributes.Builder()
@@ -44,35 +56,126 @@ internal class VoicePreviewController {
                     .build(),
             )
             setOnPreparedListener { mp ->
-                if (loadingUrl == url) {
-                    loadingUrl = null
-                    playingUrl = url
-                    mp.start()
-                } else {
-                    mp.release()
-                }
+                onPlaying(item.id)
+                mp.start()
             }
-            setOnCompletionListener { stop() }
+            setOnCompletionListener {
+                stop()
+                onStopped()
+            }
             setOnErrorListener { _, _, _ ->
                 stop()
+                onFailed(item.id, "Could not load the preview audio.")
                 true
             }
             runCatching {
-                setDataSource(url)
+                setDataSource(localFile.absolutePath)
                 prepareAsync()
-            }.onFailure { stop() }
+            }.onFailure {
+                stop()
+                onFailed(item.id, "Could not load the preview audio.")
+            }
         }
+    }
+
+    fun playLocalFile(
+        filePath: String,
+        onPlaying: () -> Unit,
+        onStopped: () -> Unit,
+        onFailed: (String) -> Unit,
+        onProgress: (positionMillis: Long, durationMillis: Long) -> Unit,
+    ) {
+        val localFile = File(filePath)
+        if (!localFile.exists() || localFile.length() == 0L) {
+            onFailed("Recording preview is not available. Please record again.")
+            return
+        }
+        release()
+        player = MediaPlayer().apply {
+            setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build(),
+            )
+            setOnPreparedListener { mp ->
+                onPlaying()
+                mp.start()
+                startProgressUpdates(mp, onProgress)
+            }
+            setOnCompletionListener {
+                stop()
+                onStopped()
+            }
+            setOnErrorListener { _, _, _ ->
+                stop()
+                onFailed("Recording preview is not available. Please record again.")
+                true
+            }
+            runCatching {
+                setDataSource(localFile.absolutePath)
+                prepareAsync()
+            }.onFailure {
+                stop()
+                onFailed("Recording preview is not available. Please record again.")
+            }
+        }
+    }
+
+    fun seekToProgress(progress: Float) {
+        val currentPlayer = player ?: return
+        val duration = currentPlayer.duration.coerceAtLeast(0)
+        val target = (duration * progress.coerceIn(0f, 1f)).toInt()
+        runCatching { currentPlayer.seekTo(target) }
     }
 
     fun stop() {
         release()
-        playingUrl = null
-        loadingUrl = null
     }
 
     private fun release() {
+        progressRunnable?.let(progressHandler::removeCallbacks)
+        progressRunnable = null
         runCatching { player?.release() }
         player = null
+    }
+
+    private fun startProgressUpdates(
+        mediaPlayer: MediaPlayer,
+        onProgress: (positionMillis: Long, durationMillis: Long) -> Unit,
+    ) {
+        progressRunnable?.let(progressHandler::removeCallbacks)
+        val runnable = object : Runnable {
+            override fun run() {
+                if (player !== mediaPlayer) return
+                val position = runCatching { mediaPlayer.currentPosition.toLong() }.getOrDefault(0L)
+                val duration = runCatching { mediaPlayer.duration.toLong() }.getOrDefault(0L)
+                onProgress(position, duration)
+                progressHandler.postDelayed(this, 250L)
+            }
+        }
+        progressRunnable = runnable
+        progressHandler.post(runnable)
+    }
+}
+
+internal class VoicePreviewFileCache(
+    private val directory: File,
+    private val fetchBytes: suspend (String) -> ByteArray = { url ->
+        withContext(Dispatchers.IO) { URL(url).readBytes() }
+    },
+) {
+    suspend fun get(item: VoiceLibraryPreviewItem): File {
+        val remoteUrl = item.previewUrl?.takeIf { it.isNotBlank() }
+            ?: error("Preview URL is missing")
+        return withContext(Dispatchers.IO) {
+            directory.mkdirs()
+            val file = File(directory, "${item.id.hashCode().toUInt()}.mp3")
+            if (!file.exists() || file.length() == 0L) {
+                file.writeBytes(fetchBytes(remoteUrl))
+            }
+            file
+        }
     }
 }
 

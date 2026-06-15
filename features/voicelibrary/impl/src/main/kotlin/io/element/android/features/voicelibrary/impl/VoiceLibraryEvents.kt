@@ -21,7 +21,30 @@ sealed interface VoiceLibraryEvents {
     data class ShareVoice(val profileId: String) : VoiceLibraryEvents
     data class ImportShareChanged(val value: String) : VoiceLibraryEvents
     data object ImportShare : VoiceLibraryEvents
+    data object ShowCreateVoice : VoiceLibraryEvents
+    data object DismissCreateVoice : VoiceLibraryEvents
+    data class RecordingNameChanged(val value: String) : VoiceLibraryEvents
+    data object StartRecording : VoiceLibraryEvents
+    data object RecordingStarted : VoiceLibraryEvents
+    data class RecordingReady(val sample: VoiceLibraryRecordingSample) : VoiceLibraryEvents
+    data class RecordingFailed(val reason: String) : VoiceLibraryEvents
+    data object ToggleRecordingPreview : VoiceLibraryEvents
+    data object RecordingPreviewPlaying : VoiceLibraryEvents
+    data object RecordingPreviewStopped : VoiceLibraryEvents
+    data class RecordingPreviewFailed(val reason: String) : VoiceLibraryEvents
+    data class RecordingPreviewProgress(val positionMillis: Long, val durationMillis: Long) : VoiceLibraryEvents
+    data class SeekRecordingPreview(val progress: Float) : VoiceLibraryEvents
+    data class RecordingPreviewScrubbing(val isScrubbing: Boolean) : VoiceLibraryEvents
+    data object CancelRecording : VoiceLibraryEvents
+    data object DiscardRecording : VoiceLibraryEvents
+    data object UploadCurrentRecording : VoiceLibraryEvents
     data object ClearError : VoiceLibraryEvents
     data object ClearShareId : VoiceLibraryEvents
+    data object ClearDeleteNotice : VoiceLibraryEvents
+    data class TogglePreview(val item: VoiceLibraryPreviewItem) : VoiceLibraryEvents
+    data class PreviewPlaying(val itemId: String) : VoiceLibraryEvents
+    data object PreviewStopped : VoiceLibraryEvents
+    data class PreviewFailed(val itemId: String, val reason: String) : VoiceLibraryEvents
+    data class UploadRecording(val sample: VoiceLibraryRecordingSample) : VoiceLibraryEvents
     data object Dismiss : VoiceLibraryEvents
 }

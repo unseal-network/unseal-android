@@ -46,6 +46,7 @@ import io.element.android.libraries.chatbot.api.model.voices.ChatbotCreateVoiceP
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotCreateVoiceShareRequest
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotDeleteVoiceProfileResponse
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotProviderVoice
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotUploadVoiceProfileRequest
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceProfile
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceShare
 import io.element.android.libraries.chatbot.api.model.storage.ChatbotPresignedUpload
@@ -341,6 +342,9 @@ internal class DefaultChatbotApiService(
     override suspend fun createVoiceProfile(request: ChatbotCreateVoiceProfileRequest): Result<ChatbotVoiceProfile> =
         httpClient.requestJson("/api/voices/profiles", ChatbotHttpMethod.POST, encode(request))
 
+    override suspend fun uploadVoiceProfile(request: ChatbotUploadVoiceProfileRequest): Result<ChatbotVoiceProfile> =
+        httpClient.requestJson("/api/voices/profiles/upload-clone", ChatbotHttpMethod.POST, encode(request))
+
     override suspend fun deleteVoiceProfile(voiceProfileId: String): Result<ChatbotDeleteVoiceProfileResponse> =
         httpClient.requestJson("/api/voices/profiles/${path(voiceProfileId)}", ChatbotHttpMethod.DELETE)
 
@@ -390,8 +394,8 @@ internal class DefaultChatbotApiService(
     override suspend fun updateVaultEntry(key: String, value: String, description: String?): Result<Unit> =
         rawUnit("/chatbot/v1/vault/${path(key)}", ChatbotHttpMethod.PATCH, jsonObject("key" to key, "value" to value, "description" to description.orEmpty()))
 
-    override suspend fun deleteVaultEntry(vaultId: String): Result<Unit> =
-        rawUnit("/vaults/${path(vaultId)}", ChatbotHttpMethod.DELETE)
+    override suspend fun deleteVaultEntry(key: String): Result<Unit> =
+        rawUnit("/chatbot/v1/vault/${path(key)}", ChatbotHttpMethod.DELETE)
 
     override suspend fun streamAgentMessage(
         streamId: String,
