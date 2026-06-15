@@ -32,6 +32,9 @@ interface RoomDetailsEntryPoint : FeatureEntryPoint {
         data class RoomMemberDetails(val roomMemberId: UserId) : InitialTarget
 
         @Parcelize
+        data class AgentProfile(val botName: String) : InitialTarget
+
+        @Parcelize
         data object RoomNotificationSettings : InitialTarget
     }
 
