@@ -29,6 +29,7 @@ class ToolCallRootCardAdapterTest {
 
         assertThat(entry.id).isEqualTo("tool-1")
         assertThat(entry.name).isEqualTo("Emails")
+        assertThat(entry.cardType).isEqualTo("composeEmail")
         assertThat(entry.state).isEqualTo("done")
         assertThat(entry.props).contains(""""_cardType":"composeEmail"""")
         assertThat(entry.props).contains("Authorization complete")
@@ -51,6 +52,7 @@ class ToolCallRootCardAdapterTest {
 
         assertThat(entry.id).isEqualTo("multi-1_GMAIL_FETCH_EMAILS")
         assertThat(entry.name).isEqualTo("Emails")
+        assertThat(entry.cardType).isEqualTo("composeEmail")
         assertThat(entry.state).isEqualTo("done")
         assertThat(entry.props).contains(""""_cardType":"composeEmail"""")
         assertThat(entry.props).contains("Invoice")
@@ -92,6 +94,7 @@ class ToolCallRootCardAdapterTest {
 
         assertThat(entry.id).isEqualTo("agent-1")
         assertThat(entry.name).isEqualTo("Mail Agent")
+        assertThat(entry.cardType).isEqualTo("generic")
         assertThat(entry.state).isEqualTo("calling")
         assertThat(entry.props).contains(""""_cardType":"generic"""")
     }
@@ -112,6 +115,7 @@ class ToolCallRootCardAdapterTest {
         val entry = ToolCallRootCardAdapter.toolCallEntries(listOf(part)).single()
 
         assertThat(entry.name).isEqualTo("Emails")
+        assertThat(entry.cardType).isEqualTo("composeEmail")
         assertThat(entry.state).isEqualTo("error")
         assertThat(entry.props).contains(""""_cardType":"composeEmail"""")
         assertThat(entry.props).contains("User denied Gmail access")

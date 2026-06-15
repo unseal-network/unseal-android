@@ -124,6 +124,7 @@ internal fun AiToolStreamPart.toToolCardEntries(): List<AiToolCardEntry> {
         AiToolCardEntry(
             id = id,
             name = registry.displayName,
+            cardType = registry.cardType,
             state = cardState,
             props = props.toString(),
         )
@@ -187,6 +188,7 @@ private fun AiToolStreamPart.expandMultiExecuteEntries(): List<AiToolCardEntry> 
             AiToolCardEntry(
                 id = "${id}_$slug",
                 name = registry.displayName,
+                cardType = registry.cardType,
                 state = cardState,
                 props = JSONObject().put("_cardType", registry.cardType).toString(),
             )
@@ -264,6 +266,7 @@ private fun AiToolStreamPart.expandSubAgentEntries(): List<AiToolCardEntry> {
             AiToolCardEntry(
                 id = id,
                 name = agentName,
+                cardType = "generic",
                 state = CARD_STATE_CALLING,
                 props = JSONObject().put("_cardType", "generic").toString(),
             )
@@ -306,6 +309,7 @@ private fun AiToolStreamPart.expandSubAgentEntries(): List<AiToolCardEntry> {
         entries += AiToolCardEntry(
             id = "${id}_$normalizedResultToolName",
             name = registry.displayName,
+            cardType = registry.cardType,
             state = toolState,
             props = props.toString(),
         )
@@ -353,6 +357,7 @@ private fun entriesFromMultiExecuteResults(
         AiToolCardEntry(
             id = "${idPrefix}_$slug",
             name = registry.displayName,
+            cardType = registry.cardType,
             state = state,
             props = props.toString(),
         )

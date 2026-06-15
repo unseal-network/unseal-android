@@ -167,6 +167,8 @@ data class AiToolStreamPart(
 data class AiToolCardEntry(
     val id: String,
     val name: String,
+    /** Stable renderer key matching iOS ToolCallEntry.props._cardType. */
+    val cardType: String,
     /** Mirrors iOS CardToolState: "calling", "done", or "error". */
     val state: String,
     /** JSON object string matching iOS ToolCallEntry.props, including `_cardType`. */
@@ -185,7 +187,10 @@ data class ToolCallRootRenderModel(
     val allFinished: Boolean,
     val isSingleTool: Boolean,
     val expandedByDefault: Boolean,
-)
+) {
+    val selectedEntry: AiToolCardEntry?
+        get() = entries.getOrNull(selectedIndex)
+}
 
 @Immutable
 data class AiSourceStreamPart(
