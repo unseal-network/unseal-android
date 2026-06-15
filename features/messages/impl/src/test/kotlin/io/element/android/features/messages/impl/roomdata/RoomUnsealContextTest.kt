@@ -69,6 +69,32 @@ class RoomUnsealContextTest {
     }
 
     @Test
+    fun `from prefers room agent display data for skill targets`() {
+        val context = RoomUnsealContext.from(
+            roomId = ROOM_ID,
+            members = listOf(
+                aRoomMember(userId = ACTIVE_AGENT_ID, displayName = "Matrix fallback", membership = RoomMembershipState.JOIN),
+            ),
+            snapshot = RoomUnsealDataSnapshot(
+                roomAgents = RoomUnsealResource.success(
+                    listOf(RoomAgentDescriptor(ACTIVE_AGENT_ID.value, "Room Agent", null, "agent", "join"))
+                ),
+                allAgents = RoomUnsealResource.success(
+                    listOf(agentAccount(mxid = ACTIVE_AGENT_ID.value, label = "Global Agent"))
+                ),
+            ),
+        )
+
+        assertThat(context.agentSkillTargets.single()).isEqualTo(
+            RoomAgentSkillTargetDescriptor(
+                agentId = ACTIVE_AGENT_ID.value,
+                mxid = ACTIVE_AGENT_ID.value,
+                label = "Room Agent",
+            )
+        )
+    }
+
+    @Test
     fun `from exposes webhook summary from room context`() {
         val context = RoomUnsealContext.from(
             roomId = ROOM_ID,

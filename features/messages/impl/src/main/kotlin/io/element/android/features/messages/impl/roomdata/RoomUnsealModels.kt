@@ -49,10 +49,10 @@ data class RoomUnsealContext(
             val enrichedMembers = RoomAgentMemberEnricher.enrich(members, snapshot.roomAgents.value)
             val joinedMemberIds = enrichedMembers.filter { it.membership == RoomMembershipState.JOIN }.map { it.userId.value }.toSet()
             val agentsInRoom = snapshot.allAgents.value.toAgentsInRoom(joinedMemberIds)
-            val memberAgentTargets = enrichedMembers.toMemberAgentSkillTargets()
-            val agentSkillTargets = (agentsInRoom.map { it.toSkillTarget() } + memberAgentTargets)
-                .distinctBy { it.mxid }
-                .sortedWith(compareBy<RoomAgentSkillTargetDescriptor> { it.label }.thenBy { it.mxid })
+            val agentSkillTargets = mergeAgentSkillTargets(
+                roomTargets = enrichedMembers.toMemberAgentSkillTargetCandidates(),
+                globalTargets = agentsInRoom.map { it.toSkillTargetCandidate() },
+            )
             val deviceAgent = agentsInRoom.firstNotNullOfOrNull { agent ->
                 agent.boundDeviceId?.takeIf { agent.isDeviceAgent }?.let { boundDeviceId ->
                     RoomDeviceAgent(boundDeviceId = boundDeviceId, displayName = agent.label, matrixUserId = agent.mxid)
@@ -93,6 +93,7 @@ data class RoomMemberRender(
     val userId = member.userId
     val displayName = displayNameOverride ?: member.displayName
     val avatarUrl = avatarUrlOverride ?: member.avatarUrl
+    val hasDisplayNameOverride = displayNameOverride != null
     val membership = member.membership
     val isAgent: Boolean = userType in AGENT_USER_TYPES
     val isActive: Boolean = member.membership.isActive()
@@ -117,6 +118,11 @@ data class RoomAgentSkillTargetDescriptor(
     val agentId: String,
     val mxid: String,
     val label: String,
+)
+
+private data class RoomAgentSkillTargetCandidate(
+    val descriptor: RoomAgentSkillTargetDescriptor,
+    val hasExplicitRoomLabel: Boolean,
 )
 
 data class RoomWebhookSummary(
@@ -219,22 +225,49 @@ private fun List<AgentAccountDescriptor>.toAgentsInRoom(activeMemberIds: Set<Str
     }.sortedWith(compareBy<RoomAgentInRoomDescriptor> { it.label }.thenBy { it.mxid })
 }
 
-private fun List<RoomMemberRender>.toMemberAgentSkillTargets(): List<RoomAgentSkillTargetDescriptor> {
+private fun mergeAgentSkillTargets(
+    roomTargets: List<RoomAgentSkillTargetCandidate>,
+    globalTargets: List<RoomAgentSkillTargetCandidate>,
+): List<RoomAgentSkillTargetDescriptor> {
+    val roomByMxid = roomTargets.associateBy { it.descriptor.mxid }
+    val globalByMxid = globalTargets.associateBy { it.descriptor.mxid }
+    return (roomTargets.map { it.descriptor.mxid } + globalTargets.map { it.descriptor.mxid })
+        .distinct()
+        .mapNotNull { mxid ->
+            val roomTarget = roomByMxid[mxid]
+            val globalTarget = globalByMxid[mxid]
+            when {
+                roomTarget == null -> globalTarget
+                globalTarget == null -> roomTarget
+                roomTarget.hasExplicitRoomLabel -> roomTarget
+                else -> globalTarget
+            }?.descriptor
+        }
+        .sortedWith(compareBy<RoomAgentSkillTargetDescriptor> { it.label }.thenBy { it.mxid })
+}
+
+private fun List<RoomMemberRender>.toMemberAgentSkillTargetCandidates(): List<RoomAgentSkillTargetCandidate> {
     return filter { it.membership == RoomMembershipState.JOIN && it.isAgent }
         .map { member ->
-            RoomAgentSkillTargetDescriptor(
-                agentId = member.userId.value,
-                mxid = member.userId.value,
-                label = member.displayName ?: member.userId.value,
+            RoomAgentSkillTargetCandidate(
+                descriptor = RoomAgentSkillTargetDescriptor(
+                    agentId = member.userId.value,
+                    mxid = member.userId.value,
+                    label = member.displayName ?: member.userId.value,
+                ),
+                hasExplicitRoomLabel = member.hasDisplayNameOverride,
             )
         }
 }
 
-private fun RoomAgentInRoomDescriptor.toSkillTarget(): RoomAgentSkillTargetDescriptor {
-    return RoomAgentSkillTargetDescriptor(
-        agentId = agentId,
-        mxid = mxid,
-        label = label,
+private fun RoomAgentInRoomDescriptor.toSkillTargetCandidate(): RoomAgentSkillTargetCandidate {
+    return RoomAgentSkillTargetCandidate(
+        descriptor = RoomAgentSkillTargetDescriptor(
+            agentId = agentId,
+            mxid = mxid,
+            label = label,
+        ),
+        hasExplicitRoomLabel = false,
     )
 }
 
