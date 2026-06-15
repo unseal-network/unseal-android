@@ -658,3 +658,35 @@ PHK110 device evidence:
 - Home swipe after render model hookup: `/tmp/unseal-after-home-row-model-swipe.png`
 - Latest installed Home screen after context-menu model hookup: `/tmp/unseal-context-home-loaded.png`
 - Mock long-press on `geminirayson` room row opened the Android bottom-sheet context menu: `/tmp/unseal-context-menu-model-open.png`
+
+## iOS Parity Task Board
+
+Current implementation plan:
+
+- `docs/superpowers/plans/2026-06-15-ios-parity-independent-tasks.md`
+- Room manifest: `docs/ios-room-parity-manifest.md`
+- Pages manifest: `docs/ios-pages-parity-manifest.md`
+
+Execution rules:
+
+1. iOS data source and request route come first.
+2. Android client/facade and render model come second.
+3. Compose UI and screenshots come last.
+4. Stream lifecycle, SSE parsing, parts state, cache/store, and completed normalization must stay in Stream SDK / Android SDK wrapper; room UI consumes snapshots/render models only.
+
+Highest-priority queue:
+
+| Priority | Task ID | Plan task | Acceptance focus |
+|---|---|---|---|
+| 1 | ROOM-API | Task 1 | Single room data facade for members/agents/schedules/webhooks/working memory/game packages/skills; route parity with iOS. |
+| 2 | TIMELINE-PRESENTATION | Task 2 | iOS row policy for self/other/AI/markdown/system/date/footer/edited states; no stray bubble styles. |
+| 3 | STREAM-LIFECYCLE | Task 3 | Completed stream first-frame cache hit; recycled cells do not refetch/reload; listener cancel does not cancel background store write. |
+| 4 | STREAM-PARTS | Task 4 | `StreamSnapshot.parts -> AiStreamRenderModel -> ToolCallRootRenderModel`; no UI-side stream JSON parsing. |
+| 5 | TOOLCARDS | Task 5 | Fixture-by-fixture card parity for weather/finance/news/shopping/places/hotels/files/email/drive/GitHub/search/schedule/suspended. |
+| 6 | COMPOSER-SKILLS | Task 6 | iOS-aligned mention suggestions and room-agent runtime skill picker. |
+| 7 | ROOM-TOPBAR / ROOM-MENUS | Tasks 7 and 9 | Floating topbar/menu, attachment menu, long-press actions, room footer/security surfaces. |
+| 8 | ROOM-KEY-RECOVERY | Task 10 | Restore room key card and backup/sender/member recovery flows. |
+| 9 | PERF-CACHE | Task 11 | Scroll jank, markdown/tool memoization, stable keys, stream cache reuse. |
+| 10 | PAGE-* | Tasks 12A-12H | Settings, agents, skills, schedules, webhooks, vault, credits/Stripe, onboarding. |
+
+Task 0 status: manifest/task board lock is complete when the task IDs above are present in both manifests and this handoff section.

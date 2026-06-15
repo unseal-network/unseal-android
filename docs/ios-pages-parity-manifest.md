@@ -18,6 +18,22 @@ Android source root:
 - P1: Required for feature parity, can ship after P0 if isolated.
 - P2: Polish or secondary settings parity.
 
+## Page Task ID Overlay
+
+These page IDs are the execution handles for `docs/superpowers/plans/2026-06-15-ios-parity-independent-tasks.md`.
+Each page migration must pass the gates below before visual parity work is accepted.
+
+| Page ID | Plan task | Existing manifest area | Scope | Status |
+|---|---|---|---|---|
+| PAGE-SETTINGS | Task 12A | Settings Product Pages, Global Shell / Navigation | Settings root/product hub, AI assistant section, navigation entry parity, screen render model. | P1 |
+| PAGE-AGENTS | Task 12B | Agent Management | Agent list/detail/edit data routes, rooms, skills, vault/env/voice/provider/model fields, create/start-chat flows. | P0 |
+| PAGE-SKILLS | Task 12C | Skills | Skills home, marketplace, detail, file viewer/editor, create/import ZIP, install ownership states. | P0 |
+| PAGE-SCHEDULES | Task 12D | Room Adjacent Features, Feature List By Area | Schedule list/edit, cron picker, enable/disable/delete, room context badge refresh. | P0 |
+| PAGE-WEBHOOKS | Task 12E | Feature List By Area | Room/global webhook list/edit, source/account/event pickers, room-agent filtering, create/update/delete refresh. | P0/P1 |
+| PAGE-VAULT | Task 12F | Settings Product Pages | Personal vault list/edit/delete/search, AI-stream route parity, empty/error/success states. | P0 |
+| PAGE-CREDITS-STRIPE | Task 12G | Credits | Credits dashboard, top-up, Stripe official SDK payment flow, success/cancel/failure refresh. | P0 |
+| PAGE-ONBOARDING | Task 12H | Onboarding / Welcome | First-entry guide, post-login welcome, recovery/session verification prompts, iOS shell transition parity. | P0 |
+
 ## Global Migration Workflow
 
 - Build an Android state/render model for each page before changing UI.

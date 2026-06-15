@@ -25,6 +25,24 @@ Every room feature must move through the same path. Do not implement a Compose-o
    - Add unit tests for reducers and client routing.
    - Add fixture/screenshot/manual acceptance for each stream/tool-card type before calling the feature complete.
 
+## Task ID Overlay
+
+These IDs are the execution handles for `docs/superpowers/plans/2026-06-15-ios-parity-independent-tasks.md`.
+Use them when updating tests, handoff notes, commits, and acceptance evidence.
+
+| Task ID | Plan task | Existing manifest area | Scope | Status |
+|---|---|---|---|---|
+| ROOM-API | Task 1 | P0 Data Workflow | Room-scoped API facade, homeserver/unseal/AI-stream route parity, members/agents/schedules/webhooks/working memory/game packages/skills data loading. | P0 next |
+| TIMELINE-PRESENTATION | Task 2 | Feature Completion Matrix, P0 Stream / Timeline Workflow | `TimelinePresentationModel` and row policy for self/other/AI/markdown/system/typing/date/footer/edited states. | P0 |
+| STREAM-LIFECYCLE | Task 3 | P0 Stream / Timeline Workflow | SDK-only stream lifecycle, completed cache first frame, handle reuse, listener cancel semantics, store provider behavior. | P0 |
+| STREAM-PARTS | Task 4 | P0 Stream / Timeline Workflow, P0 Tool Cards | `StreamSnapshot.parts -> AiStreamRenderModel`, root card insertion, visible/hidden part rules, terminal state normalization. | P0 |
+| TOOLCARDS | Task 5 | P0 Tool Cards | Weather, finance, news/search, shopping, places/hotels, files/email/drive, GitHub/search, schedule, suspended/approval cards. | P0 |
+| COMPOSER-SKILLS | Task 6 | P0 Composer Workflow | Mention suggestions, room-agent descriptors, direct-agent slash trigger, runtime skill catalog, legacy skill fallback. | P0 |
+| ROOM-TOPBAR | Task 7 | P0 Menus / Room Interactions | Floating top chrome, right-side actions, schedule/device-agent/terminal visibility, iOS-style expansion behavior. | P0 |
+| ROOM-MENUS | Task 9 | P0 Menus / Room Interactions, Message Long-Press Action Parity | Attachment menu, message action menu, reactions/read receipts/pinned/footer menu surfaces. | P0 |
+| ROOM-KEY-RECOVERY | Task 10 | Feature Completion Matrix, Room footer/security | Restore room key card and flows: backup, sender retry, room-member recovery, non-bubble timeline presentation. | P0 |
+| PERF-CACHE | Task 11 | P0 Stream / Timeline Workflow, Acceptance Fixtures | Timeline jank fixes, stable LazyColumn keys, markdown/tool memoization, stream cache reuse and no repeated loading. | P0 |
+
 ## Feature Completion Matrix
 
 | Area | iOS source of truth | Android status | Remaining work |
