@@ -36,7 +36,6 @@ import kotlinx.collections.immutable.toImmutableList
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
-import timber.log.Timber
 
 /**
  * Adapts SDK AI stream snapshots to the existing Android AI timeline renderer.
@@ -57,13 +56,6 @@ class AiSdkStreamReducer {
     fun mapRenderModel(snapshot: StreamSnapshot): AiStreamRenderModel {
         val mappedParts = snapshot.parts.map { it.toAiStreamPart() }
         val streamParts = mappedParts.withSnapshotErrorIfNeeded(snapshot)
-        Timber.tag(TAG).d(
-            "AI snapshot stream=%s status=%s isStreaming=%s parts: %s",
-            snapshot.streamId,
-            snapshot.status,
-            (snapshot.status == StreamStatus.Loading || snapshot.status == StreamStatus.Streaming),
-            streamParts.joinToString(separator = ", ") { it.safeLogLabel() }
-        )
         val textParts = streamParts.filterIsInstance<AiTextStreamPart>()
         val reasoningParts = streamParts.filterIsInstance<AiReasoningStreamPart>()
         val toolParts = streamParts.filterIsInstance<AiToolStreamPart>()
@@ -278,23 +270,9 @@ class AiSdkStreamReducer {
     }
 
     private companion object {
-        const val TAG = "AiSdkStreamReducer"
         const val DEFAULT_DONE_STATE = "done"
         const val DEFAULT_ERROR_STATE = "error"
         const val DEFAULT_STREAM_ERROR_MESSAGE = "Stream error"
         const val STREAMING_TEXT_STATE = "streaming"
-    }
-}
-
-private fun AiStreamPart.safeLogLabel(): String {
-    return when (this) {
-        is AiToolStreamPart -> "tool(type=$toolName,state=$state,input=${input != null},rawInput=${rawInput != null},output=${output != null})"
-        is AiDataStreamPart -> "data(type=$type,state=$state,payload=${payload.isNotBlank()})"
-        is AiTextStreamPart -> "text(state=$state,len=${text.length})"
-        is AiReasoningStreamPart -> "reasoning(state=$state,len=${text.length})"
-        is AiSourceStreamPart -> "source(type=$sourceType,state=$state,url=${url != null})"
-        is AiFileStreamPart -> "file(state=$state,url=${url != null})"
-        is AiErrorStreamPart -> "error(state=$state,len=${errorText.length})"
-        is AiCustomStreamPart -> "custom(type=$type,state=$state)"
     }
 }

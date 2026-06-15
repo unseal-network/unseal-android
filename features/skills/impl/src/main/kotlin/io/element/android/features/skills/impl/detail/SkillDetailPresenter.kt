@@ -125,6 +125,7 @@ class SkillDetailPresenter(
                 is SkillDetailEvents.EditDescriptionChanged -> editDescription = event.description
                 is SkillDetailEvents.EditVisibilityChanged -> editVisibility = event.visibility
                 SkillDetailEvents.SaveEditing -> saveEditing()
+                is SkillDetailEvents.OpenFile -> navigator.onOpenFile(event.file)
                 SkillDetailEvents.Delete -> deleteSkill()
                 SkillDetailEvents.ClearError -> error = null
             }

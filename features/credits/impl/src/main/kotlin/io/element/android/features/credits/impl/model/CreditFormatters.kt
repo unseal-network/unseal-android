@@ -20,9 +20,9 @@ enum class DailyUsageRange(val days: Long) {
 }
 
 enum class CreditsPeriod(val apiValue: String) {
-    // Server expects 7d / 30d / all (M_INVALID_PARAM otherwise).
-    SevenDays("7d"),
-    ThirtyDays("30d"),
+    // Mirrors iOS AnalyticsPeriod.rawValue.lowercased().
+    SevenDays("sevendays"),
+    ThirtyDays("thirtydays"),
     All("all"),
 }
 

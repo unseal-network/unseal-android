@@ -26,6 +26,7 @@ import io.element.android.features.messages.impl.pinned.banner.aLoadedPinnedMess
 import io.element.android.features.messages.impl.roomdata.RoomMenuRenderModel
 import io.element.android.features.messages.impl.roomdata.RoomMenuReducer
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
+import io.element.android.features.messages.impl.terminal.DeviceAgentTerminalPanelState
 import io.element.android.features.messages.impl.timeline.TimelineState
 import io.element.android.features.messages.impl.timeline.aTimelineItemList
 import io.element.android.features.messages.impl.timeline.aTimelineState
@@ -128,6 +129,7 @@ fun aMessagesState(
     pinnedMessagesBannerState: PinnedMessagesBannerState = aLoadedPinnedMessagesBannerState(),
     dmUserVerificationState: IdentityState? = null,
     roomMemberModerationState: RoomMemberModerationState = aRoomMemberModerationState(),
+    deviceAgentTerminalPanel: DeviceAgentTerminalPanelState? = null,
     topBarSharedHistoryIcon: SharedHistoryIcon = SharedHistoryIcon.NONE,
     successorRoom: SuccessorRoom? = null,
     threads: MessagesState.Threads = MessagesState.Threads(
@@ -167,6 +169,8 @@ fun aMessagesState(
     roomScheduleBadgeState = roomScheduleBadgeState,
     roomUnsealContext = roomUnsealContext,
     roomMenu = roomMenu,
+    deviceAgentTerminalPanel = deviceAgentTerminalPanel,
+    selectableMessageText = null,
     appName = "Element",
     pinnedMessagesBannerState = pinnedMessagesBannerState,
     dmUserVerificationState = dmUserVerificationState,

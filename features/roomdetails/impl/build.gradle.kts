@@ -53,6 +53,8 @@ dependencies {
     implementation(projects.services.analytics.compose)
     implementation(projects.features.poll.api)
     implementation(projects.features.messages.api)
+    implementation(projects.features.agentmanagement.api)
+    implementation(projects.libraries.chatbot.api)
     implementation(projects.features.roomcall.api)
     implementation(projects.features.knockrequests.api)
     implementation(projects.features.verifysession.api)

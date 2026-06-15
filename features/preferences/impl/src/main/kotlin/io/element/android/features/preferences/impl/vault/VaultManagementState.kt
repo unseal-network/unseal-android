@@ -12,11 +12,16 @@ import kotlinx.collections.immutable.ImmutableList
 
 data class VaultManagementState(
     val items: ImmutableList<ChatbotVaultItem>,
+    val filteredItems: ImmutableList<ChatbotVaultItem>,
+    val searchQuery: String,
     val isLoading: Boolean,
     val error: String?,
+    val successMessage: String?,
     val pendingDelete: ChatbotVaultItem?,
     val isDeleting: Boolean,
     val eventSink: (VaultManagementEvents) -> Unit,
 ) {
-    val isEmpty: Boolean = items.isEmpty() && !isLoading
+    val isEmpty: Boolean = items.isEmpty() && !isLoading && error == null
+    val isSearchEmpty: Boolean = items.isNotEmpty() && filteredItems.isEmpty() && searchQuery.isNotBlank()
+    val isFullScreenError: Boolean = items.isEmpty() && error != null && !isLoading
 }

@@ -19,6 +19,12 @@ data class ManualSkillFile(
     val content: String,
 )
 
+@Immutable
+data class SkillCreateFileConflict(
+    val existingFileId: String,
+    val incomingFile: ManualSkillFile,
+)
+
 /** Phase of the create flow. Mirrors iOS `SkillCreateScreenPhase`. */
 @Immutable
 sealed interface SkillCreatePhase {
@@ -37,6 +43,7 @@ data class SkillCreateState(
     val manualFiles: ImmutableList<ManualSkillFile>,
     /** File currently being edited in the bottom sheet, or null when the sheet is closed. */
     val editingFile: ManualSkillFile?,
+    val pendingFileConflict: SkillCreateFileConflict?,
     val error: String?,
     val eventSink: (SkillCreateEvents) -> Unit,
 ) {

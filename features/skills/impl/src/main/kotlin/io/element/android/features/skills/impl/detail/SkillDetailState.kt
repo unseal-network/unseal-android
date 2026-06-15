@@ -29,4 +29,9 @@ data class SkillDetailState(
     val title: String = skill?.name?.takeIf { it.isNotBlank() } ?: id
     val visibilityLabel: String? = skill?.visibility?.displayName()
     val canEdit: Boolean = isOwner && skill != null && !isLoading && !isSaving && !isDeleting
+    val fileItems: List<SkillFileRenderModel> = buildSkillFileRenderModels(
+        skillId = id,
+        presignedUrls = response?.presignedUrls.orEmpty(),
+        preuploadUrls = response?.preuploadUrls.orEmpty(),
+    )
 }

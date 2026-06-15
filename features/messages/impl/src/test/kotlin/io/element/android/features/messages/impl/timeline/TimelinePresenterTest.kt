@@ -21,6 +21,7 @@ import io.element.android.features.messages.impl.timeline.model.NewEventState
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.roomdata.FakeRoomUnsealDataClient
 import io.element.android.features.messages.impl.roomkey.RoomAgentResolver
+import io.element.android.features.messages.impl.roomkey.RoomKeyDecryptionRetrier
 import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryTimelineRunner
 import io.element.android.features.messages.impl.typing.aTypingNotificationState
 import io.element.android.features.messages.impl.voicemessages.timeline.FakeRedactedVoiceMessageManager
@@ -1031,6 +1032,7 @@ class TimelinePresenterTest {
             sessionId = A_USER_ID,
             forwardingPolicy = MemberAwareRoomKeyForwardingPolicy(),
             roomAgentResolver = RoomAgentResolver(FakeRoomUnsealDataClient()),
+            decryptionRetrier = RoomKeyDecryptionRetrier { _, _ -> false },
             sessionCoroutineScope = this,
         ),
     ): TimelinePresenter {

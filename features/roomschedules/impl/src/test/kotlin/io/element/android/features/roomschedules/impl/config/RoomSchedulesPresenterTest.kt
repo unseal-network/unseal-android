@@ -77,10 +77,13 @@ class RoomSchedulesPresenterTest {
             awaitItem().eventSink(RoomSchedulesEvents.OnAppear)
             val loaded = awaitStateWhere { it.schedules.size == 3 && !it.isLoadingSchedules }
             assertThat(loaded.displayedSchedules.map { it.stableId() }).containsExactly("mine-enabled", "mine-disabled").inOrder()
+            assertThat(loaded.scheduleItems.map { it.id }).containsExactly("mine-enabled", "mine-disabled").inOrder()
+            assertThat(loaded.scheduleItems.map { it.statusLabel }).containsExactly("Enabled", "Disabled").inOrder()
             assertThat(loaded.activeCount).isEqualTo(1)
             loaded.eventSink(RoomSchedulesEvents.ShowOnlyMineChanged(true))
             val mine = awaitStateWhere { it.showOnlyMine }
             assertThat(mine.displayedSchedules.map { it.stableId() }).containsExactly("mine-enabled", "mine-disabled").inOrder()
+            assertThat(mine.scheduleItems.all { it.isOwner }).isTrue()
             cancelAndIgnoreRemainingEvents()
         }
     }

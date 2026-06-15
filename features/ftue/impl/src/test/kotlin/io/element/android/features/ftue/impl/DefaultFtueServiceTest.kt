@@ -102,7 +102,7 @@ class DefaultFtueServiceTest {
     }
 
     @Test
-    fun `traverse flow`() = runTest {
+    fun `traverse flow follows iOS onboarding order`() = runTest {
         val sessionVerificationService = FakeSessionVerificationService().apply {
             emitVerifiedStatus(SessionVerifiedStatus.NotVerified)
         }
@@ -123,11 +123,9 @@ class DefaultFtueServiceTest {
             sessionVerificationService.emitVerifiedStatus(SessionVerifiedStatus.Verified)
             // User completes verification
             service.onUserCompletedSessionVerification()
-            // Notifications opt in
-            assertThat(awaitItem()).isEqualTo(InternalFtueState.Incomplete(FtueStep.NotificationsOptIn))
-            permissionStateProvider.setPermissionGranted()
-            // Simulate event from NotificationsOptInNode.Callback.onNotificationsOptInFinished
-            service.updateFtueStep()
+            // Identity confirmed acknowledgement
+            assertThat(awaitItem()).isEqualTo(InternalFtueState.Incomplete(FtueStep.IdentityConfirmed))
+            service.onUserAcknowledgedIdentityConfirmed()
             // Entering PIN code
             assertThat(awaitItem()).isEqualTo(InternalFtueState.Incomplete(FtueStep.LockscreenSetup))
             lockScreenService.setIsPinSetup(true)
@@ -136,6 +134,11 @@ class DefaultFtueServiceTest {
             // Analytics opt in
             assertThat(awaitItem()).isEqualTo(InternalFtueState.Incomplete(FtueStep.AnalyticsOptIn))
             analyticsService.setDidAskUserConsent()
+            // Notifications opt in
+            assertThat(awaitItem()).isEqualTo(InternalFtueState.Incomplete(FtueStep.NotificationsOptIn))
+            permissionStateProvider.setPermissionGranted()
+            // Simulate event from NotificationsOptInNode.Callback.onNotificationsOptInFinished
+            service.updateFtueStep()
             // Final step
             assertThat(awaitItem()).isEqualTo(InternalFtueState.Complete)
         }
@@ -169,7 +172,36 @@ class DefaultFtueServiceTest {
 
             service.onUserCompletedSessionVerification()
 
-            assertThat(awaitItem()).isEqualTo(InternalFtueState.Incomplete(FtueStep.NotificationsOptIn))
+            assertThat(awaitItem()).isEqualTo(InternalFtueState.Incomplete(FtueStep.IdentityConfirmed))
+        }
+    }
+
+    @Test
+    fun `identity confirmed acknowledgement advances to the next iOS onboarding step`() = runTest {
+        val sessionVerificationService = FakeSessionVerificationService().apply {
+            emitVerifiedStatus(SessionVerifiedStatus.NotVerified)
+        }
+        val analyticsService = FakeAnalyticsService()
+        val permissionStateProvider = FakePermissionStateProvider(permissionGranted = false)
+        val lockScreenService = FakeLockScreenService()
+        val service = createDefaultFtueService(
+            sessionVerificationService = sessionVerificationService,
+            analyticsService = analyticsService,
+            permissionStateProvider = permissionStateProvider,
+            lockScreenService = lockScreenService,
+        )
+
+        service.ftueStepStateFlow.test {
+            assertThat(awaitItem()).isEqualTo(InternalFtueState.Unknown)
+            assertThat(awaitItem()).isEqualTo(InternalFtueState.Incomplete(FtueStep.SessionVerification))
+
+            sessionVerificationService.emitVerifiedStatus(SessionVerifiedStatus.Verified)
+            service.onUserCompletedSessionVerification()
+            assertThat(awaitItem()).isEqualTo(InternalFtueState.Incomplete(FtueStep.IdentityConfirmed))
+
+            service.onUserAcknowledgedIdentityConfirmed()
+
+            assertThat(awaitItem()).isEqualTo(InternalFtueState.Incomplete(FtueStep.LockscreenSetup))
         }
     }
 
@@ -186,7 +218,7 @@ class DefaultFtueServiceTest {
 
         service.ftueStepStateFlow.test {
             assertThat(awaitItem()).isEqualTo(InternalFtueState.Unknown)
-            assertThat(awaitItem()).isEqualTo(InternalFtueState.Incomplete(FtueStep.NotificationsOptIn))
+            assertThat(awaitItem()).isEqualTo(InternalFtueState.Incomplete(FtueStep.LockscreenSetup))
         }
     }
 

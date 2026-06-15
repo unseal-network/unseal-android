@@ -13,7 +13,19 @@ import com.bumble.appyx.core.modality.BuildContext
 import com.bumble.appyx.core.node.Node
 import io.element.android.features.agentmanagement.api.AgentManagementEntryPoint
 
-class FakeAgentManagementEntryPoint : AgentManagementEntryPoint {
+class FakeAgentManagementEntryPoint(
+    private val onCreateNode: (
+        parentNode: Node,
+        buildContext: BuildContext,
+        params: AgentManagementEntryPoint.Params,
+        callback: AgentManagementEntryPoint.Callback,
+    ) -> Node = { _, buildContext, _, _ ->
+        object : Node(buildContext) {
+            @Composable
+            override fun View(modifier: Modifier) = Unit
+        }
+    },
+) : AgentManagementEntryPoint {
     val createdNodes = mutableListOf<AgentManagementEntryPoint.Params>()
 
     override fun createNode(
@@ -23,9 +35,6 @@ class FakeAgentManagementEntryPoint : AgentManagementEntryPoint {
         callback: AgentManagementEntryPoint.Callback,
     ): Node {
         createdNodes += params
-        return object : Node(buildContext) {
-            @Composable
-            override fun View(modifier: Modifier) = Unit
-        }
+        return onCreateNode(parentNode, buildContext, params, callback)
     }
 }

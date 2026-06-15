@@ -54,6 +54,7 @@ class SkillCreatePresenter(
         var visibility by remember { mutableStateOf(ChatbotSkillVisibility.Private) }
         var manualFiles by remember { mutableStateOf(listOf(ManualSkillFile(newId(), "SKILL.md", ""))) }
         var editingFileId by remember { mutableStateOf<String?>(null) }
+        var pendingFileConflict by remember { mutableStateOf<SkillCreateFileConflict?>(null) }
         var error by remember { mutableStateOf<String?>(null) }
 
         suspend fun api(): ChatbotApiService = chatbotApiServiceFactory.createForHomeserver(matrixClient)
@@ -86,18 +87,22 @@ class SkillCreatePresenter(
                 return
             }
             val filePath = normalizedPath(fileName)
+            val newFile = ManualSkillFile(newId(), filePath, content)
             val existingIndex = manualFiles.indexOfFirst { it.path.equals(filePath, ignoreCase = true) }
             manualFiles = when {
                 existingIndex >= 0 -> {
-                    // Overwrite the conflicting file (the iOS overwrite branch).
-                    manualFiles.toMutableList().also { it[existingIndex] = it[existingIndex].copy(content = content) }
+                    pendingFileConflict = SkillCreateFileConflict(
+                        existingFileId = manualFiles[existingIndex].id,
+                        incomingFile = newFile,
+                    )
+                    return
                 }
                 manualFiles.size == 1 &&
                     manualFiles[0].path.lowercase() == "skill.md" &&
                     manualFiles[0].content.isBlank() -> {
                     listOf(manualFiles[0].copy(path = filePath, content = content))
                 }
-                else -> manualFiles + ManualSkillFile(newId(), filePath, content)
+                else -> manualFiles + newFile
             }
             if (filePath.lowercase() == "skill.md") {
                 skillContent = content
@@ -108,6 +113,47 @@ class SkillCreatePresenter(
             if (name.isBlank()) {
                 name = fileName.substringBeforeLast('.')
             }
+        }
+
+        fun applyImportedFile(file: ManualSkillFile) {
+            manualFiles = manualFiles + file
+            if (file.path.lowercase() == "skill.md") {
+                skillContent = file.content
+                if (description.isBlank()) {
+                    description = inferDescriptionFromSkillMd(file.content) ?: description
+                }
+            }
+            if (name.isBlank()) {
+                name = file.path.substringAfterLast('/').substringBeforeLast('.')
+            }
+        }
+
+        fun keepBothConflictingFile() {
+            val conflict = pendingFileConflict ?: return
+            val uniquePath = uniquePathByAddingNumber(conflict.incomingFile.path, manualFiles.map { it.path })
+            applyImportedFile(conflict.incomingFile.copy(path = uniquePath))
+            pendingFileConflict = null
+        }
+
+        fun overwriteConflictingFile() {
+            val conflict = pendingFileConflict ?: return
+            manualFiles = manualFiles.map {
+                if (it.id == conflict.existingFileId) {
+                    it.copy(path = conflict.incomingFile.path, content = conflict.incomingFile.content)
+                } else {
+                    it
+                }
+            }
+            if (conflict.incomingFile.path.lowercase() == "skill.md") {
+                skillContent = conflict.incomingFile.content
+                if (description.isBlank()) {
+                    description = inferDescriptionFromSkillMd(conflict.incomingFile.content) ?: description
+                }
+            }
+            if (name.isBlank()) {
+                name = conflict.incomingFile.path.substringAfterLast('/').substringBeforeLast('.')
+            }
+            pendingFileConflict = null
         }
 
         fun handlePickedZip(fileName: String, bytes: ByteArray) {
@@ -184,6 +230,9 @@ class SkillCreatePresenter(
                 }
                 is SkillCreateEvents.StartEditingFile -> editingFileId = event.id
                 SkillCreateEvents.CancelEditingFile -> editingFileId = null
+                SkillCreateEvents.DismissFileConflict -> pendingFileConflict = null
+                SkillCreateEvents.KeepBothConflictingFile -> keepBothConflictingFile()
+                SkillCreateEvents.OverwriteConflictingFile -> overwriteConflictingFile()
                 is SkillCreateEvents.FileEdited -> {
                     updateFile(event.id, event.path, event.content)
                     editingFileId = null
@@ -205,6 +254,7 @@ class SkillCreatePresenter(
             visibility = visibility,
             manualFiles = manualFiles.toImmutableList(),
             editingFile = manualFiles.firstOrNull { it.id == editingFileId },
+            pendingFileConflict = pendingFileConflict,
             error = error,
             eventSink = ::handleEvent,
         )
@@ -325,6 +375,26 @@ class SkillCreatePresenter(
             .split("/")
             .filter { it.isNotEmpty() }
             .joinToString("/")
+
+    private fun uniquePathByAddingNumber(originalPath: String, existing: List<String>): String {
+        val normalizedOriginal = normalizedPath(originalPath)
+        if (existing.none { it.equals(normalizedOriginal, ignoreCase = true) }) return normalizedOriginal
+
+        val lastSlashIndex = normalizedOriginal.lastIndexOf('/')
+        val directory = if (lastSlashIndex >= 0) normalizedOriginal.substring(0, lastSlashIndex) else ""
+        val fileName = if (lastSlashIndex >= 0) normalizedOriginal.substring(lastSlashIndex + 1) else normalizedOriginal
+        val lastDotIndex = fileName.lastIndexOf('.')
+        val base = if (lastDotIndex > 0) fileName.substring(0, lastDotIndex) else fileName
+        val ext = if (lastDotIndex > 0) fileName.substring(lastDotIndex + 1) else ""
+
+        var number = 2
+        while (true) {
+            val candidateName = if (ext.isEmpty()) "$base$number" else "$base$number.$ext"
+            val candidate = if (directory.isEmpty()) candidateName else "$directory/$candidateName"
+            if (existing.none { it.equals(candidate, ignoreCase = true) }) return candidate
+            number++
+        }
+    }
 
     private fun inferDescriptionFromSkillMd(text: String): String? {
         val lines = text.split("\n", "\r\n", "\r")

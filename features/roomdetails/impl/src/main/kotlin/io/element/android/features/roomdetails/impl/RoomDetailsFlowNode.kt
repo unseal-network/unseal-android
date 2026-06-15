@@ -28,7 +28,12 @@ import io.element.android.appconfig.LearnMoreConfig
 import io.element.android.features.call.api.CallData
 import io.element.android.features.call.api.ElementCallEntryPoint
 import io.element.android.features.knockrequests.api.list.KnockRequestsListEntryPoint
+import androidx.lifecycle.lifecycleScope
+import io.element.android.features.agentmanagement.api.AgentManagementEntryPoint
 import io.element.android.features.messages.api.MessagesEntryPoint
+import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
+import io.element.android.libraries.matrix.api.MatrixClient
+import kotlinx.coroutines.launch
 import io.element.android.features.poll.api.history.PollHistoryEntryPoint
 import io.element.android.features.reportroom.api.ReportRoomEntryPoint
 import io.element.android.features.rolesandpermissions.api.ChangeRoomMemberRolesEntryPoint
@@ -55,6 +60,7 @@ import io.element.android.libraries.designsystem.utils.OpenUrlInTabView
 import io.element.android.libraries.di.RoomScope
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomId
+import io.element.android.libraries.matrix.api.core.RoomIdOrAlias
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.core.toRoomIdOrAlias
 import io.element.android.libraries.matrix.api.notification.CallIntent
@@ -90,6 +96,9 @@ class RoomDetailsFlowNode(
     private val securityAndPrivacyEntryPoint: SecurityAndPrivacyEntryPoint,
     private val roomDetailsEditEntryPoint: RoomDetailsEditEntryPoint,
     private val webhookTriggersEntryPoint: WebhookTriggersEntryPoint,
+    private val agentManagementEntryPoint: AgentManagementEntryPoint,
+    private val chatbotApiServiceFactory: ChatbotApiServiceFactory,
+    private val matrixClient: MatrixClient,
 ) : BaseFlowNode<RoomDetailsFlowNode.NavTarget>(
     backstack = BackStack(
         initialElement = plugins.filterIsInstance<RoomDetailsEntryPoint.Params>().first().initialElement.toNavTarget(),
@@ -122,6 +131,9 @@ class RoomDetailsFlowNode(
 
         @Parcelize
         data class RoomMemberDetails(val roomMemberId: UserId) : NavTarget
+
+        @Parcelize
+        data class AgentProfile(val botName: String) : NavTarget
 
         @Parcelize
         data class AvatarPreview(val name: String, val avatarUrl: String) : NavTarget
@@ -178,7 +190,49 @@ class RoomDetailsFlowNode(
         }
     }
 
+    // Agent routing: a room member that is an agent opens the agent profile instead of the normal
+    // Matrix user profile. The agent set is prefetched once (on first resolve) so member taps route
+    // synchronously from cache and the normal-user flow keeps its original latency.
+    private var cachedAgentIds: Set<String>? = null
+    private var agentPrefetchStarted = false
+
+    private fun ensureAgentPrefetch() {
+        if (agentPrefetchStarted) return
+        agentPrefetchStarted = true
+        lifecycleScope.launch { cachedAgentIds = fetchRoomAgentIds() }
+    }
+
+    private suspend fun fetchRoomAgentIds(): Set<String> = runCatching {
+        chatbotApiServiceFactory.createForHomeserver(matrixClient)
+            .getRoomAgents(room.roomId.value)
+            .getOrNull()
+            ?.agents
+            ?.flatMap { listOfNotNull(it.agentId, it.mxid) }
+            ?.toSet()
+    }.getOrNull() ?: emptySet()
+
+    private fun openMemberOrAgentProfile(userId: UserId) {
+        val cached = cachedAgentIds
+        if (cached != null) {
+            routeMemberOrAgent(userId, cached)
+        } else {
+            lifecycleScope.launch { routeMemberOrAgent(userId, fetchRoomAgentIds().also { cachedAgentIds = it }) }
+        }
+    }
+
+    private fun routeMemberOrAgent(userId: UserId, agentIds: Set<String>) {
+        if (userId.value in agentIds) {
+            val localpart = userId.value.substringAfter("@").substringBefore(":")
+            if (localpart.isNotBlank()) {
+                backstack.push(NavTarget.AgentProfile(localpart))
+                return
+            }
+        }
+        backstack.push(NavTarget.RoomMemberDetails(userId))
+    }
+
     override fun resolve(navTarget: NavTarget, buildContext: BuildContext): Node {
+        ensureAgentPrefetch()
         return when (navTarget) {
             NavTarget.RoomDetails -> {
                 val roomDetailsCallback = object : RoomDetailsNode.Callback {
@@ -235,7 +289,7 @@ class RoomDetailsFlowNode(
                     }
 
                     override fun navigateToRoomMemberDetails(userId: UserId) {
-                        backstack.push(NavTarget.RoomMemberDetails(userId))
+                        openMemberOrAgentProfile(userId)
                     }
 
                     override fun navigateToRoomCall(callIntent: CallIntent) {
@@ -262,7 +316,7 @@ class RoomDetailsFlowNode(
             NavTarget.RoomMemberList -> {
                 val roomMemberListCallback = object : RoomMemberListNode.Callback {
                     override fun navigateToRoomMemberDetails(roomMemberId: UserId) {
-                        backstack.push(NavTarget.RoomMemberDetails(roomMemberId))
+                        openMemberOrAgentProfile(roomMemberId)
                     }
 
                     override fun navigateToInviteMembers() {
@@ -329,6 +383,30 @@ class RoomDetailsFlowNode(
                 }
                 val plugins = listOf(RoomMemberDetailsNode.RoomMemberDetailsInput(navTarget.roomMemberId), callback)
                 createNode<RoomMemberDetailsNode>(buildContext, plugins)
+            }
+            is NavTarget.AgentProfile -> {
+                agentManagementEntryPoint.createNode(
+                    parentNode = this,
+                    buildContext = buildContext,
+                    params = AgentManagementEntryPoint.Params(
+                        AgentManagementEntryPoint.InitialTarget.Profile(navTarget.botName)
+                    ),
+                    callback = object : AgentManagementEntryPoint.Callback {
+                        override fun onDone() {
+                            if (backstack.canPop()) backstack.pop()
+                        }
+
+                        override fun onOpenRoom(roomIdOrAlias: RoomIdOrAlias) {
+                            (roomIdOrAlias as? RoomIdOrAlias.Id)?.roomId?.let { callback.navigateToRoom(it, emptyList()) }
+                        }
+
+                        override fun onOpenSkills(botName: String?) = Unit
+
+                        override fun onOpenCreatedDirectRoom(roomId: RoomId) {
+                            callback.navigateToRoom(roomId, emptyList())
+                        }
+                    },
+                )
             }
             is NavTarget.AvatarPreview -> {
                 val callback = object : MediaViewerEntryPoint.Callback {

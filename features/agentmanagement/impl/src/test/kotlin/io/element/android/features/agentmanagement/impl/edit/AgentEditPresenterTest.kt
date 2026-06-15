@@ -57,7 +57,9 @@ class AgentEditPresenterTest {
 
             val loadedState = awaitStateWhere { it.providers.size == 2 && !it.isLoading }
             assertThat(loadedState.providers.map { it.id }).containsExactly("unseal", "openai").inOrder()
+            assertThat(loadedState.renderModel.providerOptions.map { it.id }).containsExactly("unseal", "openai").inOrder()
             assertThat(loadedState.form.providerId).isEqualTo("unseal")
+            assertThat(loadedState.renderModel.selectedProviderLabel).isEqualTo("unseal")
             assertThat(loadedState.form.model).isEqualTo("agent-default")
             assertThat(loadedState.needsApiKey).isFalse()
             cancelAndIgnoreRemainingEvents()
@@ -267,7 +269,7 @@ class AgentEditPresenterTest {
             loadedState.eventSink(AgentEditEvents.DescriptionChanged(" Updated "))
             awaitItem().eventSink(AgentEditEvents.AutoJoinChanged(true))
             awaitItem().eventSink(AgentEditEvents.Submit)
-            awaitStateWhere { navigator.updatedBotNames.contains("planner") }
+            awaitStateWhere { it.phase == AgentEditPhase.Editing && navigator.updatedBotNames.contains("planner") }
 
             assertThat(capturedRequest?.description).isEqualTo("Updated")
             assertThat(capturedRequest?.settings?.autoJoin).isTrue()
@@ -285,7 +287,7 @@ class AgentEditPresenterTest {
         return AgentEditPresenter(
             mode = mode,
             navigator = navigator,
-            matrixClient = FakeMatrixClient(),
+            matrixClient = FakeMatrixClient(userIdServerNameLambda = { "example.org" }),
             chatbotApiServiceFactory = FakeChatbotApiServiceFactory(service),
             directChatService = directChatService,
         )

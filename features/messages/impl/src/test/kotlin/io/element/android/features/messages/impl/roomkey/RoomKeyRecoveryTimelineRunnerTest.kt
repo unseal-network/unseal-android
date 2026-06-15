@@ -262,6 +262,7 @@ class RoomKeyRecoveryTimelineRunnerTest {
         sessionVerificationService: FakeSessionVerificationService = FakeSessionVerificationService(),
         policy: MemberAwareRoomKeyForwardingPolicy = MemberAwareRoomKeyForwardingPolicy(),
         roomAgentResolver: RoomAgentResolver = RoomAgentResolver(FakeRoomUnsealDataClient()),
+        decryptionRetrier: RoomKeyDecryptionRetrier = RoomKeyDecryptionRetrier { _, _ -> false },
     ): RoomKeyRecoveryTimelineRunner {
         return RoomKeyRecoveryTimelineRunner(
             matrixClient = matrixClient,
@@ -270,6 +271,7 @@ class RoomKeyRecoveryTimelineRunnerTest {
             sessionId = A_SESSION_ID,
             forwardingPolicy = policy,
             roomAgentResolver = roomAgentResolver,
+            decryptionRetrier = decryptionRetrier,
             sessionCoroutineScope = this,
         )
     }

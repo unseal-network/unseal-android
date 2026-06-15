@@ -82,6 +82,38 @@ class SkillDetailPresenterTest {
     }
 
     @Test
+    fun `present - exposes iOS-style skill file render models`() = runTest {
+        val navigator = FakeSkillDetailNavigator()
+        val service = FakeChatbotApiService().apply {
+            getUserSkillResult = {
+                Result.success(
+                    ChatbotGetUserSkillResponse(
+                        skill = aSkill(id = it, name = "With files"),
+                        presignedUrls = listOf(
+                            "https://files.example/download?filepath=production/skills/$it/SKILL.md&signature=1",
+                            "https://files.example/download?filepath=production/skills/$it/src/main.py&signature=2",
+                        ),
+                        preuploadUrls = listOf("https://upload.example/skill.md"),
+                    )
+                )
+            }
+        }
+        val presenter = createSkillDetailPresenter(service = service, id = "skill", navigator = navigator)
+
+        presenter.test {
+            awaitItem().eventSink(SkillDetailEvents.OnAppear)
+            val loadedState = awaitStateWhere { it.fileItems.size == 2 && !it.isLoading }
+            assertThat(loadedState.fileItems.map { it.displayPath }).containsExactly("SKILL.md", "src/main.py").inOrder()
+            assertThat(loadedState.fileItems.first().preuploadUrl).isEqualTo("https://upload.example/skill.md")
+            assertThat(loadedState.fileItems.first().isEditable).isTrue()
+            assertThat(loadedState.fileItems[1].isEditable).isFalse()
+            loadedState.eventSink(SkillDetailEvents.OpenFile(loadedState.fileItems.first()))
+            assertThat(navigator.openedFiles.single().displayPath).isEqualTo("SKILL.md")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `event - owner editing seeds fields and save sends metadata body`() = runTest {
         var capturedBody: ChatbotJsonObject? = null
         val service = FakeChatbotApiService().apply {
@@ -130,7 +162,7 @@ class SkillDetailPresenterTest {
 
             val savedState = awaitStateWhere { it.skill?.name == "Updated" && !it.isSaving && !it.isEditing }
             assertThat(savedState.skill?.description).isEqualTo("Updated description")
-            assertThat(savedState.visibilityLabel).isEqualTo("Shared")
+            assertThat(savedState.visibilityLabel).isEqualTo("共享")
             assertThat(capturedBody?.stringValue("name")).isEqualTo("Updated")
             assertThat(capturedBody?.stringValue("description")).isEqualTo("Updated description")
             assertThat(capturedBody?.stringValue("visibility")).isEqualTo("shared")
@@ -238,7 +270,12 @@ class SkillDetailPresenterTest {
 }
 
 private class FakeSkillDetailNavigator : SkillDetailNavigator {
+    val openedFiles = mutableListOf<SkillFileRenderModel>()
     val deletedIds = mutableListOf<String>()
+
+    override fun onOpenFile(file: SkillFileRenderModel) {
+        openedFiles += file
+    }
 
     override fun onDeleted(id: String) {
         deletedIds += id

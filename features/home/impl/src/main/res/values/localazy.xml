@@ -22,9 +22,17 @@
   <string name="screen_invites_decline_direct_chat_title">"Decline chat"</string>
   <string name="screen_invites_empty_list">"No Invites"</string>
   <string name="screen_invites_invited_you">"%1$s (%2$s) invited you"</string>
+  <string name="screen_home_agent_welcome_action_later">"Later"</string>
+  <string name="screen_home_agent_welcome_action_settings">"Go to settings"</string>
+  <string name="screen_home_agent_welcome_description">"Create AI agents, add skills, and invite them into rooms when you need help."</string>
+  <string name="screen_home_agent_welcome_feature_agents">"Create and manage agents"</string>
+  <string name="screen_home_agent_welcome_feature_rooms">"Invite agents into rooms"</string>
+  <string name="screen_home_agent_welcome_feature_skills">"Add skills and tools"</string>
+  <string name="screen_home_agent_welcome_title">"Meet your Unseal agents"</string>
   <string name="screen_migration_message">"This is a one time process, thanks for waiting."</string>
   <string name="screen_migration_title">"Setting up your account."</string>
   <string name="screen_roomlist_a11y_create_message">"Create a new conversation or room"</string>
+  <string name="screen_roomlist_archive">"Archive"</string>
   <string name="screen_roomlist_clear_filters">"Clear filters"</string>
   <string name="screen_roomlist_empty_message">"Get started by messaging someone."</string>
   <string name="screen_roomlist_empty_title">"No chats yet."</string>
@@ -50,6 +58,7 @@ You don’t have any unread messages!"</string>
   <string name="screen_roomlist_mark_as_read">"Mark as read"</string>
   <string name="screen_roomlist_mark_as_unread">"Mark as unread"</string>
   <string name="screen_roomlist_tombstoned_room_description">"This room has been upgraded"</string>
+  <string name="screen_roomlist_unarchive">"Unarchive"</string>
   <string name="screen_roomlist_your_spaces">"Your spaces"</string>
   <string name="session_verification_banner_message">"Looks like you’re using a new device. Verify with another device to access your encrypted messages."</string>
   <string name="session_verification_banner_title">"Verify it’s you"</string>

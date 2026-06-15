@@ -137,16 +137,28 @@ class CreditsPresenter(
         }
 
         fun loadAll() = coroutineScope.launch {
+            isBalanceLoading = true
+            isLedgerLoading = true
+            isDailyUsageLoading = true
+            isAnalyticsLoading = true
             val service = runCatching { api() }
                 .onFailure {
                     error = errorMessage(it)
+                    isBalanceLoading = false
+                    isLedgerLoading = false
+                    isDailyUsageLoading = false
                 }
                 .getOrNull() ?: return@launch
             coroutineScope.launch { loadBalance(service) }
             coroutineScope.launch { loadLedger(service) }
             coroutineScope.launch { loadDailyUsage(service, dailyUsageRange) }
             coroutineScope.launch {
-                val homeserver = runCatching { homeserverApi() }.getOrNull() ?: return@launch
+                val homeserver = runCatching { homeserverApi() }
+                    .onFailure {
+                        error = errorMessage(it)
+                        isAnalyticsLoading = false
+                    }
+                    .getOrNull() ?: return@launch
                 loadAnalytics(homeserver, analyticsPeriod)
             }
         }

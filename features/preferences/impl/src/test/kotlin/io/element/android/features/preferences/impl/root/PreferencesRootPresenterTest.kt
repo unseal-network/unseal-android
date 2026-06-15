@@ -340,6 +340,39 @@ class PreferencesRootPresenterTest {
             assertThat(awaitItem().creditBalanceLoadState).isEqualTo(CreditBalanceLoadState.Loading)
             val loaded = awaitStateWhere { it.creditBalanceLoadState == CreditBalanceLoadState.Loaded("12.50") }
             assertThat(loaded.creditBalanceLoadState).isEqualTo(CreditBalanceLoadState.Loaded("12.50"))
+            assertThat(loaded.aiAssistant).isEqualTo(
+                SettingsAiAssistantRenderModel.from(CreditBalanceLoadState.Loaded("12.50"))
+            )
+        }
+    }
+
+    @Test
+    fun `present - credit balance refresh reloads latest balance`() = runTest {
+        var loadCount = 0
+        val chatbotApiService = FakeChatbotApiService().apply {
+            getBalanceResult = {
+                loadCount += 1
+                Result.success(
+                    aCreditBalance().copy(
+                        balanceUsd = if (loadCount == 1) "12.50" else "42.00"
+                    )
+                )
+            }
+        }
+        createPresenter(
+            matrixClient = FakeMatrixClient(
+                canDeactivateAccountResult = { true },
+                accountManagementUrlResult = { Result.success(null) },
+            ),
+            chatbotApiServiceFactory = FakeChatbotApiServiceFactory(chatbotApiService),
+        ).test {
+            assertThat(awaitItem().creditBalanceLoadState).isEqualTo(CreditBalanceLoadState.Loading)
+            val firstLoaded = awaitStateWhere { it.creditBalanceLoadState == CreditBalanceLoadState.Loaded("12.50") }
+            firstLoaded.eventSink(PreferencesRootEvent.RefreshCreditBalance)
+            val refreshed = awaitStateWhere { it.creditBalanceLoadState == CreditBalanceLoadState.Loaded("42.00") }
+            assertThat(refreshed.creditBalanceLoadState).isEqualTo(CreditBalanceLoadState.Loaded("42.00"))
+            assertThat(loadCount).isEqualTo(2)
+            cancelAndIgnoreRemainingEvents()
         }
     }
 

@@ -24,6 +24,7 @@ import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentRoom
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.core.RoomIdOrAlias
 import io.element.android.libraries.matrix.api.core.toRoomIdOrAlias
@@ -49,6 +50,7 @@ class AgentDetailPresenter(
         val coroutineScope = rememberCoroutineScope()
         var agent by remember { mutableStateOf<ChatbotAgent?>(null) }
         var rooms by remember { mutableStateOf(emptyList<ChatbotAgentRoom>()) }
+        var agentSkills by remember { mutableStateOf(emptyList<ChatbotUserSkill>()) }
         var isLoading by remember { mutableStateOf(false) }
         var isStartingChat by remember { mutableStateOf(false) }
         var isSoulExpanded by remember { mutableStateOf(false) }
@@ -75,6 +77,10 @@ class AgentDetailPresenter(
                 api.listAgentRooms(botName)
                     .onSuccess { freshRooms ->
                         rooms = freshRooms
+                    }
+                api.listAgentSkills(botName)
+                    .onSuccess { freshSkills ->
+                        agentSkills = freshSkills
                     }
                 isLoading = false
                 hasLoadedOnce = true
@@ -146,6 +152,7 @@ class AgentDetailPresenter(
             botName = botName,
             agent = agent,
             rooms = rooms.toImmutableList(),
+            agentSkills = agentSkills.toImmutableList(),
             isLoading = isLoading,
             isStartingChat = isStartingChat,
             isSoulExpanded = isSoulExpanded,

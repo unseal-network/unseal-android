@@ -23,6 +23,7 @@ interface CreditsEntryPoint : FeatureEntryPoint {
 
     data class Params(
         val initialTab: CreditsTab = CreditsTab.Balance,
+        val openTopUpInitially: Boolean = false,
     ) : NodeInputs
 
     fun createNode(

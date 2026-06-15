@@ -17,4 +17,6 @@ data class AgentListState(
     val isLoading: Boolean,
     val error: String?,
     val eventSink: (AgentListEvents) -> Unit,
-)
+) {
+    val renderModel: AgentListRenderModel = toRenderModel()
+}

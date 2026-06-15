@@ -31,17 +31,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import io.element.android.features.roomschedules.impl.cron.CronParser
 import io.element.android.features.roomschedules.impl.cron.CronPickerMode
 import io.element.android.features.roomschedules.impl.cron.CronPickerModel
-import io.element.android.features.roomschedules.impl.model.matrixUserId
-import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 
 @Composable
 fun ScheduleEditView(
     state: ScheduleEditState,
     modifier: Modifier = Modifier,
 ) {
+    val renderModel = state.renderModel
     LaunchedEffect(Unit) {
         state.eventSink(ScheduleEditEvents.OnAppear)
     }
@@ -54,7 +52,7 @@ fun ScheduleEditView(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Header(
-            title = state.title,
+            title = renderModel.title,
             onCancel = { state.eventSink(ScheduleEditEvents.Cancel) },
         )
         state.error?.let {
@@ -65,17 +63,17 @@ fun ScheduleEditView(
                 value = state.name,
                 onValueChange = { state.eventSink(ScheduleEditEvents.NameChanged(it)) },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Schedule name") },
+                label = { Text(renderModel.nameLabel) },
                 singleLine = true,
             )
-            AgentSelector(state)
+            AgentSelector(renderModel, state.eventSink)
         } else {
-            ReadOnlyValue(label = "Schedule name", value = state.name)
-            ReadOnlyValue(label = "Agent", value = state.selectedAgentBotName)
+            ReadOnlyValue(label = renderModel.nameLabel, value = state.name)
+            ReadOnlyValue(label = renderModel.agentLabel, value = renderModel.selectedAgentLabel)
         }
-        if (!state.selectedAgentIsInRoom) {
+        renderModel.outOfRoomAgentWarning?.let {
             Text(
-                text = "Selected agent is not in this room.",
+                text = it,
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -86,19 +84,20 @@ fun ScheduleEditView(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(180.dp),
-            label = { Text("Action") },
+            label = { Text(renderModel.actionLabel) },
             minLines = 6,
         )
         CronEditor(
             model = state.cronModel,
+            renderModel = renderModel,
             onModelChange = { state.eventSink(ScheduleEditEvents.CronModelChanged(it)) },
         )
         Button(
             onClick = { state.eventSink(ScheduleEditEvents.Submit) },
-            enabled = !state.isSubmitting,
+            enabled = renderModel.canSubmit,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(if (state.isSubmitting) "Saving" else "Save")
+            Text(renderModel.submitLabel)
         }
         if (state.isSubmitting) {
             CircularProgressIndicator()
@@ -129,10 +128,13 @@ private fun Header(
 }
 
 @Composable
-private fun AgentSelector(state: ScheduleEditState) {
+private fun AgentSelector(
+    renderModel: ScheduleEditRenderModel,
+    eventSink: (ScheduleEditEvents) -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Agent", style = MaterialTheme.typography.titleMedium)
-        if (state.agents.isEmpty()) {
+        Text(renderModel.agentLabel, style = MaterialTheme.typography.titleMedium)
+        if (renderModel.agentOptions.isEmpty()) {
             Text(
                 text = "No agents available",
                 style = MaterialTheme.typography.bodyMedium,
@@ -143,11 +145,11 @@ private fun AgentSelector(state: ScheduleEditState) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                state.agents.forEach { agent ->
+                renderModel.agentOptions.forEach { agent ->
                     FilterChip(
-                        selected = state.selectedAgentBotName == agent.botName,
-                        onClick = { state.eventSink(ScheduleEditEvents.AgentChanged(agent.botName)) },
-                        label = { Text(agent.agentLabel(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        selected = agent.isSelected,
+                        onClick = { eventSink(ScheduleEditEvents.AgentChanged(agent.botName)) },
+                        label = { Text(agent.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     )
                 }
             }
@@ -166,19 +168,20 @@ private fun ReadOnlyValue(label: String, value: String) {
 @Composable
 private fun CronEditor(
     model: CronPickerModel,
+    renderModel: ScheduleEditRenderModel,
     onModelChange: (CronPickerModel) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Repeat", style = MaterialTheme.typography.titleMedium)
+        Text(renderModel.repeatLabel, style = MaterialTheme.typography.titleMedium)
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            CronPickerMode.entries.forEach { mode ->
+            renderModel.cronModeOptions.forEach { option ->
                 FilterChip(
-                    selected = model.mode == mode,
-                    onClick = { onModelChange(model.copy(mode = mode)) },
-                    label = { Text(mode.label()) },
+                    selected = option.isSelected,
+                    onClick = { onModelChange(model.withMode(option.mode)) },
+                    label = { Text(option.label) },
                 )
             }
         }
@@ -193,7 +196,7 @@ private fun CronEditor(
             CronPickerMode.EveryDay -> TimeControls(model, onModelChange)
         }
         Text(
-            text = CronParser.toReadable(CronParser.toCron(model)),
+            text = renderModel.cronSummary,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -266,7 +269,7 @@ private fun WeekdayControls(
             FilterChip(
                 selected = model.weekday == weekday,
                 onClick = { onModelChange(model.copy(weekday = weekday)) },
-                label = { Text(weekday.label()) },
+                label = { Text(weekdayDisplayLabel(weekday)) },
             )
         }
     }
@@ -286,28 +289,4 @@ private fun NumberField(
         label = { Text(label) },
         singleLine = true,
     )
-}
-
-private fun CronPickerMode.label(): String = when (this) {
-    CronPickerMode.Workdays -> "Workdays"
-    CronPickerMode.EveryDay -> "Every day"
-    CronPickerMode.EveryNHours -> "Every N hours"
-    CronPickerMode.EveryHourAtMinute -> "Hourly"
-    CronPickerMode.Weekday -> "Weekday"
-}
-
-private fun Int.label(): String = when (this) {
-    1 -> "Sun"
-    2 -> "Mon"
-    3 -> "Tue"
-    4 -> "Wed"
-    5 -> "Thu"
-    6 -> "Fri"
-    7 -> "Sat"
-    else -> toString()
-}
-
-private fun ChatbotAgent.agentLabel(): String {
-    return displayName?.takeIf { it.isNotBlank() }
-        ?: matrixUserId()
 }

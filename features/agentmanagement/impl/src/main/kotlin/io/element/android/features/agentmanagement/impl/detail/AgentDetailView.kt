@@ -48,9 +48,9 @@ import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
-import io.element.android.features.agentmanagement.impl.shared.displayTitle
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentRoom
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import io.element.android.libraries.designsystem.components.avatar.Avatar
 import io.element.android.libraries.designsystem.components.avatar.AvatarData
 import io.element.android.libraries.designsystem.components.avatar.AvatarSize
@@ -66,6 +66,7 @@ fun AgentDetailView(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val renderModel = state.renderModel
     LaunchedEffect(Unit) { state.eventSink(AgentDetailEvents.OnAppear) }
     val uriHandler = LocalUriHandler.current
     Scaffold(
@@ -73,12 +74,12 @@ fun AgentDetailView(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(state.navigationTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(renderModel.navigationTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) { Icon(CompoundIcons.ChevronLeft(), "返回") }
                 },
                 actions = {
-                    state.agentProfileUrl?.let { url ->
+                    renderModel.agentProfileUrl?.let { url ->
                         IconButton(onClick = { uriHandler.openUri(url) }) { Icon(CompoundIcons.PopOut(), "智能体资料") }
                     }
                 },
@@ -86,9 +87,9 @@ fun AgentDetailView(
         },
     ) { padding ->
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
-            item { Header(state) }
-            item { ActionButtons(state) }
-            state.agent?.description?.takeIf { it.isNotBlank() }?.let { description ->
+            item { Header(state, renderModel) }
+            item { ActionButtons(state, renderModel) }
+            renderModel.description?.let { description ->
                 item {
                     Text(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -98,7 +99,7 @@ fun AgentDetailView(
                     )
                 }
             }
-            state.agent?.soul?.takeIf { it.isNotBlank() }?.let { soul ->
+            renderModel.soul?.let { soul ->
                 item { SoulSection(state, soul) }
             }
             item { SkillsSection(state) }
@@ -109,19 +110,19 @@ fun AgentDetailView(
 }
 
 @Composable
-private fun Header(state: AgentDetailState) {
+private fun Header(state: AgentDetailState, renderModel: AgentDetailRenderModel) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 16.dp, start = 16.dp, end = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Avatar(
-            avatarData = AvatarData(state.botName, state.agent?.displayTitle() ?: state.botName, state.agent?.avatarUrl, AvatarSize.UserHeader),
+            avatarData = AvatarData(renderModel.botName, renderModel.displayName, renderModel.avatarUrl, AvatarSize.UserHeader),
             avatarType = AvatarType.Room(),
             forcedAvatarSize = 88.dp,
         )
-        Text(state.navigationTitle, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center)
-        state.matrixId?.let { id ->
+        Text(renderModel.displayName, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center)
+        renderModel.matrixId?.let { id ->
             Row(
                 modifier = Modifier.clickable { state.eventSink(AgentDetailEvents.CopyAgentId) },
                 verticalAlignment = Alignment.CenterVertically,
@@ -132,8 +133,8 @@ private fun Header(state: AgentDetailState) {
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            state.providerModelText?.let { Chip(text = it, icon = CompoundIcons.Computer()) }
-            Chip(text = if (state.agent?.isPublic == true) "公开" else "私密", icon = if (state.agent?.isPublic == true) CompoundIcons.Public() else CompoundIcons.Lock())
+            renderModel.providerModelLabel?.let { Chip(text = it, icon = CompoundIcons.Computer()) }
+            Chip(text = renderModel.visibilityLabel, icon = if (renderModel.isPublic) CompoundIcons.Public() else CompoundIcons.Lock())
         }
     }
 }
@@ -153,19 +154,19 @@ private fun Chip(text: String, icon: androidx.compose.ui.graphics.vector.ImageVe
 }
 
 @Composable
-private fun ActionButtons(state: AgentDetailState) {
+private fun ActionButtons(state: AgentDetailState, renderModel: AgentDetailRenderModel) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Button(
             modifier = Modifier.weight(1f),
-            enabled = state.canStartChat,
+            enabled = renderModel.canStartChat,
             onClick = { state.eventSink(AgentDetailEvents.StartChat) },
         ) {
             Icon(CompoundIcons.Chat(), null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.size(8.dp))
-            Text("开始聊天")
+            Text(renderModel.startChatLabel)
         }
         OutlinedButton(
             modifier = Modifier.weight(1f),
@@ -173,7 +174,7 @@ private fun ActionButtons(state: AgentDetailState) {
         ) {
             Icon(CompoundIcons.Edit(), null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.size(8.dp))
-            Text("编辑")
+            Text(renderModel.editLabel)
         }
     }
 }
@@ -189,9 +190,9 @@ private fun SectionLabel(title: String) {
 }
 
 @Composable
-private fun SoulSection(state: AgentDetailState, soul: String) {
+private fun SoulSection(state: AgentDetailState, soul: AgentSoulRenderModel) {
     Column {
-        SectionLabel("角色设定")
+        SectionLabel(soul.title)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -201,16 +202,16 @@ private fun SoulSection(state: AgentDetailState, soul: String) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = soul,
+                text = soul.text,
                 style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = if (state.isSoulExpanded) Int.MAX_VALUE else 4,
+                maxLines = if (soul.isExpanded) Int.MAX_VALUE else 4,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (soul.length > 120) {
+            if (soul.canToggle) {
                 Text(
                     modifier = Modifier.clickable { state.eventSink(AgentDetailEvents.ToggleSoulExpanded) },
-                    text = if (state.isSoulExpanded) "收起 ↑" else "展开 ↓",
+                    text = soul.toggleLabel,
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -221,66 +222,102 @@ private fun SoulSection(state: AgentDetailState, soul: String) {
 
 @Composable
 private fun SkillsSection(state: AgentDetailState) {
+    val skills = state.renderModel.skills
     Column {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            SectionLabel("拥有的技能")
+            SectionLabel(skills.title)
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = { state.eventSink(AgentDetailEvents.ManageSkills) }) { Text("管理") }
+            TextButton(onClick = { state.eventSink(AgentDetailEvents.ManageSkills) }) { Text(skills.manageLabel) }
             Spacer(Modifier.size(8.dp))
         }
-        OutlinedButton(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            onClick = { state.eventSink(AgentDetailEvents.ManageSkills) },
+        if (skills.items.isEmpty()) {
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                onClick = { state.eventSink(AgentDetailEvents.ManageSkills) },
+            ) {
+                Icon(CompoundIcons.Plus(), null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.size(8.dp))
+                Text(skills.addFirstLabel)
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                skills.items.take(3).forEach { skill ->
+                    SkillChip(skill)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SkillChip(skill: AgentSkillChipRenderModel) {
+    Row(
+        modifier = Modifier
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(7.dp))
+                .size(26.dp),
+            contentAlignment = Alignment.Center,
         ) {
-            Icon(CompoundIcons.Plus(), null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.size(8.dp))
-            Text("为此 Agent 添加技能")
+            Text(skill.initial, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+        }
+        Column {
+            Text(skill.name, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            skill.description?.let {
+                Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }
 
 @Composable
 private fun RoomsSection(state: AgentDetailState) {
+    val rooms = state.renderModel.rooms
     Column {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            SectionLabel("已加入的房间")
+            SectionLabel(rooms.title)
             Spacer(Modifier.weight(1f))
-            if (state.rooms.isNotEmpty()) {
-                Text(state.rooms.size.toString(), modifier = Modifier.padding(end = 16.dp), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            rooms.countLabel?.let { count ->
+                Text(count, modifier = Modifier.padding(end = 16.dp), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        if (state.rooms.isEmpty()) {
+        if (rooms.items.isEmpty()) {
             Text(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
-                text = if (state.isLoading) "正在加载..." else "尚未加入任何房间",
+                text = if (state.isLoading) rooms.loadingLabel else rooms.emptyLabel,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
         } else {
-            state.rooms.forEachIndexed { index, room ->
+            rooms.items.forEachIndexed { index, room ->
                 RoomRow(room) { state.eventSink(AgentDetailEvents.OpenRoom(room.roomId)) }
-                if (index != state.rooms.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 72.dp))
+                if (index != rooms.items.lastIndex) HorizontalDivider(modifier = Modifier.padding(start = 72.dp))
             }
         }
     }
 }
 
 @Composable
-private fun RoomRow(room: ChatbotAgentRoom, onOpen: () -> Unit) {
-    val displayName = room.displayName()
+private fun RoomRow(room: AgentRoomRenderModel, onOpen: () -> Unit) {
     ListItem(
         modifier = Modifier.clickable(onClick = onOpen),
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
-        headlineContent = { Text(displayName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        supportingContent = if (displayName != room.roomId) {
-            { Text(room.roomId, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-        } else {
-            null
+        headlineContent = { Text(room.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        supportingContent = room.subtitle?.let { subtitle ->
+            { Text(subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         },
         leadingContent = {
             Avatar(
-                avatarData = AvatarData(room.roomId, displayName, null, AvatarSize.RoomSelectRoomListItem),
+                avatarData = AvatarData(room.roomId, room.displayName, null, AvatarSize.RoomSelectRoomListItem),
                 avatarType = AvatarType.Room(),
                 forcedAvatarSize = 40.dp,
             )
@@ -310,6 +347,10 @@ private fun anAgentDetailState(
         soul = "You are a helpful assistant. Be concise, accurate and friendly. Always cite sources when relevant and avoid speculation when unsure.",
     ),
     rooms = rooms,
+    agentSkills = persistentListOf(
+        ChatbotUserSkill(id = "calendar", name = "Calendar", description = "Reads and creates events."),
+        ChatbotUserSkill(id = "research", name = "Research", description = "Finds useful context."),
+    ),
     isLoading = false,
     isStartingChat = false,
     isSoulExpanded = false,

@@ -43,6 +43,7 @@ import io.element.android.features.messages.impl.roomdata.RoomMenuReducer
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContextStore
 import io.element.android.features.messages.impl.roomdata.roomUnsealMemberSignature
+import io.element.android.features.messages.impl.terminal.DeviceAgentTerminalPanelState
 import io.element.android.features.messages.impl.timeline.MarkAsFullyRead
 import io.element.android.features.messages.impl.timeline.TimelineController
 import io.element.android.features.messages.impl.timeline.TimelineEvent
@@ -52,6 +53,7 @@ import io.element.android.features.messages.impl.timeline.components.reactionsum
 import io.element.android.features.messages.impl.timeline.components.receipt.bottomsheet.ReadReceiptBottomSheetState
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.timeline.model.TimelineItemThreadInfo
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEventContentWithAttachment
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemPollContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemStateContent
@@ -182,6 +184,12 @@ class MessagesPresenter(
         var activeDeviceAgentBoundDeviceId by remember(room.roomId) {
             mutableStateOf(AgentChatModeMemoryCache.targetDeviceIdFor(room.roomId))
         }
+        var deviceAgentTerminalPanel by remember(room.roomId) {
+            mutableStateOf<DeviceAgentTerminalPanelState?>(null)
+        }
+        var selectableMessageText by remember(room.roomId) {
+            mutableStateOf<String?>(null)
+        }
         val membersState by room.membersStateFlow.collectAsState()
         val roomMemberSignature = remember(membersState) {
             membersState.roomUnsealMemberSignature()
@@ -246,6 +254,9 @@ class MessagesPresenter(
                 activeDeviceAgentBoundDeviceId = null
                 AgentChatModeMemoryCache.setTargetDeviceId(room.roomId, null)
             }
+            if (deviceAgentTerminalPanel != null && deviceAgent?.boundDeviceId != deviceAgentTerminalPanel?.deviceAgent?.boundDeviceId) {
+                deviceAgentTerminalPanel = null
+            }
         }
         LaunchedEffect(roomConfigChangeRequests) {
             roomConfigChangeRequests.collectLatest {
@@ -308,6 +319,7 @@ class MessagesPresenter(
                         enableTextFormatting = composerState.showTextFormatting,
                         timelineState = timelineState,
                         timelineProtectionState = timelineProtectionState,
+                        onSelectText = { selectableMessageText = it },
                     )
                 }
                 is MessagesEvent.ToggleReaction -> {
@@ -347,9 +359,13 @@ class MessagesPresenter(
                 }
                 is MessagesEvent.OpenDeviceAgentTerminal -> {
                     Timber.i("Device agent terminal requested for boundDeviceId=${event.deviceAgent.boundDeviceId}")
-                    coroutineScope.launch {
-                        snackbarDispatcher.post(SnackbarMessage(CommonStrings.common_unsupported_event))
-                    }
+                    deviceAgentTerminalPanel = DeviceAgentTerminalPanelState.ready(event.deviceAgent)
+                }
+                MessagesEvent.DismissDeviceAgentTerminal -> {
+                    deviceAgentTerminalPanel = null
+                }
+                MessagesEvent.DismissSelectableMessageText -> {
+                    selectableMessageText = null
                 }
                 is MessagesEvent.MarkAsFullyReadAndExit -> if (!markingAsReadAndExiting.getAndSet(true)) {
                     coroutineScope.launch {
@@ -407,6 +423,8 @@ class MessagesPresenter(
                 enableTextFormatting = MessageComposerConfig.ENABLE_RICH_TEXT_EDITING,
                 activeDeviceAgentBoundDeviceId = activeDeviceAgentBoundDeviceId,
             ),
+            deviceAgentTerminalPanel = deviceAgentTerminalPanel,
+            selectableMessageText = selectableMessageText,
             appName = buildMeta.applicationName,
             pinnedMessagesBannerState = pinnedMessagesBannerState,
             dmUserVerificationState = dmUserVerificationState,
@@ -453,8 +471,10 @@ class MessagesPresenter(
         timelineProtectionState: TimelineProtectionState,
         enableTextFormatting: Boolean,
         timelineState: TimelineState,
+        onSelectText: (String) -> Unit,
     ) = launch {
         when (action) {
+            TimelineItemAction.SelectText -> targetEvent.selectableText()?.let(onSelectText)
             TimelineItemAction.CopyText -> handleCopyContents(targetEvent)
             TimelineItemAction.CopyCaption -> handleCopyCaption(targetEvent)
             TimelineItemAction.CopyLink -> handleCopyLink(targetEvent)
@@ -681,11 +701,7 @@ class MessagesPresenter(
     }
 
     private fun handleCopyContents(event: TimelineItem.Event) {
-        val content = when (event.content) {
-            is TimelineItemTextBasedContent -> event.content.body
-            is TimelineItemStateContent -> event.content.body
-            else -> return
-        }
+        val content = event.selectableText() ?: return
         clipboardHelper.copyPlainText(content)
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             snackbarDispatcher.post(SnackbarMessage(R.string.screen_room_timeline_message_copied))
@@ -698,6 +714,15 @@ class MessagesPresenter(
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             snackbarDispatcher.post(SnackbarMessage(CommonStrings.common_copied_to_clipboard))
         }
+    }
+}
+
+private fun TimelineItem.Event.selectableText(): String? {
+    return when (val content = content) {
+        is TimelineItemTextBasedContent -> content.plainText.ifBlank { content.body }
+        is TimelineItemAiContent -> content.body.ifBlank { null }
+        is TimelineItemStateContent -> content.body
+        else -> null
     }
 }
 

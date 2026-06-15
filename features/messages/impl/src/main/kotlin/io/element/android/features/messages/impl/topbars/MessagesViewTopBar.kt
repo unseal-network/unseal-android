@@ -81,12 +81,13 @@ internal fun MessagesViewTopBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Top,
     ) {
         FloatingCircleButton(onClick = onBackClick) {
             Icon(
+                modifier = Modifier.size(22.dp),
                 imageVector = CompoundIcons.ArrowLeft(),
                 contentDescription = stringResource(CommonStrings.action_back),
             )
@@ -95,11 +96,10 @@ internal fun MessagesViewTopBar(
         val roundedCornerShape = RoundedCornerShape(24.dp)
         Row(
             modifier = Modifier
-                .weight(1f, fill = false)
                 .widthIn(max = 260.dp)
                 .height(44.dp)
                 .clip(roundedCornerShape)
-                .background(ElementTheme.colors.bgSubtleSecondary.copy(alpha = 0.88f))
+                .background(ElementTheme.colors.bgSubtleSecondary.copy(alpha = 0.78f))
                 .border(1.dp, ElementTheme.colors.borderDisabled, roundedCornerShape)
                 .clickable { onRoomDetailsClick() }
                 .semantics { heading() }
@@ -160,7 +160,7 @@ internal fun MessagesViewTopBar(
         Row(
             modifier = Modifier.defaultMinSize(minHeight = 48.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.Top,
             content = menuActions,
         )
     }
@@ -175,9 +175,9 @@ private fun FloatingCircleButton(
 ) {
     Box(
         modifier = modifier
-            .size(48.dp)
+            .size(44.dp)
             .clip(CircleShape)
-            .background(ElementTheme.colors.bgSubtleSecondary.copy(alpha = 0.88f))
+            .background(ElementTheme.colors.bgSubtleSecondary.copy(alpha = 0.78f))
             .border(1.dp, ElementTheme.colors.borderDisabled, CircleShape)
             .clickable(onClick = onClick)
             .padding(contentPadding),
@@ -208,7 +208,8 @@ private fun RoomAvatarAndNameRow(
         )
         Text(
             modifier = Modifier
-                .padding(start = 8.dp),
+                .padding(start = 8.dp)
+                .weight(1f, fill = false),
             text = roomName ?: stringResource(CommonStrings.common_no_room_name),
             style = ElementTheme.typography.fontBodyLgMedium,
             fontStyle = FontStyle.Italic.takeIf { roomName == null },
@@ -250,6 +251,7 @@ internal fun MessagesViewTopBarPreview() = ElementPreview {
                     if (displayThreads) add(RoomTopbarAction.Threads)
                     if (displaySchedules) add(RoomTopbarAction.Schedules)
                 },
+                topbarTools = emptyList(),
                 attachmentActions = emptyList(),
                 scheduleBadge = RoomScheduleMenuBadge(
                     activeScheduleCount = 2,

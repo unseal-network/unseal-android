@@ -40,7 +40,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
@@ -160,14 +159,13 @@ private fun SkillReadOnlyContent(state: SkillDetailState) {
     state.visibilityLabel?.let { InfoRow("可见性", it) }
     state.skill?.createdAt?.let { InfoRow("创建时间", it) }
 
-    val files = state.response?.presignedUrls.orEmpty()
+    val files = state.fileItems
     if (files.isNotEmpty()) {
-        val uriHandler = LocalUriHandler.current
         FilesSectionHeader(count = files.size)
-        files.forEachIndexed { index, url ->
+        files.forEach { file ->
             FileRow(
-                name = fileDisplayName(url, index),
-                onClick = { runCatching { uriHandler.openUri(url) } },
+                name = file.displayPath,
+                onClick = { state.eventSink(SkillDetailEvents.OpenFile(file)) },
             )
         }
     }
@@ -227,13 +225,6 @@ private fun FileRow(name: String, onClick: () -> Unit) {
             modifier = Modifier.size(18.dp),
         )
     }
-}
-
-/** Derives a readable file name from a presigned URL (last path segment, decoded). */
-private fun fileDisplayName(url: String, index: Int): String {
-    val path = url.substringBefore('?').substringAfterLast('/')
-    val decoded = runCatching { java.net.URLDecoder.decode(path, "UTF-8") }.getOrDefault(path)
-    return decoded.ifBlank { "文件 ${index + 1}" }
 }
 
 @Composable

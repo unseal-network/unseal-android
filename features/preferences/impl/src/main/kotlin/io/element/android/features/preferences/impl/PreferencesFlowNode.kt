@@ -58,6 +58,7 @@ import io.element.android.libraries.matrix.api.core.RoomIdOrAlias
 import io.element.android.libraries.matrix.api.user.MatrixUser
 import io.element.android.libraries.troubleshoot.api.NotificationTroubleShootEntryPoint
 import io.element.android.libraries.troubleshoot.api.PushHistoryEntryPoint
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.parcelize.Parcelize
 
 @ContributesNode(SessionScope::class)
@@ -129,7 +130,9 @@ class PreferencesFlowNode(
         data object AgentManagement : NavTarget
 
         @Parcelize
-        data object Skills : NavTarget
+        data class Skills(
+            val initialTarget: SkillsEntryPoint.InitialTarget = SkillsEntryPoint.InitialTarget.Home,
+        ) : NavTarget
 
         @Parcelize
         data object VaultManagement : NavTarget
@@ -156,10 +159,15 @@ class PreferencesFlowNode(
         data object OssLicenses : NavTarget
 
         @Parcelize
-        data class Credits(val initialTab: CreditsEntryPoint.CreditsTab) : NavTarget
+        data class Credits(
+            val initialTab: CreditsEntryPoint.CreditsTab,
+            val openTopUpInitially: Boolean = false,
+        ) : NavTarget
     }
 
     private val callback: PreferencesEntryPoint.Callback = callback()
+    private val vaultReloadRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val creditBalanceReloadRequests = MutableSharedFlow<Unit>(replay = 1, extraBufferCapacity = 1)
 
     override fun resolve(navTarget: NavTarget, buildContext: BuildContext): Node {
         return when (navTarget) {
@@ -214,7 +222,7 @@ class PreferencesFlowNode(
                     }
 
                     override fun navigateToSkills() {
-                        backstack.push(NavTarget.Skills)
+                        backstack.push(NavTarget.Skills())
                     }
 
                     override fun navigateToVaultManagement() {
@@ -257,9 +265,22 @@ class PreferencesFlowNode(
                         backstack.push(NavTarget.Credits(CreditsEntryPoint.CreditsTab.DailyUsage))
                     }
 
-                    override fun openCreditsTopUp() = Unit
+                    override fun openCreditsTopUp() {
+                        backstack.push(
+                            NavTarget.Credits(
+                                initialTab = CreditsEntryPoint.CreditsTab.Balance,
+                                openTopUpInitially = true,
+                            )
+                        )
+                    }
                 }
-                createNode<PreferencesRootNode>(buildContext, plugins = listOf(callback))
+                createNode<PreferencesRootNode>(
+                    buildContext,
+                    plugins = listOf(
+                        callback,
+                        PreferencesRootNode.CreditBalanceRefreshRequests(creditBalanceReloadRequests),
+                    ),
+                )
             }
             NavTarget.DeveloperSettings -> {
                 val developerSettingsCallback = object : DeveloperSettingsNode.Callback {
@@ -447,26 +468,31 @@ class PreferencesFlowNode(
                             if (backstack.canPop()) backstack.pop() else navigateUp()
                         }
 
-                        // Opening a room from Settings is not wired yet; close the settings flow.
                         override fun onOpenRoom(roomIdOrAlias: RoomIdOrAlias) {
-                            if (backstack.canPop()) backstack.pop() else navigateUp()
+                            callback.navigateToRoom(roomIdOrAlias)
                         }
 
                         override fun onOpenSkills(botName: String?) {
-                            backstack.push(NavTarget.Skills)
+                            backstack.push(
+                                NavTarget.Skills(
+                                    initialTarget = botName
+                                        ?.let(SkillsEntryPoint.InitialTarget::AgentSkills)
+                                        ?: SkillsEntryPoint.InitialTarget.ManagementHub
+                                )
+                            )
                         }
 
                         override fun onOpenCreatedDirectRoom(roomId: RoomId) {
-                            if (backstack.canPop()) backstack.pop() else navigateUp()
+                            callback.navigateToCreatedDirectRoom(roomId)
                         }
                     },
                 )
             }
-            NavTarget.Skills -> {
+            is NavTarget.Skills -> {
                 skillsEntryPoint.createNode(
                     parentNode = this,
                     buildContext = buildContext,
-                    params = SkillsEntryPoint.Params(),
+                    params = SkillsEntryPoint.Params(navTarget.initialTarget),
                     callback = object : SkillsEntryPoint.Callback {
                         override fun onDone() {
                             if (backstack.canPop()) backstack.pop() else navigateUp()
@@ -496,7 +522,13 @@ class PreferencesFlowNode(
                         backstack.push(NavTarget.VaultEdit(key = item.key, description = item.description))
                     }
                 }
-                createNode<VaultManagementNode>(buildContext, plugins = listOf(vaultCallback))
+                createNode<VaultManagementNode>(
+                    buildContext,
+                    plugins = listOf(
+                        VaultManagementNode.Inputs(vaultReloadRequests),
+                        vaultCallback,
+                    )
+                )
             }
             is NavTarget.VaultEdit -> {
                 val inputs = if (navTarget.key == null) {
@@ -511,6 +543,7 @@ class PreferencesFlowNode(
 
                     override fun onComplete() {
                         backstack.pop()
+                        vaultReloadRequests.tryEmit(Unit)
                     }
                 }
                 createNode<VaultEditNode>(buildContext, plugins = listOf(inputs, vaultEditCallback))
@@ -540,7 +573,10 @@ class PreferencesFlowNode(
                 creditsEntryPoint.createNode(
                     parentNode = this,
                     buildContext = buildContext,
-                    params = CreditsEntryPoint.Params(initialTab = navTarget.initialTab),
+                    params = CreditsEntryPoint.Params(
+                        initialTab = navTarget.initialTab,
+                        openTopUpInitially = navTarget.openTopUpInitially,
+                    ),
                     callback = object : CreditsEntryPoint.Callback {
                         override fun onDone() {
                             if (backstack.canPop()) {
@@ -550,7 +586,9 @@ class PreferencesFlowNode(
                             }
                         }
 
-                        override fun onTopUpRequested(balance: CreditBalance?) = Unit
+                        override fun onTopUpRequested(balance: CreditBalance?) {
+                            creditBalanceReloadRequests.tryEmit(Unit)
+                        }
                     },
                 )
             }

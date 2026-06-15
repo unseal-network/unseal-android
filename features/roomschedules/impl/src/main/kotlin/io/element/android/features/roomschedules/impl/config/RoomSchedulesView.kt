@@ -38,10 +38,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import io.element.android.features.roomschedules.impl.cron.CronParser
-import io.element.android.features.roomschedules.impl.model.isEnabled
-import io.element.android.features.roomschedules.impl.model.stableId
-import io.element.android.libraries.chatbot.api.model.schedules.ChatbotSchedule
 
 @Composable
 fun RoomSchedulesView(
@@ -149,7 +145,7 @@ private fun SchedulesTab(state: RoomSchedulesState) {
         if (state.isLoadingSchedules) {
             CircularProgressIndicator()
         }
-        if (!state.isLoadingSchedules && state.displayedSchedules.isEmpty()) {
+        if (!state.isLoadingSchedules && state.scheduleItems.isEmpty()) {
             Text(
                 text = "No schedules",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -160,14 +156,13 @@ private fun SchedulesTab(state: RoomSchedulesState) {
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            items(state.displayedSchedules, key = { it.stableId() }) { schedule ->
+            items(state.scheduleItems, key = { it.id }) { schedule ->
                 ScheduleRow(
                     schedule = schedule,
-                    isOwner = schedule.creatorId == state.currentUserId,
-                    isConfirmingDelete = state.deleteConfirmationScheduleId == schedule.stableId(),
-                    onEdit = { state.eventSink(RoomSchedulesEvents.EditSchedule(schedule)) },
-                    onToggle = { state.eventSink(RoomSchedulesEvents.ToggleSchedule(schedule)) },
-                    onRequestDelete = { state.eventSink(RoomSchedulesEvents.RequestDeleteSchedule(schedule)) },
+                    isConfirmingDelete = state.deleteConfirmationScheduleId == schedule.id,
+                    onEdit = { state.eventSink(RoomSchedulesEvents.EditSchedule(schedule.source)) },
+                    onToggle = { state.eventSink(RoomSchedulesEvents.ToggleSchedule(schedule.source)) },
+                    onRequestDelete = { state.eventSink(RoomSchedulesEvents.RequestDeleteSchedule(schedule.source)) },
                     onConfirmDelete = { state.eventSink(RoomSchedulesEvents.ConfirmDeleteSchedule) },
                     onDismissDelete = { state.eventSink(RoomSchedulesEvents.DismissDeleteConfirmation) },
                 )
@@ -178,8 +173,7 @@ private fun SchedulesTab(state: RoomSchedulesState) {
 
 @Composable
 private fun ScheduleRow(
-    schedule: ChatbotSchedule,
-    isOwner: Boolean,
+    schedule: ScheduleRenderModel,
     isConfirmingDelete: Boolean,
     onEdit: () -> Unit,
     onToggle: () -> Unit,
@@ -195,11 +189,11 @@ private fun ScheduleRow(
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(schedule.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(schedule.agentId, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(CronParser.toReadable(schedule.cron), style = MaterialTheme.typography.bodyMedium)
+                Text(schedule.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(schedule.agentLabel, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(schedule.cronLabel, style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    schedule.action,
+                    schedule.actionPreview,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 3,
@@ -207,18 +201,18 @@ private fun ScheduleRow(
                 )
             }
             Text(
-                text = if (schedule.isEnabled()) "Enabled" else "Disabled",
-                color = if (schedule.isEnabled()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                text = schedule.statusLabel,
+                color = if (schedule.isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.labelLarge,
             )
         }
-        if (isOwner) {
+        if (schedule.isOwner) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = onEdit) {
                     Text("Edit")
                 }
                 OutlinedButton(onClick = onToggle) {
-                    Text(if (schedule.isEnabled()) "Disable" else "Enable")
+                    Text(schedule.toggleLabel)
                 }
                 OutlinedButton(onClick = onRequestDelete) {
                     Text("Delete")

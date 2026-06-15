@@ -24,6 +24,8 @@ sealed interface MessagesEvent {
     data object MarkAsFullyReadAndExit : MessagesEvent
     data class ToggleDeviceAgentChat(val deviceAgent: RoomDeviceAgent) : MessagesEvent
     data class OpenDeviceAgentTerminal(val deviceAgent: RoomDeviceAgent) : MessagesEvent
+    data object DismissDeviceAgentTerminal : MessagesEvent
+    data object DismissSelectableMessageText : MessagesEvent
 }
 
 enum class InviteDialogAction {

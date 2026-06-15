@@ -8,5 +8,6 @@
 package io.element.android.features.skills.impl.detail
 
 interface SkillDetailNavigator {
+    fun onOpenFile(file: SkillFileRenderModel)
     fun onDeleted(id: String)
 }

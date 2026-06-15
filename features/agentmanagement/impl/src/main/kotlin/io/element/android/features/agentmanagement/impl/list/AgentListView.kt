@@ -13,7 +13,6 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,7 +31,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -54,8 +52,6 @@ import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
-import io.element.android.features.agentmanagement.impl.shared.displayTitle
-import io.element.android.features.agentmanagement.impl.shared.providerModelText
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 import io.element.android.libraries.designsystem.components.avatar.Avatar
 import io.element.android.libraries.designsystem.components.avatar.AvatarData
@@ -73,6 +69,7 @@ fun AgentListView(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val renderModel = state.renderModel
     LaunchedEffect(Unit) {
         state.eventSink(AgentListEvents.OnAppear)
     }
@@ -81,7 +78,7 @@ fun AgentListView(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Agent 列表") },
+                title = { Text(renderModel.title) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "返回")
@@ -89,14 +86,14 @@ fun AgentListView(
                 },
                 actions = {
                     IconButton(onClick = { state.eventSink(AgentListEvents.OpenSkills) }) {
-                        Icon(imageVector = CompoundIcons.ListBulleted(), contentDescription = "技能")
+                        Icon(imageVector = CompoundIcons.ListBulleted(), contentDescription = renderModel.skillsLabel)
                     }
                 },
             )
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                text = { Text("创建 Agent") },
+                text = { Text(renderModel.createLabel) },
                 icon = { Icon(imageVector = CompoundIcons.Plus(), contentDescription = null) },
                 onClick = { state.eventSink(AgentListEvents.CreateAgent) },
             )
@@ -107,9 +104,9 @@ fun AgentListView(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                value = state.searchQuery,
+                value = renderModel.query,
                 onValueChange = { state.eventSink(AgentListEvents.SearchQueryChanged(it)) },
-                placeholder = { Text("搜索 Agent") },
+                placeholder = { Text(renderModel.searchPlaceholder) },
                 leadingIcon = { Icon(imageVector = CompoundIcons.Search(), contentDescription = null) },
                 singleLine = true,
                 shape = RoundedCornerShape(28.dp),
@@ -122,17 +119,17 @@ fun AgentListView(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 when {
-                    state.isLoading && state.filteredAgents.isEmpty() -> items(count = 6) { AgentSkeletonCard() }
-                    state.filteredAgents.isEmpty() -> fullSpanItem {
+                    renderModel.isLoading && renderModel.items.isEmpty() -> items(count = 6) { AgentSkeletonCard() }
+                    renderModel.items.isEmpty() -> fullSpanItem {
                         Text(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
-                            text = "暂无 Agent",
+                            text = renderModel.emptyLabel,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
                         )
                     }
-                    else -> items(items = state.filteredAgents, key = { it.botName }) { agent ->
+                    else -> items(items = renderModel.items, key = { it.botName }) { agent ->
                         AgentGridCard(
                             agent = agent,
                             onClick = { state.eventSink(AgentListEvents.SelectAgent(agent.botName)) },
@@ -150,7 +147,7 @@ private fun androidx.compose.foundation.lazy.grid.LazyGridScope.fullSpanItem(con
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AgentGridCard(agent: ChatbotAgent, onClick: () -> Unit) {
+private fun AgentGridCard(agent: AgentListItemRenderModel, onClick: () -> Unit) {
     ElevatedCard(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp),
@@ -163,7 +160,7 @@ private fun AgentGridCard(agent: ChatbotAgent, onClick: () -> Unit) {
             Avatar(
                 avatarData = AvatarData(
                     id = agent.botName,
-                    name = agent.displayTitle(),
+                    name = agent.title,
                     url = agent.avatarUrl,
                     size = AvatarSize.SelectedRoom,
                 ),
@@ -171,14 +168,14 @@ private fun AgentGridCard(agent: ChatbotAgent, onClick: () -> Unit) {
                 forcedAvatarSize = 56.dp,
             )
             Text(
-                text = agent.displayTitle(),
+                text = agent.title,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
             )
-            agent.providerModelText()?.let { tag ->
+            agent.providerModelLabel?.let { tag ->
                 Text(
                     modifier = Modifier
                         .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
@@ -190,7 +187,7 @@ private fun AgentGridCard(agent: ChatbotAgent, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            agent.description?.takeIf { it.isNotBlank() }?.let { desc ->
+            agent.description?.let { desc ->
                 Text(
                     text = desc,
                     style = MaterialTheme.typography.bodySmall,
@@ -203,17 +200,26 @@ private fun AgentGridCard(agent: ChatbotAgent, onClick: () -> Unit) {
             Spacer(modifier = Modifier.weight(1f))
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = if (agent.isPublic == true) CompoundIcons.Public() else CompoundIcons.Lock(),
+                    imageVector = if (agent.isPublic) CompoundIcons.Public() else CompoundIcons.Lock(),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(14.dp),
                 )
                 Spacer(modifier = Modifier.size(4.dp))
                 Text(
-                    text = if (agent.isPublic == true) "公开" else "私密",
+                    text = agent.visibilityLabel,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Spacer(modifier = Modifier.weight(1f))
+                agent.relativeTimeLabel?.let { timeLabel ->
+                    Text(
+                        text = timeLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                }
             }
         }
     }

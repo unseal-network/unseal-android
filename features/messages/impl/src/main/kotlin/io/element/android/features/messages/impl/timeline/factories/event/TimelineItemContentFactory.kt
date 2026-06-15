@@ -15,6 +15,7 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLegacyCallInviteContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRtcNotificationContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemUnknownContent
 import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryRequestParser
 import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryStatus
@@ -49,6 +50,9 @@ import timber.log.Timber
 class TimelineItemContentFactory(
     private val messageFactory: TimelineItemContentMessageFactory,
     private val aiMessageContentParser: AiMessageContentParser,
+    private val aiStreamHandleStore: AiStreamHandleStore,
+    private val aiStreamContentCache: AiStreamContentCache,
+    private val aiSdkStreamReducer: AiSdkStreamReducer,
     private val gameMessageContentParser: GameMessageContentParser,
     private val redactedMessageFactory: TimelineItemContentRedactedFactory,
     private val stickerFactory: TimelineItemContentStickerFactory,
@@ -79,13 +83,7 @@ class TimelineItemContentFactory(
             isEdited = itemContent.isEdited(),
             fallbackSender = eventTimelineItem.sender.value,
         )?.let { aiContent ->
-            Timber.tag("TimelineItemContentFactory").d(
-                "AI stream: timeline content parsed streamId=%s body=%d parts=%d",
-                aiContent.streamId,
-                aiContent.body.length,
-                aiContent.parts.size,
-            )
-            return aiContent
+            return hydrateAiContent(aiContent)
         }
 
         // Game invite messages use custom fields not exposed by the typed SDK.
@@ -112,6 +110,22 @@ class TimelineItemContentFactory(
             senderProfile = eventTimelineItem.senderProfile,
             roomKeyRecoveryStatus = eventTimelineItem.roomKeyRecoveryStatus(roomKeyRecoveryStatuses),
         )
+    }
+
+    private suspend fun hydrateAiContent(aiContent: TimelineItemAiContent): TimelineItemAiContent {
+        val streamId = aiContent.streamId ?: return aiContent
+        if (aiContent.isTerminalRenderableStream(streamId)) {
+            return aiContent
+        }
+        aiStreamContentCache.get(streamId)?.let { return it.withFallbackMetadata(aiContent) }
+        val cachedSnapshot = aiStreamHandleStore.cachedCompletedSnapshot(streamId) ?: return aiContent
+        return aiSdkStreamReducer.mapSnapshot(
+            snapshot = cachedSnapshot,
+            isEdited = aiContent.isEdited,
+            sender = aiContent.sender,
+        )
+            .withFallbackMetadata(aiContent)
+            .also(aiStreamContentCache::put)
     }
 
     suspend fun create(
@@ -202,4 +216,19 @@ class TimelineItemContentFactory(
             else -> false
         }
     }
+}
+
+private fun TimelineItemAiContent.isTerminalRenderableStream(streamId: String): Boolean {
+    return this.streamId == streamId &&
+        isTerminal &&
+        (hasRichParts || body.isNotBlank())
+}
+
+private fun TimelineItemAiContent.withFallbackMetadata(fallback: TimelineItemAiContent): TimelineItemAiContent {
+    return copy(
+        isEdited = fallback.isEdited,
+        sender = sender ?: fallback.sender,
+        roomId = roomId ?: fallback.roomId,
+        eventId = eventId ?: fallback.eventId,
+    )
 }

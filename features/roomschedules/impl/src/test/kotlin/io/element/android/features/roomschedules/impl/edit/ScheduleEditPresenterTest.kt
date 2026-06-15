@@ -44,6 +44,8 @@ class ScheduleEditPresenterTest {
             val loaded = awaitStateWhere { it.agents.size == 2 && it.selectedAgentBotName == "alpha" }
             assertThat(loaded.title).isEqualTo("New Schedule")
             assertThat(loaded.isCreate).isTrue()
+            assertThat(loaded.renderModel.agentOptions.map { it.botName }).containsExactly("alpha", "beta").inOrder()
+            assertThat(loaded.renderModel.agentOptions.first().isSelected).isTrue()
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -60,6 +62,8 @@ class ScheduleEditPresenterTest {
             assertThat(state.action).isEqualTo("Do work")
             assertThat(state.cronModel).isEqualTo(CronPickerModel(CronPickerMode.EveryDay, hour = 10, minute = 15, intervalHours = 1, weekday = 2))
             assertThat(state.isCreate).isFalse()
+            assertThat(state.renderModel.title).isEqualTo("Edit Schedule")
+            assertThat(state.renderModel.selectedAgentLabel).isEqualTo("agent")
             cancelAndIgnoreRemainingEvents()
         }
     }

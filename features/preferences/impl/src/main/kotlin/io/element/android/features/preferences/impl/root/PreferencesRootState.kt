@@ -31,6 +31,7 @@ data class PreferencesRootState(
     val nbOfBlockedUsers: Int,
     val showLabsItem: Boolean,
     val creditBalanceLoadState: CreditBalanceLoadState,
+    val aiAssistant: SettingsAiAssistantRenderModel,
     val directLogoutState: DirectLogoutState,
     val snackbarMessage: SnackbarMessage?,
     val eventSink: (PreferencesRootEvent) -> Unit,

@@ -84,10 +84,8 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.launch
-import timber.log.Timber
 import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
@@ -152,6 +150,9 @@ fun TimelineView(
     // Animate alpha when timeline is first displayed, to avoid flashes or glitching when viewing rooms
     AnimatedVisibility(visible = true, enter = fadeIn()) {
         Box(modifier) {
+            val renderReadReceiptsWhileIdle by remember {
+                derivedStateOf { state.renderReadReceipts && !lazyListState.isScrollInProgress }
+            }
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -171,7 +172,7 @@ fun TimelineView(
                         timelineMode = state.timelineMode,
                         timelineRoomInfo = state.timelineRoomInfo,
                         timelineProtectionState = timelineProtectionState,
-                        renderReadReceipts = state.renderReadReceipts,
+                        renderReadReceipts = renderReadReceiptsWhileIdle,
                         isLastOutgoingMessage = state.isLastOutgoingMessage(timelineItem.identifier()),
                         focusedEventId = state.focusedEventId,
                         displayThreadSummaries = state.displayThreadSummaries,
@@ -246,9 +247,16 @@ private fun TimelinePrefetchingHelper(
     val latestPrefetch by rememberUpdatedState(prefetch)
 
     LaunchedEffect(Unit) {
-        // We're using snapshot flows for these because using `LaunchedEffect` with `derivedState` doesn't seem to be responsive enough
-        val firstVisibleItemIndexFlow = snapshotFlow { lazyListState.firstVisibleItemIndex }
-        val layoutInfoFlow = snapshotFlow { lazyListState.layoutInfo }
+        // Keep the observed viewport payload tiny; reading the whole layoutInfo object on every
+        // scroll frame makes the prefetch helper participate too much in the hot path.
+        val viewportFlow = snapshotFlow {
+            val layoutInfo = lazyListState.layoutInfo
+            TimelineViewportInfo(
+                firstVisibleItemIndex = lazyListState.firstVisibleItemIndex,
+                visibleItemCount = layoutInfo.visibleItemsInfo.size,
+                totalItemCount = layoutInfo.totalItemsCount,
+            )
+        }.distinctUntilChanged()
         val isScrollingFlow = snapshotFlow { lazyListState.isScrollInProgress }
             // This value changes too frequently, so we debounce it to avoid unnecessary prefetching. It's the equivalent of a conditional 'throttleLatest'
             .conflate()
@@ -257,13 +265,15 @@ private fun TimelinePrefetchingHelper(
                 if (isScrolling) delay(100.milliseconds)
             }
 
-        val isCloseToStartOfLoadedTimelineFlow = combine(layoutInfoFlow, firstVisibleItemIndexFlow) { layoutInfo, firstVisibleItemIndex ->
-            firstVisibleItemIndex + layoutInfo.visibleItemsInfo.size >= layoutInfo.totalItemsCount - 40
+        val isCloseToStartOfLoadedTimelineFlow = viewportFlow.transform { viewport ->
+            emit(viewport.firstVisibleItemIndex + viewport.visibleItemCount >= viewport.totalItemCount - 40)
         }
 
         // If we have no timeline items, we need to back paginate to load some messages. This usually happens on all timelines except for live ones.
         // This automatic pagination was previously done by the SDK, and we received a `Reset` update, but now we need to do it ourselves.
-        val isEmptyTimelineFlow = layoutInfoFlow.map { it.totalItemsCount == 0 }
+        val isEmptyTimelineFlow = viewportFlow.transform { viewport ->
+            emit(viewport.totalItemCount == 0)
+        }
 
         combine(
             isCloseToStartOfLoadedTimelineFlow.distinctUntilChanged(),
@@ -275,12 +285,17 @@ private fun TimelinePrefetchingHelper(
             .distinctUntilChanged()
             .collectLatest { needsPrefetch ->
                 if (needsPrefetch) {
-                    Timber.d("Prefetching pagination with ${lazyListState.layoutInfo.totalItemsCount} items")
                     latestPrefetch()
                 }
             }
     }
 }
+
+private data class TimelineViewportInfo(
+    val firstVisibleItemIndex: Int,
+    val visibleItemCount: Int,
+    val totalItemCount: Int,
+)
 
 @Composable
 private fun BoxScope.TimelineScrollHelper(

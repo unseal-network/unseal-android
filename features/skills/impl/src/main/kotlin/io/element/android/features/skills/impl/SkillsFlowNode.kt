@@ -23,6 +23,8 @@ import io.element.android.features.skills.api.SkillsEntryPoint
 import io.element.android.features.skills.impl.agentskills.AgentSkillsNode
 import io.element.android.features.skills.impl.create.SkillCreateNode
 import io.element.android.features.skills.impl.detail.SkillDetailNode
+import io.element.android.features.skills.impl.detail.SkillFileRenderModel
+import io.element.android.features.skills.impl.detail.SkillFileViewerNode
 import io.element.android.features.skills.impl.home.SkillsHomeNode
 import io.element.android.features.skills.impl.marketplace.SkillMarketplaceNode
 import io.element.android.features.skills.impl.managementhub.SkillsManagementHubNode
@@ -58,6 +60,13 @@ class SkillsFlowNode(
         data class Detail(val id: String, val isOwner: Boolean) : NavTarget
 
         @Parcelize
+        data class FileViewer(
+            val fileName: String,
+            val presignedUrl: String,
+            val preuploadUrl: String?,
+        ) : NavTarget
+
+        @Parcelize
         data object Create : NavTarget
 
         @Parcelize
@@ -83,6 +92,17 @@ class SkillsFlowNode(
                 buildContext = buildContext,
                 plugins = listOf(SkillDetailNode.Inputs(navTarget.id, navTarget.isOwner), detailCallback),
             )
+            is NavTarget.FileViewer -> createNode<SkillFileViewerNode>(
+                buildContext = buildContext,
+                plugins = listOf(
+                    SkillFileViewerNode.Inputs(
+                        fileName = navTarget.fileName,
+                        presignedUrl = navTarget.presignedUrl,
+                        preuploadUrl = navTarget.preuploadUrl,
+                    ),
+                    fileViewerCallback,
+                ),
+            )
             NavTarget.Create -> createNode<SkillCreateNode>(
                 buildContext = buildContext,
                 plugins = listOf(createCallback),
@@ -105,6 +125,16 @@ class SkillsFlowNode(
 
     fun openDetail(id: String, isOwner: Boolean) {
         backstack.push(NavTarget.Detail(id, isOwner))
+    }
+
+    fun openFile(file: SkillFileRenderModel) {
+        backstack.push(
+            NavTarget.FileViewer(
+                fileName = file.displayPath,
+                presignedUrl = file.url,
+                preuploadUrl = file.preuploadUrl,
+            )
+        )
     }
 
     fun openCreateSkill() {
@@ -148,7 +178,12 @@ class SkillsFlowNode(
 
     private val detailCallback = object : SkillDetailNode.Callback {
         override fun onDone() = closeOrPop()
+        override fun onOpenFile(file: SkillFileRenderModel) = openFile(file)
         override fun onDeleted(id: String) = onSkillDeleted(id)
+    }
+
+    private val fileViewerCallback = object : SkillFileViewerNode.Callback {
+        override fun onDone() = closeOrPop()
     }
 
     private val agentSkillsCallback = object : AgentSkillsNode.Callback {

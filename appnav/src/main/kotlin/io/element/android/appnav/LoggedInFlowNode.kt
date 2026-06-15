@@ -495,6 +495,18 @@ class LoggedInFlowNode(
                             )
                         }
                     }
+
+                    override fun navigateToRoom(roomIdOrAlias: RoomIdOrAlias) {
+                        lifecycleScope.launch {
+                            attachRoom(roomIdOrAlias = roomIdOrAlias)
+                        }
+                    }
+
+                    override fun navigateToCreatedDirectRoom(roomId: RoomId) {
+                        lifecycleScope.launch {
+                            attachRoom(roomIdOrAlias = roomId.toRoomIdOrAlias())
+                        }
+                    }
                 }
                 val inputs = PreferencesEntryPoint.Params(navTarget.initialElement)
                 preferencesEntryPoint.createNode(

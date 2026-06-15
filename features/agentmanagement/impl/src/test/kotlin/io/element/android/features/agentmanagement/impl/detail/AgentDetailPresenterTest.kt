@@ -13,6 +13,7 @@ import io.element.android.features.agentmanagement.impl.shared.AgentDirectChatSe
 import io.element.android.libraries.androidutils.clipboard.FakeClipboardHelper
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentRoom
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import io.element.android.libraries.chatbot.test.FakeChatbotApiService
 import io.element.android.libraries.chatbot.test.FakeChatbotApiServiceFactory
 import io.element.android.libraries.chatbot.test.aChatbotAgent
@@ -30,9 +31,10 @@ class AgentDetailPresenterTest {
     val warmUpRule = WarmUpRule()
 
     @Test
-    fun `present - loads agent and rooms once`() = runTest {
+    fun `present - loads agent rooms and skills once`() = runTest {
         var getAgentCalls = 0
         var listRoomsCalls = 0
+        var listSkillsCalls = 0
         val service = FakeChatbotApiService().apply {
             getAgentResult = {
                 getAgentCalls++
@@ -42,6 +44,10 @@ class AgentDetailPresenterTest {
                 listRoomsCalls++
                 Result.success(listOf(ChatbotAgentRoom(roomId = "!room:example.org", roomName = "Ops")))
             }
+            listAgentSkillsResult = {
+                listSkillsCalls++
+                Result.success(listOf(ChatbotUserSkill(id = "calendar", name = "Calendar")))
+            }
         }
         val presenter = createAgentDetailPresenter(service = service)
 
@@ -49,12 +55,14 @@ class AgentDetailPresenterTest {
             val initialState = awaitItem()
             initialState.eventSink(AgentDetailEvents.OnAppear)
 
-            val loadedState = awaitStateWhere { it.agent?.displayName == "Planner" && it.rooms.size == 1 && !it.isLoading }
+            val loadedState = awaitStateWhere { it.agent?.displayName == "Planner" && it.rooms.size == 1 && it.agentSkills.size == 1 && !it.isLoading }
             assertThat(loadedState.rooms.single().displayName()).isEqualTo("Ops")
+            assertThat(loadedState.renderModel.skills.items.single().name).isEqualTo("Calendar")
 
             loadedState.eventSink(AgentDetailEvents.OnAppear)
             assertThat(getAgentCalls).isEqualTo(1)
             assertThat(listRoomsCalls).isEqualTo(1)
+            assertThat(listSkillsCalls).isEqualTo(1)
             cancelAndIgnoreRemainingEvents()
         }
     }

@@ -25,6 +25,7 @@ class MessageActionMenuReducerTest {
             verifiedUserSendFailure = VerifiedUserSendFailure.None,
             actions = persistentListOf(
                 TimelineItemAction.CopyText,
+                TimelineItemAction.SelectText,
                 TimelineItemAction.Redact,
                 TimelineItemAction.Reply,
                 TimelineItemAction.Edit,
@@ -46,6 +47,7 @@ class MessageActionMenuReducerTest {
         assertThat(model.sections.flatMap { it.entries }.map { it.action }).containsExactly(
             TimelineItemAction.Reply,
             TimelineItemAction.Edit,
+            TimelineItemAction.SelectText,
             TimelineItemAction.CopyText,
             TimelineItemAction.Pin,
             TimelineItemAction.ViewSource,

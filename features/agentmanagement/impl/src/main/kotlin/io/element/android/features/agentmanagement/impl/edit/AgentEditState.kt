@@ -129,4 +129,5 @@ data class AgentEditState(
     val needsApiKey: Boolean = needsApiKey(form.providerId)
     val supportsBaseUrl: Boolean = supportsBaseUrl(selectedProvider)
     val isCreate: Boolean = mode is AgentEditMode.Create
+    val renderModel: AgentEditRenderModel = toRenderModel()
 }

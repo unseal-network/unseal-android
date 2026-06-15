@@ -31,6 +31,10 @@ import kotlinx.coroutines.flow.map
 private val developerModeKey = booleanPreferencesKey("developerMode")
 private val customElementCallBaseUrlKey = stringPreferencesKey("elementCallBaseUrl")
 private val themeKey = stringPreferencesKey("theme")
+private val onboardingSubscribeChangelogKey = booleanPreferencesKey("onboardingSubscribeChangelog")
+private val onboardingSubscribeMarketingKey = booleanPreferencesKey("onboardingSubscribeMarketing")
+private val postLoginWelcomeCompletedKey = booleanPreferencesKey("postLoginWelcomeCompleted")
+private val hasSeenAgentWelcomeKey = booleanPreferencesKey("hasSeenAgentWelcome")
 private val hideInviteAvatarsKey = booleanPreferencesKey("hideInviteAvatars")
 private val timelineMediaPreviewValueKey = stringPreferencesKey("timelineMediaPreviewValue")
 private val liveLocationMinimumDistanceUpdateKey = intPreferencesKey("liveLocationMinimumDistanceUpdate")
@@ -88,6 +92,49 @@ class DefaultAppPreferencesStore(
     override fun getThemeFlow(): Flow<String?> {
         return store.data.map { prefs ->
             prefs[themeKey]
+        }
+    }
+
+    override suspend fun setOnboardingSubscriptions(subscribeChangelog: Boolean, subscribeMarketing: Boolean) {
+        store.edit { prefs ->
+            prefs[onboardingSubscribeChangelogKey] = subscribeChangelog
+            prefs[onboardingSubscribeMarketingKey] = subscribeMarketing
+        }
+    }
+
+    override fun getOnboardingSubscribeChangelogFlow(): Flow<Boolean> {
+        return store.data.map { prefs ->
+            prefs[onboardingSubscribeChangelogKey] ?: false
+        }
+    }
+
+    override fun getOnboardingSubscribeMarketingFlow(): Flow<Boolean> {
+        return store.data.map { prefs ->
+            prefs[onboardingSubscribeMarketingKey] ?: false
+        }
+    }
+
+    override suspend fun setPostLoginWelcomeCompleted(completed: Boolean) {
+        store.edit { prefs ->
+            prefs[postLoginWelcomeCompletedKey] = completed
+        }
+    }
+
+    override fun getPostLoginWelcomeCompletedFlow(): Flow<Boolean> {
+        return store.data.map { prefs ->
+            prefs[postLoginWelcomeCompletedKey] ?: false
+        }
+    }
+
+    override suspend fun setHasSeenAgentWelcome(seen: Boolean) {
+        store.edit { prefs ->
+            prefs[hasSeenAgentWelcomeKey] = seen
+        }
+    }
+
+    override fun getHasSeenAgentWelcomeFlow(): Flow<Boolean> {
+        return store.data.map { prefs ->
+            prefs[hasSeenAgentWelcomeKey] ?: false
         }
     }
 

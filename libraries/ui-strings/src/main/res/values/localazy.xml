@@ -168,6 +168,7 @@
   <string name="action_save">"Save"</string>
   <string name="action_search">"Search"</string>
   <string name="action_select_all">"Select all"</string>
+  <string name="action_select_text">"Select text"</string>
   <string name="action_send">"Send"</string>
   <string name="action_send_edited_message">"Send edited message"</string>
   <string name="action_send_message">"Send message"</string>

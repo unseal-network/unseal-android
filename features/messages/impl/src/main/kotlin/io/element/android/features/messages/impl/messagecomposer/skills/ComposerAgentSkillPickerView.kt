@@ -51,7 +51,7 @@ internal fun ComposerAgentSkillPickerView(
             activeAgentMxid = state.activeAgentMxid,
         )
     }
-    val shouldShow = state.isPresented || state.selectedSkills.isNotEmpty()
+    val shouldShow = state.targets.isNotEmpty() || state.isPresented || state.selectedSkills.isNotEmpty()
     if (!shouldShow) return
 
     Surface(

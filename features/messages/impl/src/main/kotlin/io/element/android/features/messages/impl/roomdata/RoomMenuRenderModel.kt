@@ -11,6 +11,7 @@ import io.element.android.libraries.architecture.AsyncData
 
 data class RoomMenuRenderModel(
     val topbarActions: List<RoomTopbarAction>,
+    val topbarTools: List<RoomTopbarToolRenderModel>,
     val attachmentActions: List<RoomAttachmentAction>,
     val scheduleBadge: RoomScheduleMenuBadge?,
     val deviceAgent: RoomDeviceAgent?,
@@ -24,6 +25,7 @@ data class RoomMenuRenderModel(
     companion object {
         val Empty = RoomMenuRenderModel(
             topbarActions = emptyList(),
+            topbarTools = emptyList(),
             attachmentActions = emptyList(),
             scheduleBadge = null,
             deviceAgent = null,
@@ -33,6 +35,13 @@ data class RoomMenuRenderModel(
         )
     }
 }
+
+data class RoomTopbarToolRenderModel(
+    val action: RoomTopbarAction,
+    val isActive: Boolean = false,
+    val badgeCount: Int? = null,
+    val isEnabled: Boolean = true,
+)
 
 data class RoomScheduleMenuBadge(
     val activeScheduleCount: Int,
@@ -87,7 +96,6 @@ object RoomMenuReducer {
         val actions = buildList {
             if (context?.hasAgentInRoom == true) {
                 add(RoomTopbarAction.Schedules)
-                add(RoomTopbarAction.Webhooks)
             }
             if (deviceAgent != null) {
                 add(RoomTopbarAction.DeviceAgentChat)
@@ -95,39 +103,45 @@ object RoomMenuReducer {
             }
         }
         val attachmentActions = buildList {
-            add(RoomAttachmentAction.PhotoFromCamera)
-            add(RoomAttachmentAction.VideoFromCamera)
-            add(RoomAttachmentAction.Gallery)
-            add(RoomAttachmentAction.Files)
-            if (canShareLocation) {
-                add(RoomAttachmentAction.Location)
-            }
-            add(RoomAttachmentAction.Poll)
             add(RoomAttachmentAction.Game)
             if (enableTextFormatting) {
                 add(RoomAttachmentAction.TextFormatting)
             }
+            add(RoomAttachmentAction.Poll)
+            if (canShareLocation) {
+                add(RoomAttachmentAction.Location)
+            }
+            add(RoomAttachmentAction.Files)
+            add(RoomAttachmentAction.Gallery)
+            add(RoomAttachmentAction.PhotoFromCamera)
+            add(RoomAttachmentAction.VideoFromCamera)
+        }
+        val scheduleBadge = context?.takeIf { it.hasAgentInRoom }?.let {
+            RoomScheduleMenuBadge(
+                activeScheduleCount = it.activeScheduleCount,
+                isLoading = roomUnsealContext.isLoading(),
+                error = roomUnsealContext.errorOrNull()?.message,
+            )
+        }
+        val webhookSummary = context?.let {
+            RoomWebhookMenuSummary(
+                totalCount = it.webhookTriggers.size,
+                activeCount = it.webhookTriggers.count { trigger -> trigger.isEnabled() },
+                isLoading = roomUnsealContext.isLoading(),
+                error = roomUnsealContext.errorOrNull()?.message,
+            )
         }
         return RoomMenuRenderModel(
             topbarActions = actions,
+            topbarTools = actions.toTopbarTools(
+                scheduleBadge = scheduleBadge,
+                isDeviceAgentChatActive = deviceAgent?.boundDeviceId == activeDeviceAgentBoundDeviceId,
+            ),
             attachmentActions = attachmentActions,
-            scheduleBadge = context?.takeIf { it.hasAgentInRoom }?.let {
-                RoomScheduleMenuBadge(
-                    activeScheduleCount = it.activeScheduleCount,
-                    isLoading = roomUnsealContext.isLoading(),
-                    error = roomUnsealContext.errorOrNull()?.message,
-                )
-            },
+            scheduleBadge = scheduleBadge,
             deviceAgent = deviceAgent,
             isDeviceAgentChatActive = deviceAgent?.boundDeviceId == activeDeviceAgentBoundDeviceId,
-            webhookSummary = context?.let {
-                RoomWebhookMenuSummary(
-                    totalCount = it.webhookTriggers.size,
-                    activeCount = it.webhookTriggers.count { trigger -> trigger.isEnabled() },
-                    isLoading = roomUnsealContext.isLoading(),
-                    error = roomUnsealContext.errorOrNull()?.message,
-                )
-            },
+            webhookSummary = webhookSummary,
             workingMemory = context?.let {
                 RoomWorkingMemoryMenuState(
                     hasContent = it.workingMemory.isNotBlank(),
@@ -137,6 +151,24 @@ object RoomMenuReducer {
                 )
             },
         )
+    }
+}
+
+private fun List<RoomTopbarAction>.toTopbarTools(
+    scheduleBadge: RoomScheduleMenuBadge?,
+    isDeviceAgentChatActive: Boolean,
+): List<RoomTopbarToolRenderModel> {
+    val actionSet = toSet()
+    return buildList {
+        if (RoomTopbarAction.DeviceAgentTerminal in actionSet) {
+            add(RoomTopbarToolRenderModel(action = RoomTopbarAction.DeviceAgentTerminal))
+        }
+        if (RoomTopbarAction.DeviceAgentChat in actionSet) {
+            add(RoomTopbarToolRenderModel(action = RoomTopbarAction.DeviceAgentChat, isActive = isDeviceAgentChatActive))
+        }
+        if (RoomTopbarAction.Schedules in actionSet) {
+            add(RoomTopbarToolRenderModel(action = RoomTopbarAction.Schedules, badgeCount = scheduleBadge?.activeScheduleCount?.takeIf { it > 0 }))
+        }
     }
 }
 

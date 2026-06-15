@@ -15,12 +15,14 @@ import io.element.android.features.agentmanagement.impl.shared.providerModelText
 import io.element.android.libraries.chatbot.api.ChatbotConfig
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentRoom
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import kotlinx.collections.immutable.ImmutableList
 
 data class AgentDetailState(
     val botName: String,
     val agent: ChatbotAgent?,
     val rooms: ImmutableList<ChatbotAgentRoom>,
+    val agentSkills: ImmutableList<ChatbotUserSkill>,
     val isLoading: Boolean,
     val isStartingChat: Boolean,
     val isSoulExpanded: Boolean,
@@ -28,6 +30,7 @@ data class AgentDetailState(
     val copiedAgentId: String?,
     val eventSink: (AgentDetailEvents) -> Unit,
 ) {
+    val renderModel: AgentDetailRenderModel = toRenderModel()
     val navigationTitle: String = agent?.displayTitle() ?: botName
     val matrixId: String? = agent?.matrixId()
     val providerModelText: String? = agent?.providerModelText()

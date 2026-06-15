@@ -130,6 +130,10 @@ class TimelineController(
             }
     }
 
+    fun retryDecryption(sessionIds: List<String>) {
+        currentTimelineFlow.value.retryDecryption(sessionIds)
+    }
+
     private val currentTimelineFlow = combine(liveTimelineFlow, detachedTimelineFlow) { live, detached ->
         when {
             detached.isPresent -> detached.get()

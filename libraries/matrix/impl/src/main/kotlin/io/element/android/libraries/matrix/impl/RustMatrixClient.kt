@@ -49,6 +49,10 @@ import io.element.android.libraries.matrix.api.roomlist.RoomListService
 import io.element.android.libraries.matrix.api.spaces.SpaceService
 import io.element.android.libraries.matrix.api.sync.SlidingSyncVersion
 import io.element.android.libraries.matrix.api.sync.SyncState
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DConstants
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DOutboundMessage
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DSendFailure
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DSendResult
 import io.element.android.libraries.matrix.api.user.MatrixSearchUserResults
 import io.element.android.libraries.matrix.api.user.MatrixUser
 import io.element.android.libraries.matrix.impl.encryption.RustEncryptionService
@@ -323,6 +327,25 @@ class RustMatrixClient(
             check(result.failures.isEmpty()) {
                 "Failed to send agent room key request: ${result.failures}"
             }
+        }.mapFailure { it.mapClientException() }
+    }
+
+    override suspend fun sendUnsealD2DMessage(message: UnsealD2DOutboundMessage): Result<UnsealD2DSendResult> = withContext(sessionDispatcher) {
+        runCatchingExceptions {
+            val result = innerClient.sendToDeviceEvent(
+                eventType = UnsealD2DConstants.EVENT_TYPE,
+                userId = message.target.userId.value,
+                deviceId = message.target.deviceId,
+                content = message.encodedToDeviceContent(),
+            )
+            UnsealD2DSendResult(
+                failures = result.failures.map {
+                    UnsealD2DSendFailure(
+                        userId = UserId(it.userId),
+                        deviceId = it.deviceId,
+                    )
+                }
+            )
         }.mapFailure { it.mapClientException() }
     }
 

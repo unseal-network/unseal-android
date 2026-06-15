@@ -9,6 +9,7 @@
 package io.element.android.features.messages.impl
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -40,10 +41,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -68,6 +77,8 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
@@ -94,6 +105,8 @@ import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBan
 import io.element.android.features.messages.impl.roomdata.RoomDeviceAgent
 import io.element.android.features.messages.impl.roomdata.RoomMenuRenderModel
 import io.element.android.features.messages.impl.roomdata.RoomTopbarAction
+import io.element.android.features.messages.impl.roomdata.RoomTopbarToolRenderModel
+import io.element.android.features.messages.impl.terminal.DeviceAgentTerminalPanelState
 import io.element.android.features.messages.impl.timeline.FOCUS_ON_PINNED_EVENT_DEBOUNCE_DURATION_IN_MILLIS
 import io.element.android.features.messages.impl.timeline.TimelineEvent
 import io.element.android.features.messages.impl.timeline.TimelineView
@@ -298,13 +311,13 @@ fun MessagesView(
                                 modifier = Modifier
                                     .align(Alignment.TopStart)
                                     .fillMaxWidth()
-                                    .height(124.dp),
+                                    .height(152.dp),
                             )
                             BottomChromeBackdrop(
                                 modifier = Modifier
                                     .align(Alignment.BottomStart)
                                     .fillMaxWidth()
-                                    .height(132.dp),
+                                    .height(112.dp),
                             )
                             MessagesViewTopBar(
                                 modifier = Modifier.align(Alignment.TopStart),
@@ -351,6 +364,14 @@ fun MessagesView(
                             onSelectSuggestion = {
                                 state.composerState.eventSink(MessageComposerEvent.InsertSuggestion(it))
                             }
+                        )
+
+                        DeviceAgentTerminalPanel(
+                            panel = state.deviceAgentTerminalPanel,
+                            onDismiss = { state.eventSink(MessagesEvent.DismissDeviceAgentTerminal) },
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(horizontal = 20.dp, vertical = 96.dp),
                         )
                     }
                 },
@@ -460,6 +481,58 @@ fun MessagesView(
         },
         state = state.linkState,
     )
+    SelectableMessageTextDialog(
+        text = state.selectableMessageText,
+        onDismiss = { state.eventSink(MessagesEvent.DismissSelectableMessageText) },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SelectableMessageTextDialog(
+    text: String?,
+    onDismiss: () -> Unit,
+) {
+    if (text == null) return
+    BasicAlertDialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = ElementTheme.colors.bgCanvasDefault,
+            tonalElevation = 6.dp,
+        ) {
+            Column(
+                modifier = Modifier
+                    .widthIn(min = 280.dp, max = 560.dp)
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text(
+                    text = stringResource(CommonStrings.action_select_text),
+                    style = ElementTheme.typography.fontHeadingMdBold,
+                    color = ElementTheme.colors.textPrimary,
+                )
+                SelectionContainer {
+                    Text(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 320.dp)
+                            .verticalScroll(rememberScrollState()),
+                        text = text,
+                        style = ElementTheme.typography.fontBodyLgRegular,
+                        color = ElementTheme.colors.textPrimary,
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(text = stringResource(CommonStrings.action_ok))
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -484,7 +557,6 @@ internal fun RowScope.MessagesMenuActions(
         onDeviceAgentChatClick = onDeviceAgentChatClick,
         onDeviceAgentTerminalClick = onDeviceAgentTerminalClick,
     )
-    Spacer(Modifier.width(8.dp))
 }
 
 @Composable
@@ -500,6 +572,7 @@ private fun RoomCallButton(
                 enabled = roomCallState.canStartCall,
             ) {
                 Icon(
+                    modifier = Modifier.size(22.dp),
                     imageVector = CompoundIcons.VideoCallSolid(),
                     contentDescription = stringResource(CommonStrings.a11y_start_call),
                 )
@@ -512,6 +585,7 @@ private fun RoomCallButton(
                     enabled = roomCallState.canJoinCall,
                 ) {
                     Icon(
+                        modifier = Modifier.size(22.dp),
                         imageVector = if (roomCallState.isAudioCall) {
                             CompoundIcons.VoiceCallSolid()
                         } else {
@@ -533,14 +607,17 @@ private fun RoomToolMenu(
     onDeviceAgentChatClick: (RoomDeviceAgent) -> Unit,
     onDeviceAgentTerminalClick: (RoomDeviceAgent) -> Unit,
 ) {
-    val hasTools = roomMenu.hasTopbarAction(RoomTopbarAction.Schedules) ||
-        roomMenu.hasTopbarAction(RoomTopbarAction.Webhooks) ||
-        roomMenu.hasTopbarAction(RoomTopbarAction.DeviceAgentChat) ||
-        roomMenu.hasTopbarAction(RoomTopbarAction.DeviceAgentTerminal)
-    if (!hasTools) return
+    val tools = roomMenu.topbarTools
+    if (tools.isEmpty()) return
 
     var expanded by remember { mutableStateOf(false) }
     val deviceAgent = roomMenu.deviceAgent
+    val topbarAgentChatActive = tools.any { it.action == RoomTopbarAction.DeviceAgentChat && it.isActive }
+    val moreRotation by animateFloatAsState(
+        targetValue = if (expanded) 90f else 0f,
+        animationSpec = spring(dampingRatio = 0.85f),
+        label = "room-tool-menu-rotation",
+    )
 
     Column(
         horizontalAlignment = Alignment.End,
@@ -548,9 +625,9 @@ private fun RoomToolMenu(
     ) {
         ToolbarCircleButton(
             onClick = { expanded = !expanded },
-            isActive = roomMenu.isDeviceAgentChatActive,
+            isActive = topbarAgentChatActive,
             badgeContent = {
-                if (deviceAgent != null) {
+                if (topbarAgentChatActive) {
                     Box(
                         modifier = Modifier
                             .size(8.dp)
@@ -561,7 +638,9 @@ private fun RoomToolMenu(
             },
         ) {
             Icon(
-                modifier = Modifier.rotate(if (expanded) 90f else 0f),
+                modifier = Modifier
+                    .size(22.dp)
+                    .rotate(moreRotation),
                 imageVector = CompoundIcons.OverflowHorizontal(),
                 contentDescription = "Room tools",
             )
@@ -582,77 +661,167 @@ private fun RoomToolMenu(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (deviceAgent != null && roomMenu.hasTopbarAction(RoomTopbarAction.DeviceAgentTerminal)) {
-                    ToolbarCircleButton(
+                tools.forEach { tool ->
+                    RoomTopbarToolButton(
+                        tool = tool,
+                        deviceAgent = deviceAgent,
                         onClick = {
                             expanded = false
-                            onDeviceAgentTerminalClick(deviceAgent)
-                        },
-                    ) {
-                        Icon(
-                            imageVector = CompoundIcons.Code(),
-                            contentDescription = "Remote terminal",
-                        )
-                    }
-                }
-                if (deviceAgent != null && roomMenu.hasTopbarAction(RoomTopbarAction.DeviceAgentChat)) {
-                    ToolbarCircleButton(
-                        onClick = {
-                            expanded = false
-                            onDeviceAgentChatClick(deviceAgent)
-                        },
-                        isActive = roomMenu.isDeviceAgentChatActive,
-                    ) {
-                        Icon(
-                            tint = if (roomMenu.isDeviceAgentChatActive) ElementTheme.colors.iconSuccessPrimary else ElementTheme.colors.iconPrimary,
-                            imageVector = CompoundIcons.Computer(),
-                            contentDescription = "Chat with device agent",
-                        )
-                    }
-                }
-                if (roomMenu.hasTopbarAction(RoomTopbarAction.Schedules)) {
-                    ToolbarCircleButton(
-                        onClick = {
-                            expanded = false
-                            onRoomSchedulesClick()
-                        },
-                        badgeContent = {
-                            val count = roomMenu.scheduleBadge?.activeScheduleCount ?: 0
-                            if (count > 0) {
-                                Badge {
-                                    Text(count.toString())
-                                }
+                            when (tool.action) {
+                                RoomTopbarAction.DeviceAgentTerminal -> deviceAgent?.let(onDeviceAgentTerminalClick)
+                                RoomTopbarAction.DeviceAgentChat -> deviceAgent?.let(onDeviceAgentChatClick)
+                                RoomTopbarAction.Webhooks -> onRoomWebhooksClick()
+                                RoomTopbarAction.Schedules -> onRoomSchedulesClick()
+                                RoomTopbarAction.Threads -> Unit
                             }
                         },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoomTopbarToolButton(
+    tool: RoomTopbarToolRenderModel,
+    deviceAgent: RoomDeviceAgent?,
+    onClick: () -> Unit,
+) {
+    val enabled = tool.isEnabled && when (tool.action) {
+        RoomTopbarAction.DeviceAgentTerminal,
+        RoomTopbarAction.DeviceAgentChat -> deviceAgent != null
+        RoomTopbarAction.Schedules,
+        RoomTopbarAction.Webhooks -> true
+        RoomTopbarAction.Threads -> false
+    }
+    ToolbarCircleButton(
+        onClick = onClick,
+        enabled = enabled,
+        isActive = tool.isActive,
+        badgeContent = {
+            tool.badgeCount?.let { count ->
+                Badge(
+                    containerColor = when (tool.action) {
+                        RoomTopbarAction.Schedules -> Color(0xFF8B5CF6)
+                        else -> ElementTheme.colors.iconAccentPrimary
+                    },
+                    contentColor = Color.White,
+                ) {
+                    Text(count.toString())
+                }
+            }
+        },
+    ) {
+        Icon(
+            modifier = Modifier.size(22.dp),
+            tint = if (tool.isActive) ElementTheme.colors.iconSuccessPrimary else ElementTheme.colors.iconPrimary,
+            imageVector = when (tool.action) {
+                RoomTopbarAction.DeviceAgentTerminal -> CompoundIcons.Code()
+                RoomTopbarAction.DeviceAgentChat -> CompoundIcons.Computer()
+                RoomTopbarAction.Webhooks -> CompoundIcons.Link()
+                RoomTopbarAction.Schedules -> CompoundIcons.Time()
+                RoomTopbarAction.Threads -> CompoundIcons.Threads()
+            },
+            contentDescription = when (tool.action) {
+                RoomTopbarAction.DeviceAgentTerminal -> "Remote terminal"
+                RoomTopbarAction.DeviceAgentChat -> "Chat with device agent"
+                RoomTopbarAction.Webhooks -> "Webhook triggers"
+                RoomTopbarAction.Schedules -> "Room AI Config"
+                RoomTopbarAction.Threads -> stringResource(CommonStrings.common_threads)
+            },
+        )
+    }
+}
+
+@Composable
+private fun DeviceAgentTerminalPanel(
+    panel: DeviceAgentTerminalPanelState?,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    AnimatedVisibility(
+        visible = panel != null,
+        modifier = modifier,
+        enter = fadeIn(animationSpec = spring()) + slideInVertically(
+            animationSpec = spring(dampingRatio = 0.86f),
+            initialOffsetY = { it / 2 },
+        ),
+        exit = fadeOut(animationSpec = spring()) + slideOutVertically(
+            animationSpec = spring(dampingRatio = 0.86f),
+            targetOffsetY = { it / 2 },
+        ),
+    ) {
+        if (panel != null) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 420.dp)
+                    .shadow(12.dp, MaterialTheme.shapes.medium)
+                    .background(ElementTheme.colors.bgSubtleSecondary.copy(alpha = 0.94f), MaterialTheme.shapes.medium)
+                    .border(1.dp, ElementTheme.colors.borderInteractivePrimary, MaterialTheme.shapes.medium),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Icon(
+                        imageVector = CompoundIcons.Code(),
+                        contentDescription = null,
+                        tint = ElementTheme.colors.iconAccentPrimary,
+                    )
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(1.dp),
+                    ) {
+                        Text(
+                            text = panel.title,
+                            style = ElementTheme.typography.fontBodyMdMedium,
+                            color = ElementTheme.colors.textPrimary,
+                            maxLines = 1,
+                        )
+                        Text(
+                            text = panel.subtitle,
+                            style = ElementTheme.typography.fontBodyXsRegular,
+                            color = ElementTheme.colors.textSecondary,
+                            maxLines = 1,
+                        )
+                    }
+                    Text(
+                        text = panel.statusTitle,
+                        style = ElementTheme.typography.fontBodyXsRegular,
+                        color = ElementTheme.colors.textSecondary,
+                        maxLines = 1,
+                    )
+                    ToolbarCircleButton(
+                        onClick = onDismiss,
                     ) {
                         Icon(
-                            imageVector = CompoundIcons.Time(),
-                            contentDescription = "Room AI Config",
+                            imageVector = CompoundIcons.Close(),
+                            contentDescription = "Close remote terminal",
                         )
                     }
                 }
-                if (roomMenu.hasTopbarAction(RoomTopbarAction.Webhooks)) {
-                    ToolbarCircleButton(
-                        onClick = {
-                            expanded = false
-                            onRoomWebhooksClick()
-                        },
-                        badgeContent = {
-                            val active = roomMenu.webhookSummary?.activeCount ?: 0
-                            val total = roomMenu.webhookSummary?.totalCount ?: 0
-                            val label = if (active > 0) active else total
-                            if (label > 0) {
-                                Badge {
-                                    Text(label.toString())
-                                }
-                            }
-                        },
-                    ) {
-                        Icon(
-                            imageVector = CompoundIcons.Link(),
-                            contentDescription = "Room triggers",
-                        )
-                    }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .background(Color.Black)
+                        .verticalScroll(rememberScrollState())
+                        .padding(10.dp),
+                ) {
+                    Text(
+                        text = panel.outputText,
+                        style = ElementTheme.typography.fontBodyXsRegular.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Normal,
+                        ),
+                        color = Color(0xFF45E06F),
+                    )
                 }
             }
         }
@@ -879,12 +1048,12 @@ private fun RoomComposerChrome(
                 Brush.verticalGradient(
                     colors = listOf(
                         Color.Transparent,
-                        canvas.copy(alpha = 0.86f),
-                        canvas,
+                        canvas.copy(alpha = 0.12f),
+                        canvas.copy(alpha = 0.28f),
                     )
                 )
             )
-            .padding(top = 14.dp, start = 12.dp, end = 12.dp, bottom = 8.dp),
+            .padding(top = 8.dp, start = 12.dp, end = 12.dp, bottom = 10.dp),
         content = content,
     )
 }
@@ -899,9 +1068,10 @@ private fun TopChromeBackdrop(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        canvas.copy(alpha = 0.96f),
-                        canvas.copy(alpha = 0.78f),
-                        canvas.copy(alpha = 0.28f),
+                        canvas,
+                        canvas.copy(alpha = 0.98f),
+                        canvas.copy(alpha = 0.82f),
+                        canvas.copy(alpha = 0.36f),
                         Color.Transparent,
                     )
                 )
@@ -920,9 +1090,9 @@ private fun BottomChromeBackdrop(
                 Brush.verticalGradient(
                     colors = listOf(
                         Color.Transparent,
-                        canvas.copy(alpha = 0.24f),
-                        canvas.copy(alpha = 0.72f),
-                        canvas.copy(alpha = 0.96f),
+                        canvas.copy(alpha = 0.16f),
+                        canvas.copy(alpha = 0.48f),
+                        canvas.copy(alpha = 0.78f),
                     )
                 )
             )

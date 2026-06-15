@@ -32,6 +32,7 @@ class SkillDetailNode(
 
     interface Callback : Plugin {
         fun onDone()
+        fun onOpenFile(file: SkillFileRenderModel)
         fun onDeleted(id: String)
     }
 
@@ -41,6 +42,7 @@ class SkillDetailNode(
         id = inputs.id,
         isOwner = inputs.isOwner,
         navigator = object : SkillDetailNavigator {
+            override fun onOpenFile(file: SkillFileRenderModel) = callback.onOpenFile(file)
             override fun onDeleted(id: String) = callback.onDeleted(id)
         }
     )

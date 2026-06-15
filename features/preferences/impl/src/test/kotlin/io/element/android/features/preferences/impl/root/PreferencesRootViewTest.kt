@@ -379,6 +379,86 @@ class PreferencesRootViewTest {
     }
 
     @Test
+    fun `click on Agent management invokes the expected callback`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        ensureCalledOnce { callback ->
+            setView(
+                aPreferencesRootState(
+                    eventSink = eventsRecorder,
+                ),
+                onOpenAgentManagement = callback,
+            )
+            onNodeWithText(activity!!.getString(R.string.screen_preferences_agent_management_title))
+                .performScrollTo()
+                .performClick()
+        }
+    }
+
+    @Test
+    fun `click on Voice library invokes the expected callback`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        ensureCalledOnce { callback ->
+            setView(
+                aPreferencesRootState(
+                    eventSink = eventsRecorder,
+                ),
+                onOpenVoiceLibrary = callback,
+            )
+            onNodeWithText(activity!!.getString(R.string.screen_preferences_voice_library_title))
+                .performScrollTo()
+                .performClick()
+        }
+    }
+
+    @Test
+    fun `click on Skills management invokes the expected callback`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        ensureCalledOnce { callback ->
+            setView(
+                aPreferencesRootState(
+                    eventSink = eventsRecorder,
+                ),
+                onOpenSkills = callback,
+            )
+            onNodeWithText(activity!!.getString(R.string.screen_preferences_skills_management_title))
+                .performScrollTo()
+                .performClick()
+        }
+    }
+
+    @Test
+    fun `click on Vault management invokes the expected callback`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        ensureCalledOnce { callback ->
+            setView(
+                aPreferencesRootState(
+                    eventSink = eventsRecorder,
+                ),
+                onOpenVaultManagement = callback,
+            )
+            onNodeWithText(activity!!.getString(R.string.screen_preferences_vault_management_title))
+                .performScrollTo()
+                .performClick()
+        }
+    }
+
+    @Test
+    fun `click on Connectors invokes the expected callback`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        ensureCalledOnce { callback ->
+            setView(
+                aPreferencesRootState(
+                    eventSink = eventsRecorder,
+                ),
+                onOpenConnectors = callback,
+            )
+            onNodeWithText(activity!!.getString(R.string.screen_preferences_connectors_title))
+                .performScrollTo()
+                .performClick()
+        }
+    }
+
+    @Test
     fun `click on Webhook triggers invokes the expected callback`() = runAndroidComposeUiTest {
         val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
         ensureCalledOnce { callback ->

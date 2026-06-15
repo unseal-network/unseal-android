@@ -51,6 +51,7 @@ enum class MessageActionMenuSection {
 
 object MessageActionMenuReducer {
     fun reduce(target: ActionListState.Target.Success): MessageActionMenuRenderModel {
+        val comparator = TimelineItemActionComparator()
         return MessageActionMenuRenderModel(
             event = target.event,
             sentTimeFull = target.sentTimeFull,
@@ -58,6 +59,7 @@ object MessageActionMenuReducer {
             recentEmojis = target.recentEmojis,
             verifiedUserSendFailure = target.verifiedUserSendFailure,
             sections = target.actions
+                .sortedWith(comparator)
                 .map { action ->
                     action.section() to MessageActionMenuEntry(
                         action = action,
@@ -88,6 +90,7 @@ object MessageActionMenuReducer {
             TimelineItemAction.EditPoll,
             TimelineItemAction.AddCaption,
             TimelineItemAction.EditCaption -> MessageActionMenuSection.Edit
+            TimelineItemAction.SelectText,
             TimelineItemAction.CopyText,
             TimelineItemAction.CopyCaption,
             TimelineItemAction.CopyLink -> MessageActionMenuSection.Copy

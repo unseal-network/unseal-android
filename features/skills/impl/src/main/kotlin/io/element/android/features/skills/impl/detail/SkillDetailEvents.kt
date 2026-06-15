@@ -18,6 +18,7 @@ sealed interface SkillDetailEvents {
     data class EditDescriptionChanged(val description: String) : SkillDetailEvents
     data class EditVisibilityChanged(val visibility: ChatbotSkillVisibility) : SkillDetailEvents
     data object SaveEditing : SkillDetailEvents
+    data class OpenFile(val file: SkillFileRenderModel) : SkillDetailEvents
     data object Delete : SkillDetailEvents
     data object ClearError : SkillDetailEvents
 }

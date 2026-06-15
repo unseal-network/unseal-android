@@ -26,14 +26,20 @@ import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookTri
 import io.element.android.libraries.chatbot.test.FakeChatbotApiService
 import io.element.android.libraries.chatbot.test.FakeChatbotApiServiceFactory
 import io.element.android.libraries.chatbot.test.aChatbotWebhookTrigger
+import io.element.android.libraries.matrix.api.core.UserId
+import io.element.android.libraries.matrix.api.room.RoomMembersState
 import io.element.android.libraries.matrix.test.A_ROOM_ID
 import io.element.android.libraries.matrix.test.A_ROOM_ID_2
 import io.element.android.libraries.matrix.test.FakeMatrixClient
+import io.element.android.libraries.matrix.test.room.FakeBaseRoom
+import io.element.android.libraries.matrix.test.room.FakeJoinedRoom
+import io.element.android.libraries.matrix.test.room.aRoomMember
 import io.element.android.libraries.matrix.test.room.aRoomSummary
 import io.element.android.libraries.matrix.test.roomlist.FakeDynamicRoomList
 import io.element.android.libraries.matrix.test.roomlist.FakeRoomListService
 import io.element.android.tests.testutils.WarmUpRule
 import io.element.android.tests.testutils.test
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
@@ -81,6 +87,39 @@ class WebhookTriggerEditPresenterTest {
             assertThat(loaded.selectedRoomId).isEqualTo(A_ROOM_ID.value)
             assertThat(loaded.selectedSource?.source).isEqualTo("gmail")
             assertThat(loaded.selectedEventTypes).containsExactly("gmail.new_email")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - prefilled room agents are filtered through Matrix joined room members like iOS`() = runTest {
+        val service = serviceWithCatalog().apply {
+            getRoomAgentsResult = {
+                Result.success(
+                    ChatbotGetRoomAgentsResponse(
+                        listOf(
+                            ChatbotRoomAgent(agentId = "@agent-a:server.org", displayName = "Server A"),
+                            ChatbotRoomAgent(agentId = "@agent-b:server.org", displayName = "Server B"),
+                        )
+                    )
+                )
+            }
+        }
+        val presenter = createPresenter(
+            service = service,
+            mode = WebhookTriggerEditMode.Create(prefilledRoomId = A_ROOM_ID),
+            matrixClient = matrixClientWithJoinedMembers(
+                aRoomMember(UserId("@agent-b:server.org"), displayName = "Matrix B", avatarUrl = "mxc://matrix-b"),
+                aRoomMember(UserId("@human:server.org"), displayName = "Human"),
+            ),
+        )
+
+        presenter.test {
+            awaitItem().eventSink(WebhookTriggerEditEvents.OnAppear)
+            val loaded = awaitStateWhere { !it.isLoading && it.availableAgents.size == 1 }
+            assertThat(loaded.availableAgents.single().agentId).isEqualTo("@agent-b:server.org")
+            assertThat(loaded.availableAgents.single().displayName).isEqualTo("Matrix B")
+            assertThat(loaded.availableAgents.single().avatarUrl).isEqualTo("mxc://matrix-b")
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -346,6 +385,21 @@ private fun matrixClientWithRooms(vararg names: String): FakeMatrixClient {
         }),
     )
     return FakeMatrixClient(roomListService = FakeRoomListService(allRooms = roomList))
+}
+
+private fun matrixClientWithJoinedMembers(
+    vararg members: io.element.android.libraries.matrix.api.room.RoomMember,
+): FakeMatrixClient {
+    val joinedRoom = FakeJoinedRoom(
+        baseRoom = FakeBaseRoom(
+            updateMembersResult = {},
+        ).apply {
+            givenRoomMembersState(RoomMembersState.Ready(persistentListOf(*members)))
+        }
+    )
+    return matrixClientWithRooms("Room").apply {
+        givenGetRoomResult(A_ROOM_ID, joinedRoom)
+    }
 }
 
 private class FakeWebhookTriggerEditNavigator : WebhookTriggerEditNavigator {

@@ -37,6 +37,7 @@ dependencies {
     implementation(projects.libraries.uiStrings)
     implementation(libs.coroutines.core)
     implementation(libs.kotlinx.collections.immutable)
+    implementation(libs.stripe.android)
     api(projects.features.credits.api)
 
     testCommonDependencies(libs, true)

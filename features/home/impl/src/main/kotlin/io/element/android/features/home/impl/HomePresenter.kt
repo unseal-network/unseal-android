@@ -14,6 +14,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -29,6 +30,7 @@ import io.element.android.libraries.designsystem.utils.snackbar.collectSnackbarM
 import io.element.android.libraries.indicator.api.IndicatorService
 import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.sync.SyncService
+import io.element.android.libraries.preferences.api.store.AppPreferencesStore
 import io.element.android.libraries.sessionstorage.api.SessionStore
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.combine
@@ -45,6 +47,7 @@ class HomePresenter(
     private val logoutPresenter: Presenter<DirectLogoutState>,
     private val rageshakeFeatureAvailability: RageshakeFeatureAvailability,
     private val sessionStore: SessionStore,
+    private val appPreferencesStore: AppPreferencesStore,
 ) : Presenter<HomeState> {
     private val currentUserWithNeighborsBuilder = CurrentUserWithNeighborsBuilder()
 
@@ -64,14 +67,22 @@ class HomePresenter(
         val roomListState = roomListPresenter.present()
         val homeSpacesState = homeSpacesPresenter.present()
         var currentHomeNavigationBarItemOrdinal by rememberSaveable { mutableIntStateOf(HomeNavigationBarItem.Chats.ordinal) }
+        var presentedSheet by remember { mutableStateOf<HomePresentedSheet?>(null) }
+        var hasHandledAgentWelcomeThisSession by remember { mutableStateOf(false) }
         val currentHomeNavigationBarItem by remember {
             derivedStateOf {
                 HomeNavigationBarItem.from(currentHomeNavigationBarItemOrdinal)
             }
         }
+        val hasSeenAgentWelcome by appPreferencesStore.getHasSeenAgentWelcomeFlow().collectAsState(initial = true)
         LaunchedEffect(Unit) {
             // Force a refresh of the profile
             client.getUserProfile()
+        }
+        LaunchedEffect(hasSeenAgentWelcome) {
+            if (!hasSeenAgentWelcome && presentedSheet == null && !hasHandledAgentWelcomeThisSession) {
+                presentedSheet = HomePresentedSheet.AgentWelcome
+            }
         }
         // Avatar indicator
         val showAvatarIndicator by indicatorService.showRoomListTopBarIndicator()
@@ -85,6 +96,16 @@ class HomePresenter(
                 is HomeEvent.SwitchToAccount -> coroutineState.launch {
                     sessionStore.setLatestSession(event.sessionId.value)
                 }
+                HomeEvent.AgentWelcomeAppeared -> {
+                    hasHandledAgentWelcomeThisSession = true
+                    coroutineState.launch {
+                        appPreferencesStore.setHasSeenAgentWelcome(true)
+                    }
+                }
+                HomeEvent.DismissAgentWelcome -> {
+                    hasHandledAgentWelcomeThisSession = true
+                    presentedSheet = null
+                }
             }
         }
 
@@ -96,6 +117,7 @@ class HomePresenter(
             currentHomeNavigationBarItem = currentHomeNavigationBarItem,
             roomListState = roomListState,
             homeSpacesState = homeSpacesState,
+            presentedSheet = presentedSheet,
             snackbarMessage = snackbarMessage,
             canReportBug = canReportBug,
             directLogoutState = directLogoutState,

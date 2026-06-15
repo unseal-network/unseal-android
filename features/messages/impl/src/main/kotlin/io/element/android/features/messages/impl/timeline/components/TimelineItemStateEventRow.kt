@@ -24,12 +24,14 @@ import androidx.compose.ui.zIndex
 import io.element.android.features.messages.impl.timeline.TimelineEvent
 import io.element.android.features.messages.impl.timeline.aTimelineItemEvent
 import io.element.android.features.messages.impl.timeline.components.event.TimelineItemEventContentView
+import io.element.android.features.messages.impl.timeline.components.event.TimelineItemStateView
 import io.element.android.features.messages.impl.timeline.components.receipt.ReadReceiptViewState
 import io.element.android.features.messages.impl.timeline.components.receipt.TimelineItemReadReceiptView
 import io.element.android.features.messages.impl.timeline.components.receipt.aReadReceiptData
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.timeline.model.TimelineItemGroupPosition
 import io.element.android.features.messages.impl.timeline.model.TimelineItemReadReceipts
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemStateContent
 import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemStateEventContent
 import io.element.android.features.messages.impl.timeline.util.defaultTimelineContentPadding
 import io.element.android.libraries.designsystem.preview.ElementPreview
@@ -67,17 +69,28 @@ fun TimelineItemStateEventRow(
                     .zIndex(-1f)
                     .widthIn(max = 320.dp)
             ) {
-                TimelineItemEventContentView(
-                    content = event.content,
-                    onLinkClick = {},
-                    onLinkLongClick = {},
-                    hideMediaContent = false,
-                    onShowContentClick = {},
-                    eventSink = eventSink,
-                    onContentClick = null,
-                    onLongClick = null,
-                    modifier = Modifier.defaultTimelineContentPadding()
-                )
+                val contentModifier = Modifier.defaultTimelineContentPadding()
+                when (val content = event.content) {
+                    is TimelineItemStateContent -> {
+                        TimelineItemStateView(
+                            content = content,
+                            modifier = contentModifier,
+                        )
+                    }
+                    else -> {
+                        TimelineItemEventContentView(
+                            content = content,
+                            onLinkClick = {},
+                            onLinkLongClick = {},
+                            hideMediaContent = false,
+                            onShowContentClick = {},
+                            eventSink = eventSink,
+                            onContentClick = null,
+                            onLongClick = null,
+                            modifier = contentModifier,
+                        )
+                    }
+                }
             }
         }
         TimelineItemReadReceiptView(

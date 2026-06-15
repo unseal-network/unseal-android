@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
@@ -85,6 +86,9 @@ private const val FILE_EDITOR_TITLE = "编辑文件"
 private const val FILE_EDITOR_PATH_PLACEHOLDER = "文件路径（如 skill.md）"
 private const val ACTION_DONE = "完成"
 private const val ACTION_CANCEL = "取消"
+private const val FILE_EXISTS_TITLE = "文件已存在"
+private const val FILE_EXISTS_KEEP_BOTH = "保留两个"
+private const val FILE_EXISTS_OVERWRITE = "覆盖"
 private const val A11Y_DELETE = "删除"
 private const val A11Y_BACK = "返回"
 
@@ -131,6 +135,24 @@ fun SkillCreateView(
             file = file,
             onSave = { path, content -> state.eventSink(SkillCreateEvents.FileEdited(file.id, path, content)) },
             onDismiss = { state.eventSink(SkillCreateEvents.CancelEditingFile) },
+        )
+    }
+
+    state.pendingFileConflict?.let { conflict ->
+        AlertDialog(
+            onDismissRequest = { state.eventSink(SkillCreateEvents.DismissFileConflict) },
+            title = { Text(FILE_EXISTS_TITLE) },
+            text = { Text("“${conflict.incomingFile.path}” 已存在。") },
+            confirmButton = {
+                TextButton(onClick = { state.eventSink(SkillCreateEvents.KeepBothConflictingFile) }) {
+                    Text(FILE_EXISTS_KEEP_BOTH)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { state.eventSink(SkillCreateEvents.OverwriteConflictingFile) }) {
+                    Text(FILE_EXISTS_OVERWRITE)
+                }
+            },
         )
     }
 }
@@ -450,6 +472,7 @@ private fun aSkillCreateState(
         persistentListOf(ManualSkillFile("1", "SKILL.md", "")),
     isSubmitting: Boolean = false,
     editingFile: ManualSkillFile? = null,
+    pendingFileConflict: SkillCreateFileConflict? = null,
     error: String? = null,
 ) = SkillCreateState(
     phase = if (isSubmitting) SkillCreatePhase.Submitting else phase,
@@ -459,6 +482,7 @@ private fun aSkillCreateState(
     visibility = visibility,
     manualFiles = manualFiles,
     editingFile = editingFile,
+    pendingFileConflict = pendingFileConflict,
     error = error,
     eventSink = {},
 )

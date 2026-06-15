@@ -125,8 +125,11 @@ class PreferencesRootPresenter(
         }
 
         val showDeveloperSettings by showDeveloperSettingsProvider.showDeveloperSettings.collectAsState()
-        val creditBalanceLoadState by produceState<CreditBalanceLoadState>(initialValue = CreditBalanceLoadState.Loading) {
-            value = chatbotApiServiceFactory
+        var creditBalanceLoadState by remember { mutableStateOf<CreditBalanceLoadState>(CreditBalanceLoadState.Loading) }
+
+        fun loadCreditBalance() = coroutineScope.launch {
+            creditBalanceLoadState = CreditBalanceLoadState.Loading
+            creditBalanceLoadState = chatbotApiServiceFactory
                 .createForUnsealApi(matrixClient)
                 .getBalance()
                 .map { balance ->
@@ -138,6 +141,10 @@ class PreferencesRootPresenter(
                 .getOrElse { CreditBalanceLoadState.Unavailable }
         }
 
+        LaunchedEffect(Unit) {
+            loadCreditBalance()
+        }
+
         fun handleEvent(event: PreferencesRootEvent) {
             when (event) {
                 is PreferencesRootEvent.OnVersionInfoClick -> {
@@ -145,6 +152,9 @@ class PreferencesRootPresenter(
                 }
                 is PreferencesRootEvent.SwitchToSession -> coroutineScope.launch {
                     sessionStore.setLatestSession(event.sessionId.value)
+                }
+                PreferencesRootEvent.RefreshCreditBalance -> {
+                    loadCreditBalance()
                 }
             }
         }
@@ -166,6 +176,7 @@ class PreferencesRootPresenter(
             nbOfBlockedUsers = nbOfBlockedUsers,
             showLabsItem = showLabsItem,
             creditBalanceLoadState = creditBalanceLoadState,
+            aiAssistant = SettingsAiAssistantRenderModel.from(creditBalanceLoadState),
             directLogoutState = directLogoutState,
             snackbarMessage = snackbarMessage,
             eventSink = ::handleEvent,

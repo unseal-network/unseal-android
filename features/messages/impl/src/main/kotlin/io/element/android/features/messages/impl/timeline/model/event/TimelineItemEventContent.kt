@@ -43,7 +43,8 @@ sealed interface TimelineItemEventContentWithAttachment :
  * Only text based content can be copied.
  */
 fun TimelineItemEventContent.canBeCopied(): Boolean =
-    this is TimelineItemTextBasedContent
+    this is TimelineItemTextBasedContent ||
+        (this is TimelineItemAiContent && body.isNotBlank())
 
 /**
  * Returns true if the event content can be forwarded.

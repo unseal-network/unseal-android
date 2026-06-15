@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
@@ -33,6 +34,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -50,10 +52,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
+import android.text.format.DateUtils
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
+import java.time.Instant
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 
@@ -93,6 +97,10 @@ fun VaultManagementView(
             onRefresh = { state.eventSink(VaultManagementEvents.Refresh) },
         ) {
             when {
+                state.isFullScreenError -> VaultErrorContent(
+                    message = state.error.orEmpty(),
+                    onRetry = { state.eventSink(VaultManagementEvents.Retry) },
+                )
                 state.isEmpty -> VaultEmptyContent()
                 else -> {
                     LazyColumn(
@@ -100,6 +108,26 @@ fun VaultManagementView(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
+                        item {
+                            OutlinedTextField(
+                                modifier = Modifier.fillMaxWidth(),
+                                value = state.searchQuery,
+                                onValueChange = { state.eventSink(VaultManagementEvents.SearchQueryChanged(it)) },
+                                placeholder = { Text("搜索 Vault 条目") },
+                                leadingIcon = { Icon(imageVector = CompoundIcons.Search(), contentDescription = null) },
+                                trailingIcon = if (state.searchQuery.isNotEmpty()) {
+                                    {
+                                        IconButton(onClick = { state.eventSink(VaultManagementEvents.SearchQueryChanged("")) }) {
+                                            Icon(imageVector = CompoundIcons.Close(), contentDescription = "清除")
+                                        }
+                                    }
+                                } else {
+                                    null
+                                },
+                                singleLine = true,
+                                shape = RoundedCornerShape(28.dp),
+                            )
+                        }
                         state.error?.let { error ->
                             item {
                                 Text(
@@ -109,7 +137,20 @@ fun VaultManagementView(
                                 )
                             }
                         }
-                        items(items = state.items, key = { it.id.ifBlank { it.key } }) { item ->
+                        if (state.isSearchEmpty) {
+                            item {
+                                Text(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 48.dp),
+                                    text = "没有匹配的 Vault 条目",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                )
+                            }
+                        }
+                        items(items = state.filteredItems, key = { it.id.ifBlank { it.key } }) { item ->
                             VaultItemCard(
                                 item = item,
                                 onClick = { state.eventSink(VaultManagementEvents.EditEntry(item)) },
@@ -139,6 +180,19 @@ fun VaultManagementView(
             dismissButton = {
                 TextButton(onClick = { state.eventSink(VaultManagementEvents.DismissDelete) }) {
                     Text("取消")
+                }
+            },
+        )
+    }
+
+    state.successMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { state.eventSink(VaultManagementEvents.ClearSuccess) },
+            title = { Text("Success") },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = { state.eventSink(VaultManagementEvents.ClearSuccess) }) {
+                    Text("OK")
                 }
             },
         )
@@ -201,7 +255,7 @@ private fun VaultItemCard(
                 }
                 (item.updatedAt ?: item.createdAt)?.takeIf { it.isNotBlank() }?.let { date ->
                     Text(
-                        text = date,
+                        text = formatVaultRelativeDate(date),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -238,6 +292,47 @@ private fun VaultItemCard(
 }
 
 @Composable
+private fun VaultErrorContent(
+    message: String,
+    onRetry: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            imageVector = CompoundIcons.Warning(),
+            contentDescription = null,
+            modifier = Modifier.size(52.dp),
+            tint = MaterialTheme.colorScheme.error,
+        )
+        Text(
+            modifier = Modifier.padding(top = 16.dp),
+            text = "Error",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            modifier = Modifier.padding(top = 8.dp),
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        Button(
+            modifier = Modifier.padding(top = 20.dp),
+            onClick = onRetry,
+        ) {
+            Text("Retry")
+        }
+    }
+}
+
+@Composable
 private fun VaultEmptyContent() {
     Column(
         modifier = Modifier
@@ -269,6 +364,16 @@ private fun VaultEmptyContent() {
     }
 }
 
+private fun formatVaultRelativeDate(raw: String): String {
+    val epochMillis = runCatching { Instant.parse(raw).toEpochMilli() }.getOrNull() ?: return raw
+    return DateUtils.getRelativeTimeSpanString(
+        epochMillis,
+        System.currentTimeMillis(),
+        DateUtils.MINUTE_IN_MILLIS,
+        DateUtils.FORMAT_ABBREV_RELATIVE,
+    ).toString()
+}
+
 internal class VaultManagementStateProvider : PreviewParameterProvider<VaultManagementState> {
     override val values: Sequence<VaultManagementState>
         get() = sequenceOf(
@@ -283,8 +388,11 @@ private fun aVaultManagementState(
     isLoading: Boolean = false,
 ) = VaultManagementState(
     items = items,
+    filteredItems = items,
+    searchQuery = "",
     isLoading = isLoading,
     error = null,
+    successMessage = null,
     pendingDelete = null,
     isDeleting = false,
     eventSink = {},

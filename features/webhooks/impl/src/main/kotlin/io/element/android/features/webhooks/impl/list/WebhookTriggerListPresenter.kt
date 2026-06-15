@@ -17,6 +17,7 @@ import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.features.webhooks.impl.shared.isEnabled
+import io.element.android.features.webhooks.impl.shared.loadWebhookRoomAgents
 import io.element.android.features.webhooks.impl.shared.matchesWebhookQuery
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
@@ -83,9 +84,13 @@ class WebhookTriggerListPresenter(
                     availableRooms = matrixClient.roomListService.allRooms.summaries.firstOrNull().orEmpty()
                 }
                 is WebhookTriggerListMode.Room -> {
-                    api().getRoomAgents(currentMode.roomId.value)
+                    loadWebhookRoomAgents(
+                        matrixClient = matrixClient,
+                        homeserverApi = api(),
+                        roomId = currentMode.roomId.value,
+                    )
                         .onSuccess {
-                            availableAgents = it.agents
+                            availableAgents = it
                         }
                 }
             }

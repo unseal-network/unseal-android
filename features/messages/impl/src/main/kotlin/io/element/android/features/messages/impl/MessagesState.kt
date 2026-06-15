@@ -16,6 +16,7 @@ import io.element.android.features.messages.impl.messagecomposer.MessageComposer
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerState
 import io.element.android.features.messages.impl.roomdata.RoomMenuRenderModel
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
+import io.element.android.features.messages.impl.terminal.DeviceAgentTerminalPanelState
 import io.element.android.features.messages.impl.timeline.TimelineState
 import io.element.android.features.messages.impl.timeline.components.customreaction.CustomReactionState
 import io.element.android.features.messages.impl.timeline.components.reactionsummary.ReactionSummaryState
@@ -56,6 +57,8 @@ data class MessagesState(
     val roomScheduleBadgeState: RoomScheduleBadgeState,
     val roomUnsealContext: AsyncData<RoomUnsealContext>,
     val roomMenu: RoomMenuRenderModel,
+    val deviceAgentTerminalPanel: DeviceAgentTerminalPanelState?,
+    val selectableMessageText: String?,
     val appName: String,
     val pinnedMessagesBannerState: PinnedMessagesBannerState,
     val dmUserVerificationState: IdentityState?,

@@ -27,7 +27,6 @@ import io.element.android.libraries.matrix.api.verification.SessionVerificationS
 import io.element.android.libraries.matrix.api.verification.SessionVerifiedStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -41,6 +40,7 @@ class RoomKeyRecoveryTimelineRunner(
     private val sessionId: SessionId,
     private val forwardingPolicy: MemberAwareRoomKeyForwardingPolicy,
     private val roomAgentResolver: RoomAgentResolver,
+    private val decryptionRetrier: RoomKeyDecryptionRetrier,
     @SessionCoroutineScope private val sessionCoroutineScope: CoroutineScope,
 ) {
     private val parser = RoomKeyRecoveryRequestParser()
@@ -52,10 +52,7 @@ class RoomKeyRecoveryTimelineRunner(
         pendingStore = pendingStore,
         progressStore = progressStore,
         requestRoomKeyRecovery = encryptionService::requestRoomKeyRecovery,
-        waitForDecryption = { _, duration ->
-            delay(duration)
-            false
-        },
+        waitForDecryption = decryptionRetrier::waitForRecovery,
         onStatusChanged = ::recordStatus,
     )
     private val _statuses = MutableStateFlow<Map<String, RoomKeyRecoveryStatus>>(emptyMap())

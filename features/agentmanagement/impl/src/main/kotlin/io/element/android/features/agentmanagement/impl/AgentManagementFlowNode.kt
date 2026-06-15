@@ -21,6 +21,7 @@ import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
 import io.element.android.features.agentmanagement.api.AgentManagementEntryPoint
 import io.element.android.features.agentmanagement.impl.detail.AgentDetailNode
+import io.element.android.features.agentmanagement.impl.profile.AgentProfileNode
 import io.element.android.features.agentmanagement.impl.edit.AgentEditNode
 import io.element.android.features.agentmanagement.impl.list.AgentListNode
 import io.element.android.libraries.architecture.BackstackView
@@ -54,6 +55,9 @@ class AgentManagementFlowNode(
         data class Detail(val botName: String) : NavTarget
 
         @Parcelize
+        data class Profile(val botName: String) : NavTarget
+
+        @Parcelize
         data object Create : NavTarget
 
         @Parcelize
@@ -80,6 +84,18 @@ class AgentManagementFlowNode(
                 plugins = listOf(
                     AgentDetailNode.Inputs(navTarget.botName),
                     object : AgentDetailNode.Callback {
+                        override fun onDone() = closeOrPop()
+                        override fun onEdit(botName: String) = backstack.push(NavTarget.Edit(botName))
+                        override fun onOpenRoom(roomIdOrAlias: RoomIdOrAlias) = callback.onOpenRoom(roomIdOrAlias)
+                        override fun onOpenSkills(botName: String) = callback.onOpenSkills(botName)
+                    }
+                ),
+            )
+            is NavTarget.Profile -> createNode<AgentProfileNode>(
+                buildContext = buildContext,
+                plugins = listOf(
+                    AgentProfileNode.Inputs(navTarget.botName),
+                    object : AgentProfileNode.Callback {
                         override fun onDone() = closeOrPop()
                         override fun onEdit(botName: String) = backstack.push(NavTarget.Edit(botName))
                         override fun onOpenRoom(roomIdOrAlias: RoomIdOrAlias) = callback.onOpenRoom(roomIdOrAlias)
@@ -141,6 +157,7 @@ class AgentManagementFlowNode(
 private fun AgentManagementEntryPoint.InitialTarget.toNavTarget(): AgentManagementFlowNode.NavTarget = when (this) {
     AgentManagementEntryPoint.InitialTarget.List -> AgentManagementFlowNode.NavTarget.List
     is AgentManagementEntryPoint.InitialTarget.Detail -> AgentManagementFlowNode.NavTarget.Detail(botName)
+    is AgentManagementEntryPoint.InitialTarget.Profile -> AgentManagementFlowNode.NavTarget.Profile(botName)
     AgentManagementEntryPoint.InitialTarget.Create -> AgentManagementFlowNode.NavTarget.Create
     is AgentManagementEntryPoint.InitialTarget.Edit -> AgentManagementFlowNode.NavTarget.Edit(botName)
 }

@@ -9,7 +9,13 @@ package io.element.android.features.messages.impl.timeline.factories.event
 
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.messages.impl.fixtures.aTimelineItemContentFactory
+import io.element.android.features.messages.impl.timeline.factories.event.AiStreamHandleStore
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
+import io.element.android.libraries.agentstream.api.AGENT_STREAM_SCHEMA_VERSION
+import io.element.android.libraries.agentstream.api.StreamPart
+import io.element.android.libraries.agentstream.api.StreamSnapshot
+import io.element.android.libraries.agentstream.api.StreamStatus
+import io.element.android.libraries.agentstream.api.StreamStorageProvider
 import io.element.android.libraries.matrix.api.timeline.item.event.UnknownContent
 import io.element.android.libraries.matrix.test.A_USER_ID
 import io.element.android.libraries.matrix.test.timeline.aTimelineItemDebugInfo
@@ -45,4 +51,68 @@ class TimelineItemContentFactoryTest {
         assertThat(aiContent.sender).isEqualTo(A_USER_ID.value)
         assertThat(aiContent.isStreaming).isTrue()
     }
+
+    @Test
+    fun `create hydrates completed stream snapshot before timeline item reaches Compose`() = runTest {
+        val originalJson = """
+            {
+              "type": "m.room.message",
+              "content": {
+                "msgtype": "m.stream.start",
+                "stream_id": "stream-1",
+                "body": "stream-1"
+              }
+            }
+        """.trimIndent()
+        val storage = HydratingStreamStorageProvider(
+            StreamSnapshot(
+                schemaVersion = AGENT_STREAM_SCHEMA_VERSION,
+                streamId = "stream-1",
+                status = StreamStatus.Completed,
+                parts = listOf(StreamPart.Text(id = "text-1", text = "Loaded from cache", textState = "done")),
+                rawEvents = emptyList(),
+                updatedAtMs = 1L,
+                completedAtMs = 2L,
+                error = null,
+            )
+        )
+        val factory = aTimelineItemContentFactory(
+            aiStreamHandleStore = AiStreamHandleStore(NoopAgentStreamClient, storage),
+        )
+        val event = anEventTimelineItem(
+            content = UnknownContent,
+            sender = A_USER_ID,
+            debugInfoProvider = { aTimelineItemDebugInfo(originalJson = originalJson) },
+        )
+
+        val content = factory.create(event)
+
+        assertThat(storage.loadCount).isEqualTo(1)
+        assertThat(content).isInstanceOf(TimelineItemAiContent::class.java)
+        val aiContent = content as TimelineItemAiContent
+        assertThat(aiContent.isTerminal).isTrue()
+        assertThat(aiContent.body).isEqualTo("Loaded from cache")
+        assertThat(aiContent.visibleParts.map { it.id }).containsExactly("text-1")
+    }
+}
+
+private object NoopAgentStreamClient : io.element.android.libraries.agentstream.api.AgentStreamClient {
+    override fun getStream(request: io.element.android.libraries.agentstream.api.StreamRequest): io.element.android.libraries.agentstream.api.StreamHandle {
+        error("Stream network should not be opened for completed cache hydration")
+    }
+}
+
+private class HydratingStreamStorageProvider(
+    private val snapshot: StreamSnapshot?,
+) : StreamStorageProvider {
+    var loadCount = 0
+        private set
+
+    override suspend fun load(streamId: String): StreamSnapshot? {
+        loadCount++
+        return snapshot?.takeIf { it.streamId == streamId }
+    }
+
+    override suspend fun save(snapshot: StreamSnapshot) = Unit
+    override suspend fun delete(streamId: String) = Unit
 }

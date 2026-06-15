@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import com.bumble.appyx.core.modality.BuildContext
 import com.bumble.appyx.core.node.Node
+import com.bumble.appyx.core.node.node
 import com.bumble.appyx.core.plugin.Plugin
 import com.bumble.appyx.navmodel.backstack.BackStack
 import com.bumble.appyx.navmodel.backstack.operation.newRoot
@@ -22,6 +23,7 @@ import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
 import io.element.android.features.analytics.api.AnalyticsEntryPoint
+import io.element.android.features.ftue.impl.identityconfirmed.IdentityConfirmedView
 import io.element.android.features.ftue.impl.notifications.NotificationsOptInNode
 import io.element.android.features.ftue.impl.sessionverification.FtueSessionVerificationFlowNode
 import io.element.android.features.ftue.impl.state.DefaultFtueService
@@ -62,6 +64,9 @@ class FtueFlowNode(
         data object SessionVerification : NavTarget
 
         @Parcelize
+        data object IdentityConfirmed : NavTarget
+
+        @Parcelize
         data object NotificationsOptIn : NavTarget
 
         @Parcelize
@@ -93,6 +98,16 @@ class FtueFlowNode(
                     }
                 }
                 createNode<FtueSessionVerificationFlowNode>(buildContext, listOf(callback))
+            }
+            NavTarget.IdentityConfirmed -> {
+                node(buildContext) { nodeModifier ->
+                    IdentityConfirmedView(
+                        modifier = nodeModifier,
+                        onContinue = {
+                            defaultFtueService.onUserAcknowledgedIdentityConfirmed()
+                        },
+                    )
+                }
             }
             NavTarget.NotificationsOptIn -> {
                 val callback = object : NotificationsOptInNode.Callback {
@@ -128,6 +143,9 @@ class FtueFlowNode(
             }
             FtueStep.SessionVerification -> {
                 backstack.newRoot(NavTarget.SessionVerification)
+            }
+            FtueStep.IdentityConfirmed -> {
+                backstack.newRoot(NavTarget.IdentityConfirmed)
             }
             FtueStep.NotificationsOptIn -> {
                 backstack.newRoot(NavTarget.NotificationsOptIn)

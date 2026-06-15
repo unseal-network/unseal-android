@@ -19,6 +19,9 @@ sealed interface SkillCreateEvents {
     data class StartEditingFile(val id: String) : SkillCreateEvents
     data object CancelEditingFile : SkillCreateEvents
     data class FileEdited(val id: String, val path: String, val content: String) : SkillCreateEvents
+    data object DismissFileConflict : SkillCreateEvents
+    data object KeepBothConflictingFile : SkillCreateEvents
+    data object OverwriteConflictingFile : SkillCreateEvents
 
     /** A text file was picked via the system file picker (raw bytes + display name). */
     data class FilePicked(val fileName: String, val bytes: ByteArray) : SkillCreateEvents {

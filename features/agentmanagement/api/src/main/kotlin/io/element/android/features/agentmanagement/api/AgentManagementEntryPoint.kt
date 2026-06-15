@@ -25,6 +25,10 @@ interface AgentManagementEntryPoint : FeatureEntryPoint {
         @Parcelize
         data class Detail(val botName: String) : InitialTarget
 
+        /** Read-only agent profile, opened from a room when a member is an agent. */
+        @Parcelize
+        data class Profile(val botName: String) : InitialTarget
+
         @Parcelize
         data object Create : InitialTarget
 

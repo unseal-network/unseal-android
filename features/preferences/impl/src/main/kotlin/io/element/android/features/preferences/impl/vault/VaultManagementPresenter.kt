@@ -38,8 +38,10 @@ class VaultManagementPresenter(
     override fun present(): VaultManagementState {
         val coroutineScope = rememberCoroutineScope()
         var items by remember { mutableStateOf(emptyList<ChatbotVaultItem>()) }
+        var searchQuery by remember { mutableStateOf("") }
         var isLoading by remember { mutableStateOf(false) }
         var error by remember { mutableStateOf<String?>(null) }
+        var successMessage by remember { mutableStateOf<String?>(null) }
         var pendingDelete by remember { mutableStateOf<ChatbotVaultItem?>(null) }
         var isDeleting by remember { mutableStateOf(false) }
 
@@ -72,6 +74,7 @@ class VaultManagementPresenter(
                     .onSuccess {
                         pendingDelete = null
                         error = null
+                        successMessage = "Vault entry deleted successfully"
                         load()
                     }
                     .onFailure { error = "删除失败：${failureMessage(it, "未知错误")}" }
@@ -83,22 +86,37 @@ class VaultManagementPresenter(
             when (event) {
                 VaultManagementEvents.OnAppear -> load()
                 VaultManagementEvents.Refresh -> load()
+                VaultManagementEvents.Retry -> load()
                 VaultManagementEvents.AddEntry -> navigator.onAddEntry()
                 is VaultManagementEvents.EditEntry -> navigator.onEditEntry(event.item)
+                is VaultManagementEvents.SearchQueryChanged -> searchQuery = event.query
                 is VaultManagementEvents.ConfirmDelete -> pendingDelete = event.item
                 VaultManagementEvents.DismissDelete -> pendingDelete = null
                 VaultManagementEvents.DeleteConfirmed -> deleteConfirmed()
                 VaultManagementEvents.ClearError -> error = null
+                VaultManagementEvents.ClearSuccess -> successMessage = null
             }
         }
 
         return VaultManagementState(
             items = items.toImmutableList(),
+            filteredItems = items.filteredBy(searchQuery).toImmutableList(),
+            searchQuery = searchQuery,
             isLoading = isLoading,
             error = error,
+            successMessage = successMessage,
             pendingDelete = pendingDelete,
             isDeleting = isDeleting,
             eventSink = ::handleEvent,
         )
+    }
+}
+
+private fun List<ChatbotVaultItem>.filteredBy(query: String): List<ChatbotVaultItem> {
+    val normalized = query.trim().lowercase()
+    if (normalized.isEmpty()) return this
+    return filter { item ->
+        item.key.lowercase().contains(normalized) ||
+            item.description.orEmpty().lowercase().contains(normalized)
     }
 }

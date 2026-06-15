@@ -60,6 +60,8 @@ interface Timeline : AutoCloseable {
     suspend fun markAsRead(receiptType: ReceiptType): Result<Unit>
     suspend fun paginate(direction: PaginationDirection): Result<Boolean>
 
+    fun retryDecryption(sessionIds: List<String>)
+
     val backwardPaginationStatus: StateFlow<PaginationStatus>
     val forwardPaginationStatus: StateFlow<PaginationStatus>
 

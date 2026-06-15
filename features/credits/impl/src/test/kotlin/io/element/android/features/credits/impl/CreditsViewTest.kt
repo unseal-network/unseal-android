@@ -43,10 +43,10 @@ class CreditsViewTest {
     fun `view - shows title and top level tabs`() = runAndroidComposeUiTest {
         setView()
 
-        onNodeWithText("Credits & Billing").assertIsDisplayed()
-        onNodeWithText("Balance").assertIsDisplayed()
-        onNodeWithText("Daily Usage").assertIsDisplayed()
-        onNodeWithText("Usage").assertIsDisplayed()
+        onNodeWithText("积分与账单").assertIsDisplayed()
+        onNodeWithText("余额").assertIsDisplayed()
+        onNodeWithText("每日用量").assertIsDisplayed()
+        onNodeWithText("用量").assertIsDisplayed()
     }
 
     @Test
@@ -78,8 +78,8 @@ class CreditsViewTest {
             )
         )
 
-        onNodeWithText("No transactions yet").performScrollTo().assertIsDisplayed()
-        onNodeWithText("Load more").performScrollTo().assertIsDisplayed()
+        onNodeWithText("暂无交易记录").performScrollTo().assertIsDisplayed()
+        onNodeWithText("载入更多").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -96,10 +96,10 @@ class CreditsViewTest {
             )
         )
 
-        onNodeWithText("7 days").assertIsDisplayed()
-        onNodeWithText("30 days").assertIsDisplayed()
-        onNodeWithText("Total spent").assertIsDisplayed()
-        onAllNodesWithText("$0.25").assertCountEquals(2)
+        onNodeWithText("7天").assertIsDisplayed()
+        onNodeWithText("30天").assertIsDisplayed()
+        onNodeWithText("累计消费").assertIsDisplayed()
+        onAllNodesWithText("$0.25").assertCountEquals(1)
     }
 
     @Config(qualifiers = "h1800dp")
@@ -114,9 +114,9 @@ class CreditsViewTest {
 
         onNodeWithText("Agent").performScrollTo().assertIsDisplayed()
         onNodeWithText("Model").performScrollTo().assertIsDisplayed()
-        onNodeWithText("7 days").performScrollTo().assertIsDisplayed()
-        onNodeWithText("30 days").performScrollTo().assertIsDisplayed()
-        onNodeWithText("All").performScrollTo().assertIsDisplayed()
+        onNodeWithText("7天").performScrollTo().assertIsDisplayed()
+        onNodeWithText("30天").performScrollTo().assertIsDisplayed()
+        onNodeWithText("全部").performScrollTo().assertIsDisplayed()
         onNodeWithText("Alice Bot").performScrollTo().assertIsDisplayed()
     }
 
@@ -127,7 +127,7 @@ class CreditsViewTest {
         waitForIdle()
         eventsRecorder.clear()
 
-        onNodeWithText("Recharge").performClick()
+        onNodeWithText("充值").performClick()
 
         eventsRecorder.assertSingle(CreditsEvents.RequestTopUp)
     }

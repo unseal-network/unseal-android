@@ -144,7 +144,7 @@ fun PreferencesRootView(
                         title = stringResource(id = R.string.screen_preferences_ai_assistant_section_title),
                     )
                     CreditBalanceCard(
-                        loadState = state.creditBalanceLoadState,
+                        loadState = state.aiAssistant.creditBalanceLoadState,
                         onOpenCreditsTopUp = onOpenCreditsTopUp,
                         onOpenCreditsBilling = onOpenCreditsBilling,
                         onOpenCreditsUsage = onOpenCreditsUsage,
@@ -152,12 +152,17 @@ fun PreferencesRootView(
                 }
                 SettingsCard {
                     AiAssistantRows(
-                        onOpenAgentManagement = onOpenAgentManagement,
-                        onOpenVoiceLibrary = onOpenVoiceLibrary,
-                        onOpenSkills = onOpenSkills,
-                        onOpenVaultManagement = onOpenVaultManagement,
-                        onOpenConnectors = onOpenConnectors,
-                        onOpenWebhookTriggers = onOpenWebhookTriggers,
+                        entries = state.aiAssistant.entries,
+                        onEntryClick = { entry ->
+                            when (entry) {
+                                SettingsAiAssistantEntry.AgentManagement -> onOpenAgentManagement()
+                                SettingsAiAssistantEntry.VoiceLibrary -> onOpenVoiceLibrary()
+                                SettingsAiAssistantEntry.SkillsManagement -> onOpenSkills()
+                                SettingsAiAssistantEntry.VaultManagement -> onOpenVaultManagement()
+                                SettingsAiAssistantEntry.Connectors -> onOpenConnectors()
+                                SettingsAiAssistantEntry.WebhookTriggers -> onOpenWebhookTriggers()
+                            }
+                        },
                     )
                 }
             }
@@ -450,48 +455,41 @@ private fun ColumnScope.CreditBalanceCard(
 
 @Composable
 private fun ColumnScope.AiAssistantRows(
-    onOpenAgentManagement: () -> Unit,
-    onOpenVoiceLibrary: () -> Unit,
-    onOpenSkills: () -> Unit,
-    onOpenVaultManagement: () -> Unit,
-    onOpenConnectors: () -> Unit,
-    onOpenWebhookTriggers: () -> Unit,
+    entries: List<SettingsAiAssistantEntry>,
+    onEntryClick: (SettingsAiAssistantEntry) -> Unit,
 ) {
-    NavRow(
-        title = stringResource(id = R.string.screen_preferences_agent_management_title),
-        icon = CompoundIcons.Admin(),
-        onClick = onOpenAgentManagement,
-    )
-    RowSeparator()
-    NavRow(
-        title = stringResource(id = R.string.screen_preferences_voice_library_title),
-        icon = CompoundIcons.Extensions(),
-        onClick = onOpenVoiceLibrary,
-    )
-    RowSeparator()
-    NavRow(
-        title = stringResource(id = R.string.screen_preferences_skills_management_title),
-        icon = CompoundIcons.Extensions(),
-        onClick = onOpenSkills,
-    )
-    RowSeparator()
-    NavRow(
-        title = stringResource(id = R.string.screen_preferences_vault_management_title),
-        icon = CompoundIcons.Lock(),
-        onClick = onOpenVaultManagement,
-    )
-    RowSeparator()
-    NavRow(
-        title = stringResource(id = R.string.screen_preferences_connectors_title),
-        icon = CompoundIcons.Link(),
-        onClick = onOpenConnectors,
-    )
-    RowSeparator()
-    NavRow(
-        title = stringResource(id = R.string.screen_preferences_webhook_triggers_title),
-        icon = CompoundIcons.Notifications(),
-        onClick = onOpenWebhookTriggers,
-    )
+    entries.forEachIndexed { index, entry ->
+        if (index > 0) {
+            RowSeparator()
+        }
+        NavRow(
+            title = stringResource(id = entry.titleRes),
+            icon = entry.icon(),
+            onClick = { onEntryClick(entry) },
+        )
+    }
+}
+
+private val SettingsAiAssistantEntry.titleRes: Int
+    get() = when (this) {
+        SettingsAiAssistantEntry.AgentManagement -> R.string.screen_preferences_agent_management_title
+        SettingsAiAssistantEntry.VoiceLibrary -> R.string.screen_preferences_voice_library_title
+        SettingsAiAssistantEntry.SkillsManagement -> R.string.screen_preferences_skills_management_title
+        SettingsAiAssistantEntry.VaultManagement -> R.string.screen_preferences_vault_management_title
+        SettingsAiAssistantEntry.Connectors -> R.string.screen_preferences_connectors_title
+        SettingsAiAssistantEntry.WebhookTriggers -> R.string.screen_preferences_webhook_triggers_title
+    }
+
+@Composable
+private fun SettingsAiAssistantEntry.icon(): ImageVector {
+    return when (this) {
+        SettingsAiAssistantEntry.AgentManagement -> CompoundIcons.Admin()
+        SettingsAiAssistantEntry.VoiceLibrary -> CompoundIcons.Extensions()
+        SettingsAiAssistantEntry.SkillsManagement -> CompoundIcons.Extensions()
+        SettingsAiAssistantEntry.VaultManagement -> CompoundIcons.Lock()
+        SettingsAiAssistantEntry.Connectors -> CompoundIcons.Link()
+        SettingsAiAssistantEntry.WebhookTriggers -> CompoundIcons.Notifications()
+    }
 }
 
 @Composable

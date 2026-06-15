@@ -17,6 +17,7 @@ import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.features.webhooks.api.WebhookTriggerEditMode
+import io.element.android.features.webhooks.impl.shared.loadWebhookRoomAgents
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotConnectedAccount
@@ -103,9 +104,13 @@ class WebhookTriggerEditPresenter(
         }
 
         fun loadAgentsForRoom(roomId: String, selectedAfterLoad: String? = null) = coroutineScope.launch {
-            homeserverApi().getRoomAgents(roomId)
+            loadWebhookRoomAgents(
+                matrixClient = matrixClient,
+                homeserverApi = homeserverApi(),
+                roomId = roomId,
+            )
                 .onSuccess {
-                    availableAgents = it.agents
+                    availableAgents = it
                     if (selectedAfterLoad != null) {
                         selectedAgentId = selectedAfterLoad
                     }

@@ -23,10 +23,13 @@ import io.element.android.features.licenses.test.FakeOpenSourceLicensesEntryPoin
 import io.element.android.features.lockscreen.test.FakeLockScreenEntryPoint
 import io.element.android.features.logout.test.FakeLogoutEntryPoint
 import io.element.android.features.preferences.api.PreferencesEntryPoint
+import io.element.android.features.skills.api.SkillsEntryPoint
 import io.element.android.features.webhooks.api.WebhookTriggersEntryPoint
 import io.element.android.features.webhooks.test.FakeWebhookTriggersEntryPoint
+import io.element.android.libraries.matrix.api.core.RoomIdOrAlias
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomId
+import io.element.android.libraries.matrix.api.core.toRoomIdOrAlias
 import io.element.android.libraries.troubleshoot.test.FakeNotificationTroubleShootEntryPoint
 import io.element.android.libraries.troubleshoot.test.FakePushHistoryEntryPoint
 import io.element.android.tests.testutils.lambda.lambdaError
@@ -69,6 +72,8 @@ class DefaultPreferencesEntryPointTest {
             override fun navigateToSecureBackup() = lambdaError()
             override fun navigateToRoomNotificationSettings(roomId: RoomId) = lambdaError()
             override fun navigateToEvent(roomId: RoomId, eventId: EventId) = lambdaError()
+            override fun navigateToRoom(roomIdOrAlias: RoomIdOrAlias) = lambdaError()
+            override fun navigateToCreatedDirectRoom(roomId: RoomId) = lambdaError()
         }
         val params = PreferencesEntryPoint.Params(
             initialElement = PreferencesEntryPoint.InitialTarget.NotificationSettings,
@@ -110,6 +115,8 @@ class DefaultPreferencesEntryPointTest {
                     override fun navigateToSecureBackup() = lambdaError()
                     override fun navigateToRoomNotificationSettings(roomId: RoomId) = lambdaError()
                     override fun navigateToEvent(roomId: RoomId, eventId: EventId) = lambdaError()
+                    override fun navigateToRoom(roomIdOrAlias: RoomIdOrAlias) = lambdaError()
+                    override fun navigateToCreatedDirectRoom(roomId: RoomId) = lambdaError()
                 }
             ),
             lockScreenEntryPoint = FakeLockScreenEntryPoint(),
@@ -151,6 +158,59 @@ class DefaultPreferencesEntryPointTest {
     }
 
     @Test
+    fun `test skills nav target creates skills home node by default`() {
+        val skillsEntryPoint = FakeSkillsEntryPoint()
+        val node = aPreferencesFlowNode(
+            skillsEntryPoint = skillsEntryPoint,
+        )
+
+        node.resolve(PreferencesFlowNode.NavTarget.Skills(), BuildContext.root(null))
+
+        assertThat(skillsEntryPoint.lastParams)
+            .isEqualTo(SkillsEntryPoint.Params(SkillsEntryPoint.InitialTarget.Home))
+    }
+
+    @Test
+    fun `test agent management open skills with bot name opens agent skills target`() {
+        val skillsEntryPoint = FakeSkillsEntryPoint()
+        var capturedAgentCallback: io.element.android.features.agentmanagement.api.AgentManagementEntryPoint.Callback? = null
+        val node = aPreferencesFlowNode(
+            skillsEntryPoint = skillsEntryPoint,
+            agentManagementEntryPoint = FakeAgentManagementEntryPoint { parentNode, _, _, callback ->
+                capturedAgentCallback = callback
+                parentNode
+            },
+        )
+
+        node.resolve(PreferencesFlowNode.NavTarget.AgentManagement, BuildContext.root(null))
+        capturedAgentCallback?.onOpenSkills("mailAgent")
+        node.resolve(PreferencesFlowNode.NavTarget.Skills(SkillsEntryPoint.InitialTarget.AgentSkills("mailAgent")), BuildContext.root(null))
+
+        assertThat(skillsEntryPoint.lastParams)
+            .isEqualTo(SkillsEntryPoint.Params(SkillsEntryPoint.InitialTarget.AgentSkills("mailAgent")))
+    }
+
+    @Test
+    fun `test agent management open skills without bot name opens management hub target`() {
+        val skillsEntryPoint = FakeSkillsEntryPoint()
+        var capturedAgentCallback: io.element.android.features.agentmanagement.api.AgentManagementEntryPoint.Callback? = null
+        val node = aPreferencesFlowNode(
+            skillsEntryPoint = skillsEntryPoint,
+            agentManagementEntryPoint = FakeAgentManagementEntryPoint { parentNode, _, _, callback ->
+                capturedAgentCallback = callback
+                parentNode
+            },
+        )
+
+        node.resolve(PreferencesFlowNode.NavTarget.AgentManagement, BuildContext.root(null))
+        capturedAgentCallback?.onOpenSkills(null)
+        node.resolve(PreferencesFlowNode.NavTarget.Skills(SkillsEntryPoint.InitialTarget.ManagementHub), BuildContext.root(null))
+
+        assertThat(skillsEntryPoint.lastParams)
+            .isEqualTo(SkillsEntryPoint.Params(SkillsEntryPoint.InitialTarget.ManagementHub))
+    }
+
+    @Test
     fun `test credits billing nav target creates balance credits node`() {
         var capturedParams: CreditsEntryPoint.Params? = null
         val node = aPreferencesFlowNode(
@@ -189,9 +249,105 @@ class DefaultPreferencesEntryPointTest {
             CreditsEntryPoint.Params(initialTab = CreditsEntryPoint.CreditsTab.DailyUsage)
         )
     }
+
+    @Test
+    fun `test credits top up nav target creates credits node with top up opened`() {
+        var capturedParams: CreditsEntryPoint.Params? = null
+        val node = aPreferencesFlowNode(
+            creditsEntryPoint = FakeCreditsEntryPoint { parentNode, _, params, _ ->
+                capturedParams = params
+                parentNode
+            },
+        )
+
+        node.resolve(
+            PreferencesFlowNode.NavTarget.Credits(
+                initialTab = CreditsEntryPoint.CreditsTab.Balance,
+                openTopUpInitially = true,
+            ),
+            BuildContext.root(null),
+        )
+
+        assertThat(capturedParams).isEqualTo(
+            CreditsEntryPoint.Params(
+                initialTab = CreditsEntryPoint.CreditsTab.Balance,
+                openTopUpInitially = true,
+            )
+        )
+    }
+
+    @Test
+    fun `test agent management open room bubbles to preferences callback`() {
+        val expectedRoomId = RoomId("!agent-room:example.org")
+        var capturedAgentCallback: io.element.android.features.agentmanagement.api.AgentManagementEntryPoint.Callback? = null
+        var openedRoom: RoomIdOrAlias? = null
+        val node = aPreferencesFlowNode(
+            callback = object : PreferencesEntryPoint.Callback {
+                override fun navigateToAddAccount() = lambdaError()
+                override fun navigateToLinkNewDevice() = lambdaError()
+                override fun navigateToBugReport() = lambdaError()
+                override fun navigateToSecureBackup() = lambdaError()
+                override fun navigateToRoomNotificationSettings(roomId: RoomId) = lambdaError()
+                override fun navigateToEvent(roomId: RoomId, eventId: EventId) = lambdaError()
+                override fun navigateToRoom(roomIdOrAlias: RoomIdOrAlias) {
+                    openedRoom = roomIdOrAlias
+                }
+                override fun navigateToCreatedDirectRoom(roomId: RoomId) = lambdaError()
+            },
+            agentManagementEntryPoint = FakeAgentManagementEntryPoint { parentNode, _, _, callback ->
+                capturedAgentCallback = callback
+                parentNode
+            },
+        )
+
+        node.resolve(PreferencesFlowNode.NavTarget.AgentManagement, BuildContext.root(null))
+        capturedAgentCallback?.onOpenRoom(expectedRoomId.toRoomIdOrAlias())
+
+        assertThat(openedRoom).isEqualTo(expectedRoomId.toRoomIdOrAlias())
+    }
+
+    @Test
+    fun `test agent management created direct room bubbles to preferences callback`() {
+        val expectedRoomId = RoomId("!created-agent-room:example.org")
+        var capturedAgentCallback: io.element.android.features.agentmanagement.api.AgentManagementEntryPoint.Callback? = null
+        var openedRoom: RoomId? = null
+        val node = aPreferencesFlowNode(
+            callback = object : PreferencesEntryPoint.Callback {
+                override fun navigateToAddAccount() = lambdaError()
+                override fun navigateToLinkNewDevice() = lambdaError()
+                override fun navigateToBugReport() = lambdaError()
+                override fun navigateToSecureBackup() = lambdaError()
+                override fun navigateToRoomNotificationSettings(roomId: RoomId) = lambdaError()
+                override fun navigateToEvent(roomId: RoomId, eventId: EventId) = lambdaError()
+                override fun navigateToRoom(roomIdOrAlias: RoomIdOrAlias) = lambdaError()
+                override fun navigateToCreatedDirectRoom(roomId: RoomId) {
+                    openedRoom = roomId
+                }
+            },
+            agentManagementEntryPoint = FakeAgentManagementEntryPoint { parentNode, _, _, callback ->
+                capturedAgentCallback = callback
+                parentNode
+            },
+        )
+
+        node.resolve(PreferencesFlowNode.NavTarget.AgentManagement, BuildContext.root(null))
+        capturedAgentCallback?.onOpenCreatedDirectRoom(expectedRoomId)
+
+        assertThat(openedRoom).isEqualTo(expectedRoomId)
+    }
 }
 
 private fun aPreferencesFlowNode(
+    callback: PreferencesEntryPoint.Callback = object : PreferencesEntryPoint.Callback {
+        override fun navigateToAddAccount() = lambdaError()
+        override fun navigateToLinkNewDevice() = lambdaError()
+        override fun navigateToBugReport() = lambdaError()
+        override fun navigateToSecureBackup() = lambdaError()
+        override fun navigateToRoomNotificationSettings(roomId: RoomId) = lambdaError()
+        override fun navigateToEvent(roomId: RoomId, eventId: EventId) = lambdaError()
+        override fun navigateToRoom(roomIdOrAlias: RoomIdOrAlias) = lambdaError()
+        override fun navigateToCreatedDirectRoom(roomId: RoomId) = lambdaError()
+    },
     creditsEntryPoint: CreditsEntryPoint = FakeCreditsEntryPoint(),
     webhookTriggersEntryPoint: WebhookTriggersEntryPoint = FakeWebhookTriggersEntryPoint(),
     connectorsEntryPoint: io.element.android.features.connectors.api.ConnectorsEntryPoint = FakeConnectorsEntryPoint(),
@@ -204,14 +360,7 @@ private fun aPreferencesFlowNode(
         PreferencesEntryPoint.Params(
             initialElement = PreferencesEntryPoint.InitialTarget.Root,
         ),
-        object : PreferencesEntryPoint.Callback {
-            override fun navigateToAddAccount() = lambdaError()
-            override fun navigateToLinkNewDevice() = lambdaError()
-            override fun navigateToBugReport() = lambdaError()
-            override fun navigateToSecureBackup() = lambdaError()
-            override fun navigateToRoomNotificationSettings(roomId: RoomId) = lambdaError()
-            override fun navigateToEvent(roomId: RoomId, eventId: EventId) = lambdaError()
-        }
+        callback
     ),
     lockScreenEntryPoint = FakeLockScreenEntryPoint(),
     notificationTroubleShootEntryPoint = FakeNotificationTroubleShootEntryPoint(),

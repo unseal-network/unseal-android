@@ -230,6 +230,10 @@ class RustTimeline(
         }
     }
 
+    override fun retryDecryption(sessionIds: List<String>) {
+        inner.retryDecryption(sessionIds)
+    }
+
     override val timelineItems: Flow<List<MatrixTimelineItem>> = combine(
         _timelineItems,
         backwardPaginationStatus,

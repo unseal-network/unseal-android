@@ -47,6 +47,8 @@ class AgentListPresenterTest {
 
             val loadedState = awaitStateWhere { it.agents.size == 3 && !it.isLoading }
             assertThat(loadedState.agents.map { it.botName }).containsExactly("alpha", "beta", "zeta").inOrder()
+            assertThat(loadedState.renderModel.items.map { it.botName }).containsExactly("alpha", "beta", "zeta").inOrder()
+            assertThat(loadedState.renderModel.items.map { it.title }).containsExactly("Alpha", "Beta", "zeta").inOrder()
 
             loadedState.eventSink(AgentListEvents.OnAppear)
             assertThat(calls).isEqualTo(1)

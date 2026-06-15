@@ -12,6 +12,9 @@ import io.element.android.features.messages.impl.messagesummary.FakeMessageSumma
 import io.element.android.features.messages.impl.timeline.factories.TimelineItemsFactory
 import io.element.android.features.messages.impl.timeline.factories.TimelineItemsFactoryConfig
 import io.element.android.features.messages.impl.timeline.factories.event.AiMessageContentParser
+import io.element.android.features.messages.impl.timeline.factories.event.AiSdkStreamReducer
+import io.element.android.features.messages.impl.timeline.factories.event.AiStreamContentCache
+import io.element.android.features.messages.impl.timeline.factories.event.AiStreamHandleStore
 import io.element.android.features.messages.impl.timeline.factories.event.GameMessageContentParser
 import io.element.android.features.messages.impl.timeline.factories.event.TimelineItemContentFactory
 import io.element.android.features.messages.impl.timeline.factories.event.TimelineItemContentFailedToParseMessageFactory
@@ -38,6 +41,15 @@ import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.timeline.item.event.EventContent
 import io.element.android.libraries.matrix.test.FakeMatrixClient
 import io.element.android.libraries.matrix.test.permalink.FakePermalinkParser
+import io.element.android.libraries.agentstream.api.AGENT_STREAM_SCHEMA_VERSION
+import io.element.android.libraries.agentstream.api.AgentStreamClient
+import io.element.android.libraries.agentstream.api.StreamHandle
+import io.element.android.libraries.agentstream.api.StreamListener
+import io.element.android.libraries.agentstream.api.StreamRequest
+import io.element.android.libraries.agentstream.api.StreamSnapshot
+import io.element.android.libraries.agentstream.api.StreamStatus
+import io.element.android.libraries.agentstream.api.StreamStorageProvider
+import io.element.android.libraries.agentstream.api.StreamSubscription
 import io.element.android.libraries.mediaviewer.test.util.FileExtensionExtractorWithoutValidation
 import io.element.android.services.toolbox.test.strings.FakeStringProvider
 import io.element.android.tests.testutils.testCoroutineDispatchers
@@ -54,6 +66,9 @@ internal fun TestScope.aTimelineItemsFactoryCreator(): TimelineItemsFactory.Crea
 internal fun aTimelineItemContentFactory(
     timelineEventFormatter: TimelineEventFormatter = aTimelineEventFormatter(),
     matrixClient: FakeMatrixClient = FakeMatrixClient(),
+    aiStreamHandleStore: AiStreamHandleStore = AiStreamHandleStore(NoopAgentStreamClient, NoopStreamStorageProvider),
+    aiStreamContentCache: AiStreamContentCache = AiStreamContentCache(),
+    aiSdkStreamReducer: AiSdkStreamReducer = AiSdkStreamReducer(),
 ): TimelineItemContentFactory = TimelineItemContentFactory(
     messageFactory = TimelineItemContentMessageFactory(
         fileSizeFormatter = FakeFileSizeFormatter(),
@@ -63,6 +78,9 @@ internal fun aTimelineItemContentFactory(
         textPillificationHelper = FakeTextPillificationHelper(),
     ),
     aiMessageContentParser = AiMessageContentParser(),
+    aiStreamHandleStore = aiStreamHandleStore,
+    aiStreamContentCache = aiStreamContentCache,
+    aiSdkStreamReducer = aiSdkStreamReducer,
     gameMessageContentParser = GameMessageContentParser(),
     redactedMessageFactory = TimelineItemContentRedactedFactory(),
     stickerFactory = TimelineItemContentStickerFactory(
@@ -107,6 +125,39 @@ internal fun TestScope.aTimelineItemsFactory(
         timelineItemGrouper = TimelineItemGrouper(),
         config = config
     )
+}
+
+private object NoopAgentStreamClient : AgentStreamClient {
+    override fun getStream(request: StreamRequest): StreamHandle {
+        return object : StreamHandle {
+            private val snapshot = StreamSnapshot(
+                schemaVersion = AGENT_STREAM_SCHEMA_VERSION,
+                streamId = request.streamId,
+                status = StreamStatus.Loading,
+                parts = emptyList(),
+                rawEvents = emptyList(),
+                updatedAtMs = 0L,
+                completedAtMs = null,
+                error = null,
+            )
+
+            override fun snapshot(): StreamSnapshot = snapshot
+            override fun subscribe(listener: StreamListener): StreamSubscription {
+                listener.onSnapshot(snapshot)
+                return object : StreamSubscription {
+                    override fun cancel() = Unit
+                }
+            }
+            override fun refresh() = Unit
+            override fun cancel() = Unit
+        }
+    }
+}
+
+private object NoopStreamStorageProvider : StreamStorageProvider {
+    override suspend fun load(streamId: String): StreamSnapshot? = null
+    override suspend fun save(snapshot: StreamSnapshot) = Unit
+    override suspend fun delete(streamId: String) = Unit
 }
 
 internal fun aTimelineEventFormatter(): TimelineEventFormatter {

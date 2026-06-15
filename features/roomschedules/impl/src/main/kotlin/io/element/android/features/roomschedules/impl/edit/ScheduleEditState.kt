@@ -32,4 +32,5 @@ data class ScheduleEditState(
     val selectedAgentIsInRoom: Boolean = selectedAgentBotName.isBlank() ||
         joinedMemberIds.isEmpty() ||
         agents.firstOrNull { it.botName == selectedAgentBotName }?.matrixUserId()?.let { it in joinedMemberIds } != false
+    val renderModel: ScheduleEditRenderModel = toRenderModel()
 }

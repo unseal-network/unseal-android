@@ -430,6 +430,10 @@ class FakeTimeline(
 
     override suspend fun paginate(direction: Timeline.PaginationDirection): Result<Boolean> = paginateLambda(direction)
 
+    var retryDecryptionLambda: (List<String>) -> Unit = {}
+
+    override fun retryDecryption(sessionIds: List<String>) = retryDecryptionLambda(sessionIds)
+
     var loadReplyDetailsLambda: (eventId: EventId) -> InReplyTo = {
         InReplyTo.NotLoaded(it)
     }

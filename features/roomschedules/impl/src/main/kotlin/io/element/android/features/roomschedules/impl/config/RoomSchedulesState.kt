@@ -47,6 +47,12 @@ data class RoomSchedulesState(
                 .thenBy { it.stableId() }
         )
 
-    val activeCount: Int = displayedSchedules.count { it.isEnabled() }
+    val scheduleItems: ImmutableList<ScheduleRenderModel> = schedules.toScheduleRenderModels(
+        currentUserId = currentUserId,
+        showOnlyMine = showOnlyMine,
+    )
+
+    val activeCount: Int = scheduleItems.count { it.isEnabled }
     val deleteConfirmationSchedule: ChatbotSchedule? = schedules.firstOrNull { it.stableId() == deleteConfirmationScheduleId }
+    val deleteConfirmationScheduleItem: ScheduleRenderModel? = scheduleItems.firstOrNull { it.id == deleteConfirmationScheduleId }
 }
