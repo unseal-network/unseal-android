@@ -40,10 +40,17 @@ data class AgentDetailState(
     val copyableAgentId: String = agent?.copyableAgentId() ?: botName
     val canStartChat: Boolean = agentMatrixUserId != null && !isLoading && !isStartingChat
 
-    /** Public web profile page for the agent (`<website>/@<localpart>`), shown via the top-bar link. */
+    /**
+     * Public web profile page for the agent: `https://<agent host>/@<localpart>`. The host is the
+     * agent's own server (e.g. keepsecret.io), NOT a hardcoded website — only falling back to the
+     * configured website base when the agent has no server name.
+     */
     val agentProfileUrl: String? = (agent?.localpart ?: botName)
         .takeIf { it.isNotBlank() }
-        ?.let { "${ChatbotConfig.WEBSITE_BASE_URL}/@$it" }
+        ?.let { localpart ->
+            val host = agent?.serverName?.takeIf { it.isNotBlank() }
+            if (host != null) "https://$host/@$localpart" else "${ChatbotConfig.WEBSITE_BASE_URL}/@$localpart"
+        }
 }
 
 fun ChatbotAgentRoom.displayName(): String = roomName?.takeIf { it.isNotBlank() } ?: alias?.takeIf { it.isNotBlank() } ?: roomId

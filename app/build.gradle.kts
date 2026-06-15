@@ -317,6 +317,9 @@ licensee {
     allowUrl("https://asm.ow2.io/license.html")
     allowUrl("https://www.gnu.org/licenses/agpl-3.0.txt")
     allowUrl("https://github.com/mhssn95/compose-color-picker/blob/main/LICENSE")
+    // Google Play Core / Play Integrity ship their own ToS-style license URLs.
+    allowUrl("https://developer.android.com/guide/playcore/license")
+    allowUrl("https://developer.android.com/google/play/integrity/overview#tos")
     ignoreDependencies("com.github.matrix-org", "matrix-analytics-events")
     // Ignore dependency that are not third-party licenses to us.
     ignoreDependencies(groupId = "io.element.android")
