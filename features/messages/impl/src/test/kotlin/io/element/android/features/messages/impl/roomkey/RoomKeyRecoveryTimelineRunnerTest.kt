@@ -327,6 +327,55 @@ class RoomKeyRecoveryTimelineRunnerTest {
             )
     }
 
+    @Test
+    fun `recoverVisibleItems - shares recovery stores across runner recreation`() = runTest {
+        val stores = RoomKeyRecoveryStores()
+        val requestRoomKeyRecovery = lambdaRecorder<RoomKeyRecoveryRequest, List<RoomKeyRecoveryTarget>, RoomKeyRecoveryScope, Result<RoomKeyRecoveryProgress>> { request, targets, _ ->
+            Result.success(
+                RoomKeyRecoveryProgress(
+                    roomId = request.roomId,
+                    sessionId = request.sessionId,
+                    senderKey = request.senderKey,
+                    stage = RoomKeyRecoveryStage.SenderRequested,
+                    message = null,
+                    targetCount = targets.size.toUInt(),
+                    manualRetryAvailable = true,
+                )
+            )
+        }
+        val firstRunner = createRunner(
+            encryptionService = FakeEncryptionService(
+                requestRoomKeyRecoveryResult = requestRoomKeyRecovery,
+            ),
+            stores = stores,
+        )
+        val recreatedRunner = createRunner(
+            encryptionService = FakeEncryptionService(
+                requestRoomKeyRecoveryResult = requestRoomKeyRecovery,
+            ),
+            stores = stores,
+        )
+
+        firstRunner.recoverVisibleItems(
+            roomId = A_ROOM_ID,
+            timelineItems = listOf(aUtdTimelineItem()),
+            roomMembers = listOf(aRoomMember(userId = A_USER_ID, membership = RoomMembershipState.JOIN)),
+            sessionVerifiedStatus = SessionVerifiedStatus.Verified,
+            backupState = BackupState.ENABLED,
+        )
+        advanceUntilIdle()
+        recreatedRunner.recoverVisibleItems(
+            roomId = A_ROOM_ID,
+            timelineItems = listOf(aUtdTimelineItem()),
+            roomMembers = listOf(aRoomMember(userId = A_USER_ID, membership = RoomMembershipState.JOIN)),
+            sessionVerifiedStatus = SessionVerifiedStatus.Verified,
+            backupState = BackupState.ENABLED,
+        )
+        advanceUntilIdle()
+
+        requestRoomKeyRecovery.assertions().isCalledOnce()
+    }
+
     private fun TestScope.createRunner(
         matrixClient: FakeMatrixClient = FakeMatrixClient(),
         encryptionService: FakeEncryptionService = FakeEncryptionService(),
@@ -334,6 +383,7 @@ class RoomKeyRecoveryTimelineRunnerTest {
         policy: MemberAwareRoomKeyForwardingPolicy = MemberAwareRoomKeyForwardingPolicy(),
         roomAgentResolver: RoomAgentResolver = RoomAgentResolver(FakeRoomUnsealDataClient()),
         decryptionRetrier: RoomKeyDecryptionRetrier = RoomKeyDecryptionRetrier { _, _ -> false },
+        stores: RoomKeyRecoveryStores = RoomKeyRecoveryStores(),
     ): RoomKeyRecoveryTimelineRunner {
         return RoomKeyRecoveryTimelineRunner(
             matrixClient = matrixClient,
@@ -343,6 +393,7 @@ class RoomKeyRecoveryTimelineRunnerTest {
             forwardingPolicy = policy,
             roomAgentResolver = roomAgentResolver,
             decryptionRetrier = decryptionRetrier,
+            stores = stores,
             sessionCoroutineScope = this,
         )
     }
