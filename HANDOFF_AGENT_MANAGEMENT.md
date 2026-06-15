@@ -542,6 +542,8 @@ Current Android render flow:
 
 Room-level Unseal data now flows through `RoomUnsealContextStore` in the messages scope. Both room chrome and composer data models should consume that shared context rather than each feature fetching schedules/agents/members independently.
 
+The current room migration contract is documented in `docs/ios-room-data-client-workflow.md`. Use it before touching UI: identify the iOS data owner, route class, Android facade, domain model, render model, and refresh trigger first. This is especially important for members, room agents, schedules, webhooks, runtime skills, game packages, and AI stream snapshots.
+
 Important files:
 
 - `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/roomdata/RoomUnsealContextStore.kt`
@@ -550,6 +552,7 @@ Important files:
 - `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/actionlist/model/MessageActionMenuRenderModel.kt`
 - `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/messagecomposer/suggestions/ComposerSuggestionRenderModel.kt`
 - `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/messagecomposer/skills/ComposerAgentSkillState.kt`
+- `features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/messagecomposer/gamepicker/RoomGameApiServiceProvider.kt`
 
 Current composer data flow:
 
@@ -567,6 +570,12 @@ Composer skill parity status:
 - Skill picker UI 已接入 `ComposerAgentSkillPickerView`，状态来自 `ComposerAgentSkillState`。
 - 发送 selected skills 时走 `JoinedRoom.sendRawRoomMessage`，保留 iOS 同形状顶层 `skills` 字段和可选 `device_id`。
 - 后续只允许扩展 reducer/model；不要在 picker Composable 里直接请求 skill/agent API。
+
+Game picker route parity:
+
+- iOS `GamePickerViewModel` 通过登录 homeserver 的 app-manager route 拉取 packages，而不是走 unseal global API。
+- Android `GamePickerPresenter` 现在只消费 `RoomGameApiServiceProvider` 产出的 `RoomGameApiServiceHandle`，不再自己解析 homeserver URL 或构造 `DefaultGameApiService`。
+- 后续 game picker UI/分页/插入消息对齐时，继续扩展 provider/service 或 reducer，不要把 Matrix client、OkHttp、homeserver resolver 重新塞回 Composable/Presenter 分支里。
 
 Room action menu data parity:
 

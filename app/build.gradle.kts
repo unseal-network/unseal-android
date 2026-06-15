@@ -262,6 +262,7 @@ dependencies {
     implementation(projects.appnav)
     implementation(projects.appconfig)
     implementation(projects.libraries.chatbot.impl)
+    implementation(projects.features.logout.impl)
     implementation(projects.libraries.uiStrings)
     implementation(projects.services.analytics.compose)
 

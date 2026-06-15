@@ -18,11 +18,8 @@ import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.libraries.architecture.Presenter
-import io.element.android.libraries.chatbot.api.ChatbotBaseUrlResolver
 import io.element.android.libraries.gameapi.api.GameInfo
 import io.element.android.libraries.gameapi.api.PlayingRoom
-import io.element.android.libraries.gameapi.impl.DefaultGameApiService
-import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.room.JoinedRoom
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
@@ -31,15 +28,12 @@ import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.launch
-import okhttp3.OkHttpClient
 import timber.log.Timber
 
 @AssistedInject
 class GamePickerPresenter(
-    private val matrixClient: MatrixClient,
     private val room: JoinedRoom,
-    private val baseUrlResolver: ChatbotBaseUrlResolver,
-    private val okHttpClient: () -> OkHttpClient,
+    private val gameApiServiceProvider: RoomGameApiServiceProvider,
     @Assisted private val onNavigateToMiniApp: (appId: Long, remoteUrl: String?, meetId: String) -> Unit,
 ) : Presenter<GamePickerState> {
 
@@ -58,17 +52,22 @@ class GamePickerPresenter(
         var error by remember { mutableStateOf<String?>(null) }
         var shouldDismiss by remember { mutableStateOf(false) }
 
-        // Resolve homeserver URL once per composition
-        var homeserverUrl by remember { mutableStateOf<String?>(null) }
+        var gameApiHandle by remember { mutableStateOf<RoomGameApiServiceHandle?>(null) }
         LaunchedEffect(Unit) {
-            homeserverUrl = baseUrlResolver.resolveHomeserverBaseUrl(matrixClient.userIdServerName())
+            gameApiServiceProvider.create()
+                .onSuccess { gameApiHandle = it }
+                .onFailure { cause ->
+                    Timber.e(cause, "GamePicker: failed to resolve homeserver game API")
+                    allGames = persistentListOf()
+                    myPlaying = persistentMapOf()
+                    error = cause.message ?: "Failed to load games"
+                }
         }
 
-        // Load games and my-playing rooms as soon as we have the homeserver URL.
+        // Load games and my-playing rooms as soon as we have the homeserver game API.
         // On failure, fall through to empty lists so the UI exits the loading state.
-        LaunchedEffect(homeserverUrl) {
-            val url = homeserverUrl ?: return@LaunchedEffect
-            val service = buildService(url)
+        LaunchedEffect(gameApiHandle) {
+            val service = gameApiHandle?.service ?: return@LaunchedEffect
 
             launch {
                 service.fetchAppList()
@@ -99,12 +98,11 @@ class GamePickerPresenter(
                 GamePickerEvent.Dismiss -> Unit // handled by caller
 
                 is GamePickerEvent.CreateGame -> {
-                    val url = homeserverUrl ?: return
+                    val service = gameApiHandle?.service ?: return
                     if (creating) return
                     creating = true
                     coroutineScope.launch {
                         try {
-                            val service = buildService(url)
                             service.createGameRoom(event.game.id, room.roomId.value)
                                 .onSuccess { result ->
                                     service.sendGameInviteMessage(
@@ -142,25 +140,14 @@ class GamePickerPresenter(
             }
         }
 
-        val homeserverHost = homeserverUrl
-            ?.removePrefix("https://")
-            ?.removePrefix("http://")
-            ?.trimEnd('/')
-
         return GamePickerState(
             allGames = allGames,
             myPlaying = myPlaying,
             creating = creating,
             error = error,
-            homeserverHost = homeserverHost,
+            homeserverHost = gameApiHandle?.homeserverHost,
             shouldDismiss = shouldDismiss,
             eventSink = ::handleEvent,
         )
     }
-
-    private fun buildService(homeserverUrl: String) = DefaultGameApiService(
-        homeserverUrl = homeserverUrl,
-        matrixClient = matrixClient,
-        okHttpClient = okHttpClient(),
-    )
 }

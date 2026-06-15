@@ -67,7 +67,7 @@ Use them when updating tests, handoff notes, commits, and acceptance evidence.
 | Mention suggestions | `CompletionSuggestionService`, `ComposerToolbarViewModel` | Partial | Use enriched agent members everywhere, agent badges, `@room` gating, direct agent slash flow. |
 | Skill picker | `ComposerToolbarViewModel` skill catalog flow | Partial | Match room-agent runtime skill catalog, legacy fallback, pinned picker behavior after mention tap/long press. |
 | Attachment menu | `RoomAttachmentPicker` | Partial | Android `RoomMenuRenderModel.attachmentActions` now follows the iOS-supported subset order: game, text formatting, poll, location, files, gallery, camera photo/video. Remaining iOS-only gaps: ping and sketch actions, plus final visual/icon polish. |
-| Game picker | `GamePickerViewModel`, `GamePickerSheet` | Partial | Match homeserver app package request flow, pagination, preview layout, insert/send behavior. |
+| Game picker | `GamePickerViewModel`, `GamePickerSheet` | Partial | Android presenter now consumes `RoomGameApiServiceProvider`, so homeserver route resolution/service construction live outside UI. Remaining: pagination, preview layout, insert/send behavior. |
 | Message long press menu | iOS timeline item menu providers | Partial | Select text exists for copyable plain text events and AI stream/markdown events, and opens a selectable dialog. Still missing iOS floating preview/menu style, translate, save/unsave, share/save media parity, and final destructive/action ordering polish. |
 | Reactions/read receipts | iOS timeline interaction views | Existing Element behavior | Audit visual and action parity after timeline layout stabilizes. |
 | Pinned banner | `PinnedItemsBannerView` | Partial | Match floating blur/banner behavior and scroll visibility. |
@@ -75,6 +75,8 @@ Use them when updating tests, handoff notes, commits, and acceptance evidence.
 | Remote terminal | `UnsealTerminalPanelView`, D2D terminal APIs | Partial bottom layer | Android now has Matrix D2D send API plus terminal panel/reducer/transport for `cmd.open/input/close`. Remaining: observe incoming D2D terminal events and wire presenter lifecycle before enabling as fully functional. |
 
 ## P0 Data Workflow
+
+Detailed request-client migration contract: `docs/ios-room-data-client-workflow.md`. For each room feature, map iOS data owner -> route semantics -> Android facade -> domain model -> render model before changing Compose UI.
 
 | Feature | iOS source | iOS input data | Android current source | Android target model | Gap |
 |---|---|---|---|---|---|
