@@ -52,7 +52,7 @@ private val JsonAccentGreen = Color(0xFF31D76B)
 private val JsonAccentOrange = Color(0xFFFFA142)
 
 @Immutable
-private data class JsonRenderElement(
+internal data class JsonRenderElement(
     val id: String,
     val type: String,
     val props: JSONObject,
@@ -60,7 +60,7 @@ private data class JsonRenderElement(
 )
 
 @Immutable
-private data class JsonRenderSpec(
+internal data class JsonRenderSpec(
     val root: String,
     val elements: Map<String, JsonRenderElement>,
     val state: JSONObject?,
@@ -100,6 +100,7 @@ private fun JsonRenderNode(
 ) {
     if (depth > MAX_JSON_RENDER_DEPTH) return
     val element = spec.elements[id] ?: return
+    if (!element.isVisible(spec)) return
     val type = element.type.normalizedJsonType()
     when (type) {
         "stack", "vstack", "hstack", "group", "section", "scroll", "container" -> JsonRenderStack(spec, element, onLinkClick, depth)
@@ -389,7 +390,7 @@ internal fun String.canRenderAsJsonSpec(): Boolean {
     return json.optJSONObject("elements")?.optJSONObject(rootId) != null
 }
 
-private fun String.toJsonRenderSpec(): JsonRenderSpec? {
+internal fun String.toJsonRenderSpec(): JsonRenderSpec? {
     toJsonRenderSpecFromPatchStream()?.let { return it }
     val json = jsonRenderObjectOrNull()?.let { root ->
         root.optJSONObject("data") ?: root.optJSONObject("spec") ?: root
@@ -573,6 +574,31 @@ private fun JSONObject.firstString(state: JSONObject?, vararg keys: String): Str
         }
     }
     return null
+}
+
+internal fun JsonRenderElement.isVisible(spec: JsonRenderSpec): Boolean {
+    if (!props.has("visible")) return true
+    return props.opt("visible").toJsonRenderBoolean(spec.state) != false
+}
+
+private fun Any?.toJsonRenderBoolean(state: JSONObject?): Boolean? {
+    return when (this) {
+        null, JSONObject.NULL -> null
+        is Boolean -> this
+        is Number -> this.toInt() != 0
+        is String -> when (lowercase()) {
+            "true", "1", "yes", "on" -> true
+            "false", "0", "no", "off" -> false
+            else -> null
+        }
+        is JSONObject -> {
+            optString("$" + "state").takeIf { it.isNotBlank() }?.let { path ->
+                return state?.getJsonPointer(path).toJsonRenderBoolean(state)
+            }
+            firstString("value", "visible", "enabled").toJsonRenderBoolean(state)
+        }
+        else -> null
+    }
 }
 
 private fun JSONObject.string(key: String): String? = firstString(key)
