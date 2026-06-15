@@ -290,9 +290,11 @@ private fun AiCodeBlock(
                 }
             }
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+            // Pretty-print JSON so minified payloads read cleanly; other code is shown as-is.
+            val display = remember(code, language) { prettyPrintedCode(code, language) }
             Text(
-                text = code,
-                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                text = display,
+                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, lineHeight = 18.sp),
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -301,6 +303,21 @@ private fun AiCodeBlock(
             )
         }
     }
+}
+
+/** Pretty-print JSON code (2-space indent) for readability; leave other languages untouched. */
+private fun prettyPrintedCode(code: String, language: String?): String {
+    val trimmed = code.trim()
+    val looksJson = language?.lowercase() in setOf("json", "jsonl") ||
+        trimmed.startsWith("{") || trimmed.startsWith("[")
+    if (!looksJson) return code
+    return runCatching {
+        when {
+            trimmed.startsWith("{") -> org.json.JSONObject(trimmed).toString(2)
+            trimmed.startsWith("[") -> org.json.JSONArray(trimmed).toString(2)
+            else -> code
+        }
+    }.getOrDefault(code)
 }
 
 /** Language → accent colour, mirroring iOS `CustomCodeBlockView.langColor`. */

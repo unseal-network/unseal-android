@@ -11,8 +11,11 @@ import androidx.compose.runtime.Immutable
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEventContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemImageContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRedactedContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemStickerContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextBasedContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVideoContent
 
 @Immutable
 data class TimelinePresentationModel(
@@ -43,6 +46,8 @@ enum class TimelineContentKind {
     PlainText,
     RoomKeyRecovery,
     Redacted,
+    /** Full-bleed media (uncaptioned image/video/sticker) — rendered without a bubble card or notch. */
+    Media,
     RichEvent,
 }
 
@@ -75,7 +80,9 @@ object TimelinePresentationReducer {
         } else {
             TimelineItemAlignment.Start
         }
-        val bubblePolicy = if (usesPlainTimelineStyle) {
+        // Plain-style content and full-bleed media both render without a bubble (no card/notch);
+        // media keeps its normal alignment though (only plain style forces Start).
+        val bubblePolicy = if (usesPlainTimelineStyle || contentKind == TimelineContentKind.Media) {
             TimelineBubblePolicy.Standalone
         } else {
             TimelineBubblePolicy.StandardBubble
@@ -110,7 +117,8 @@ object TimelinePresentationReducer {
             TimelineContentKind.PlainText,
             TimelineContentKind.AiStream,
             TimelineContentKind.RoomKeyRecovery,
-            TimelineContentKind.Redacted -> TimelineReplySwipePolicy.Disabled
+            TimelineContentKind.Redacted,
+            TimelineContentKind.Media -> TimelineReplySwipePolicy.Disabled
         }
     }
 
@@ -120,6 +128,11 @@ object TimelinePresentationReducer {
             is TimelineItemEncryptedContent -> if (recovery != null) TimelineContentKind.RoomKeyRecovery else TimelineContentKind.RichEvent
             is TimelineItemTextBasedContent -> TimelineContentKind.PlainText
             is TimelineItemRedactedContent -> TimelineContentKind.Redacted
+            // Uncaptioned media renders full-bleed (no bubble card / corner notch). Captioned media
+            // keeps the bubble so the caption has a background.
+            is TimelineItemImageContent -> if (caption == null && formattedCaption == null) TimelineContentKind.Media else TimelineContentKind.RichEvent
+            is TimelineItemVideoContent -> if (caption == null && formattedCaption == null) TimelineContentKind.Media else TimelineContentKind.RichEvent
+            is TimelineItemStickerContent -> TimelineContentKind.Media
             else -> TimelineContentKind.RichEvent
         }
     }

@@ -31,4 +31,8 @@ class RoomMemberProfilesCache {
     fun getDisplayName(userId: UserId): String? {
         return cache.value[userId]?.disambiguatedDisplayName
     }
+
+    fun getAvatarUrl(userId: UserId): String? {
+        return cache.value[userId]?.avatarUrl
+    }
 }

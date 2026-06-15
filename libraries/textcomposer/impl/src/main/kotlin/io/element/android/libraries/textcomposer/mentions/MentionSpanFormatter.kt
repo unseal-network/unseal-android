@@ -51,7 +51,7 @@ class DefaultMentionSpanFormatter(
         // Try to get the display name from cache, fallback to userId
         val displayName = roomMemberProfilesCache.getDisplayName(userId)
         return if (displayName != null) {
-            "@$displayName"
+            displayName
         } else {
             userId.value
         }

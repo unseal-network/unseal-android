@@ -8,8 +8,11 @@
 
 package io.element.android.libraries.textcomposer.mentions
 
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.text.TextPaint
@@ -37,6 +40,9 @@ class MentionSpan(
     private var startPadding: Int = 0
     private var endPadding: Int = 0
     private var typeface: Typeface = Typeface.DEFAULT
+    private var avatarBitmap: Bitmap? = null
+    private var avatarSize: Int = 0
+    private var avatarGap: Int = 0
 
     private var measuredTextWidth = 0
 
@@ -71,6 +77,15 @@ class MentionSpan(
         startPadding = startPaddingPx
         endPadding = endPaddingPx
         typeface = mentionSpanTheme.typeface.value
+        if (type is MentionType.User) {
+            avatarBitmap = mentionSpanTheme.defaultUserAvatarBitmap(type.userId)
+            avatarSize = mentionSpanTheme.userMentionAvatarSizePx.value
+            avatarGap = mentionSpanTheme.userMentionAvatarGapPx.value
+        } else {
+            avatarBitmap = null
+            avatarSize = 0
+            avatarGap = 0
+        }
     }
 
     /**
@@ -91,7 +106,11 @@ class MentionSpan(
         textPaint.typeface = typeface
         // Measure the full text width without truncation
         measuredTextWidth = textPaint.measureText(displayText, 0, displayText.length).roundToInt()
-        return measuredTextWidth + startPadding + endPadding
+        return if (type is MentionType.User) {
+            avatarSize + avatarGap + measuredTextWidth
+        } else {
+            measuredTextWidth + startPadding + endPadding
+        }
     }
 
     override fun draw(
@@ -106,6 +125,11 @@ class MentionSpan(
         paint: Paint
     ) {
         val availableWidth = (canvas.width - x).coerceAtLeast(0f)
+        if (type is MentionType.User) {
+            drawUserMention(canvas, x, top, y, bottom, paint, availableWidth)
+            return
+        }
+
         val measuredWidth = measuredTextWidth + startPadding + endPadding
         val pillWidth = minOf(availableWidth, measuredWidth.toFloat())
 
@@ -130,6 +154,46 @@ class MentionSpan(
             displayText
         }
         canvas.drawText(textToDraw, 0, textToDraw.length, x + startPadding, y.toFloat(), textPaint)
+    }
+
+    private fun drawUserMention(
+        canvas: Canvas,
+        x: Float,
+        top: Int,
+        y: Int,
+        bottom: Int,
+        paint: Paint,
+        availableWidth: Float,
+    ) {
+        val lineHeight = bottom - top
+        val resolvedAvatarSize = avatarSize.takeIf { it > 0 } ?: lineHeight
+        val avatarTop = top + (lineHeight - resolvedAvatarSize) / 2f
+        val avatarRect = RectF(x, avatarTop, x + resolvedAvatarSize, avatarTop + resolvedAvatarSize)
+        avatarBitmap?.let { bitmap ->
+            val save = canvas.save()
+            val path = Path().apply { addOval(avatarRect, Path.Direction.CW) }
+            canvas.clipPath(path)
+            canvas.drawBitmap(bitmap, Rect(0, 0, bitmap.width, bitmap.height), avatarRect, null)
+            canvas.restoreToCount(save)
+        }
+
+        textPaint.set(paint)
+        textPaint.color = textColor
+        textPaint.typeface = typeface
+
+        val textX = x + resolvedAvatarSize + avatarGap
+        val availableWidthForText = (availableWidth - resolvedAvatarSize - avatarGap).coerceAtLeast(0f)
+        val textToDraw = if (measuredTextWidth > availableWidthForText) {
+            TextUtils.ellipsize(
+                displayText,
+                textPaint,
+                availableWidthForText,
+                TextUtils.TruncateAt.END
+            )
+        } else {
+            displayText
+        }
+        canvas.drawText(textToDraw, 0, textToDraw.length, textX, y.toFloat(), textPaint)
     }
 }
 

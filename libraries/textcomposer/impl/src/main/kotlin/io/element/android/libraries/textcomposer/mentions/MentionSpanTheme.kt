@@ -9,6 +9,8 @@
 package io.element.android.libraries.textcomposer.mentions
 
 import android.graphics.Color
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Typeface
 import android.net.Uri
 import android.text.Spanned
@@ -26,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
@@ -40,6 +43,7 @@ import io.element.android.libraries.designsystem.text.rememberTypeface
 import io.element.android.libraries.designsystem.theme.components.Text
 import io.element.android.libraries.designsystem.theme.messageFromMeBackground
 import io.element.android.libraries.designsystem.theme.messageFromOtherBackground
+import io.element.android.libraries.designsystem.R as DesignSystemR
 import io.element.android.libraries.di.SessionScope
 import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.core.RoomAlias
@@ -70,10 +74,13 @@ class MentionSpanTheme(val currentUserId: UserId) {
         private set
     internal var otherBackgroundColor: Int = Color.WHITE
         private set
+    internal val userMentionAvatarSizePx = mutableStateOf(0)
+    internal val userMentionAvatarGapPx = mutableStateOf(0)
 
     private val paddingValues = PaddingValues(start = 4.dp, end = 6.dp)
     internal val paddingValuesPx = mutableStateOf(0 to 0)
     internal val typeface = mutableStateOf(Typeface.DEFAULT)
+    private var defaultAvatarBitmaps = emptyMap<Int, Bitmap>()
 
     /**
      * Updates the styles of the mention spans based on the [ElementTheme] and [currentUserId].
@@ -83,12 +90,13 @@ class MentionSpanTheme(val currentUserId: UserId) {
     fun updateStyles() {
         currentUserTextColor = ElementTheme.colors.textBadgeAccent.toArgb()
         currentUserBackgroundColor = ElementTheme.colors.bgBadgeAccent.toArgb()
-        otherTextColor = ElementTheme.colors.textOnSolidPrimary.toArgb()
+        otherTextColor = ElementTheme.colors.textLinkExternal.toArgb()
         otherBackgroundColor = ElementTheme.colors.bgBadgePrimary.toArgb()
 
         typeface.value = ElementTheme.typography.fontBodyLgMedium.rememberTypeface().value
         val density = LocalDensity.current
         val layoutDirection = LocalLayoutDirection.current
+        val context = LocalContext.current
         paddingValuesPx.value = remember(paddingValues, density, layoutDirection) {
             with(density) {
                 val leftPadding = paddingValues.calculateLeftPadding(layoutDirection).roundToPx()
@@ -96,6 +104,17 @@ class MentionSpanTheme(val currentUserId: UserId) {
                 leftPadding to rightPadding
             }
         }
+        userMentionAvatarSizePx.value = remember(density) { with(density) { 18.dp.roundToPx() } }
+        userMentionAvatarGapPx.value = remember(density) { with(density) { 4.dp.roundToPx() } }
+        defaultAvatarBitmaps = remember(context.resources) {
+            (1..26).associateWith { index ->
+                BitmapFactory.decodeResource(context.resources, defaultUserAvatarResource(index))
+            }
+        }
+    }
+
+    internal fun defaultUserAvatarBitmap(userId: UserId): Bitmap? {
+        return defaultAvatarBitmaps[firstLetterAvatarIndex(userId.value)]
     }
 }
 
@@ -289,4 +308,52 @@ internal fun MentionSpanThemeInTimelinePreview() = ElementPreview {
             )
         }
     }
+}
+
+private fun firstLetterAvatarIndex(contentID: String): Int {
+    val localpart = matrixLocalpart(contentID) ?: contentID
+    val first = localpart.firstOrNull()?.lowercaseChar()
+    return if (first != null && first in 'a'..'z') {
+        first - 'a' + 1
+    } else {
+        1
+    }
+}
+
+private fun matrixLocalpart(contentID: String): String? {
+    val sigil = contentID.firstOrNull()
+    if (sigil != '@' && sigil != '!') return null
+    val colonIndex = contentID.indexOf(':')
+    if (colonIndex <= 1) return null
+    return contentID.substring(1, colonIndex)
+}
+
+private fun defaultUserAvatarResource(index: Int): Int = when (index) {
+    1 -> DesignSystemR.drawable.default_user_avatar_01
+    2 -> DesignSystemR.drawable.default_user_avatar_02
+    3 -> DesignSystemR.drawable.default_user_avatar_03
+    4 -> DesignSystemR.drawable.default_user_avatar_04
+    5 -> DesignSystemR.drawable.default_user_avatar_05
+    6 -> DesignSystemR.drawable.default_user_avatar_06
+    7 -> DesignSystemR.drawable.default_user_avatar_07
+    8 -> DesignSystemR.drawable.default_user_avatar_08
+    9 -> DesignSystemR.drawable.default_user_avatar_09
+    10 -> DesignSystemR.drawable.default_user_avatar_10
+    11 -> DesignSystemR.drawable.default_user_avatar_11
+    12 -> DesignSystemR.drawable.default_user_avatar_12
+    13 -> DesignSystemR.drawable.default_user_avatar_13
+    14 -> DesignSystemR.drawable.default_user_avatar_14
+    15 -> DesignSystemR.drawable.default_user_avatar_15
+    16 -> DesignSystemR.drawable.default_user_avatar_16
+    17 -> DesignSystemR.drawable.default_user_avatar_17
+    18 -> DesignSystemR.drawable.default_user_avatar_18
+    19 -> DesignSystemR.drawable.default_user_avatar_19
+    20 -> DesignSystemR.drawable.default_user_avatar_20
+    21 -> DesignSystemR.drawable.default_user_avatar_21
+    22 -> DesignSystemR.drawable.default_user_avatar_22
+    23 -> DesignSystemR.drawable.default_user_avatar_23
+    24 -> DesignSystemR.drawable.default_user_avatar_24
+    25 -> DesignSystemR.drawable.default_user_avatar_25
+    26 -> DesignSystemR.drawable.default_user_avatar_26
+    else -> DesignSystemR.drawable.default_user_avatar_01
 }
