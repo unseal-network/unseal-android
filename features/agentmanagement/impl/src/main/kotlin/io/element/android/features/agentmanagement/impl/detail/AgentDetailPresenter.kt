@@ -52,6 +52,7 @@ class AgentDetailPresenter(
         var rooms by remember { mutableStateOf(emptyList<ChatbotAgentRoom>()) }
         var agentSkills by remember { mutableStateOf(emptyList<ChatbotUserSkill>()) }
         var isLoading by remember { mutableStateOf(false) }
+        var canEdit by remember { mutableStateOf(false) }
         var isStartingChat by remember { mutableStateOf(false) }
         var isSoulExpanded by remember { mutableStateOf(false) }
         var error by remember { mutableStateOf<String?>(null) }
@@ -74,6 +75,9 @@ class AgentDetailPresenter(
                             error = it.message ?: it::class.simpleName ?: "Failed to load agent"
                         }
                     }
+                // Ownership: only agents in the current user's own agent list are editable.
+                api.listAgents()
+                    .onSuccess { mine -> canEdit = mine.any { it.botName == botName } }
                 api.listAgentRooms(botName)
                     .onSuccess { freshRooms ->
                         rooms = freshRooms
@@ -154,6 +158,7 @@ class AgentDetailPresenter(
             rooms = rooms.toImmutableList(),
             agentSkills = agentSkills.toImmutableList(),
             isLoading = isLoading,
+            canEdit = canEdit,
             isStartingChat = isStartingChat,
             isSoulExpanded = isSoulExpanded,
             error = error,

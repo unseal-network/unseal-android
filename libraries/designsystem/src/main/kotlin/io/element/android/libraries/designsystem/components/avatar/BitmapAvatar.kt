@@ -19,7 +19,7 @@ import androidx.compose.ui.layout.ContentScale
 import coil3.compose.AsyncImagePainter
 import coil3.compose.SubcomposeAsyncImage
 import coil3.compose.SubcomposeAsyncImageContent
-import io.element.android.libraries.designsystem.components.avatar.internal.InitialLetterAvatar
+import io.element.android.libraries.designsystem.components.avatar.internal.DefaultAvatar
 import timber.log.Timber
 
 // For user avatar only.
@@ -32,7 +32,7 @@ fun BitmapAvatar(
 ) {
     val avatarShape = AvatarType.User.avatarShape()
     when {
-        bitmap == null -> InitialLetterAvatar(
+        bitmap == null -> DefaultAvatar(
             avatarData = avatarData,
             avatarShape = avatarShape,
             forcedAvatarSize = null,
@@ -59,14 +59,14 @@ fun BitmapAvatar(
                                 "Error loading avatar $state\n${state.result}"
                             )
                         }
-                        InitialLetterAvatar(
+                        DefaultAvatar(
                             avatarData = avatarData,
                             avatarShape = avatarShape,
                             forcedAvatarSize = null,
                             contentDescription = contentDescription,
                         )
                     }
-                    else -> InitialLetterAvatar(
+                    else -> DefaultAvatar(
                         avatarData = avatarData,
                         avatarShape = avatarShape,
                         forcedAvatarSize = null,

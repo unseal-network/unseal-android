@@ -26,6 +26,8 @@ data class AgentDetailState(
     val isLoading: Boolean,
     val isStartingChat: Boolean,
     val isSoulExpanded: Boolean,
+    /** Whether the current user owns this agent (only owners may edit it). */
+    val canEdit: Boolean = true,
     val error: String?,
     val copiedAgentId: String?,
     val eventSink: (AgentDetailEvents) -> Unit,

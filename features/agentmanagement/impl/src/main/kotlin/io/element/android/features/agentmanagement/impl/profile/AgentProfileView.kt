@@ -80,8 +80,10 @@ fun AgentProfileView(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { state.eventSink(AgentDetailEvents.Edit) }) {
-                        Icon(CompoundIcons.Edit(), contentDescription = null)
+                    if (state.canEdit) {
+                        IconButton(onClick = { state.eventSink(AgentDetailEvents.Edit) }) {
+                            Icon(CompoundIcons.Edit(), contentDescription = null)
+                        }
                     }
                 },
             )
@@ -168,8 +170,10 @@ private fun Hero(state: AgentDetailState) {
                     Text(model.startChatLabel)
                 }
             }
-            OutlinedButton(onClick = { state.eventSink(AgentDetailEvents.Edit) }) {
-                Text(model.editLabel)
+            if (state.canEdit) {
+                OutlinedButton(onClick = { state.eventSink(AgentDetailEvents.Edit) }) {
+                    Text(model.editLabel)
+                }
             }
         }
     }

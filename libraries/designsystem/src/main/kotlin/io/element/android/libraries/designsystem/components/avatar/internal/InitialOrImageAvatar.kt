@@ -22,14 +22,16 @@ internal fun InitialOrImageAvatar(
     avatarShape: Shape,
     contentDescription: String?,
     modifier: Modifier = Modifier,
+    placeholderType: AvatarPlaceholderType = AvatarPlaceholderType.User,
 ) {
     when {
-        avatarData.url.isNullOrBlank() || hideAvatarImage -> InitialLetterAvatar(
+        avatarData.url.isNullOrBlank() || hideAvatarImage -> DefaultAvatar(
             avatarData = avatarData,
             avatarShape = avatarShape,
             forcedAvatarSize = forcedAvatarSize,
             modifier = modifier,
             contentDescription = contentDescription,
+            placeholderType = placeholderType,
         )
         else -> ImageAvatar(
             avatarData = avatarData,
@@ -37,6 +39,13 @@ internal fun InitialOrImageAvatar(
             forcedAvatarSize = forcedAvatarSize,
             modifier = modifier,
             contentDescription = contentDescription,
+            placeholderType = placeholderType,
         )
     }
+}
+
+internal enum class AvatarPlaceholderType {
+    User,
+    Room,
+    Space,
 }
