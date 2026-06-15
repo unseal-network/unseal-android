@@ -144,6 +144,9 @@ $ADB -s 5fd76ce3 logcat -s "AiSdkStreamReducer:*" "AiStreamDbg:*" > /tmp/sd.txt
 - `66f957be1e` `fix(room): show display names for inserted mentions`
 - `b5a9e15d6c` `fix(room): open skill picker for agent mentions`
 - `5c86e62edf` `fix(room): render key recovery as standalone status`
+- `061b8043af` `fix(room): align room key recovery member targets`
+- `20815633ca` `fix(room): resume expired room key recovery stages`
+- `5e1bd9127f` `fix(room): share room key recovery state per session`
 
 ### 目标
 
@@ -329,7 +332,12 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
   - `TimelineContentKind.RoomKeyRecovery` 已由 presentation reducer 归入 standalone；恢复密钥内容内部不再绘制 `bgSubtleSecondary` Surface，避免 standalone row 里再出现类似聊天气泡的二次背景。
   - 内容结构更接近 iOS `EncryptedRoomTimelineView.recoveryCard`：icon + title/message count、stage title、progress、stage summary、detail、action。
   - 验证：`TimelineItemRoomKeyRecoveryDisplayTest`、`TimelinePresentationReducerTest`、`:features:messages:impl:compileDebugKotlin`。
-  - 剩余缺口：iOS `TimelineViewModel` 的 backup / own devices / sender / room members plan、pending/resume store、forwarded source store 与 room member recovery target 筛选还没有完整逐项迁移。
+- `061b8043af` / `20815633ca` / `5e1bd9127f` room key recovery 生命周期对齐 iOS。
+  - room member fallback target 现在只使用 iOS `RoomMemberProxyProtocol.isActive` 等价成员：`join/invite/knock`；排除 current user、原始 sender、非 sender 的 room agent。
+  - expired active progress 会从下一阶段恢复，不会因为 pending window 仍存在而一直停在旧阶段；逻辑对齐 iOS `RoomKeyRecoveryPlanProgressRecord.nextStageIndex()`。
+  - `RoomKeyRecoveryStores` 已迁为 `SessionScope`，`pendingStore` / `agentPendingStore` / `progressStore` 不再跟随 `RoomKeyRecoveryTimelineRunner`（RoomScope）重建而丢失。页面/runner 重建后同一 session 内会复用 active/pending 状态，不会重复请求。
+  - 验证：`:features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.roomkey.*'`。
+  - 剩余缺口：iOS 的 `RoomKeyRecoveryForwardedSourceStore` / first forwarded source 记录尚未迁移；Android 目前还没有等价的 `latestDeviceIDs(for user)` 查询来过滤 stale sender device，只能基于当前 UTD request 里的 sender device id。
 - 最新文档状态已同步到计划与 handoff；后续继续保持小步提交。
 
 ### Room 数据流当前边界
