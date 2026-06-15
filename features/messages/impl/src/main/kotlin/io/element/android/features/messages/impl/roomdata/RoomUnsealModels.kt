@@ -87,10 +87,12 @@ data class RoomUnsealContext(
 data class RoomMemberRender(
     val member: RoomMember,
     val userType: String?,
+    private val displayNameOverride: String? = null,
+    private val avatarUrlOverride: String? = null,
 ) {
     val userId = member.userId
-    val displayName = member.displayName
-    val avatarUrl = member.avatarUrl
+    val displayName = displayNameOverride ?: member.displayName
+    val avatarUrl = avatarUrlOverride ?: member.avatarUrl
     val membership = member.membership
     val isAgent: Boolean = userType in AGENT_USER_TYPES
     val isActive: Boolean = member.membership.isActive()

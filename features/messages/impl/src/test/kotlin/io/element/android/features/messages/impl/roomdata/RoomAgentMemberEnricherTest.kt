@@ -37,6 +37,32 @@ class RoomAgentMemberEnricherTest {
     }
 
     @Test
+    fun `enrich prefers room agent display data over matrix member fallback`() {
+        val members = listOf(
+            aRoomMember(
+                userId = AGENT_ID,
+                displayName = "Matrix fallback",
+                avatarUrl = "mxc://matrix/fallback",
+                membership = RoomMembershipState.JOIN,
+            )
+        )
+        val agents = listOf(
+            RoomAgentDescriptor(
+                userId = AGENT_ID.value,
+                displayName = "Rayson",
+                avatarUrl = "mxc://agent/avatar",
+                userType = "agent",
+                membership = "join",
+            )
+        )
+
+        val enriched = RoomAgentMemberEnricher.enrich(members, agents)
+
+        assertThat(enriched.single().displayName).isEqualTo("Rayson")
+        assertThat(enriched.single().avatarUrl).isEqualTo("mxc://agent/avatar")
+    }
+
+    @Test
     fun `enrich ignores non joined matrix member`() {
         val members = listOf(aRoomMember(userId = AGENT_ID, membership = RoomMembershipState.INVITE))
         val agents = listOf(RoomAgentDescriptor(userId = AGENT_ID.value, displayName = "Agent", avatarUrl = null, userType = "agent", membership = "join"))

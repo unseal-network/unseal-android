@@ -104,9 +104,17 @@ private fun SuggestionItemView(
     ) {
         val avatarSize = AvatarSize.Suggestion
         val avatarData = when (suggestion) {
-            is ResolvedSuggestion.AtRoom -> roomAvatar?.copy(size = avatarSize) ?: AvatarData(roomId, roomName, null, avatarSize)
-            is ResolvedSuggestion.Member -> suggestion.roomMember.getAvatarData(avatarSize)
-            is ResolvedSuggestion.Alias -> suggestion.getAvatarData(avatarSize)
+            is ResolvedSuggestion.AtRoom -> renderModel?.toAvatarData(avatarSize)
+                ?: roomAvatar?.copy(size = avatarSize)
+                ?: AvatarData(roomId, roomName, null, avatarSize)
+            is ResolvedSuggestion.Member -> renderModel?.toAvatarData(
+                size = avatarSize,
+                fallback = suggestion.roomMember.getAvatarData(avatarSize),
+            ) ?: suggestion.roomMember.getAvatarData(avatarSize)
+            is ResolvedSuggestion.Alias -> renderModel?.toAvatarData(
+                size = avatarSize,
+                fallback = suggestion.getAvatarData(avatarSize),
+            ) ?: suggestion.getAvatarData(avatarSize)
             is ResolvedSuggestion.Command -> null
         }
         val avatarType = when (suggestion) {
@@ -184,6 +192,18 @@ private fun SuggestionItemView(
             )
         }
     }
+}
+
+private fun ComposerSuggestionRenderModel.toAvatarData(
+    size: AvatarSize,
+    fallback: AvatarData? = null,
+): AvatarData {
+    return AvatarData(
+        id = id,
+        name = displayName ?: fallback?.name,
+        url = avatarUrl ?: fallback?.url,
+        size = size,
+    )
 }
 
 @PreviewsDayNight

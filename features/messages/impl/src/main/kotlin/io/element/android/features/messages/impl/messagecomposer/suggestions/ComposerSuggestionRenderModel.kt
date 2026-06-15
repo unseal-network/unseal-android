@@ -103,9 +103,9 @@ object ComposerSuggestionReducer {
                     val isAgent = enrichedMember?.isAgent == true
                     ComposerSuggestionRenderModel(
                         id = member.userId.value,
-                        displayName = member.displayName,
+                        displayName = enrichedMember?.displayName ?: member.displayName,
                         subtitle = member.userId.value,
-                        avatarUrl = member.avatarUrl,
+                        avatarUrl = enrichedMember?.avatarUrl ?: member.avatarUrl,
                         kind = if (isAgent) ComposerSuggestionKind.Agent else ComposerSuggestionKind.User,
                         isAgent = isAgent,
                         insertPayload = ComposerSuggestionInsertPayload.UserMention(member.userId),

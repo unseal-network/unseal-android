@@ -94,10 +94,17 @@ class ComposerSuggestionReducerTest {
     fun `fromResolvedSuggestions marks resolved members with room context agent data`() {
         val context = RoomUnsealContext.from(
             roomId = ROOM_ID,
-            members = listOf(aRoomMember(userId = AGENT_USER_ID, displayName = "Mail Agent", membership = RoomMembershipState.JOIN)),
+            members = listOf(
+                aRoomMember(
+                    userId = AGENT_USER_ID,
+                    displayName = "Matrix fallback",
+                    avatarUrl = "mxc://matrix/fallback",
+                    membership = RoomMembershipState.JOIN,
+                )
+            ),
             snapshot = RoomUnsealDataSnapshot(
                 roomAgents = RoomUnsealResource.success(
-                    listOf(RoomAgentDescriptor(AGENT_USER_ID.value, "Mail Agent", null, null, "join"))
+                    listOf(RoomAgentDescriptor(AGENT_USER_ID.value, "Mail Agent", "mxc://agent/avatar", null, "join"))
                 )
             ),
         )
@@ -109,6 +116,8 @@ class ComposerSuggestionReducerTest {
 
         assertThat(renderModels.single().kind).isEqualTo(ComposerSuggestionKind.Agent)
         assertThat(renderModels.single().isAgent).isTrue()
+        assertThat(renderModels.single().displayName).isEqualTo("Mail Agent")
+        assertThat(renderModels.single().avatarUrl).isEqualTo("mxc://agent/avatar")
         assertThat(renderModels.single().insertPayload).isEqualTo(ComposerSuggestionInsertPayload.UserMention(AGENT_USER_ID))
     }
 
