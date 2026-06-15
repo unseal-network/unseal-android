@@ -34,7 +34,6 @@ import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.di.RoomScope
 import kotlinx.coroutines.channels.Channel
-import timber.log.Timber
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -68,16 +67,17 @@ class TimelineItemAiPresenter(
     override fun present(): TimelineItemAiState {
         val initialContent = content
         val streamId = initialContent.streamId
-        val cachedContent = remember(streamId, initialContent.parts) {
+        val contentIdentity = streamId ?: initialContent.parts
+        val cachedContent = remember(contentIdentity) {
             streamId?.let(aiStreamContentCache::get)
         }
-        var currentContent by remember(streamId, initialContent.parts) {
+        var currentContent by remember(contentIdentity) {
             mutableStateOf(
                 cachedContent ?: initialContent
             )
         }
 
-        LaunchedEffect(streamId, initialContent.parts) {
+        LaunchedEffect(contentIdentity) {
             if (streamId == null) {
                 currentContent = initialContent
                 return@LaunchedEffect
@@ -161,7 +161,6 @@ class TimelineItemAiPresenter(
                     includeRawEvents = false,
                 ),
             ) { snapshot ->
-                Timber.tag(DBG).d("recv stream=%s status=%s parts=%d", streamId, snapshot.status, snapshot.parts.size)
                 snapshots.trySend(snapshot)
             }
             try {
@@ -180,19 +179,16 @@ class TimelineItemAiPresenter(
                     }
                     when (val decision = updatePolicy.accept(snapshot, System.currentTimeMillis())) {
                         is StreamSnapshotUpdateDecision.Emit -> {
-                            Timber.tag(DBG).d("EMIT stream=%s status=%s parts=%d terminal=%s", streamId, decision.snapshot.status, decision.snapshot.parts.size, decision.snapshot.isTerminal)
                             emit(decision.snapshot)
                             if (decision.snapshot.isTerminal) {
-                                Timber.tag(DBG).d("TERMINAL break stream=%s status=%s", streamId, decision.snapshot.status)
                                 break
                             }
                         }
                         StreamSnapshotUpdateDecision.Pending,
-                        StreamSnapshotUpdateDecision.Skip -> Timber.tag(DBG).d("%s stream=%s status=%s", decision::class.simpleName, streamId, snapshot.status)
+                        StreamSnapshotUpdateDecision.Skip -> Unit
                     }
                 }
             } finally {
-                Timber.tag(DBG).d("collect END stream=%s", streamId)
                 binding.close()
                 snapshots.close()
             }
@@ -200,7 +196,6 @@ class TimelineItemAiPresenter(
     }
 
     private companion object {
-        const val DBG = "AiStreamDbg"
         const val STREAMING_TEXT_PATCH_COALESCE_MS = 120L
     }
 }
