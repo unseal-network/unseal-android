@@ -21,6 +21,7 @@ import io.element.android.libraries.matrix.api.encryption.roomkey.MemberAwareRoo
 import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryRequest
 import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryTarget
 import io.element.android.libraries.matrix.api.room.RoomMember
+import io.element.android.libraries.matrix.api.room.RoomMembershipState
 import io.element.android.libraries.matrix.api.timeline.MatrixTimelineItem
 import io.element.android.libraries.matrix.api.timeline.item.event.UnableToDecryptContent
 import io.element.android.libraries.matrix.api.verification.SessionVerificationService
@@ -75,7 +76,8 @@ class RoomKeyRecoveryTimelineRunner(
         agentPendingStore.retainOnly(agentRequests)
         lastAgentRequests = agentRequests
         val roomIds = requests.mapTo(mutableSetOf()) { it.roomId }
-        val activeMemberIds = roomMembers.mapTo(mutableSetOf()) { it.userId }
+        val activeRoomMembers = roomMembers.filter { it.isActiveForRoomKeyRecovery() }
+        val activeMemberIds = activeRoomMembers.mapTo(mutableSetOf()) { it.userId }
         roomIds.forEach { roomId ->
             forwardingPolicy.updateRoomMembers(roomId, activeMemberIds)
         }
@@ -116,8 +118,9 @@ class RoomKeyRecoveryTimelineRunner(
                 ownUserId = sessionId,
                 verificationState = sessionVerifiedStatus.toRecoveryVerificationState(),
                 canUseKeyBackup = backupState == BackupState.ENABLED,
-                roomMemberTargets = roomMembers
+                roomMemberTargets = activeRoomMembers
                     .filter { it.userId != sessionId }
+                    .filter { it.userId !in senderUserIds }
                     .filter { roomMember ->
                         roomMember.userId !in roomAgentUserIds || roomMember.userId in senderUserIds
                     }
@@ -189,6 +192,16 @@ class RoomKeyRecoveryTimelineRunner(
 
     private suspend fun recordStatus(status: RoomKeyRecoveryStatus) {
         _statuses.value = _statuses.value + (status.request.identityKey to status)
+    }
+
+    private fun RoomMember.isActiveForRoomKeyRecovery(): Boolean {
+        return when (membership) {
+            RoomMembershipState.JOIN,
+            RoomMembershipState.INVITE,
+            RoomMembershipState.KNOCK -> true
+            RoomMembershipState.BAN,
+            RoomMembershipState.LEAVE -> false
+        }
     }
 
     private data class RoomKeyRecoveryInputKey(

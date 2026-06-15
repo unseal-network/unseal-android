@@ -32,6 +32,7 @@ import io.element.android.libraries.matrix.test.A_ROOM_ID
 import io.element.android.libraries.matrix.test.A_SESSION_ID
 import io.element.android.libraries.matrix.test.A_UNIQUE_ID
 import io.element.android.libraries.matrix.test.A_USER_ID
+import io.element.android.libraries.matrix.test.A_USER_ID_2
 import io.element.android.libraries.matrix.test.FakeMatrixClient
 import io.element.android.libraries.matrix.test.encryption.FakeEncryptionService
 import io.element.android.libraries.matrix.test.room.aRoomMember
@@ -176,6 +177,76 @@ class RoomKeyRecoveryTimelineRunnerTest {
         requestRoomKeyRecovery.assertions()
             .isCalledOnce()
             .with(value(ROOM_KEY_REQUEST), value(listOf(RoomKeyRecoveryTarget(A_USER_ID, deviceId = null))), value(RoomKeyRecoveryScope.OwnDevices))
+    }
+
+    @Test
+    fun `recoverVisibleItems - room member recovery targets match ios active member filtering`() = runTest {
+        val joinedMember = UserId("@joined:server.org")
+        val invitedMember = UserId("@invited:server.org")
+        val knockingMember = UserId("@knocking:server.org")
+        val leftMember = UserId("@left:server.org")
+        val requestRoomKeyRecovery = lambdaRecorder<RoomKeyRecoveryRequest, List<RoomKeyRecoveryTarget>, RoomKeyRecoveryScope, Result<RoomKeyRecoveryProgress>> { request, targets, _ ->
+            Result.success(
+                RoomKeyRecoveryProgress(
+                    roomId = request.roomId,
+                    sessionId = request.sessionId,
+                    senderKey = request.senderKey,
+                    stage = RoomKeyRecoveryStage.SenderRequested,
+                    message = null,
+                    targetCount = targets.size.toUInt(),
+                    manualRetryAvailable = true,
+                )
+            )
+        }
+        val runner = createRunner(
+            encryptionService = FakeEncryptionService(
+                requestRoomKeyRecoveryResult = requestRoomKeyRecovery,
+            ),
+            roomAgentResolver = RoomAgentResolver(roomUnsealDataClientWithAgent(AGENT_ID.value)),
+        )
+
+        runner.recoverVisibleItems(
+            roomId = A_ROOM_ID,
+            timelineItems = listOf(
+                aUtdTimelineItem(
+                    sender = A_USER_ID_2,
+                    originalJson = originalJson(sender = A_USER_ID_2, deviceId = "SENDER_DEVICE_2"),
+                )
+            ),
+            roomMembers = listOf(
+                aRoomMember(userId = A_SESSION_ID, membership = RoomMembershipState.JOIN),
+                aRoomMember(userId = A_USER_ID_2, membership = RoomMembershipState.JOIN),
+                aRoomMember(userId = joinedMember, membership = RoomMembershipState.JOIN),
+                aRoomMember(userId = invitedMember, membership = RoomMembershipState.INVITE),
+                aRoomMember(userId = knockingMember, membership = RoomMembershipState.KNOCK),
+                aRoomMember(userId = leftMember, membership = RoomMembershipState.LEAVE),
+                aRoomMember(userId = AGENT_ID, membership = RoomMembershipState.JOIN),
+            ),
+            sessionVerifiedStatus = SessionVerifiedStatus.Verified,
+            backupState = BackupState.UNKNOWN,
+        )
+        advanceUntilIdle()
+
+        requestRoomKeyRecovery.assertions()
+            .isCalledExactly(2)
+            .withSequence(
+                listOf(
+                    value(ROOM_KEY_REQUEST.copy(senderUserId = A_USER_ID_2, senderDeviceId = "SENDER_DEVICE_2")),
+                    value(listOf(RoomKeyRecoveryTarget(A_USER_ID_2, deviceId = "SENDER_DEVICE_2"))),
+                    value(RoomKeyRecoveryScope.Sender),
+                ),
+                listOf(
+                    value(ROOM_KEY_REQUEST.copy(senderUserId = A_USER_ID_2, senderDeviceId = "SENDER_DEVICE_2")),
+                    value(
+                        listOf(
+                            RoomKeyRecoveryTarget(joinedMember, deviceId = null),
+                            RoomKeyRecoveryTarget(invitedMember, deviceId = null),
+                            RoomKeyRecoveryTarget(knockingMember, deviceId = null),
+                        )
+                    ),
+                    value(RoomKeyRecoveryScope.RoomMember),
+                ),
+            )
     }
 
     @Test
@@ -366,6 +437,23 @@ class RoomKeyRecoveryTimelineRunnerTest {
                 "sender_key": "$SENDER_KEY",
                 "session_id": "$SESSION_ID",
                 "device_id": "SENDER_DEVICE",
+                "ciphertext": "CIPHERTEXT"
+              }
+            }
+        """.trimIndent()
+        fun originalJson(
+            sender: UserId = A_USER_ID,
+            deviceId: String = "SENDER_DEVICE",
+        ) = """
+            {
+              "type": "m.room.encrypted",
+              "room_id": "${A_ROOM_ID.value}",
+              "sender": "${sender.value}",
+              "content": {
+                "algorithm": "m.megolm.v1.aes-sha2",
+                "sender_key": "$SENDER_KEY",
+                "session_id": "$SESSION_ID",
+                "device_id": "$deviceId",
                 "ciphertext": "CIPHERTEXT"
               }
             }
