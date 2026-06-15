@@ -39,6 +39,7 @@ import io.element.android.features.messages.impl.attachments.preview.error.sendA
 import io.element.android.features.messages.impl.draft.ComposerDraftService
 import io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerPresenter
 import io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerState
+import io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentDescriptor
 import io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillCandidate
 import io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillCatalogLoader
 import io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillReducer
@@ -99,6 +100,7 @@ import io.element.android.wysiwyg.display.TextDisplay
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.FlowPreview
@@ -250,15 +252,29 @@ class MessageComposerPresenter(
                 mentionedUserIds = mentionedUserIds,
             )
         }
+        var pinnedAgentSkillTarget by remember { mutableStateOf<ComposerAgentDescriptor?>(null) }
+        val agentSkillTargets = remember(baseAgentSkillState.targets, pinnedAgentSkillTarget) {
+            val pinnedTarget = pinnedAgentSkillTarget
+            if (pinnedTarget == null || baseAgentSkillState.targets.any { it.mxid == pinnedTarget.mxid }) {
+                baseAgentSkillState.targets
+            } else {
+                (baseAgentSkillState.targets + pinnedTarget).toImmutableList()
+            }
+        }
+        val effectiveBaseAgentSkillState = baseAgentSkillState.copy(
+            targets = agentSkillTargets,
+            knownAgentMxids = (baseAgentSkillState.knownAgentMxids + agentSkillTargets.map { it.mxid }).toImmutableSet(),
+            activeAgentMxid = baseAgentSkillState.activeAgentMxid ?: agentSkillTargets.singleOrNull()?.mxid,
+        )
         var agentSkillCandidates by remember { mutableStateOf<ImmutableList<ComposerAgentSkillCandidate>>(persistentListOf()) }
         var selectedAgentSkills by remember { mutableStateOf<ImmutableList<ComposerSelectedAgentSkill>>(persistentListOf()) }
         var isAgentSkillPickerPresented by remember { mutableStateOf(false) }
         var activeAgentSkillMxid by remember { mutableStateOf<String?>(null) }
         var agentSkillCatalogError by remember { mutableStateOf<String?>(null) }
         var isAgentSkillCatalogLoading by remember { mutableStateOf(false) }
-        LaunchedEffect(roomUnsealContextState, baseAgentSkillState.targets, roomInfo.isDm, room.sessionId) {
+        LaunchedEffect(roomUnsealContextState, effectiveBaseAgentSkillState.targets, roomInfo.isDm, room.sessionId) {
             val context = roomUnsealContextState.dataOrNull()
-            if (context == null || baseAgentSkillState.targets.isEmpty()) {
+            if (context == null || effectiveBaseAgentSkillState.targets.isEmpty()) {
                 agentSkillCandidates = persistentListOf()
                 agentSkillCatalogError = null
                 isAgentSkillCatalogLoading = false
@@ -268,7 +284,7 @@ class MessageComposerPresenter(
             agentSkillCatalogError = null
             val result = composerAgentSkillCatalogLoader.load(
                 context = context,
-                targets = baseAgentSkillState.targets,
+                targets = effectiveBaseAgentSkillState.targets,
                 currentUserId = room.sessionId.value,
                 isDirectRoom = roomInfo.isDm,
             )
@@ -276,13 +292,13 @@ class MessageComposerPresenter(
             agentSkillCatalogError = result.error
             isAgentSkillCatalogLoading = false
         }
-        val agentSkillState = baseAgentSkillState.copy(
+        val agentSkillState = effectiveBaseAgentSkillState.copy(
             candidates = agentSkillCandidates,
             isCatalogLoading = isAgentSkillCatalogLoading,
             error = agentSkillCatalogError,
             selectedSkills = selectedAgentSkills,
             isPresented = isAgentSkillPickerPresented,
-            activeAgentMxid = activeAgentSkillMxid ?: baseAgentSkillState.activeAgentMxid,
+            activeAgentMxid = activeAgentSkillMxid ?: effectiveBaseAgentSkillState.activeAgentMxid,
         )
         ResolveSuggestionsEffect(suggestions, suggestionRenderModels)
 
@@ -299,14 +315,15 @@ class MessageComposerPresenter(
                 mentionWasActive = mentionIsActive
             }
         }
-        LaunchedEffect(baseAgentSkillState.targets) {
-            val targetMxids = baseAgentSkillState.targets.map { it.mxid }.toSet()
+        LaunchedEffect(effectiveBaseAgentSkillState.targets) {
+            val targetMxids = effectiveBaseAgentSkillState.targets.map { it.mxid }.toSet()
             selectedAgentSkills = selectedAgentSkills.filter { it.agentMxid in targetMxids }.toImmutableList()
             if (targetMxids.isEmpty()) {
                 isAgentSkillPickerPresented = false
                 activeAgentSkillMxid = null
+                pinnedAgentSkillTarget = null
             } else if (activeAgentSkillMxid !in targetMxids) {
-                activeAgentSkillMxid = baseAgentSkillState.targets.singleOrNull()?.mxid
+                activeAgentSkillMxid = effectiveBaseAgentSkillState.targets.singleOrNull()?.mxid
             }
         }
         val composerTextSnapshot = if (showTextFormatting) {
@@ -314,13 +331,13 @@ class MessageComposerPresenter(
         } else {
             markdownTextEditorState.text.value().toString()
         }
-        LaunchedEffect(composerTextSnapshot, roomInfo.isDm, baseAgentSkillState.targets, selectedAgentSkills) {
-            if (roomInfo.isDm && composerTextSnapshot.trim() == "/" && baseAgentSkillState.targets.isNotEmpty()) {
-                activeAgentSkillMxid = baseAgentSkillState.targets.first().mxid
+        LaunchedEffect(composerTextSnapshot, roomInfo.isDm, effectiveBaseAgentSkillState.targets, selectedAgentSkills) {
+            if (roomInfo.isDm && composerTextSnapshot.trim() == "/" && effectiveBaseAgentSkillState.targets.isNotEmpty()) {
+                activeAgentSkillMxid = effectiveBaseAgentSkillState.targets.first().mxid
                 isAgentSkillPickerPresented = true
-            } else if (ComposerAgentSkillReducer.hasUnresolvedTargets(baseAgentSkillState.targets, selectedAgentSkills)) {
+            } else if (ComposerAgentSkillReducer.hasUnresolvedTargets(effectiveBaseAgentSkillState.targets, selectedAgentSkills)) {
                 isAgentSkillPickerPresented = true
-            } else if (baseAgentSkillState.targets.isEmpty() && selectedAgentSkills.isEmpty()) {
+            } else if (effectiveBaseAgentSkillState.targets.isEmpty() && selectedAgentSkills.isEmpty()) {
                 isAgentSkillPickerPresented = false
             }
         }
@@ -375,6 +392,7 @@ class MessageComposerPresenter(
                     val selectedSkillsForSend = selectedAgentSkills
                     selectedAgentSkills = persistentListOf()
                     isAgentSkillPickerPresented = false
+                    pinnedAgentSkillTarget = null
                     sessionCoroutineScope.sendMessage(
                         markdownTextEditorState = markdownTextEditorState,
                         richTextEditorState = richTextEditorState,
@@ -466,6 +484,13 @@ class MessageComposerPresenter(
                                     richTextEditorState.insertAtRoomMentionAtSuggestion()
                                 }
                                 is ResolvedSuggestion.Member -> {
+                                    roomUnsealContextState.dataOrNull()
+                                        ?.let { context -> ComposerAgentSkillReducer.agentDescriptorForUser(context, suggestion.roomMember.userId.value) }
+                                        ?.let { agent ->
+                                            pinnedAgentSkillTarget = agent
+                                            activeAgentSkillMxid = agent.mxid
+                                            isAgentSkillPickerPresented = true
+                                        }
                                     val text = suggestion.roomMember.displayName ?: suggestion.roomMember.userId.value
                                     val link = permalinkBuilder.permalinkForUser(suggestion.roomMember.userId).getOrNull() ?: return@launch
                                     richTextEditorState.insertMentionAtSuggestion(text = text, link = link)
@@ -480,6 +505,15 @@ class MessageComposerPresenter(
                                 }
                             }
                         } else if (markdownTextEditorState.currentSuggestion != null) {
+                            if (event.resolvedSuggestion is ResolvedSuggestion.Member) {
+                                roomUnsealContextState.dataOrNull()
+                                    ?.let { context -> ComposerAgentSkillReducer.agentDescriptorForUser(context, event.resolvedSuggestion.roomMember.userId.value) }
+                                    ?.let { agent ->
+                                        pinnedAgentSkillTarget = agent
+                                        activeAgentSkillMxid = agent.mxid
+                                        isAgentSkillPickerPresented = true
+                                    }
+                            }
                             markdownTextEditorState.insertSuggestion(
                                 resolvedSuggestion = event.resolvedSuggestion,
                                 mentionSpanProvider = mentionSpanProvider,
@@ -505,7 +539,9 @@ class MessageComposerPresenter(
                 MessageComposerEvent.ToggleAgentSkillPicker -> {
                     isAgentSkillPickerPresented = !isAgentSkillPickerPresented
                     if (isAgentSkillPickerPresented && activeAgentSkillMxid == null) {
-                        activeAgentSkillMxid = baseAgentSkillState.targets.firstOrNull()?.mxid
+                        activeAgentSkillMxid = effectiveBaseAgentSkillState.targets.firstOrNull()?.mxid
+                    } else if (!isAgentSkillPickerPresented) {
+                        pinnedAgentSkillTarget = null
                     }
                 }
                 is MessageComposerEvent.SelectAgentSkillTarget -> {
@@ -518,7 +554,7 @@ class MessageComposerPresenter(
                     if (selectedAgentSkills.none { it.id == selected.id }) {
                         val nextSelectedSkills = (selectedAgentSkills + selected).toImmutableList()
                         selectedAgentSkills = nextSelectedSkills
-                        isAgentSkillPickerPresented = ComposerAgentSkillReducer.hasUnresolvedTargets(baseAgentSkillState.targets, nextSelectedSkills)
+                        isAgentSkillPickerPresented = ComposerAgentSkillReducer.hasUnresolvedTargets(effectiveBaseAgentSkillState.targets, nextSelectedSkills)
                     }
                     if (roomInfo.isDm && composerTextSnapshot.trim() == "/") {
                         if (showTextFormatting) {
@@ -534,7 +570,7 @@ class MessageComposerPresenter(
                 is MessageComposerEvent.RemoveSelectedAgentSkill -> {
                     val nextSelectedSkills = selectedAgentSkills.filterNot { it.id == event.selected.id }.toImmutableList()
                     selectedAgentSkills = nextSelectedSkills
-                    isAgentSkillPickerPresented = ComposerAgentSkillReducer.hasUnresolvedTargets(baseAgentSkillState.targets, nextSelectedSkills)
+                    isAgentSkillPickerPresented = ComposerAgentSkillReducer.hasUnresolvedTargets(effectiveBaseAgentSkillState.targets, nextSelectedSkills)
                 }
                 is MessageComposerEvent.SetAgentChatTargetDeviceId -> {
                     agentChatTargetDeviceId = event.deviceId

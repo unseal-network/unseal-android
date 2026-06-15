@@ -1286,6 +1286,76 @@ class MessageComposerPresenterTest {
         }
     }
 
+    @Test
+    fun `present - InsertSuggestion for agent mention opens skill picker and loads catalog`() = runTest {
+        val agentUserId = UserId("@mail-agent:server.org")
+        val roomUnsealContextStore = FakeRoomUnsealContextStore(
+            initialContext = AsyncData.Success(
+                RoomUnsealContext.from(
+                    roomId = A_ROOM_ID,
+                    members = listOf(
+                        aRoomMember(userId = A_USER_ID, displayName = "Me"),
+                        aRoomMember(userId = agentUserId, displayName = "Mail Agent"),
+                    ),
+                    snapshot = RoomUnsealDataSnapshot(
+                        allAgents = RoomUnsealResource.success(
+                            listOf(
+                                AgentAccountDescriptor(
+                                    botName = "mail-agent",
+                                    localpart = "mail-agent",
+                                    serverName = "server.org",
+                                    matrixUserId = agentUserId.value,
+                                    displayName = "Mail Agent",
+                                    avatarUrl = null,
+                                    isDeviceAgent = false,
+                                    boundDeviceId = null,
+                                )
+                            )
+                        )
+                    ),
+                )
+            )
+        )
+        val roomUnsealDataClient = FakeRoomUnsealDataClient().apply {
+            roomAgentSkillsResult = { _, _, _ ->
+                Result.success(listOf(RoomAgentSkillDescriptor(id = "skill-mail", name = "mail", description = null, runtimeVisible = true)))
+            }
+        }
+        val presenter = createPresenter(
+            roomUnsealContextStore = roomUnsealContextStore,
+            roomUnsealDataClient = roomUnsealDataClient,
+            permalinkBuilder = FakePermalinkBuilder(
+                permalinkForUserLambda = {
+                    Result.success("https://matrix.to/#/$agentUserId")
+                }
+            )
+        )
+
+        presenter.test {
+            val initialState = awaitFirstItem()
+            initialState.textEditorState.setHtml("Ask @mail")
+            initialState.eventSink(
+                MessageComposerEvent.InsertSuggestion(
+                    ResolvedSuggestion.Member(
+                        aRoomMember(userId = agentUserId, displayName = "Mail Agent")
+                    )
+                )
+            )
+
+            var state = awaitItem()
+            repeat(8) {
+                if (state.agentSkillState.isPresented && state.agentSkillState.candidates.isNotEmpty()) return@repeat
+                state = awaitItem()
+            }
+
+            assertThat(state.agentSkillState.isPresented).isTrue()
+            assertThat(state.agentSkillState.targets.map { it.mxid }).containsExactly(agentUserId.value)
+            assertThat(state.agentSkillState.candidates.single().skillName).isEqualTo("mail")
+            assertThat(roomUnsealDataClient.roomAgentSkillRequests.map { it.agentId }).contains(agentUserId.value)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun `present - send messages with intentional mentions`() = runTest {

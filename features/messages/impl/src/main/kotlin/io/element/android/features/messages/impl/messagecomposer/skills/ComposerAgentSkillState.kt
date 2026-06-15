@@ -125,6 +125,14 @@ object ComposerAgentSkillReducer {
             .associateBy { it.mxid }
     }
 
+    fun agentDescriptorForUser(
+        context: RoomUnsealContext,
+        userId: String,
+    ): ComposerAgentDescriptor? {
+        return agentDescriptors(context)[userId]
+            ?: context.members.firstOrNull { it.userId.value == userId && it.isActive && it.isAgent }?.toAgentDescriptor()
+    }
+
     fun mentionedAgentDescriptors(
         mentionedUserIds: Set<String>,
         knownAgents: Map<String, ComposerAgentDescriptor>,
