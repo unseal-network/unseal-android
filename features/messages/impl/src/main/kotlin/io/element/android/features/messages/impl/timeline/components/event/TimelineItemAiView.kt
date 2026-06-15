@@ -398,7 +398,11 @@ private fun ToolCallRootCard(
     var expanded by remember(model.id) { mutableStateOf(model.expandedByDefault) }
     var userToggled by remember(entries.first().id) { mutableStateOf(false) }
     if (selectedIndex !in entries.indices) selectedIndex = model.selectedIndex.coerceIn(entries.indices)
-    val selectedEntry = entries[selectedIndex]
+    val selectedEntry = if (selectedIndex == model.selectedIndex) {
+        model.selectedEntry ?: entries[selectedIndex]
+    } else {
+        entries[selectedIndex]
+    }
     LaunchedEffect(model.allFinished, entries.size) {
         if (model.allFinished && !userToggled) {
             expanded = false
@@ -640,8 +644,7 @@ private fun ToolEntryPayloadCard(
     onLinkLongClick: (Link) -> Unit,
 ): Boolean {
     val props = remember(entry.props) { runCatching { JSONObject(entry.props) }.getOrNull() ?: JSONObject() }
-    val cardType = props.optString("_cardType").takeIf { it.isNotBlank() } ?: "generic"
-    return ToolCardFinalProps(cardType = cardType, data = props, onLinkClick = {})
+    return ToolCardFinalProps(cardType = entry.cardType, data = props, onLinkClick = {})
 }
 
 @Composable
