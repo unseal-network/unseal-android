@@ -336,8 +336,9 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
   - room member fallback target 现在只使用 iOS `RoomMemberProxyProtocol.isActive` 等价成员：`join/invite/knock`；排除 current user、原始 sender、非 sender 的 room agent。
   - expired active progress 会从下一阶段恢复，不会因为 pending window 仍存在而一直停在旧阶段；逻辑对齐 iOS `RoomKeyRecoveryPlanProgressRecord.nextStageIndex()`。
   - `RoomKeyRecoveryStores` 已迁为 `SessionScope`，`pendingStore` / `agentPendingStore` / `progressStore` 不再跟随 `RoomKeyRecoveryTimelineRunner`（RoomScope）重建而丢失。页面/runner 重建后同一 session 内会复用 active/pending 状态，不会重复请求。
+  - `RoomKeyRecoverySenderDeviceResolver` 已作为可注入接口接到 `RoomKeyRecoveryTimelineRunner`。当 resolver 返回 iOS `latestDeviceIDs(for:)` 同语义的设备集合时，sender 阶段会自动把 stale sender device 降级为 user-level target，避免只请求旧设备；默认实现先返回 `null`，不臆造 Matrix SDK 尚未暴露的数据源。
   - 验证：`:features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.roomkey.*'`。
-  - 剩余缺口：iOS 的 `RoomKeyRecoveryForwardedSourceStore` / first forwarded source 记录尚未迁移；Android 目前还没有等价的 `latestDeviceIDs(for user)` 查询来过滤 stale sender device，只能基于当前 UTD request 里的 sender device id。
+  - 剩余缺口：iOS 的 `RoomKeyRecoveryForwardedSourceStore` / first forwarded source 记录尚未迁移；`RoomKeyRecoverySenderDeviceResolver` 还需要接真实 Matrix/Rust latest-device 数据源。
 - 最新文档状态已同步到计划与 handoff；后续继续保持小步提交。
 
 ### Room 数据流当前边界

@@ -19,6 +19,8 @@ import io.element.android.features.messages.impl.link.LinkPresenter
 import io.element.android.features.messages.impl.link.LinkState
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerPresenter
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerState
+import io.element.android.features.messages.impl.roomkey.DefaultRoomKeyRecoverySenderDeviceResolver
+import io.element.android.features.messages.impl.roomkey.RoomKeyRecoverySenderDeviceResolver
 import io.element.android.features.messages.impl.timeline.components.customreaction.CustomReactionPresenter
 import io.element.android.features.messages.impl.timeline.components.customreaction.CustomReactionState
 import io.element.android.features.messages.impl.timeline.components.reactionsummary.ReactionSummaryPresenter
@@ -61,4 +63,7 @@ interface MessagesBindsModule {
 
     @Binds
     fun bindIdentityChangeStatePresenter(presenter: IdentityChangeStatePresenter): Presenter<IdentityChangeState>
+
+    @Binds
+    fun bindRoomKeyRecoverySenderDeviceResolver(resolver: DefaultRoomKeyRecoverySenderDeviceResolver): RoomKeyRecoverySenderDeviceResolver
 }

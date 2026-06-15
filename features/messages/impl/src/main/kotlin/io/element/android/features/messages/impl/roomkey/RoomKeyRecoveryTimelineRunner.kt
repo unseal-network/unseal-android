@@ -43,6 +43,7 @@ class RoomKeyRecoveryTimelineRunner(
     private val roomAgentResolver: RoomAgentResolver,
     private val decryptionRetrier: RoomKeyDecryptionRetrier,
     private val stores: RoomKeyRecoveryStores,
+    private val senderDeviceResolver: RoomKeyRecoverySenderDeviceResolver,
     @SessionCoroutineScope private val sessionCoroutineScope: CoroutineScope,
 ) {
     private val parser = RoomKeyRecoveryRequestParser()
@@ -111,6 +112,11 @@ class RoomKeyRecoveryTimelineRunner(
                 roomAgentResolver.roomAgentUserIds(roomId, activeMemberIds)
             }
             val senderUserIds = requests.mapTo(mutableSetOf()) { it.senderUserId }
+            val roomMemberSignature = activeMemberIds.map { it.value }.sorted().joinToString("|")
+            val latestSenderDeviceIds = senderUserIds.associateWith { senderUserId ->
+                senderDeviceResolver.latestSenderDeviceIds(senderUserId, roomMemberSignature)
+            }.filterValues { it != null }
+                .mapValues { (_, deviceIds) -> deviceIds.orEmpty() }
             val input = RoomKeyRecoveryCoordinatorInput(
                 requests = requests,
                 ownUserId = sessionId,
@@ -123,9 +129,7 @@ class RoomKeyRecoveryTimelineRunner(
                         roomMember.userId !in roomAgentUserIds || roomMember.userId in senderUserIds
                     }
                     .map { RoomKeyRecoveryTarget(userId = it.userId, deviceId = null) },
-                latestSenderDeviceIds = requests
-                    .groupBy { it.senderUserId }
-                    .mapValues { (_, senderRequests) -> senderRequests.mapNotNullTo(mutableSetOf()) { it.senderDeviceId } },
+                latestSenderDeviceIds = latestSenderDeviceIds,
             )
             lastInput = input
             _statuses.value = coordinator.recover(input).statuses

@@ -22,6 +22,7 @@ import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.roomdata.FakeRoomUnsealDataClient
 import io.element.android.features.messages.impl.roomkey.RoomAgentResolver
 import io.element.android.features.messages.impl.roomkey.RoomKeyDecryptionRetrier
+import io.element.android.features.messages.impl.roomkey.RoomKeyRecoverySenderDeviceResolver
 import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryStores
 import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryTimelineRunner
 import io.element.android.features.messages.impl.typing.aTypingNotificationState
@@ -1035,6 +1036,7 @@ class TimelinePresenterTest {
             roomAgentResolver = RoomAgentResolver(FakeRoomUnsealDataClient()),
             decryptionRetrier = RoomKeyDecryptionRetrier { _, _ -> false },
             stores = RoomKeyRecoveryStores(),
+            senderDeviceResolver = RoomKeyRecoverySenderDeviceResolver { _, _ -> null },
             sessionCoroutineScope = this,
         ),
     ): TimelinePresenter {

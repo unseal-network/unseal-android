@@ -250,6 +250,53 @@ class RoomKeyRecoveryTimelineRunnerTest {
     }
 
     @Test
+    fun `recoverVisibleItems - sender recovery falls back to user target when event sender device is stale`() = runTest {
+        val requestRoomKeyRecovery = lambdaRecorder<RoomKeyRecoveryRequest, List<RoomKeyRecoveryTarget>, RoomKeyRecoveryScope, Result<RoomKeyRecoveryProgress>> { request, targets, _ ->
+            Result.success(
+                RoomKeyRecoveryProgress(
+                    roomId = request.roomId,
+                    sessionId = request.sessionId,
+                    senderKey = request.senderKey,
+                    stage = RoomKeyRecoveryStage.SenderRequested,
+                    message = null,
+                    targetCount = targets.size.toUInt(),
+                    manualRetryAvailable = true,
+                )
+            )
+        }
+        val runner = createRunner(
+            encryptionService = FakeEncryptionService(
+                requestRoomKeyRecoveryResult = requestRoomKeyRecovery,
+            ),
+            senderDeviceResolver = RoomKeyRecoverySenderDeviceResolver { senderUserId, _ ->
+                if (senderUserId == A_USER_ID_2) setOf("NEW_SENDER_DEVICE") else null
+            },
+        )
+
+        runner.recoverVisibleItems(
+            roomId = A_ROOM_ID,
+            timelineItems = listOf(
+                aUtdTimelineItem(
+                    sender = A_USER_ID_2,
+                    originalJson = originalJson(sender = A_USER_ID_2, deviceId = "OLD_SENDER_DEVICE"),
+                )
+            ),
+            roomMembers = listOf(aRoomMember(userId = A_USER_ID_2, membership = RoomMembershipState.JOIN)),
+            sessionVerifiedStatus = SessionVerifiedStatus.Verified,
+            backupState = BackupState.UNKNOWN,
+        )
+        advanceUntilIdle()
+
+        requestRoomKeyRecovery.assertions()
+            .isCalledOnce()
+            .with(
+                value(ROOM_KEY_REQUEST.copy(senderUserId = A_USER_ID_2, senderDeviceId = "OLD_SENDER_DEVICE")),
+                value(listOf(RoomKeyRecoveryTarget(A_USER_ID_2, deviceId = null))),
+                value(RoomKeyRecoveryScope.Sender),
+            )
+    }
+
+    @Test
     fun `recoverVisibleItems - sends direct agent room key request when session is verified`() = runTest {
         val requestAgentRoomKeyRecovery = lambdaRecorder<AgentRoomKeyRecoveryRequest, Result<Unit>> { Result.success(Unit) }
         val runner = createRunner(
@@ -384,6 +431,7 @@ class RoomKeyRecoveryTimelineRunnerTest {
         roomAgentResolver: RoomAgentResolver = RoomAgentResolver(FakeRoomUnsealDataClient()),
         decryptionRetrier: RoomKeyDecryptionRetrier = RoomKeyDecryptionRetrier { _, _ -> false },
         stores: RoomKeyRecoveryStores = RoomKeyRecoveryStores(),
+        senderDeviceResolver: RoomKeyRecoverySenderDeviceResolver = RoomKeyRecoverySenderDeviceResolver { _, _ -> null },
     ): RoomKeyRecoveryTimelineRunner {
         return RoomKeyRecoveryTimelineRunner(
             matrixClient = matrixClient,
@@ -394,6 +442,7 @@ class RoomKeyRecoveryTimelineRunnerTest {
             roomAgentResolver = roomAgentResolver,
             decryptionRetrier = decryptionRetrier,
             stores = stores,
+            senderDeviceResolver = senderDeviceResolver,
             sessionCoroutineScope = this,
         )
     }
