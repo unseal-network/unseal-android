@@ -139,6 +139,11 @@ $ADB -s 5fd76ce3 logcat -s "AiSdkStreamReducer:*" "AiStreamDbg:*" > /tmp/sd.txt
 - `7a202e378f` `docs: expand room ios parity migration workflow`
 - `aa39f0fc1c` `feat(messages): derive schedule badge from room context`
 - `9e1ed5a615` `feat(messages): add agent-aware composer suggestion model`
+- `272d59569d` `fix(room): prefer explicit room agent labels for skills`
+- `488037cecd` `fix(room): insert enriched mention suggestions`
+- `66f957be1e` `fix(room): show display names for inserted mentions`
+- `b5a9e15d6c` `fix(room): open skill picker for agent mentions`
+- `5c86e62edf` `fix(room): render key recovery as standalone status`
 
 ### 目标
 
@@ -234,6 +239,12 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 
 现状：模型和 reducer 已有测试，`MessageComposerState` 已新增 `suggestionRenderModels`，`SuggestionsPickerView` 已接入该模型并显示 Agent badge。点击插入仍走原有 `ResolvedSuggestion`，保证 text composer 的 mention 插入逻辑不被破坏。
 
+2026-06-16 更新：
+- `SuggestionsProcessor` 会把 `RoomUnsealContext` 中的 enriched display name/avatar 写回 `ResolvedSuggestion.Member`，所以 picker 展示、插入 payload 和后续 reducer 输入都使用同一套 agent/member 语义。
+- rich text mention 插入的可见文本改为 member display name，链接仍然是 Matrix user permalink；这避免 composer 中显示裸 mxid。
+- 选择 agent mention 时，`MessageComposerPresenter` 会通过 `ComposerAgentSkillReducer.agentDescriptorForUser()` 把该成员转换为 pinned skill target，立即打开 skill picker 并触发 runtime skill catalog 加载。这个 pending target 会参与同一套 `ComposerAgentSkillState`，不是 UI 层临时弹窗。
+- 覆盖测试：`MessageComposerPresenterTest.present - InsertSuggestion for agent mention opens skill picker and loads catalog`。
+
 ### 验证命令
 
 ```bash
@@ -309,6 +320,16 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
   - `data-ui-spec` / `data-json-render` / `data-spec` 不再降级成几行 JSON 摘要，而是进入 `JsonSpecRender`。
   - 该 renderer 支持 iOS flat `Spec(root/elements/state)` 的核心递归结构，以及 nested payload fallback。
   - 第一版组件覆盖 stack/card/text/heading/button/image/divider/badge/progress/alert/file/hotel/product/news；完整 Shadcn 目录和 markdown code-block spec 接入仍是后续增强。
+- `272d59569d` / `488037cecd` / `66f957be1e` / `b5a9e15d6c` composer agent mention/skill picker 数据链路修正
+  - room agent skill target label 现在优先使用 room/enriched 显式 display name；没有显式名称时保留 global agent label，避免回退成 Matrix mxid/localpart。
+  - mention suggestion 的 `ResolvedSuggestion.Member` 会带上 enriched display name/avatar；rich text 插入显示名称，permalink 仍指向 Matrix user。
+  - 插入 agent mention 会立即把该 agent pin 到 `ComposerAgentSkillState.targets`，打开 skill picker，并请求该 agent 的 runtime skills。
+  - 验证：`ComposerAgentSkillReducerTest`、`ComposerAgentSkillCatalogLoaderTest`、`SuggestionsProcessorTest`、`ComposerSuggestionReducerTest`、`MessageComposerPresenterTest.present - InsertSuggestion for agent mention opens skill picker and loads catalog`。
+- `5c86e62edf` `fix(room): render key recovery as standalone status`
+  - `TimelineContentKind.RoomKeyRecovery` 已由 presentation reducer 归入 standalone；恢复密钥内容内部不再绘制 `bgSubtleSecondary` Surface，避免 standalone row 里再出现类似聊天气泡的二次背景。
+  - 内容结构更接近 iOS `EncryptedRoomTimelineView.recoveryCard`：icon + title/message count、stage title、progress、stage summary、detail、action。
+  - 验证：`TimelineItemRoomKeyRecoveryDisplayTest`、`TimelinePresentationReducerTest`、`:features:messages:impl:compileDebugKotlin`。
+  - 剩余缺口：iOS `TimelineViewModel` 的 backup / own devices / sender / room members plan、pending/resume store、forwarded source store 与 room member recovery target 筛选还没有完整逐项迁移。
 - 最新文档状态已同步到计划与 handoff；后续继续保持小步提交。
 
 ### Room 数据流当前边界
