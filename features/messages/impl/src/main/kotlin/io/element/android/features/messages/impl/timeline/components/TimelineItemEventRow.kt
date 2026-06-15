@@ -76,6 +76,7 @@ import io.element.android.features.messages.impl.timeline.model.TimelineItemAlig
 import io.element.android.features.messages.impl.timeline.model.TimelinePresentationModel
 import io.element.android.features.messages.impl.timeline.model.TimelinePresentationReducer
 import io.element.android.features.messages.impl.timeline.model.TimelineReplySwipePolicy
+import io.element.android.features.messages.impl.timeline.model.TimelineSupplementaryPolicy
 import io.element.android.features.messages.impl.timeline.model.bubble.BubbleState
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemGameContent
@@ -226,17 +227,31 @@ fun TimelineItemEventRow(
             Spacer(modifier = Modifier.height(2.dp))
         }
 
-        val presentation = remember(event.content, event.isMine, event.groupPosition, timelineRoomInfo.isDm) {
+        val isEventPinned = timelineRoomInfo.pinnedEventIds.contains(event.eventId)
+        val hasThreadSummary = displayThreadSummaries && timelineMode !is Timeline.Mode.Thread && event.threadInfo is TimelineItemThreadInfo.ThreadRoot
+        val presentation = remember(
+            event.content,
+            event.isMine,
+            event.groupPosition,
+            timelineRoomInfo.isDm,
+            event.inReplyTo,
+            event.reactionsState.reactions,
+            isEventPinned,
+            hasThreadSummary,
+        ) {
             TimelinePresentationReducer.reduce(
                 content = event.content,
                 isMine = event.isMine,
                 groupPosition = event.groupPosition,
                 isDirectRoom = timelineRoomInfo.isDm,
+                hasReply = event.inReplyTo != null,
+                hasReactions = event.reactionsState.reactions.isNotEmpty(),
+                isPinned = isEventPinned,
+                hasThreadSummary = hasThreadSummary,
             )
         }
         val canUseStandaloneFastPath = presentation.isStandalone &&
-            event.inReplyTo == null &&
-            event.reactionsState.reactions.isEmpty()
+            presentation.supplementaryPolicy == TimelineSupplementaryPolicy.None
 
         if (canUseStandaloneFastPath) {
             TimelineItemStandaloneRow(
@@ -315,7 +330,7 @@ fun TimelineItemEventRow(
             }
         }
 
-        if (displayThreadSummaries && timelineMode !is Timeline.Mode.Thread && event.threadInfo is TimelineItemThreadInfo.ThreadRoot) {
+        if (hasThreadSummary) {
             ThreadSummaryView(
                 modifier = if (event.isMine) {
                     Modifier
@@ -545,12 +560,24 @@ private fun TimelineItemEventRowContent(
             .wrapContentHeight()
             .fillMaxWidth(),
     ) {
-        val presentation = remember(event.content, event.isMine, event.groupPosition, timelineRoomInfo.isDm) {
+        val isEventPinned = timelineRoomInfo.pinnedEventIds.contains(event.eventId)
+        val presentation = remember(
+            event.content,
+            event.isMine,
+            event.groupPosition,
+            timelineRoomInfo.isDm,
+            event.inReplyTo,
+            event.reactionsState.reactions,
+            isEventPinned,
+        ) {
             TimelinePresentationReducer.reduce(
                 content = event.content,
                 isMine = event.isMine,
                 groupPosition = event.groupPosition,
                 isDirectRoom = timelineRoomInfo.isDm,
+                hasReply = event.inReplyTo != null,
+                hasReactions = event.reactionsState.reactions.isNotEmpty(),
+                isPinned = isEventPinned,
             )
         }
         val standaloneContentStartMargin = when {
@@ -664,7 +691,6 @@ private fun TimelineItemEventRowContent(
         }
 
         // Pin icon
-        val isEventPinned = timelineRoomInfo.pinnedEventIds.contains(event.eventId)
         if (isEventPinned) {
             Icon(
                 imageVector = CompoundIcons.PinSolid(),

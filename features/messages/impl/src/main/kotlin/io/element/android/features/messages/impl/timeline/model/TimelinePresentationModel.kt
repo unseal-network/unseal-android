@@ -22,8 +22,14 @@ data class TimelinePresentationModel(
     val alignment: TimelineItemAlignment,
     val bubblePolicy: TimelineBubblePolicy,
     val contentKind: TimelineContentKind,
+    val avatarPolicy: TimelineAvatarPolicy,
+    val senderLabelPolicy: TimelineSenderLabelPolicy,
+    val timestampPolicy: TimelineTimestampPolicy,
     val editedPolicy: TimelineEditedPolicy,
     val replySwipePolicy: TimelineReplySwipePolicy,
+    val contentWidthPolicy: TimelineContentWidthPolicy,
+    val rightGutterPolicy: TimelineRightGutterPolicy,
+    val supplementaryPolicy: TimelineSupplementaryPolicy,
     val showSenderInformation: Boolean,
     val reserveAvatarColumn: Boolean,
 ) {
@@ -51,6 +57,23 @@ enum class TimelineContentKind {
     RichEvent,
 }
 
+enum class TimelineAvatarPolicy {
+    Show,
+    ReserveSpace,
+    Hidden,
+}
+
+enum class TimelineSenderLabelPolicy {
+    Show,
+    Hide,
+}
+
+enum class TimelineTimestampPolicy {
+    ContentManaged,
+    Below,
+    Hidden,
+}
+
 enum class TimelineEditedPolicy {
     ShowWhenEdited,
     Hide,
@@ -61,12 +84,31 @@ enum class TimelineReplySwipePolicy {
     Disabled,
 }
 
+enum class TimelineContentWidthPolicy {
+    StandardBubble,
+    StandaloneAdaptive,
+}
+
+enum class TimelineRightGutterPolicy {
+    Standard,
+    Standalone,
+}
+
+enum class TimelineSupplementaryPolicy {
+    None,
+    Decorated,
+}
+
 object TimelinePresentationReducer {
     fun reduce(
         content: TimelineItemEventContent,
         isMine: Boolean,
         groupPosition: TimelineItemGroupPosition,
         isDirectRoom: Boolean,
+        hasReply: Boolean = false,
+        hasReactions: Boolean = false,
+        isPinned: Boolean = false,
+        hasThreadSummary: Boolean = false,
     ): TimelinePresentationModel {
         val contentKind = content.kind()
         val usesPlainTimelineStyle = contentKind == TimelineContentKind.AiStream ||
@@ -91,12 +133,51 @@ object TimelinePresentationReducer {
         val replySwipePolicy = replySwipePolicy(contentKind)
         val showSenderInformation = groupPosition.isNew() && (!isDirectRoom || usesPlainTimelineStyle || !isMine)
         val reserveAvatarColumn = !isDirectRoom || usesPlainTimelineStyle || !isMine
+        val avatarPolicy = when {
+            showSenderInformation -> TimelineAvatarPolicy.Show
+            reserveAvatarColumn -> TimelineAvatarPolicy.ReserveSpace
+            else -> TimelineAvatarPolicy.Hidden
+        }
+        val senderLabelPolicy = if (showSenderInformation) {
+            TimelineSenderLabelPolicy.Show
+        } else {
+            TimelineSenderLabelPolicy.Hide
+        }
+        val timestampPolicy = when (contentKind) {
+            TimelineContentKind.AiStream -> TimelineTimestampPolicy.Hidden
+            TimelineContentKind.Media,
+            TimelineContentKind.RichEvent -> TimelineTimestampPolicy.ContentManaged
+            TimelineContentKind.PlainText,
+            TimelineContentKind.RoomKeyRecovery,
+            TimelineContentKind.Redacted -> TimelineTimestampPolicy.Below
+        }
+        val contentWidthPolicy = if (bubblePolicy == TimelineBubblePolicy.Standalone) {
+            TimelineContentWidthPolicy.StandaloneAdaptive
+        } else {
+            TimelineContentWidthPolicy.StandardBubble
+        }
+        val rightGutterPolicy = if (bubblePolicy == TimelineBubblePolicy.Standalone) {
+            TimelineRightGutterPolicy.Standalone
+        } else {
+            TimelineRightGutterPolicy.Standard
+        }
+        val supplementaryPolicy = if (hasReply || hasReactions || isPinned || hasThreadSummary) {
+            TimelineSupplementaryPolicy.Decorated
+        } else {
+            TimelineSupplementaryPolicy.None
+        }
         return TimelinePresentationModel(
             alignment = alignment,
             bubblePolicy = bubblePolicy,
             contentKind = contentKind,
+            avatarPolicy = avatarPolicy,
+            senderLabelPolicy = senderLabelPolicy,
+            timestampPolicy = timestampPolicy,
             editedPolicy = editedPolicy,
             replySwipePolicy = replySwipePolicy,
+            contentWidthPolicy = contentWidthPolicy,
+            rightGutterPolicy = rightGutterPolicy,
+            supplementaryPolicy = supplementaryPolicy,
             showSenderInformation = showSenderInformation,
             reserveAvatarColumn = reserveAvatarColumn,
         )

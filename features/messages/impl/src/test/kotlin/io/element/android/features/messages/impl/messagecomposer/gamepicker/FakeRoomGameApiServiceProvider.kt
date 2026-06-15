@@ -7,6 +7,7 @@
 
 package io.element.android.features.messages.impl.messagecomposer.gamepicker
 
+import io.element.android.libraries.gameapi.api.AppBundleInfo
 import io.element.android.libraries.gameapi.api.CreateGameRoomResult
 import io.element.android.libraries.gameapi.api.GameApiService
 import io.element.android.libraries.gameapi.api.GameInfo
@@ -26,6 +27,17 @@ class FakeRoomGameApiServiceProvider(
 class FakeGameApiService : GameApiService {
     var fetchAppListResult: Result<List<GameInfo>> = Result.success(emptyList())
     var fetchMyPlayingResult: Result<List<PlayingRoom>> = Result.success(emptyList())
+    var fetchAppBundleResult: (Int) -> Result<AppBundleInfo> = { appId ->
+        Result.success(
+            AppBundleInfo(
+                appId = appId,
+                version = "1.0.0",
+                loadMode = AppBundleInfo.LoadMode.Remote,
+                remoteUrl = "https://keepsecret.io/apps/$appId",
+                zipUrl = null,
+            )
+        )
+    }
     var createGameRoomResult: (Int, String) -> Result<CreateGameRoomResult> = { gameId, _ ->
         Result.success(
             CreateGameRoomResult(
@@ -40,6 +52,8 @@ class FakeGameApiService : GameApiService {
     override suspend fun fetchAppList(page: Int, size: Int): Result<List<GameInfo>> = fetchAppListResult
 
     override suspend fun fetchMyPlaying(page: Int, limit: Int): Result<List<PlayingRoom>> = fetchMyPlayingResult
+
+    override suspend fun fetchAppBundle(appId: Int): Result<AppBundleInfo> = fetchAppBundleResult(appId)
 
     override suspend fun createGameRoom(gameId: Int, meetRoomId: String): Result<CreateGameRoomResult> = createGameRoomResult(gameId, meetRoomId)
 

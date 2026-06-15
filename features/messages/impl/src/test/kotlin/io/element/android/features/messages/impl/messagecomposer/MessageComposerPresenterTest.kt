@@ -1760,10 +1760,15 @@ class MessageComposerPresenterTest {
         mediaOptimizationConfigProvider = mediaOptimizationConfigProvider,
         notificationConversationService = notificationConversationService,
         slashCommandService = slashCommandService,
-        gamePickerPresenter = GamePickerPresenter(
-            room = room,
-            gameApiServiceProvider = FakeRoomGameApiServiceProvider(),
-        ),
+        gamePickerPresenterFactory = object : GamePickerPresenter.Factory {
+            override fun create(onNavigateToMiniApp: (appId: Long, remoteUrl: String?, meetId: String) -> Unit): GamePickerPresenter {
+                return GamePickerPresenter(
+                    room = room,
+                    gameApiServiceProvider = FakeRoomGameApiServiceProvider(),
+                    onNavigateToMiniApp = onNavigateToMiniApp,
+                )
+            }
+        },
     ).apply {
         isTesting = true
         showTextFormatting = isRichTextEditorEnabled

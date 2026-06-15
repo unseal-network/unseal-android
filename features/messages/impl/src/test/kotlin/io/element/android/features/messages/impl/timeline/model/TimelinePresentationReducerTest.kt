@@ -34,8 +34,14 @@ class TimelinePresentationReducerTest {
         assertThat(model.alignment).isEqualTo(TimelineItemAlignment.Start)
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
         assertThat(model.contentKind).isEqualTo(TimelineContentKind.AiStream)
+        assertThat(model.avatarPolicy).isEqualTo(TimelineAvatarPolicy.Show)
+        assertThat(model.senderLabelPolicy).isEqualTo(TimelineSenderLabelPolicy.Show)
+        assertThat(model.timestampPolicy).isEqualTo(TimelineTimestampPolicy.Hidden)
         assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.Hide)
         assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Disabled)
+        assertThat(model.contentWidthPolicy).isEqualTo(TimelineContentWidthPolicy.StandaloneAdaptive)
+        assertThat(model.rightGutterPolicy).isEqualTo(TimelineRightGutterPolicy.Standalone)
+        assertThat(model.supplementaryPolicy).isEqualTo(TimelineSupplementaryPolicy.None)
         assertThat(model.showSenderInformation).isTrue()
         assertThat(model.reserveAvatarColumn).isTrue()
     }
@@ -52,6 +58,7 @@ class TimelinePresentationReducerTest {
         assertThat(model.alignment).isEqualTo(TimelineItemAlignment.Start)
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
         assertThat(model.contentKind).isEqualTo(TimelineContentKind.PlainText)
+        assertThat(model.timestampPolicy).isEqualTo(TimelineTimestampPolicy.Below)
         assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.ShowWhenEdited)
         assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Disabled)
         assertThat(model.showSenderInformation).isTrue()
@@ -124,7 +131,31 @@ class TimelinePresentationReducerTest {
         assertThat(model.alignment).isEqualTo(TimelineItemAlignment.End)
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.StandardBubble)
         assertThat(model.contentKind).isEqualTo(TimelineContentKind.RichEvent)
+        assertThat(model.contentWidthPolicy).isEqualTo(TimelineContentWidthPolicy.StandardBubble)
+        assertThat(model.rightGutterPolicy).isEqualTo(TimelineRightGutterPolicy.Standard)
         assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Enabled)
+    }
+
+    @Test
+    fun `reduce keeps room key recovery standalone even with supplementary UI`() {
+        val model = TimelinePresentationReducer.reduce(
+            content = aTimelineItemEncryptedRecoveryContent(),
+            isMine = false,
+            groupPosition = TimelineItemGroupPosition.None,
+            isDirectRoom = true,
+            hasReply = true,
+            hasReactions = true,
+            isPinned = true,
+            hasThreadSummary = true,
+        )
+
+        assertThat(model.alignment).isEqualTo(TimelineItemAlignment.Start)
+        assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
+        assertThat(model.contentKind).isEqualTo(TimelineContentKind.RoomKeyRecovery)
+        assertThat(model.contentWidthPolicy).isEqualTo(TimelineContentWidthPolicy.StandaloneAdaptive)
+        assertThat(model.rightGutterPolicy).isEqualTo(TimelineRightGutterPolicy.Standalone)
+        assertThat(model.supplementaryPolicy).isEqualTo(TimelineSupplementaryPolicy.Decorated)
+        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Disabled)
     }
 
     @Test
