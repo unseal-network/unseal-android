@@ -30,6 +30,7 @@ import io.element.android.appnav.room.RoomNavigationTarget
 import io.element.android.features.forward.api.ForwardEntryPoint
 import io.element.android.features.messages.api.MessagesEntryPoint
 import io.element.android.features.roomdetails.api.RoomDetailsEntryPoint
+import io.element.android.libraries.chatbot.api.RoomAgentProfileRouter
 import io.element.android.features.roomschedules.api.RoomSchedulesEntryPoint
 import io.element.android.features.space.api.SpaceEntryPoint
 import io.element.android.libraries.architecture.BackstackView
@@ -73,6 +74,7 @@ class JoinedRoomLoadedFlowNode(
     @SessionCoroutineScope
     private val sessionCoroutineScope: CoroutineScope,
     private val matrixClient: MatrixClient,
+    private val roomAgentProfileRouter: RoomAgentProfileRouter,
     private val activeRoomsHolder: ActiveRoomsHolder,
     private val analyticsService: AnalyticsService,
     roomGraphFactory: RoomGraphFactory,
@@ -196,6 +198,9 @@ class JoinedRoomLoadedFlowNode(
             }
             is NavTarget.RoomMemberDetails -> {
                 createRoomDetailsNode(buildContext, RoomDetailsEntryPoint.InitialTarget.RoomMemberDetails(navTarget.userId))
+            }
+            is NavTarget.AgentProfile -> {
+                createRoomDetailsNode(buildContext, RoomDetailsEntryPoint.InitialTarget.AgentProfile(navTarget.botName))
             }
             NavTarget.RoomNotificationSettings -> {
                 createRoomDetailsNode(buildContext, RoomDetailsEntryPoint.InitialTarget.RoomNotificationSettings)
