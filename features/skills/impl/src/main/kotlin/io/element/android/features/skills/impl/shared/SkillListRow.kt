@@ -8,7 +8,6 @@
 package io.element.android.features.skills.impl.shared
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -36,59 +36,68 @@ fun SkillListRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
+    val rowShape = RoundedCornerShape(16.dp)
+    Surface(
+        onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.Top,
+            .padding(vertical = 4.dp),
+        shape = rowShape,
+        color = MaterialTheme.colorScheme.surface,
     ) {
-        Avatar(
-            avatarData = AvatarData(
-                id = skill.id,
-                name = skill.name,
-                url = null,
-                size = AvatarSize.RoomListItem,
-            ),
-            avatarType = AvatarType.Room(),
-            forcedAvatarSize = 48.dp,
-        )
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Top,
         ) {
-            Row(
+            Avatar(
+                avatarData = AvatarData(
+                    id = skill.id,
+                    name = skill.name,
+                    url = null,
+                    size = AvatarSize.RoomListItem,
+                ),
+                avatarType = AvatarType.Room(),
+                forcedAvatarSize = 48.dp,
+            )
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Text(
-                    modifier = Modifier.weight(1f),
-                    text = skill.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (showVisibility) {
-                    skill.visibility?.let { SkillVisibilityBadge(it) }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Text(
+                        modifier = Modifier.weight(1f),
+                        text = skill.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (showVisibility) {
+                        skill.visibility?.let { SkillVisibilityBadge(it) }
+                    }
                 }
-            }
-            skill.description?.takeIf { it.isNotBlank() }?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            skill.createdDateLabel()?.let {
-                Text(
-                    text = "创建时间：$it",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                skill.description?.takeIf { it.isNotBlank() }?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                skill.createdDateLabel()?.let {
+                    Text(
+                        text = "创建时间：$it",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
