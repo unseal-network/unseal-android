@@ -295,12 +295,13 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
     val galleryUrls = if (imageUrls.isNotEmpty()) imageUrls else listOfNotNull(primaryImageUrl)
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.Top,
         ) {
@@ -308,7 +309,7 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
                 CardRemoteImage(
                     url = primaryImageUrl,
                     modifier = Modifier
-                        .size(64.dp)
+                        .size(56.dp)
                         .then(if (galleryUrls.isNotEmpty()) Modifier.clickable { showGallery = true } else Modifier),
                     corner = 8,
                 )
@@ -329,7 +330,7 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
 
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -341,9 +342,9 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
+                        modifier = Modifier.weight(1f),
                     )
                     stars?.let { HotelStarRating(count = it) }
                 }
@@ -365,46 +366,6 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
                 ) {
                     rating?.let { HotelRatingBadge(rating = it) }
                     reviewCount?.let { MetaText("$it reviews") }
-                }
-
-                if (amenities.isNotEmpty()) {
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        val maxAmenities = 5
-                        amenities.take(maxAmenities).forEachIndexed { index, amenity ->
-                            HotelAmenityChip(text = amenity, index = index)
-                        }
-                        if (amenities.size > maxAmenities) {
-                            Text(
-                                text = "+${amenities.size - maxAmenities}",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f), RoundedCornerShape(50))
-                                    .padding(horizontal = 6.dp, vertical = 1.dp),
-                            )
-                        }
-                    }
-                }
-
-                if (mapAction != null || bookAction != null) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        mapAction?.let {
-                            HotelActionChip(text = "Map", color = Color(0xFF2F80ED), onClick = it)
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                        bookAction?.let {
-                            HotelActionChip(text = "Book", color = FinanceUpColor, onClick = it)
-                        }
-                    }
                 }
             }
 
@@ -434,11 +395,25 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
                 }
             }
         }
-        if (galleryUrls.size > 1) {
-            HotelImageStrip(
-                urls = galleryUrls,
-                onClick = { showGallery = true },
-            )
+
+        if (amenities.isNotEmpty()) {
+            HotelAmenityRow(amenities = amenities)
+        }
+
+        if (mapAction != null || bookAction != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                mapAction?.let {
+                    HotelActionChip(text = "Map", color = Color(0xFF2F80ED), onClick = it)
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                bookAction?.let {
+                    HotelActionChip(text = "Book", color = FinanceUpColor, onClick = it)
+                }
+            }
         }
     }
     if (showGallery) {
@@ -603,6 +578,31 @@ private fun HotelRatingBadge(rating: Double) {
             .background(badgeColor, RoundedCornerShape(3.dp))
             .padding(horizontal = 4.dp, vertical = 1.dp),
     )
+}
+
+@Composable
+private fun HotelAmenityRow(amenities: List<String>) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        val maxAmenities = 5
+        amenities.take(maxAmenities).forEachIndexed { index, amenity ->
+            HotelAmenityChip(text = amenity, index = index)
+        }
+        if (amenities.size > maxAmenities) {
+            Text(
+                text = "+${amenities.size - maxAmenities}",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f), RoundedCornerShape(50))
+                    .padding(horizontal = 6.dp, vertical = 1.dp),
+            )
+        }
+    }
 }
 
 @Composable
