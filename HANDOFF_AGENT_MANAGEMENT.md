@@ -448,7 +448,7 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 | Agent 编辑 | 见 §3 | ✅ 全量 parity | 🟡 确认弹窗文案未走本地化 |
 | Skills | My/Marketplace tab、搜索、创建、详情含代码 File Editor、分页 | ✅ 多屏齐全 | 🟡 Detail「Files」段缺失（Android 模型无 `presignedUrls`）；核对分页 |
 | Connectors | 真实图标、分类筛选 chip、OAuth WebView、成功撒花 | 🟡 已迁移 | 🟡 需对齐真实图标/数据/OAuth 流/撒花 |
-| Webhooks | 全局：room 筛选；room 内：agent 筛选；启停开关 | 🟡 已迁移 | 🟡 「选了 room 后无法选 agent」需回归验证（疑似 power level / VPN） |
+| Webhooks | 全局：room 筛选；room 内：agent 筛选；启停开关 | ✅ 已迁移并回归 | ✅ `WebhookTriggerListPresenterTest` 覆盖全局 room filter、room mode agent load/filter；`WebhookTriggerEditPresenterTest` 覆盖选择 room 后清旧 agent 并加载 room agents、create 保存必须选择 agent。2026-06-17 已重跑两组测试通过。 |
 | Credits | Balance/Daily Usage/Usage Ranking 三 tab、sparkline、Top Up、交易记录 | ✅ 数据层、Settings 入口、Topup PaymentSheet 已迁移 | 🟡 Credits period 已对齐 iOS `sevendays/thirtydays/all`；Topup 已有 state/presenter/子页面、PaymentIntent 创建、官方 Stripe `PaymentSheet` bridge、PaymentSheet result 回写、status polling；Settings root 现在通过 `PreferencesFlowNode` refresh flow 在 topup 完成后触发 `PreferencesRootPresenter.loadCreditBalance()`，对齐 iOS `loadCreditBalance()`。剩余：视觉/图标/按钮样式与 View 测试刷新 |
 | Settings AI Hub | iOS Settings AI 区：余额卡 + Agent / Voice / Skills / Vault / Connectors / Triggers 固定顺序入口 | 🟡 数据结构已迁移 | ✅ Android 新增 `SettingsAiAssistantRenderModel`，入口顺序对齐 iOS `SettingsScreenViewModel`，`PreferencesRootPresenter/View` 只消费 model；已补 model/presenter/view 单测，并安装到 PHK110，真机截图 `/tmp/unseal-settings-ai-hub-render-model.png`。剩余：图标/分组/浅深色视觉 polish、逐入口转场截图 |
 | Voice Library | My/Public tab、录音（mic/录/放）、列表试听、删除确认、分享/导入 | 🟡 Mine/Public、catalog、save/delete/share/import/delete notice、presenter-owned preview state、下载缓存式 preview、recording upload API、current-recording state/events、`RECORD_AUDIO` 权限、原生 m4a/base64 录音 bridge + 已录音本地回放/进度/seek/scrub 状态与设计系统 waveform UI 已接入；已录音 m4a 会解码成真实 waveform samples，不再使用固定 demo 波形 | ⚠️ 视觉和真机录音/拖动手势需继续对齐 |
@@ -482,7 +482,7 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 7. Connectors 真实图标 + OAuth WebView + 数据交互。
 8. 独立 Vault 管理页（List + Edit，CRUD）。
 9. Voice Library 最终样式与真机手势对齐（上传 API、current-recording presenter state、下载缓存式试听、原生 recorder bridge、已录音本地回放/进度/seek/scrub、设计系统 waveform UI、真实 m4a waveform 采样已接；还需设备截图和 iOS 视觉对比）。
-10. Webhooks「选 room 后选 agent」回归。
+10. Webhooks「选 room 后选 agent」回归已通过；后续仅剩真机视觉/权限异常观察。
 11. Onboarding 继续补 iOS identity-confirmed 中间页与 PostLoginWelcome 产品决策；FTUE 基础状态顺序已经对齐。
 
 ### 5.8 2026-06-15 PostLoginWelcome 数据语义与真机验证
