@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
@@ -72,7 +73,7 @@ fun MessageEventBubble(
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick,
-                indication = ripple(),
+                indication = ripple(bounded = true),
                 interactionSource = interactionSource
             )
             .onKeyboardContextMenuAction(onLongClick)
@@ -132,6 +133,7 @@ fun MessageEventBubble(
                         .toInt()
                         .toDp()
                 )
+                .clip(bubbleShape)
                 .then(clickableModifier),
             content = content,
         )

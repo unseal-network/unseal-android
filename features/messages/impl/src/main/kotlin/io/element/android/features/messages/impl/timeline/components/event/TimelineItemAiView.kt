@@ -21,6 +21,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -55,6 +56,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -64,6 +66,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -417,9 +420,16 @@ private fun ToolCallRootCard(
         animationSpec = tween(durationMillis = 300),
         label = "tool-card-chevron-rotation",
     )
+    val cardShape = RoundedCornerShape(12.dp)
+    val headerShape = if (expanded) {
+        RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
+    } else {
+        cardShape
+    }
+    val headerInteractionSource = remember { MutableInteractionSource() }
 
     Surface(
-        shape = RoundedCornerShape(12.dp),
+        shape = cardShape,
         color = MaterialTheme.colorScheme.surfaceVariant,
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -427,7 +437,11 @@ private fun ToolCallRootCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable {
+                    .clip(headerShape)
+                    .clickable(
+                        interactionSource = headerInteractionSource,
+                        indication = ripple(bounded = true),
+                    ) {
                         userToggled = true
                         expanded = !expanded
                     }

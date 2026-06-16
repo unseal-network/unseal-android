@@ -400,6 +400,7 @@ private fun TimelineItemStandaloneRow(
                 )
             }
 
+            val standaloneInteractionSource = remember { MutableInteractionSource() }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -407,6 +408,8 @@ private fun TimelineItemStandaloneRow(
                     .combinedClickable(
                         onClick = {},
                         onLongClick = onLongClick,
+                        indication = null,
+                        interactionSource = standaloneInteractionSource,
                     )
                     .semantics(mergeDescendants = false) {
                         isTraversalGroup = true
