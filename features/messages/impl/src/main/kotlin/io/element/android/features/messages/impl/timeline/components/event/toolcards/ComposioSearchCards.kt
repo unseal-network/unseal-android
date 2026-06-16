@@ -466,6 +466,7 @@ private fun HotelImageStrip(
                 url = url,
                 modifier = Modifier
                     .size(width = 92.dp, height = 66.dp)
+                    .clip(RoundedCornerShape(8.dp))
                     .clickable(onClick = onClick),
                 corner = 8,
             )
@@ -571,14 +572,15 @@ private fun HotelStarRating(count: Int) {
 
 @Composable
 private fun HotelActionChip(text: String, color: Color, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(50)
     Text(
         text = text,
         style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.Medium,
         color = color,
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(color.copy(alpha = 0.12f))
+            .background(color.copy(alpha = 0.12f), shape)
+            .clip(shape)
             .clickable(onClick = onClick)
             .padding(horizontal = 9.dp, vertical = 4.dp),
     )

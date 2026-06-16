@@ -9,7 +9,6 @@
 package io.element.android.features.messages.impl.timeline.components.reactionsummary
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -186,13 +185,12 @@ private fun AggregatedReactionButton(
         modifier = Modifier
             .background(buttonColor, roundedCornerShape)
             .clip(roundedCornerShape)
-            .clickable(onClick = onClick)
-            .padding(vertical = 8.dp, horizontal = 12.dp)
             .selectable(
                 selected = isHighlighted,
                 role = Role.Tab,
                 onClick = onClick,
             )
+            .padding(vertical = 8.dp, horizontal = 12.dp)
             .clearAndSetSemantics {
                 contentDescription = a11yText
             },

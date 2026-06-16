@@ -8,7 +8,6 @@
 package io.element.android.features.agentmanagement.impl.shared
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -95,7 +94,7 @@ fun CircleIconButton(
         modifier = modifier
             .size(40.dp)
             .background(ElementTheme.colors.bgCanvasDefault, CircleShape)
-            .clickable(onClick = onClick),
+            .shapeAwareClickable(CircleShape, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

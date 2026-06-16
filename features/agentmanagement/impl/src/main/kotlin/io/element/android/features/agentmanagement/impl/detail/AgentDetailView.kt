@@ -10,7 +10,6 @@
 package io.element.android.features.agentmanagement.impl.detail
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -57,6 +56,7 @@ import io.element.android.libraries.designsystem.components.avatar.AvatarSize
 import io.element.android.libraries.designsystem.components.avatar.AvatarType
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
+import io.element.android.features.agentmanagement.impl.shared.shapeAwareClickable
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 
@@ -124,7 +124,7 @@ private fun Header(state: AgentDetailState, renderModel: AgentDetailRenderModel)
         Text(renderModel.displayName, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center)
         renderModel.matrixId?.let { id ->
             Row(
-                modifier = Modifier.clickable { state.eventSink(AgentDetailEvents.CopyAgentId) },
+                modifier = Modifier.shapeAwareClickable(RoundedCornerShape(50)) { state.eventSink(AgentDetailEvents.CopyAgentId) },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
@@ -210,7 +210,7 @@ private fun SoulSection(state: AgentDetailState, soul: AgentSoulRenderModel) {
             )
             if (soul.canToggle) {
                 Text(
-                    modifier = Modifier.clickable { state.eventSink(AgentDetailEvents.ToggleSoulExpanded) },
+                    modifier = Modifier.shapeAwareClickable(RoundedCornerShape(50)) { state.eventSink(AgentDetailEvents.ToggleSoulExpanded) },
                     text = soul.toggleLabel,
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
@@ -309,7 +309,7 @@ private fun RoomsSection(state: AgentDetailState) {
 @Composable
 private fun RoomRow(room: AgentRoomRenderModel, onOpen: () -> Unit) {
     ListItem(
-        modifier = Modifier.clickable(onClick = onOpen),
+        modifier = Modifier.shapeAwareClickable(RoundedCornerShape(12.dp), onClick = onOpen),
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
         headlineContent = { Text(room.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = room.subtitle?.let { subtitle ->

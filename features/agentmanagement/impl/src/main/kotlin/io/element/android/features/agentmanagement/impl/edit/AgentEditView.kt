@@ -10,7 +10,6 @@
 package io.element.android.features.agentmanagement.impl.edit
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -67,6 +66,7 @@ import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.agentmanagement.impl.shared.AgentVoiceSelection
+import io.element.android.features.agentmanagement.impl.shared.shapeAwareClickable
 import io.element.android.libraries.chatbot.api.model.agent.AgentSandboxMode
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentProvider
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentProviderInfo
@@ -580,7 +580,7 @@ private fun VaultKeyPickerSheet(state: AgentEditState, onDismiss: () -> Unit) {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     filtered.forEach { item ->
                         ListItem(
-                            modifier = Modifier.clickable { state.eventSink(AgentEditEvents.ToggleVaultKey(item.key)) },
+                            modifier = Modifier.shapeAwareClickable(RoundedCornerShape(12.dp)) { state.eventSink(AgentEditEvents.ToggleVaultKey(item.key)) },
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                             headlineContent = { Text(item.key) },
                             supportingContent = item.description?.takeIf { it.isNotBlank() }?.let { { Text(it, maxLines = 1) } },
@@ -627,7 +627,7 @@ private fun SkillPickerSheet(state: AgentEditState, onDismiss: () -> Unit) {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     filtered.forEach { skill ->
                         ListItem(
-                            modifier = Modifier.clickable { state.eventSink(AgentEditEvents.ToggleSkill(skill.id)) },
+                            modifier = Modifier.shapeAwareClickable(RoundedCornerShape(12.dp)) { state.eventSink(AgentEditEvents.ToggleSkill(skill.id)) },
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                             headlineContent = { Text(skill.name) },
                             supportingContent = skill.description?.takeIf { it.isNotBlank() }?.let { { Text(it, maxLines = 1) } },
@@ -683,7 +683,7 @@ private fun SandboxInitOption(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onClick)
+            .shapeAwareClickable(RoundedCornerShape(12.dp), enabled = enabled, onClick = onClick)
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),

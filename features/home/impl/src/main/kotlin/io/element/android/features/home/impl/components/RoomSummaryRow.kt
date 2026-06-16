@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.absoluteOffset
@@ -230,10 +229,18 @@ private fun SwipeableRoomActions(
 ) {
     val actionWidth = 64.dp
     val swipeActions = renderModel.actions.swipeActions
+    if (swipeActions.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            content = content,
+        )
+        return
+    }
     val totalRevealPx = with(LocalDensity.current) { (actionWidth * swipeActions.size).toPx() }
     var dragOffsetPx by remember(room.id) { mutableFloatStateOf(0f) }
     var isDragging by remember(room.id) { androidx.compose.runtime.mutableStateOf(false) }
     val targetOffsetPx = if (openedSwipeRoomId == room.id) -totalRevealPx else 0f
+    val isSwipeActive = isDragging || openedSwipeRoomId == room.id || dragOffsetPx != 0f
     val animatedOffsetPx by animateFloatAsState(
         targetValue = if (isDragging) dragOffsetPx else targetOffsetPx,
         label = "room-list-swipe-offset",
@@ -254,43 +261,45 @@ private fun SwipeableRoomActions(
     }
 
     Box(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .matchParentSize()
-                .padding(vertical = 1.dp),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            swipeActions.forEach { action ->
-                SwipeActionButton(
-                    action = action,
-                    modifier = Modifier
-                        .width(actionWidth)
-                        .fillMaxHeight()
-                        .heightIn(min = minHeight),
-                    onClick = {
-                        onOpenSwipeRoom(null)
-                        coroutineScope.launch {
-                            delay(300)
-                            when (action.kind) {
-                                RoomListItemActionKind.MarkAsRead -> eventSink(RoomListEvent.MarkAsRead(room.roomId))
-                                RoomListItemActionKind.MarkAsUnread -> eventSink(RoomListEvent.MarkAsUnread(room.roomId))
-                                RoomListItemActionKind.Favorite -> eventSink(RoomListEvent.SetRoomIsFavorite(room.roomId, true))
-                                RoomListItemActionKind.Unfavorite -> eventSink(RoomListEvent.SetRoomIsFavorite(room.roomId, false))
-                                RoomListItemActionKind.Pin,
-                                RoomListItemActionKind.Unpin,
-                                RoomListItemActionKind.Mute,
-                                RoomListItemActionKind.Unmute,
-                                RoomListItemActionKind.Archive,
-                                RoomListItemActionKind.Unarchive,
-                                RoomListItemActionKind.Settings,
-                                RoomListItemActionKind.Report,
-                                RoomListItemActionKind.Leave,
-                                RoomListItemActionKind.ClearCache -> Unit
+        if (isSwipeActive) {
+            Row(
+                modifier = Modifier
+                    .matchParentSize()
+                    .padding(vertical = 1.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                swipeActions.forEach { action ->
+                    SwipeActionButton(
+                        action = action,
+                        modifier = Modifier
+                            .width(actionWidth)
+                            .fillMaxHeight()
+                            .heightIn(min = minHeight),
+                        onClick = {
+                            onOpenSwipeRoom(null)
+                            coroutineScope.launch {
+                                delay(300)
+                                when (action.kind) {
+                                    RoomListItemActionKind.MarkAsRead -> eventSink(RoomListEvent.MarkAsRead(room.roomId))
+                                    RoomListItemActionKind.MarkAsUnread -> eventSink(RoomListEvent.MarkAsUnread(room.roomId))
+                                    RoomListItemActionKind.Favorite -> eventSink(RoomListEvent.SetRoomIsFavorite(room.roomId, true))
+                                    RoomListItemActionKind.Unfavorite -> eventSink(RoomListEvent.SetRoomIsFavorite(room.roomId, false))
+                                    RoomListItemActionKind.Pin,
+                                    RoomListItemActionKind.Unpin,
+                                    RoomListItemActionKind.Mute,
+                                    RoomListItemActionKind.Unmute,
+                                    RoomListItemActionKind.Archive,
+                                    RoomListItemActionKind.Unarchive,
+                                    RoomListItemActionKind.Settings,
+                                    RoomListItemActionKind.Report,
+                                    RoomListItemActionKind.Leave,
+                                    RoomListItemActionKind.ClearCache -> Unit
+                                }
                             }
-                        }
-                    },
-                )
+                        },
+                    )
+                }
             }
         }
         Box(
@@ -411,8 +420,7 @@ private fun RoomSummaryScaffoldRow(
                 }
             )
             .then(clickModifier)
-            .padding(horizontal = 16.dp, vertical = 11.dp)
-            .height(IntrinsicSize.Min),
+            .padding(horizontal = 16.dp, vertical = 11.dp),
     ) {
         Avatar(
             avatarData = room.avatarData,

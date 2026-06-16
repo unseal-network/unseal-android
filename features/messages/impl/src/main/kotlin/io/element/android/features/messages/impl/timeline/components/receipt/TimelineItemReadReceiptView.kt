@@ -58,12 +58,16 @@ fun TimelineItemReadReceiptView(
     modifier: Modifier = Modifier,
 ) {
     if (state.receipts.isNotEmpty()) {
-        if (renderReadReceipts) {
-            ReadReceiptsRow(
-                modifier = modifier.clearAndSetSemantics {
+        ReadReceiptsRow(
+            modifier = if (renderReadReceipts) {
+                modifier.clearAndSetSemantics {
                     hideFromAccessibility()
                 }
-            ) {
+            } else {
+                modifier
+            }
+        ) {
+            if (renderReadReceipts) {
                 ReadReceiptsAvatars(
                     receipts = state.receipts,
                     modifier = Modifier
