@@ -112,6 +112,37 @@ class RoomMemberListFetcherTest {
     }
 
     @Test
+    fun `fetchRoomMembers enriches members returned by the room agent provider`() = runTest {
+        val room = FakeFfiRoom(getMembers = {
+            FakeFfiRoomMembersIterator(
+                listOf(
+                    aRustRoomMember(A_USER_ID),
+                    aRustRoomMember(A_USER_ID_2),
+                )
+            )
+        })
+        val fetcher = RoomMemberListFetcher(
+            room = room,
+            dispatcher = Dispatchers.Default,
+            roomAgentMemberProvider = object : RoomAgentMemberProvider {
+                override suspend fun getRoomAgents(roomId: String): List<RoomAgentMember> {
+                    return listOf(RoomAgentMember(userId = A_USER_ID.value, membership = "join", userType = "agent"))
+                }
+            },
+        )
+
+        fetcher.membersFlow.test {
+            fetcher.fetchRoomMembers(source = SERVER)
+
+            assertThat(awaitItem()).isInstanceOf(RoomMembersState.Unknown::class.java)
+            assertThat(awaitItem()).isInstanceOf(RoomMembersState.Pending::class.java)
+            val ready = awaitItem() as RoomMembersState.Ready
+            assertThat(ready.roomMembers.first { it.userId == A_USER_ID }.userType).isEqualTo("agent")
+            assertThat(ready.roomMembers.first { it.userId == A_USER_ID_2 }.userType).isNull()
+        }
+    }
+
+    @Test
     fun `fetchRoomMembers with SERVER source - emits only new members, if any`() = runTest {
         val room = FakeFfiRoom(getMembers = {
             FakeFfiRoomMembersIterator(
