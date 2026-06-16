@@ -351,6 +351,7 @@ private fun EmailListRow(message: JSONObject, open: (String?) -> Unit) {
 private fun FileAttachmentCardView(data: JSONObject, onLinkClick: () -> Unit) {
     val files = data.cardObjects("files", "items")
     if (files.isEmpty()) return
+    val title = data.cardString("title")
     val shown = files.take(MAX_CARD_ITEMS)
     val open = rememberLinkOpener(onLinkClick)
 
@@ -358,6 +359,9 @@ private fun FileAttachmentCardView(data: JSONObject, onLinkClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
+        if (!title.isNullOrBlank()) {
+            ToolCardHeader(title = title, count = files.size)
+        }
         DividedList(shown) { file -> FileRow(file, open) }
         if (files.size > shown.size) {
             Text(
@@ -373,12 +377,13 @@ private fun FileAttachmentCardView(data: JSONObject, onLinkClick: () -> Unit) {
 @Composable
 private fun FileRow(file: JSONObject, open: (String?) -> Unit) {
     val name = file.cardString("name", "filename", "title") ?: "Untitled"
-    val size = file.cardString("size")
+    val size = file.cardString("sizeLabel", "size")
+    val mimeType = file.cardString("mimeType", "mediaType")
     val modifiedAt = file.cardString("modifiedAt", "modified_at", "modifiedTime", "modified_time")
     val owner = file.cardString("owner")
     val shared = file.cardBool("shared") ?: false
     val url = file.cardString("url", "webViewLink", "web_view_link", "alternateLink")
-    val icon = resolveFileTypeIcon(name)
+    val icon = resolveFileTypeIcon(name = name, mimeType = mimeType, explicitIcon = file.cardString("icon"))
     val details = listOfNotNull(size, modifiedAt, owner).filter { it.isNotBlank() }
 
     Row(
@@ -439,7 +444,22 @@ private fun FileRow(file: JSONObject, open: (String?) -> Unit) {
 /** File-type badge: label + color (mirror iOS FileTypeIcon). */
 private data class FileTypeIcon(val label: String, val color: Color)
 
-private fun resolveFileTypeIcon(name: String): FileTypeIcon {
+private fun resolveFileTypeIcon(name: String, mimeType: String? = null, explicitIcon: String? = null): FileTypeIcon {
+    when (explicitIcon?.lowercase()) {
+        "image" -> return FileTypeIcon("IMG", Color(0xFF8E24AA))
+        "pdf" -> return FileTypeIcon("PDF", Color(0xFFE53935))
+        "spreadsheet" -> return FileTypeIcon("XLS", Color(0xFF43A047))
+        "presentation" -> return FileTypeIcon("PPT", Color(0xFFFB8C00))
+        "document" -> return FileTypeIcon("DOC", Color(0xFF1E88E5))
+    }
+    val lowerMime = mimeType.orEmpty().lowercase()
+    when {
+        lowerMime.startsWith("image/") -> return FileTypeIcon("IMG", Color(0xFF8E24AA))
+        lowerMime.contains("pdf") -> return FileTypeIcon("PDF", Color(0xFFE53935))
+        lowerMime.contains("spreadsheet") -> return FileTypeIcon("XLS", Color(0xFF43A047))
+        lowerMime.contains("presentation") -> return FileTypeIcon("PPT", Color(0xFFFB8C00))
+        lowerMime.contains("document") -> return FileTypeIcon("DOC", Color(0xFF1E88E5))
+    }
     val ext = name.substringAfterLast('.', "").lowercase()
     return when (ext) {
         "pdf" -> FileTypeIcon("PDF", Color(0xFFE53935))

@@ -277,18 +277,18 @@ private fun HotelBookingCard(data: JSONObject, onLinkClick: () -> Unit) {
 @Composable
 private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
     val name = hotel.cardString("name") ?: "Unknown Hotel"
-    val address = hotel.cardString("address")
+    val address = hotel.cardString("area", "address")
     val price = hotel.cardString("price")
-    val totalPrice = hotel.cardString("totalPrice")
+    val totalPrice = hotel.cardString("total", "totalPrice")
     val rating = hotel.cardDouble("rating")
-    val reviewCount = hotel.cardInt("reviewCount")
+    val reviewCount = hotel.cardInt("reviews", "reviewCount")
     val stars = hotel.cardInt("stars")
-    val imageUrl = hotel.cardString("imageUrl")
-    val imageUrls = hotel.cardStrings("imageUrls")
+    val imageUrl = hotel.cardString("thumbnail", "imageUrl")
+    val imageUrls = hotel.cardStrings("images", "imageUrls")
     val primaryImageUrl = imageUrl ?: imageUrls.firstOrNull()
     val amenities = hotel.cardStrings("amenities")
     val url = hotel.cardString("url")
-    val mapsUrl = hotel.cardString("mapsUrl")
+    val mapsUrl = hotel.cardString("mapUrl", "mapsUrl")
     val bookAction = openLinkAction(url, onLinkClick)
     val mapAction = openLinkAction(mapsUrl, onLinkClick)
     var showGallery by remember(imageUrls.joinToString("|"), primaryImageUrl) { mutableStateOf(false) }
@@ -398,6 +398,13 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
 
         if (amenities.isNotEmpty()) {
             HotelAmenityRow(amenities = amenities)
+        }
+
+        if (galleryUrls.isNotEmpty()) {
+            HotelImageStrip(
+                urls = galleryUrls.take(3),
+                onClick = { showGallery = true },
+            )
         }
 
         if (mapAction != null || bookAction != null) {

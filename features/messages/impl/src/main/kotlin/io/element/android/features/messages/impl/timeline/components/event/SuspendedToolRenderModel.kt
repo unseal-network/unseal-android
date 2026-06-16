@@ -17,6 +17,8 @@ internal data class SuspendedToolRenderModel(
     val reason: String?,
     val details: List<SuspendedToolDetail>,
     val choices: List<SuspendedToolChoice>,
+    val fields: List<SuspendedToolField> = emptyList(),
+    val submitLabel: String? = null,
     val canRespond: Boolean,
 )
 
@@ -29,6 +31,12 @@ internal data class SuspendedToolChoice(
     val id: String,
     val label: String,
     val description: String?,
+)
+
+internal data class SuspendedToolField(
+    val id: String,
+    val label: String,
+    val value: String,
 )
 
 internal enum class SuspendedToolKind {
@@ -66,7 +74,7 @@ internal fun String.toSuspendedToolRenderModel(): SuspendedToolRenderModel {
         SuspendedToolKind.DeleteSchedule -> deleteScheduleModel(suspendPayload)
         SuspendedToolKind.SetSandboxMode -> sandboxModeModel(suspendPayload)
         SuspendedToolKind.DeleteAgentVaultEntry -> deleteAgentVaultEntryModel(suspendPayload)
-        SuspendedToolKind.MoltbookRegister -> moltbookRegisterModel(suspendPayload)
+        SuspendedToolKind.MoltbookRegister -> moltbookRegisterModel(root, suspendPayload)
         SuspendedToolKind.Unknown -> unknownSuspendedModel(root, suspendPayload)
     }
 }
@@ -165,18 +173,28 @@ private fun deleteAgentVaultEntryModel(payload: JSONObject): SuspendedToolRender
     )
 }
 
-private fun moltbookRegisterModel(payload: JSONObject): SuspendedToolRenderModel {
+private fun moltbookRegisterModel(root: JSONObject, payload: JSONObject): SuspendedToolRenderModel {
+    val name = payload.firstNonBlank("moltyName", "suggestedName", "name", "registeredName")
+    val fields = payload.optJSONArray("fields").fieldList().ifEmpty {
+        listOfNotNull(
+            SuspendedToolField("name", "Moltbook name", name.orEmpty()),
+            payload.firstNonBlank("verificationCode")?.let { SuspendedToolField("verificationCode", "Verification code", it) },
+            payload.firstNonBlank("claimUrl", "registerUrl")?.let { SuspendedToolField("claimUrl", "Claim URL", it) },
+        )
+    }
     return SuspendedToolRenderModel(
         kind = SuspendedToolKind.MoltbookRegister,
         title = "Moltbook registration",
         subtitle = "Register before the agent continues",
-        reason = payload.firstNonBlank("description"),
+        reason = root.firstNonBlank("reason") ?: payload.firstNonBlank("description", "reason"),
         details = listOfNotNull(
-            payload.firstNonBlank("suggestedName")?.let { SuspendedToolDetail("Suggested name", it) },
-            payload.firstNonBlank("registerUrl")?.let { SuspendedToolDetail("Register URL", it) },
+            payload.firstNonBlank("agentId")?.let { SuspendedToolDetail("Agent", it) },
+            payload.firstNonBlank("targetUserId")?.let { SuspendedToolDetail("Target user", it) },
         ),
         choices = emptyList(),
-        canRespond = false,
+        fields = fields,
+        submitLabel = root.firstNonBlank("submitLabel") ?: payload.firstNonBlank("submitLabel") ?: "Continue",
+        canRespond = true,
     )
 }
 
@@ -229,6 +247,21 @@ private fun JSONArray?.choiceList(): List<SuspendedToolChoice> {
             id = id.ifBlank { label },
             label = label.ifBlank { id },
             description = item.firstNonBlank("description"),
+        )
+    }
+}
+
+private fun JSONArray?.fieldList(): List<SuspendedToolField> {
+    if (this == null) return emptyList()
+    return (0 until length()).mapNotNull { index ->
+        val item = optJSONObject(index) ?: return@mapNotNull null
+        val id = item.firstNonBlank("id", "name", "key").orEmpty()
+        val label = item.firstNonBlank("label", "title", "name", "key").orEmpty()
+        if (id.isBlank() && label.isBlank()) return@mapNotNull null
+        SuspendedToolField(
+            id = id.ifBlank { label },
+            label = label.ifBlank { id },
+            value = item.firstNonBlank("value", "defaultValue").orEmpty(),
         )
     }
 }

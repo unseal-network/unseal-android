@@ -49,6 +49,88 @@ class AgentStreamParityReplayTest {
         assertThat(entries.getJSONObject(0).getString("cardType")).isEqualTo("composeEmail")
     }
 
+    @Test
+    fun `all remaining parity fixtures expose a root card or stream parts`() {
+        val expected = mapOf(
+            "compose-email-list" to "composeEmail",
+            "weather-current-forecast" to "weather",
+            "hotel-booking-gallery" to "hotelBooking",
+            "file-attachment-list" to "fileAttachment",
+        )
+
+        expected.forEach { (fixtureId, cardType) ->
+            val exported = AgentStreamParityExport.renderJson(replayFixture(fixtureId))
+            val entries = exported.getJSONObject("toolRoot").getJSONArray("entries")
+            assertThat(entries.length()).isAtLeast(1)
+            assertThat(entries.getJSONObject(0).getString("cardType")).isEqualTo(cardType)
+        }
+
+        val mixed = AgentStreamParityExport.renderJson(replayFixture("stream-mixed-parts"))
+        val types = (0 until mixed.getJSONArray("parts").length()).map {
+            mixed.getJSONArray("parts").getJSONObject(it).getString("type")
+        }
+        assertThat(types).containsAtLeast("text", "reasoning", "source", "file", "data-error-card")
+
+        val suspended = AgentStreamParityExport.renderJson(replayFixture("moltbook-register"))
+        val suspendedParts = suspended.getJSONArray("parts")
+        val suspendedKinds = (0 until suspendedParts.length()).mapNotNull {
+            suspendedParts.getJSONObject(it).optString("suspendedKind").takeIf { kind -> kind.isNotBlank() }
+        }
+        assertThat(suspendedKinds).contains("moltbookRegister")
+    }
+
+    @Test
+    fun `moltbook register fixture exports interactive fields`() {
+        val exported = AgentStreamParityExport.renderJson(replayFixture("moltbook-register"))
+        val parts = exported.getJSONArray("parts")
+        val suspended = (0 until parts.length())
+            .map { parts.getJSONObject(it) }
+            .first { it.optString("suspendedKind") == "moltbookRegister" }
+        val fields = suspended.getJSONArray("fields").let { array ->
+            (0 until array.length()).map { array.getString(it) }
+        }
+
+        assertThat(fields).containsAtLeast("name", "verificationCode", "claimUrl")
+        assertThat(suspended.getString("submitLabel")).isEqualTo("Continue")
+    }
+
+    @Test
+    fun `hotel fixture exports images and amenities separately`() {
+        val exported = AgentStreamParityExport.renderJson(replayFixture("hotel-booking-gallery"))
+        val entries = exported.getJSONObject("toolRoot").getJSONArray("entries")
+        val entry = entries.getJSONObject(0)
+        val propsKeys = entry.getJSONArray("propsKeys").let { array ->
+            (0 until array.length()).map { array.getString(it) }
+        }
+
+        assertThat(entry.getString("cardType")).isEqualTo("hotelBooking")
+        assertThat(propsKeys).containsAtLeast("hotels", "images", "amenities")
+    }
+
+    @Test
+    fun `file attachment fixture exports file rows`() {
+        val exported = AgentStreamParityExport.renderJson(replayFixture("file-attachment-list"))
+        val entries = exported.getJSONObject("toolRoot").getJSONArray("entries")
+        val entry = entries.getJSONObject(0)
+        val propsKeys = entry.getJSONArray("propsKeys").let { array ->
+            (0 until array.length()).map { array.getString(it) }
+        }
+
+        assertThat(entry.getString("cardType")).isEqualTo("fileAttachment")
+        assertThat(propsKeys).containsAtLeast("files", "title")
+    }
+
+    @Test
+    fun `root card exports partial failure counts`() {
+        val exported = AgentStreamParityExport.renderJson(replayFixture("stream-mixed-parts"))
+        val toolRoot = exported.optJSONObject("toolRoot")
+        if (toolRoot != null) {
+            assertThat(toolRoot.getInt("doneCount")).isAtLeast(0)
+            assertThat(toolRoot.getInt("errorCount")).isAtLeast(0)
+            assertThat(toolRoot.getInt("callingCount")).isAtLeast(0)
+        }
+    }
+
     private fun replayFixture(id: String) = AiSdkStreamReducer().mapSnapshot(
         snapshot = FixtureSnapshotReducer(id).reduce(),
         isEdited = false,
@@ -64,8 +146,11 @@ class AgentStreamParityReplayTest {
     ) {
         private val file = repoRoot().resolve("docs/agent-stream-fixtures/fixtures/$fixtureId.sse.jsonl")
         private val textParts = linkedMapOf<String, TextBuilder>()
+        private val reasoningParts = linkedMapOf<String, TextBuilder>()
         private val toolParts = linkedMapOf<String, ToolBuilder>()
         private val dataParts = mutableListOf<StreamPart.Data>()
+        private val sourceParts = mutableListOf<StreamPart.Source>()
+        private val fileParts = mutableListOf<StreamPart.File>()
         private val rawEvents = mutableListOf<RawStreamEvent>()
         private var status = StreamStatus.Streaming
 
@@ -88,7 +173,10 @@ class AgentStreamParityReplayTest {
 
             val parts = buildList {
                 addAll(textParts.values.map { it.toPart() })
+                addAll(reasoningParts.values.map { it.toReasoningPart() })
                 addAll(toolParts.values.map { it.toPart() })
+                addAll(sourceParts)
+                addAll(fileParts)
                 addAll(dataParts)
             }
             return StreamSnapshot(
@@ -111,6 +199,11 @@ class AgentStreamParityReplayTest {
                     .append(event.string("delta").orEmpty())
                 "text-end" -> textParts.getOrPut(event.string("id").orEmpty()) { TextBuilder(event.string("id").orEmpty()) }
                     .state = TextPartState.Done.wireValue
+                "reasoning-start" -> reasoningParts[event.string("id").orEmpty()] = TextBuilder(event.string("id").orEmpty())
+                "reasoning-delta" -> reasoningParts.getOrPut(event.string("id").orEmpty()) { TextBuilder(event.string("id").orEmpty()) }
+                    .append(event.string("delta").orEmpty())
+                "reasoning-end" -> reasoningParts.getOrPut(event.string("id").orEmpty()) { TextBuilder(event.string("id").orEmpty()) }
+                    .state = TextPartState.Done.wireValue
                 "tool-input-start" -> toolBuilder(event).state = ToolPartState.InputStreaming.wireValue
                 "tool-input-available" -> toolBuilder(event).apply {
                     state = ToolPartState.InputAvailable.wireValue
@@ -124,6 +217,30 @@ class AgentStreamParityReplayTest {
                     id = event.string("id").orEmpty(),
                     data = event["data"] ?: event,
                     type = "data-tool-call-suspended",
+                    state = "done",
+                )
+                "data-error", "data-error-card" -> dataParts += StreamPart.Data(
+                    id = event.string("id").orEmpty(),
+                    data = event["data"] ?: event,
+                    type = event.string("type").orEmpty(),
+                    state = "done",
+                )
+                "source-url", "source-document" -> sourceParts += StreamPart.Source(
+                    id = event.string("sourceId", "id").orEmpty(),
+                    sourceType = if (event.string("type") == "source-document") "document" else "url",
+                    title = event.string("title") ?: event.string("filename"),
+                    url = event.string("url"),
+                    payload = event,
+                    type = event.string("type").orEmpty(),
+                    state = "done",
+                )
+                "file" -> fileParts += StreamPart.File(
+                    id = event.string("id").orEmpty(),
+                    mediaType = event.string("mediaType"),
+                    filename = event.string("filename"),
+                    url = event.string("url"),
+                    data = event["data"],
+                    type = "file",
                     state = "done",
                 )
                 "finish" -> status = StreamStatus.Completed
@@ -168,6 +285,14 @@ class AgentStreamParityReplayTest {
                 textState = state,
             )
         }
+
+        fun toReasoningPart(): StreamPart.Reasoning {
+            return StreamPart.Reasoning(
+                id = id,
+                text = text.toString(),
+                reasoningState = state,
+            )
+        }
     }
 
     private class ToolBuilder(
@@ -199,6 +324,7 @@ class AgentStreamParityReplayTest {
             "moltbook-register",
             "hotel-booking-gallery",
             "file-attachment-list",
+            "stream-mixed-parts",
         )
 
         fun repoRoot(): File {

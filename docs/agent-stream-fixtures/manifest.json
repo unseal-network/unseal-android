@@ -78,6 +78,20 @@
         {"name": "calling", "afterEvent": 5},
         {"name": "completed", "afterEvent": "end"}
       ]
+    },
+    {
+      "id": "stream-mixed-parts",
+      "cardTypes": ["text", "reasoning", "source-url", "source-document", "file", "data-error-card"],
+      "source": "fixtures/stream-mixed-parts.sse.jsonl",
+      "priority": "P0",
+      "knownDifference": "Validates non-tool stream parts so text, reasoning, sources, files, and data error cards stay visually aligned.",
+      "expectedInitialStatus": "style-divergent",
+      "migrationDirection": "bidirectional",
+      "componentScreenshots": true,
+      "fullClientScreenshots": true,
+      "frames": [
+        {"name": "completed", "afterEvent": "end"}
+      ]
     }
   ]
 }

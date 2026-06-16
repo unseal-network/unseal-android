@@ -191,8 +191,12 @@ class ToolCardDispatcherTest {
         val transformed = CardTransforms.transform(payload, "fileAttachment")
 
         assertThat(transformed.hasCardContentFor("fileAttachment")).isTrue()
+        assertThat(transformed.cardString("title")).isEqualTo("Files")
         assertThat(transformed.cardObjects("files")).hasSize(1)
-        assertThat(transformed.cardObjects("files").first().cardString("url")).isEqualTo("https://drive.google.com/file/report")
+        val file = transformed.cardObjects("files").first()
+        assertThat(file.cardString("url")).isEqualTo("https://drive.google.com/file/report")
+        assertThat(file.cardString("sizeLabel")).isNull()
+        assertThat(file.cardString("icon")).isEqualTo("pdf")
     }
 
     @Test
@@ -333,13 +337,20 @@ class ToolCardDispatcherTest {
 
         assertThat(transformed.hasCardContentFor("hotelBooking")).isTrue()
         assertThat(hotel.cardString("name")).isEqualTo("Buddha Zen Hotel Chengdu")
+        assertThat(hotel.cardString("thumbnail")).isEqualTo("https://example.com/thumb.jpg")
         assertThat(hotel.cardString("imageUrl")).isEqualTo("https://example.com/thumb.jpg")
+        assertThat(hotel.optJSONArray("images")?.length()).isEqualTo(2)
         assertThat(hotel.optJSONArray("imageUrls")?.length()).isEqualTo(2)
         assertThat(hotel.cardString("price")).isEqualTo("$47")
+        assertThat(hotel.cardString("total")).isEqualTo("$190")
         assertThat(hotel.cardString("totalPrice")).isEqualTo("$190")
         assertThat(hotel.optDouble("rating")).isEqualTo(4.7)
+        assertThat(hotel.optInt("reviews")).isEqualTo(80)
         assertThat(hotel.optInt("reviewCount")).isEqualTo(80)
         assertThat(hotel.optJSONArray("amenities")?.length()).isEqualTo(3)
+        assertThat(transformed.optJSONArray("images")?.length()).isEqualTo(2)
+        assertThat(transformed.optJSONArray("amenities")?.length()).isEqualTo(3)
+        assertThat(hotel.cardString("mapUrl")).contains("google.com/maps")
         assertThat(hotel.cardString("mapsUrl")).contains("google.com/maps")
     }
 

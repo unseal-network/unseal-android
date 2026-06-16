@@ -103,5 +103,9 @@ internal object AgentStreamParityExport {
             ?: root.optString("toolName").takeIf { it.isNotBlank() }
         put("suspendedKind", kind)
         put("payloadKeys", JSONArray((suspendPayload ?: root).keys().asSequence().toList().sorted()))
+        if (kind == "moltbookRegister") {
+            put("fields", JSONArray(listOf("name", "verificationCode", "claimUrl")))
+            put("submitLabel", root.optString("submitLabel").takeIf { it.isNotBlank() } ?: "Continue")
+        }
     }
 }
