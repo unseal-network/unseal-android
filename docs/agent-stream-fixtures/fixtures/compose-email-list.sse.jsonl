@@ -1,0 +1,8 @@
+{"type":"start","messageId":"msg-compose-email-list"}
+{"type":"text-start","id":"text-1"}
+{"type":"text-delta","id":"text-1","delta":"I found three recent emails from the team."}
+{"type":"text-end","id":"text-1"}
+{"type":"tool-input-start","toolCallId":"tool-gmail-list","toolName":"GMAIL_FETCH_EMAILS","title":"GMAIL_FETCH_EMAILS"}
+{"type":"tool-input-available","toolCallId":"tool-gmail-list","toolName":"GMAIL_FETCH_EMAILS","title":"GMAIL_FETCH_EMAILS","input":{"query":"from:team@unseal.ai newer_than:7d"}}
+{"type":"tool-output-available","toolCallId":"tool-gmail-list","output":{"successful":true,"data":{"messages":[{"subject":"Q3 planning meeting notes","from":{"name":"Jelf Liang","email":"jelf@unseal.ai"},"snippet":"Attached are the notes from today's Q3 planning session.","date":"Jun 15, 2026","url":"https://mail.google.com/mail/u/0/#inbox/1","labels":["Work","Planning"],"starred":true,"hasAttachments":true},{"subject":"Agent stream card parity","from":{"name":"Ruihan","email":"ruihan@unseal.ai"},"snippet":"Let's compare iOS and Android tool cards from the same stream.","date":"Jun 14, 2026","url":"https://mail.google.com/mail/u/0/#inbox/2","labels":["Engineering"],"starred":false,"hasAttachments":false},{"subject":"Hotel options for offsite","from":{"name":"Ops","email":"ops@unseal.ai"},"snippet":"Three options with gallery links are ready for review.","date":"Jun 13, 2026","url":"https://mail.google.com/mail/u/0/#inbox/3","labels":["Travel"],"starred":false,"hasAttachments":true}]}}}
+{"type":"finish","finishReason":"stop"}
