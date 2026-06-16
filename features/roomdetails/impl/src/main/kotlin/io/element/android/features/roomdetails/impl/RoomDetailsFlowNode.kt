@@ -363,7 +363,7 @@ class RoomDetailsFlowNode(
                     ),
                     callback = object : AgentManagementEntryPoint.Callback {
                         override fun onDone() {
-                            if (backstack.canPop()) backstack.pop()
+                            callback.onDone()
                         }
 
                         override fun onOpenRoom(roomIdOrAlias: RoomIdOrAlias) {

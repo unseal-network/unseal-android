@@ -36,6 +36,8 @@ data class AgentDetailRenderModel(
     val editLabel: String,
     val copyableAgentId: String,
     val agentProfileUrl: String?,
+    val connectTitle: String,
+    val connectHint: String,
 )
 
 data class AgentSoulRenderModel(
@@ -78,7 +80,7 @@ data class AgentRoomRenderModel(
 fun AgentDetailState.toRenderModel(): AgentDetailRenderModel {
     val currentAgent = agent
     val displayName = currentAgent?.displayTitle() ?: botName
-    val matrixId = currentAgent?.matrixId()
+    val matrixId = currentAgent?.matrixId() ?: initialMatrixUserId
     val agentMatrixUserId = currentAgent?.agentMatrixUserId()
     val isPublic = currentAgent?.isPublic == true
     return AgentDetailRenderModel(
@@ -120,6 +122,8 @@ fun AgentDetailState.toRenderModel(): AgentDetailRenderModel {
         agentProfileUrl = (currentAgent?.localpart ?: botName)
             .takeIf { it.isNotBlank() }
             ?.let { "${ChatbotConfig.WEBSITE_BASE_URL}/@$it" },
+        connectTitle = "连接我",
+        connectHint = "将此发给你的 Agent",
     )
 }
 
