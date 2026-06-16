@@ -311,7 +311,7 @@ class AiSdkStreamReducerTest {
         assertThat(result.toolCallRoot?.selectedIndex).isEqualTo(0)
         assertThat(result.toolCallRoot?.doneCount).isEqualTo(1)
         assertThat(result.toolCallRoot?.callingCount).isEqualTo(0)
-        assertThat(result.toolCallRoot?.expandedByDefault).isFalse()
+        assertThat(result.toolCallRoot?.expandedByDefault).isTrue()
         assertThat(result.firstToolPartIndex).isEqualTo(1)
         assertThat(result.passthroughParts.map { it.id }).containsExactly("text-before", "text-after").inOrder()
         assertThat(result.lastPartIsStreamingText).isTrue()

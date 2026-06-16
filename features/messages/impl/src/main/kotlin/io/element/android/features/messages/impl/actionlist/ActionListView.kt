@@ -39,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -495,11 +496,12 @@ private fun EmojiButton(
     Box(
         modifier = modifier
             .size(48.dp)
+            .clip(CircleShape)
             .background(backgroundColor, CircleShape)
             .clickable(
                 onClickLabel = a11yClickLabel,
                 onClick = { onClick(emoji) },
-                indication = ripple(bounded = false, radius = emojiRippleRadius),
+                indication = ripple(bounded = true, radius = emojiRippleRadius),
                 interactionSource = remember { MutableInteractionSource() }
             ),
         contentAlignment = Alignment.Center

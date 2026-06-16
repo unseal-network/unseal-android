@@ -8,6 +8,7 @@
 package io.element.android.features.messages.impl.messagecomposer.gamepicker
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ripple
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -300,7 +303,7 @@ private fun GameCard(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
+            .roundedClickable(RoundedCornerShape(12.dp), onClick)
             .padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -333,7 +336,7 @@ private fun MyGameRow(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
+            .roundedClickable(RoundedCornerShape(8.dp), onClick)
             .padding(vertical = 8.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -389,7 +392,10 @@ private fun RoomsView(
                 text = "← ",
                 style = ElementTheme.typography.fontBodySmRegular,
                 color = ElementTheme.colors.textSecondary,
-                modifier = Modifier.clickable(onClick = onBack),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .roundedClickable(RoundedCornerShape(50), onBack)
+                    .padding(horizontal = 4.dp),
             )
             if (gameInfo?.icon != null) {
                 GameIconImage(
@@ -426,7 +432,7 @@ private fun RoomRow(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
+            .roundedClickable(RoundedCornerShape(8.dp), onClick)
             .padding(vertical = 10.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -449,6 +455,16 @@ private fun RoomRow(
 }
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
+
+@Composable
+private fun Modifier.roundedClickable(
+    shape: Shape,
+    onClick: () -> Unit,
+): Modifier = clip(shape).clickable(
+    interactionSource = remember { MutableInteractionSource() },
+    indication = ripple(bounded = true),
+    onClick = onClick,
+)
 
 @Composable
 private fun GameIconImage(

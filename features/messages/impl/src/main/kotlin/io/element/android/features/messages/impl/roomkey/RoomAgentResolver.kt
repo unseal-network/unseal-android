@@ -10,6 +10,7 @@ package io.element.android.features.messages.impl.roomkey
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import io.element.android.features.messages.impl.roomdata.RoomUnsealDataClient
+import io.element.android.features.messages.impl.roomdata.isJoinedOrUnknownMembership
 import io.element.android.libraries.di.RoomScope
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.UserId
@@ -30,9 +31,11 @@ class RoomAgentResolver(
 
         val userIds = roomUnsealDataClient.getRoomAgents(roomId)
             .getOrElse { return emptySet() }
+            .filter { it.isJoinedOrUnknownMembership() }
             .map { it.userId }
             .filter { it.startsWith("@") }
             .map(::UserId)
+            .filter { it in activeMemberIds }
             .toSet()
         cache = Cache(roomId = roomId, memberSignature = memberSignature, userIds = userIds)
         return userIds

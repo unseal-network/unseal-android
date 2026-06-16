@@ -42,6 +42,7 @@ class AgentDetailNode(
     private val callback = plugins<Callback>().first()
     private val presenter = presenterFactory.create(
         botName = inputs.botName,
+        initialMatrixUserId = null,
         navigator = object : AgentDetailNavigator {
             override fun onEdit(botName: String) = callback.onEdit(botName)
             override fun onOpenRoom(roomIdOrAlias: RoomIdOrAlias) = callback.onOpenRoom(roomIdOrAlias)

@@ -404,12 +404,12 @@ private fun ToolCallRootCard(
     } else {
         entries[selectedIndex]
     }
-    LaunchedEffect(model.allFinished, entries.size) {
-        if (model.allFinished && !userToggled) {
-            expanded = false
-        } else if (!model.allFinished && !userToggled) {
+    LaunchedEffect(model.selectedIndex, entries.size, model.allFinished) {
+        if (!userToggled) {
             selectedIndex = model.selectedIndex
-            expanded = true
+            if (!model.allFinished) {
+                expanded = true
+            }
         }
     }
     val chevronRotation by animateFloatAsState(

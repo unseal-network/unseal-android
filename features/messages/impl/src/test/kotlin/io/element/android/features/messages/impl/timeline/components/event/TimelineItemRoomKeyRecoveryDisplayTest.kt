@@ -28,7 +28,7 @@ class TimelineItemRoomKeyRecoveryDisplayTest {
 
         val display = recovery.display()
 
-        assertThat(display.title).contains("Verify this device")
+        assertThat(display.statusTitle).isEqualTo("Verify device")
         assertThat(display.action).isEqualTo(RoomKeyRecoveryAction.VerifyDevice)
     }
 
@@ -45,7 +45,7 @@ class TimelineItemRoomKeyRecoveryDisplayTest {
 
         val display = recovery.display()
 
-        assertThat(display.title).isEqualTo("Requesting keys from the sender")
+        assertThat(display.statusTitle).isEqualTo("Asking sender")
         assertThat(display.detail).contains("42s")
         assertThat(display.detail).contains("3 messages")
     }
@@ -60,7 +60,7 @@ class TimelineItemRoomKeyRecoveryDisplayTest {
 
         val display = recovery.display()
 
-        assertThat(display.title).isEqualTo("Key recovery failed")
+        assertThat(display.statusTitle).isEqualTo("Still missing room key")
         assertThat(display.action).isEqualTo(RoomKeyRecoveryAction.Retry)
     }
 

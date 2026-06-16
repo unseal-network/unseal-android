@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -57,11 +58,12 @@ fun EmojiItem(
     Box(
         modifier = modifier
             .sizeIn(minWidth = 40.dp, minHeight = 40.dp)
+            .clip(CircleShape)
             .background(backgroundColor, CircleShape)
             .clickable(
                 enabled = true,
                 onClick = { onSelectEmoji(item) },
-                indication = ripple(bounded = false, radius = emojiSize.toDp() / 2 + 10.dp),
+                indication = ripple(bounded = true, radius = emojiSize.toDp() / 2 + 10.dp),
                 interactionSource = remember { MutableInteractionSource() }
             )
             .clearAndSetSemantics {

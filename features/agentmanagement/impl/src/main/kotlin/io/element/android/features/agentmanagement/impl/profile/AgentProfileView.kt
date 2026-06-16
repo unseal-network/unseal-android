@@ -103,10 +103,10 @@ fun AgentProfileView(
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             item { Hero(state) }
-            item { ConnectCard(connectUrl = state.agentConnectUrl) }
+            item { ConnectCard(connectUrl = state.agentConnectUrl, isLoading = state.isLoading) }
             when {
                 model.skills.items.isNotEmpty() -> item { SkillsSection(state) }
-                state.isLoading -> item { SkillsLoadingSection() }
+                else -> item { SkillsLoadingSection() }
             }
         }
     }
@@ -196,25 +196,23 @@ private fun ProfileChip(text: String) {
 }
 
 @Composable
-private fun ConnectCard(connectUrl: String?) {
-    if (connectUrl.isNullOrBlank()) return
+private fun ConnectCard(connectUrl: String?, isLoading: Boolean) {
     val clipboard = LocalClipboardManager.current
-    val connectText = "Follow this instructions to connect me $connectUrl"
     var copied by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val hasUrl = !connectUrl.isNullOrBlank()
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
-            .shapeAwareClickable(RoundedCornerShape(16.dp)) {
-                clipboard.setText(AnnotatedString(connectText))
-                copied = true
-                scope.launch {
-                    delay(2000)
-                    copied = false
-                }
-            },
+            .then(
+                if (hasUrl) Modifier.shapeAwareClickable(RoundedCornerShape(16.dp)) {
+                    clipboard.setText(AnnotatedString("Follow this instructions to connect me $connectUrl"))
+                    copied = true
+                    scope.launch { delay(2000); copied = false }
+                } else Modifier
+            ),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 1.dp,
@@ -236,23 +234,35 @@ private fun ConnectCard(connectUrl: String?) {
                 )
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Connect with me",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = "Give this to your agent",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (!hasUrl && isLoading) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth(0.5f).height(14.dp)
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f), RoundedCornerShape(4.dp))
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier.fillMaxWidth(0.7f).height(12.dp)
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f), RoundedCornerShape(4.dp))
+                    )
+                } else {
+                    Text(
+                        text = "Connect with me",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = "Give this to your agent",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             Icon(
                 if (copied) CompoundIcons.Check() else CompoundIcons.Copy(),
                 contentDescription = null,
                 modifier = Modifier.size(18.dp),
-                tint = if (copied) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = if (copied) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (hasUrl) 1f else 0.3f),
             )
         }
     }

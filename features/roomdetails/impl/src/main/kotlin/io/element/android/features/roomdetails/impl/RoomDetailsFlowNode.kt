@@ -131,7 +131,7 @@ class RoomDetailsFlowNode(
         data class RoomMemberDetails(val roomMemberId: UserId) : NavTarget
 
         @Parcelize
-        data class AgentProfile(val botName: String) : NavTarget
+        data class AgentProfile(val botName: String, val matrixUserId: String? = null) : NavTarget
 
         @Parcelize
         data class AvatarPreview(val name: String, val avatarUrl: String) : NavTarget
@@ -195,7 +195,7 @@ class RoomDetailsFlowNode(
         lifecycleScope.launch {
             val botName = roomAgentProfileRouter.agentBotNameFor(room.roomId, userId)
             if (botName != null) {
-                backstack.push(NavTarget.AgentProfile(botName))
+                backstack.push(NavTarget.AgentProfile(botName, userId.value))
             } else {
                 backstack.push(NavTarget.RoomMemberDetails(userId))
             }
@@ -359,7 +359,7 @@ class RoomDetailsFlowNode(
                     parentNode = this,
                     buildContext = buildContext,
                     params = AgentManagementEntryPoint.Params(
-                        AgentManagementEntryPoint.InitialTarget.Profile(navTarget.botName)
+                        AgentManagementEntryPoint.InitialTarget.Profile(navTarget.botName, navTarget.matrixUserId)
                     ),
                     callback = object : AgentManagementEntryPoint.Callback {
                         override fun onDone() {

@@ -34,6 +34,7 @@ import kotlinx.coroutines.launch
 @AssistedInject
 class AgentDetailPresenter(
     @Assisted private val botName: String,
+    @Assisted private val initialMatrixUserId: String?,
     @Assisted private val navigator: AgentDetailNavigator,
     private val matrixClient: MatrixClient,
     private val chatbotApiServiceFactory: ChatbotApiServiceFactory,
@@ -42,7 +43,7 @@ class AgentDetailPresenter(
 ) : Presenter<AgentDetailState> {
     @AssistedFactory
     interface Factory {
-        fun create(botName: String, navigator: AgentDetailNavigator): AgentDetailPresenter
+        fun create(botName: String, initialMatrixUserId: String?, navigator: AgentDetailNavigator): AgentDetailPresenter
     }
 
     @Composable
@@ -51,7 +52,7 @@ class AgentDetailPresenter(
         var agent by remember { mutableStateOf<ChatbotAgent?>(null) }
         var rooms by remember { mutableStateOf(emptyList<ChatbotAgentRoom>()) }
         var agentSkills by remember { mutableStateOf(emptyList<ChatbotUserSkill>()) }
-        var isLoading by remember { mutableStateOf(false) }
+        var isLoading by remember { mutableStateOf(true) }
         var canEdit by remember { mutableStateOf(false) }
         var isStartingChat by remember { mutableStateOf(false) }
         var isSoulExpanded by remember { mutableStateOf(false) }
@@ -154,6 +155,7 @@ class AgentDetailPresenter(
 
         return AgentDetailState(
             botName = botName,
+            initialMatrixUserId = initialMatrixUserId,
             agent = agent,
             rooms = rooms.toImmutableList(),
             agentSkills = agentSkills.toImmutableList(),

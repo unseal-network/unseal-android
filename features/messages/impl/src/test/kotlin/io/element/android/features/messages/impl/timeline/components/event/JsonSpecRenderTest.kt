@@ -134,4 +134,42 @@ class JsonSpecRenderTest {
         assertThat(payload.canRenderAsJsonSpec()).isTrue()
         assertThat(payload.toJsonRenderSpec()?.elements?.getValue("root")?.type).isEqualTo("select")
     }
+
+    @Test
+    fun `canRenderAsJsonSpec accepts spacer typed data`() {
+        val payload = """
+            {
+              "type": "spacer",
+              "data": {
+                "height": 16
+              }
+            }
+        """.trimIndent()
+
+        val spec = payload.toJsonRenderSpec()
+
+        assertThat(payload.canRenderAsJsonSpec()).isTrue()
+        assertThat(spec?.elements?.getValue("root")?.type).isEqualTo("spacer")
+        assertThat(spec?.elements?.getValue("root")?.props?.optDouble("height")).isEqualTo(16.0)
+    }
+
+    @Test
+    fun `canRenderAsJsonSpec accepts scroll container`() {
+        val payload = """
+            {
+              "root": "root",
+              "elements": {
+                "root": { "type": "scroll", "props": { "maxHeight": 180 }, "children": ["title"] },
+                "title": { "type": "text", "props": { "text": "Scrollable content" } }
+              }
+            }
+        """.trimIndent()
+
+        val spec = payload.toJsonRenderSpec()
+
+        assertThat(payload.canRenderAsJsonSpec()).isTrue()
+        assertThat(spec?.elements?.getValue("root")?.type).isEqualTo("scroll")
+        assertThat(spec?.elements?.getValue("root")?.renderChildren(spec).orEmpty().map { it.id })
+            .containsExactly("title")
+    }
 }

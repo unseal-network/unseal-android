@@ -366,10 +366,16 @@ private fun BoxScope.TimelineScrollHelper(
     }
 
     val latestOnScrollFinishAt by rememberUpdatedState(onScrollFinishAt)
+    var lastReportedScrollFinishIndex by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(isScrollFinished, hasAnyEvent) {
         if (isScrollFinished && hasAnyEvent) {
-            // Notify the parent composable about the first visible item index when scrolling finishes
-            latestOnScrollFinishAt(lazyListState.firstVisibleItemIndex)
+            val settledIndex = lazyListState.firstVisibleItemIndex
+            delay(120.milliseconds)
+            if (!lazyListState.isScrollInProgress && lazyListState.firstVisibleItemIndex == settledIndex && lastReportedScrollFinishIndex != settledIndex) {
+                lastReportedScrollFinishIndex = settledIndex
+                // Notify the parent composable about the first visible item index after the fling settles.
+                latestOnScrollFinishAt(settledIndex)
+            }
         }
     }
 

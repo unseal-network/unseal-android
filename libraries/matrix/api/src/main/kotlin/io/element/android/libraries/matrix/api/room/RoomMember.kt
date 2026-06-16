@@ -23,6 +23,7 @@ data class RoomMember(
     val role: Role,
     val membershipChangeReason: String?,
     val isServiceMember: Boolean,
+    val userType: String? = null,
 ) {
     /**
      * Role of the RoomMember, based on its [powerLevel].

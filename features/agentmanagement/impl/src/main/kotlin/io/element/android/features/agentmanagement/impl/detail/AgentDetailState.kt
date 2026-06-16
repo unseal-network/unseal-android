@@ -20,6 +20,7 @@ import kotlinx.collections.immutable.ImmutableList
 
 data class AgentDetailState(
     val botName: String,
+    val initialMatrixUserId: String? = null,
     val agent: ChatbotAgent?,
     val rooms: ImmutableList<ChatbotAgentRoom>,
     val agentSkills: ImmutableList<ChatbotUserSkill>,
@@ -43,6 +44,7 @@ data class AgentDetailState(
     /** The agent's own host (e.g. keepsecret.io), taken from its Matrix id (`@localpart:host`). */
     private val agentHost: String? = agentMatrixUserId?.substringAfterLast(":")?.takeIf { it.isNotBlank() }
         ?: agent?.serverName?.takeIf { it.isNotBlank() }
+        ?: initialMatrixUserId?.substringAfterLast(":")?.takeIf { it.isNotBlank() }
 
     private val agentLocalpart: String? = (agent?.localpart ?: botName).takeIf { it.isNotBlank() }
 

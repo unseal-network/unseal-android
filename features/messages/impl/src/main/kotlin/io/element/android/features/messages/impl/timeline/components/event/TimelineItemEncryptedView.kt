@@ -8,16 +8,22 @@
 
 package io.element.android.features.messages.impl.timeline.components.event
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewParameter
@@ -32,11 +38,10 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 import io.element.android.libraries.designsystem.icons.CompoundDrawables
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
+import io.element.android.libraries.designsystem.theme.components.Button
 import io.element.android.libraries.designsystem.theme.components.ButtonSize
 import io.element.android.libraries.designsystem.theme.components.Icon
-import io.element.android.libraries.designsystem.theme.components.LinearProgressIndicator
 import io.element.android.libraries.designsystem.theme.components.Text
-import io.element.android.libraries.designsystem.theme.components.TextButton
 import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryRequest
 import io.element.android.libraries.matrix.api.timeline.item.event.UnableToDecryptContent
 import io.element.android.libraries.matrix.api.timeline.item.event.UtdCause
@@ -130,8 +135,9 @@ private fun TimelineItemRoomKeyRecoveryView(
     modifier: Modifier = Modifier,
 ) {
     val display = recovery.display()
-    Column(
+    Surface(
         modifier = modifier
+            .fillMaxWidth()
             .onSizeChanged { size ->
                 onContentLayoutChange(
                     ContentAvoidingLayoutData(
@@ -139,75 +145,82 @@ private fun TimelineItemRoomKeyRecoveryView(
                         contentHeight = size.height,
                     )
                 )
-            }
-            .padding(horizontal = 4.dp, vertical = 2.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            },
+        shape = RoundedCornerShape(18.dp),
+        color = ElementTheme.colors.bgSubtleSecondary.copy(alpha = 0.72f),
+        border = BorderStroke(1.dp, ElementTheme.colors.borderDisabled.copy(alpha = 0.42f)),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Icon(
-                resourceId = display.iconResourceId,
-                tint = ElementTheme.colors.iconSecondary,
-                contentDescription = display.title,
-                modifier = Modifier.size(22.dp),
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(
-                    text = display.title,
-                    color = ElementTheme.colors.textSecondary,
-                    style = ElementTheme.typography.fontBodyMdMedium,
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Icon(
+                    resourceId = display.iconResourceId,
+                    tint = ElementTheme.colors.iconSecondary,
+                    contentDescription = display.statusTitle,
+                    modifier = Modifier.size(22.dp),
                 )
-                Text(
-                    text = recovery.eventCount.messageCountLabel(),
-                    color = ElementTheme.colors.textSecondary,
-                    style = ElementTheme.typography.fontBodySmRegular,
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text(
+                        text = stringResource(id = CommonStrings.common_waiting_for_decryption_key),
+                        color = ElementTheme.colors.textSecondary,
+                        style = ElementTheme.typography.fontBodyMdMedium,
+                    )
+                    Text(
+                        text = recovery.eventCount.messageCountLabel(),
+                        color = ElementTheme.colors.textSecondary,
+                        style = ElementTheme.typography.fontBodySmRegular,
+                    )
+                }
             }
-        }
-        if (recovery.planStages.isNotEmpty()) {
-            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                Text(
-                    text = display.title,
-                    color = ElementTheme.colors.textPrimary,
-                    style = ElementTheme.typography.fontBodySmMedium,
-                )
-                LinearProgressIndicator(
-                    progress = { recovery.progress() },
+            if (recovery.planStages.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text(
+                        text = display.statusTitle,
+                        color = ElementTheme.colors.textPrimary,
+                        style = ElementTheme.typography.fontBodySmMedium,
+                    )
+                    RecoveryStageBar(
+                        recovery = recovery,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        text = recovery.stageSummary(),
+                        color = ElementTheme.colors.textSecondary,
+                        style = ElementTheme.typography.fontBodySmRegular,
+                    )
+                }
+            }
+            Text(
+                text = display.detail,
+                color = ElementTheme.colors.textSecondary,
+                style = ElementTheme.typography.fontBodyMdRegular,
+            )
+            display.action?.let { action ->
+                Button(
+                    text = when (action) {
+                        RoomKeyRecoveryAction.VerifyDevice -> stringResource(id = CommonStrings.common_verify_device)
+                        RoomKeyRecoveryAction.Retry -> stringResource(id = CommonStrings.action_retry_decryption)
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(5.dp),
-                )
-                Text(
-                    text = recovery.stageSummary(),
-                    color = ElementTheme.colors.textSecondary,
-                    style = ElementTheme.typography.fontBodySmRegular,
+                        .padding(top = 2.dp),
+                    size = ButtonSize.Medium,
+                    onClick = {
+                        when (action) {
+                            RoomKeyRecoveryAction.VerifyDevice -> onVerifyDeviceClick()
+                            RoomKeyRecoveryAction.Retry -> onRetryClick(recovery.request)
+                        }
+                    },
                 )
             }
         }
-        Text(
-            text = display.detail,
-            color = ElementTheme.colors.textSecondary,
-            style = ElementTheme.typography.fontBodyMdRegular,
-        )
-        display.action?.let { action ->
-            TextButton(
-                text = when (action) {
-                    RoomKeyRecoveryAction.VerifyDevice -> stringResource(id = CommonStrings.common_verify_device)
-                    RoomKeyRecoveryAction.Retry -> stringResource(id = CommonStrings.action_retry_decryption)
-                },
-                size = ButtonSize.Small,
-                onClick = {
-                    when (action) {
-                        RoomKeyRecoveryAction.VerifyDevice -> onVerifyDeviceClick()
-                        RoomKeyRecoveryAction.Retry -> onRetryClick(recovery.request)
-                    }
-                },
-            )
-        } ?: Spacer(modifier = Modifier.height(0.dp))
     }
 }
 
 internal data class TimelineItemRoomKeyRecoveryDisplay(
-    val title: String,
+    val statusTitle: String,
     val detail: String,
     val iconResourceId: Int,
     val action: RoomKeyRecoveryAction? = null,
@@ -221,34 +234,34 @@ internal enum class RoomKeyRecoveryAction {
 internal fun TimelineItemRoomKeyRecovery.display(): TimelineItemRoomKeyRecoveryDisplay {
     return when (state) {
         TimelineItemRoomKeyRecoveryState.CheckingDeviceVerification -> TimelineItemRoomKeyRecoveryDisplay(
-            title = "Checking device verification",
+            statusTitle = "Checking device status",
             detail = "Preparing to recover keys for ${eventCount.messageCountLabel()}",
             iconResourceId = CompoundDrawables.ic_compound_time,
         )
         TimelineItemRoomKeyRecoveryState.DeviceUnverified -> TimelineItemRoomKeyRecoveryDisplay(
-            title = "Verify this device to recover keys",
+            statusTitle = "Verify device",
             detail = "This protects encrypted history before key requests are sent.",
             iconResourceId = CompoundDrawables.ic_compound_block,
             action = RoomKeyRecoveryAction.VerifyDevice,
         )
         TimelineItemRoomKeyRecoveryState.Pending -> TimelineItemRoomKeyRecoveryDisplay(
-            title = "Waiting before retrying key recovery",
+            statusTitle = "Switching recovery source",
             detail = "Next attempt in ${remaining.formatSeconds()} for ${eventCount.messageCountLabel()}",
             iconResourceId = CompoundDrawables.ic_compound_time,
         )
         TimelineItemRoomKeyRecoveryState.Active -> TimelineItemRoomKeyRecoveryDisplay(
-            title = currentStage?.title() ?: "Recovering message keys",
+            statusTitle = currentStage?.title() ?: "Recovering message keys",
             detail = remaining?.let { "Waiting up to ${it.formatSeconds()} for ${eventCount.messageCountLabel()}" }
                 ?: "Recovering keys for ${eventCount.messageCountLabel()}",
             iconResourceId = CompoundDrawables.ic_compound_time,
         )
         TimelineItemRoomKeyRecoveryState.Resolved -> TimelineItemRoomKeyRecoveryDisplay(
-            title = "Message keys recovered",
+            statusTitle = "Room key recovered",
             detail = "Waiting for the timeline to render decrypted content.",
             iconResourceId = CompoundDrawables.ic_compound_time,
         )
         TimelineItemRoomKeyRecoveryState.Failed -> TimelineItemRoomKeyRecoveryDisplay(
-            title = "Key recovery failed",
+            statusTitle = "Still missing room key",
             detail = "No device returned keys for ${eventCount.messageCountLabel()}",
             iconResourceId = CompoundDrawables.ic_compound_error,
             action = RoomKeyRecoveryAction.Retry,
@@ -256,26 +269,69 @@ internal fun TimelineItemRoomKeyRecovery.display(): TimelineItemRoomKeyRecoveryD
     }
 }
 
-private fun TimelineItemRoomKeyRecovery.progress(): Float {
-    val currentIndex = currentStage?.let { planStages.indexOf(it) }?.takeIf { it >= 0 } ?: 0
-    return ((currentIndex + 1).toFloat() / planStages.size.toFloat()).coerceIn(0f, 1f)
+@Composable
+private fun RecoveryStageBar(
+    recovery: TimelineItemRoomKeyRecovery,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        recovery.planStages.forEachIndexed { index, _ ->
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(5.dp)
+                    .background(recovery.stageSegmentColor(index), CircleShape)
+            )
+        }
+    }
+}
+
+@Composable
+private fun TimelineItemRoomKeyRecovery.stageSegmentColor(index: Int): Color {
+    return when (state) {
+        TimelineItemRoomKeyRecoveryState.Failed -> ElementTheme.colors.borderCriticalPrimary
+        TimelineItemRoomKeyRecoveryState.Resolved -> ElementTheme.colors.iconSuccessPrimary
+        else -> if (index <= stageIndex()) {
+            ElementTheme.colors.bgActionPrimaryRest
+        } else {
+            ElementTheme.colors.borderDisabled
+        }
+    }
 }
 
 private fun TimelineItemRoomKeyRecovery.stageSummary(): String {
-    val currentIndex = currentStage?.let { planStages.indexOf(it) }?.takeIf { it >= 0 } ?: 0
+    val currentIndex = stageIndex().coerceAtLeast(0)
     return "Step ${currentIndex + 1} of ${planStages.size}: ${planStages[currentIndex].label()}"
+}
+
+private fun TimelineItemRoomKeyRecovery.stageIndex(): Int {
+    currentStage?.let { stage ->
+        val index = planStages.indexOf(stage)
+        if (index >= 0) return index
+    }
+    return when (state) {
+        TimelineItemRoomKeyRecoveryState.Resolved,
+        TimelineItemRoomKeyRecoveryState.Failed -> (planStages.size - 1).coerceAtLeast(0)
+        TimelineItemRoomKeyRecoveryState.CheckingDeviceVerification,
+        TimelineItemRoomKeyRecoveryState.DeviceUnverified -> -1
+        TimelineItemRoomKeyRecoveryState.Pending,
+        TimelineItemRoomKeyRecoveryState.Active -> 0
+    }
 }
 
 private fun RoomKeyRecoveryDisplayStage.title(): String {
     return when (this) {
-        RoomKeyRecoveryDisplayStage.CheckingDeviceVerification -> "Checking device verification"
-        RoomKeyRecoveryDisplayStage.DeviceUnverified -> "Device verification required"
-        RoomKeyRecoveryDisplayStage.Backup -> "Requesting keys from backup"
-        RoomKeyRecoveryDisplayStage.OwnDevices -> "Requesting keys from your devices"
-        RoomKeyRecoveryDisplayStage.Sender -> "Requesting keys from the sender"
-        RoomKeyRecoveryDisplayStage.Members -> "Requesting keys from room members"
-        RoomKeyRecoveryDisplayStage.Resolved -> "Message keys recovered"
-        RoomKeyRecoveryDisplayStage.Failed -> "Key recovery failed"
+        RoomKeyRecoveryDisplayStage.CheckingDeviceVerification -> "Checking device status"
+        RoomKeyRecoveryDisplayStage.DeviceUnverified -> "Verify device"
+        RoomKeyRecoveryDisplayStage.Backup -> "Checking key backup"
+        RoomKeyRecoveryDisplayStage.OwnDevices -> "Recovering from your backup and devices"
+        RoomKeyRecoveryDisplayStage.Sender -> "Asking sender"
+        RoomKeyRecoveryDisplayStage.Members -> "Asking room members"
+        RoomKeyRecoveryDisplayStage.Resolved -> "Room key recovered"
+        RoomKeyRecoveryDisplayStage.Failed -> "Still missing room key"
     }
 }
 

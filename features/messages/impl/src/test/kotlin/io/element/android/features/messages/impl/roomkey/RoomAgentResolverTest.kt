@@ -31,7 +31,27 @@ class RoomAgentResolverTest {
         }
         val resolver = RoomAgentResolver(dataClient)
 
-        assertThat(resolver.roomAgentUserIds(A_ROOM_ID, setOf(A_MEMBER_ID))).containsExactly(AGENT_ID, JELF_ID)
+        assertThat(resolver.roomAgentUserIds(A_ROOM_ID, setOf(AGENT_ID, JELF_ID, A_MEMBER_ID))).containsExactly(AGENT_ID, JELF_ID)
+    }
+
+    @Test
+    fun `roomAgentUserIds - only returns active joined room agents`() = runTest {
+        val inactiveAgentId = UserId("@inactive-agent:example.org")
+        val leftAgentId = UserId("@left-agent:example.org")
+        val dataClient = FakeRoomUnsealDataClient().apply {
+            getRoomAgentsResult = {
+                Result.success(
+                    listOf(
+                        roomAgent(AGENT_ID.value, membership = " JOIN "),
+                        roomAgent(inactiveAgentId.value),
+                        roomAgent(leftAgentId.value, membership = "leave"),
+                    )
+                )
+            }
+        }
+        val resolver = RoomAgentResolver(dataClient)
+
+        assertThat(resolver.roomAgentUserIds(A_ROOM_ID, setOf(AGENT_ID, leftAgentId))).containsExactly(AGENT_ID)
     }
 
     @Test
@@ -55,22 +75,27 @@ class RoomAgentResolverTest {
         }
         val resolver = RoomAgentResolver(dataClient)
 
-        val first = resolver.roomAgentUserIds(A_ROOM_ID, setOf(A_MEMBER_ID))
-        val second = resolver.roomAgentUserIds(A_ROOM_ID, setOf(A_MEMBER_ID))
-        val refreshed = resolver.roomAgentUserIds(A_ROOM_ID, setOf(A_MEMBER_ID, ANOTHER_MEMBER_ID))
+        val firstAgentId = UserId("@agent1:example.org")
+        val secondAgentId = UserId("@agent2:example.org")
+        val first = resolver.roomAgentUserIds(A_ROOM_ID, setOf(firstAgentId))
+        val second = resolver.roomAgentUserIds(A_ROOM_ID, setOf(firstAgentId))
+        val refreshed = resolver.roomAgentUserIds(A_ROOM_ID, setOf(secondAgentId))
 
-        assertThat(first).containsExactly(UserId("@agent1:example.org"))
-        assertThat(second).containsExactly(UserId("@agent1:example.org"))
-        assertThat(refreshed).containsExactly(UserId("@agent2:example.org"))
+        assertThat(first).containsExactly(firstAgentId)
+        assertThat(second).containsExactly(firstAgentId)
+        assertThat(refreshed).containsExactly(secondAgentId)
         assertThat(callCount).isEqualTo(2)
     }
 
-    private fun roomAgent(userId: String) = RoomAgentDescriptor(
+    private fun roomAgent(
+        userId: String,
+        membership: String? = "join",
+    ) = RoomAgentDescriptor(
         userId = userId,
         displayName = null,
         avatarUrl = null,
         userType = "agent",
-        membership = "join",
+        membership = membership,
     )
 
     private companion object {
