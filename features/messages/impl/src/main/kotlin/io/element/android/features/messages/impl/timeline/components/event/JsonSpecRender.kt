@@ -9,7 +9,6 @@ package io.element.android.features.messages.impl.timeline.components.event
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -38,18 +37,17 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.element.android.features.messages.impl.components.SelectedStatePill
+import io.element.android.features.messages.impl.components.ShapedClickableSurface
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.CardChip
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.CardRemoteImage
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.DividedList
@@ -258,24 +256,34 @@ private fun JsonRenderHeading(state: JSONObject?, element: JsonRenderElement) {
 
 @Composable
 private fun JsonRenderButton(state: JSONObject?, element: JsonRenderElement, onLinkClick: (Link) -> Unit) {
-    val label = element.props.firstString(state, "label", "text", "title").orEmpty()
+    val actionLabel = element.props.clickActionLabel(state)
+    val label = element.props.firstString(state, "label", "text", "title") ?: actionLabel.orEmpty()
     val url = element.props.firstString(state, "url", "href") ?: element.props.clickUrl(state)
     if (label.isBlank() && url.isNullOrBlank()) return
-    Text(
-        text = label.ifBlank { url.orEmpty() },
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), RoundedCornerShape(50))
-            .clickable(
-                enabled = !url.isNullOrBlank(),
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(bounded = true),
-            ) { url?.let { onLinkClick(Link(it)) } }
-            .padding(horizontal = 12.dp, vertical = 7.dp),
-    )
+    val enabled = !url.isNullOrBlank()
+    ShapedClickableSurface(
+        onClick = { url?.let { onLinkClick(Link(it)) } },
+        enabled = enabled,
+        shape = RoundedCornerShape(50),
+        color = if (enabled) {
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+        },
+        contentColor = if (enabled) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+    ) {
+        Text(
+            text = label.ifBlank { url.orEmpty() },
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = androidx.compose.material3.LocalContentColor.current,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+        )
+    }
 }
 
 @Composable
@@ -910,6 +918,16 @@ private fun JSONObject.clickUrl(state: JSONObject?): String? {
     val on = optJSONObject("on") ?: optJSONObject("actions") ?: return null
     val click = on.optJSONObject("click") ?: on.optJSONObject("tap") ?: on.optJSONObject("press") ?: on
     return click.firstString(state, "url", "href", "link")
+}
+
+internal fun JSONObject.clickActionLabel(state: JSONObject?): String? {
+    val on = optJSONObject("on") ?: optJSONObject("actions") ?: return null
+    val click = on.optJSONObject("click") ?: on.optJSONObject("tap") ?: on.optJSONObject("press") ?: on
+    return click.firstString(state, "label", "text", "title", "name", "action", "type", "id")
+        ?.replace("_", " ")
+        ?.replace("-", " ")
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
 }
 
 private fun JSONObject.optionLabels(state: JSONObject?): List<String> {

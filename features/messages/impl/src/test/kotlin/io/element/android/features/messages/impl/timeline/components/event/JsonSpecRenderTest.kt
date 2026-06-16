@@ -172,4 +172,24 @@ class JsonSpecRenderTest {
         assertThat(spec?.elements?.getValue("root")?.renderChildren(spec).orEmpty().map { it.id })
             .containsExactly("title")
     }
+
+    @Test
+    fun `clickActionLabel resolves non url action metadata`() {
+        val spec = """
+            {
+              "type": "button",
+              "data": {
+                "on": {
+                  "click": {
+                    "action": "approve_vault_access"
+                  }
+                }
+              }
+            }
+        """.trimIndent().toJsonRenderSpec()!!
+
+        val element = spec.elements.getValue("root")
+
+        assertThat(element.props.clickActionLabel(spec.state)).isEqualTo("approve vault access")
+    }
 }
