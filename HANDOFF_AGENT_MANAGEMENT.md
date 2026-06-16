@@ -453,7 +453,7 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 | Settings AI Hub | iOS Settings AI 区：余额卡 + Agent / Voice / Skills / Vault / Connectors / Triggers 固定顺序入口 | 🟡 数据结构已迁移 | ✅ Android 新增 `SettingsAiAssistantRenderModel`，入口顺序对齐 iOS `SettingsScreenViewModel`，`PreferencesRootPresenter/View` 只消费 model；已补 model/presenter/view 单测，并安装到 PHK110，真机截图 `/tmp/unseal-settings-ai-hub-render-model.png`。剩余：图标/分组/浅深色视觉 polish、逐入口转场截图 |
 | Voice Library | My/Public tab、录音（mic/录/放）、列表试听、删除确认、分享/导入 | 🟡 Mine/Public、catalog、save/delete/share/import/delete notice、presenter-owned preview state、下载缓存式 preview、recording upload API、current-recording state/events、`RECORD_AUDIO` 权限、原生 m4a/base64 录音 bridge + 已录音本地回放/进度/seek/scrub 状态与设计系统 waveform UI 已接入；已录音 m4a 会解码成真实 waveform samples，不再使用固定 demo 波形 | ⚠️ 视觉和真机录音/拖动手势需继续对齐 |
 | Vault 管理 | 独立 `VaultManagementScreen` + `VaultEditScreen`（key/value/desc 增删改查） | 🟡 已有独立列表/编辑页，CRUD/search 已接入 | 🟡 删除接口已对齐 iOS key 路由；编辑 value 加载/create/update 校验已有 presenter 测试；仍需本地化和视觉 |
-| Onboarding / FTUE | iOS `OnboardingFlowCoordinator`：Identity -> AppLock -> Analytics -> Notifications；另有 `PostLoginWelcome` logo/theme/updates flow | 🟡 状态顺序与 PostLoginWelcome 数据语义已迁移 | ✅ Android `DefaultFtueService` 现在按 iOS post-verification 顺序走 `LockscreenSetup -> AnalyticsOptIn -> NotificationsOptIn`；`DefaultFtueServiceTest` 覆盖 full traversal、skipped verification、verification acknowledgement gating；`PostLoginWelcomeView` 现在通过 `PostLoginWelcomeCompletion` 把 `selectedTheme/subscribeChangelog/subscribeMarketing` 传回 `RootFlowNode`，并由 `AppPreferencesStore` 持久化 theme 与两个 onboarding subscription flags，对齐 iOS `PostLoginWelcomeScreenViewModel` 的完成语义。已安装 PHK110，当前登录态未误入引导页，截图 `/tmp/unseal-ftue-order-after-install-current.png`、`/tmp/unseal-after-postlogin-prefs-install-loaded.png`。剩余：iOS identity-confirmed 中间页、copy/dismiss 语义、PostLoginWelcome clean-session 截图/视觉 polish、订阅 flags 是否要同步后端 |
+| Onboarding / FTUE | iOS `OnboardingFlowCoordinator`：Identity -> Identity Confirmed -> AppLock -> Analytics -> Notifications；另有 `PostLoginWelcome` logo/theme/updates flow | ✅ 状态顺序、Identity Confirmed、PostLoginWelcome 数据语义已迁移 | ✅ Android `FtueFlowNode` 已有 `NavTarget.IdentityConfirmed` + `IdentityConfirmedView`，`DefaultFtueService` 会在 session verification 完成后等待 `onUserAcknowledgedIdentityConfirmed()` 再进入 `LockscreenSetup -> AnalyticsOptIn -> NotificationsOptIn`；`DefaultFtueServiceTest` 覆盖 full traversal、skipped verification、verification acknowledgement gating、identity confirmed acknowledgement。`PostLoginWelcomeView` 通过 `PostLoginWelcomeCompletion` 把 `selectedTheme/subscribeChangelog/subscribeMarketing` 传回 `RootFlowNode`，并由 `AppPreferencesStore` 持久化。剩余：PostLoginWelcome clean-session 截图/视觉 polish、订阅 flags 是否要同步后端 |
 
 ### 4.5 本地化（全局问题）
 
@@ -483,7 +483,7 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 8. 独立 Vault 管理页（List + Edit，CRUD）。
 9. Voice Library 最终样式与真机手势对齐（上传 API、current-recording presenter state、下载缓存式试听、原生 recorder bridge、已录音本地回放/进度/seek/scrub、设计系统 waveform UI、真实 m4a waveform 采样已接；还需设备截图和 iOS 视觉对比）。
 10. Webhooks「选 room 后选 agent」回归已通过；后续仅剩真机视觉/权限异常观察。
-11. Onboarding 继续补 iOS identity-confirmed 中间页与 PostLoginWelcome 产品决策；FTUE 基础状态顺序已经对齐。
+11. Onboarding identity-confirmed 中间页与 FTUE 基础状态顺序已完成；剩余 PostLoginWelcome clean-session 截图/视觉 polish 与订阅 flags 后端同步产品决策。
 
 ### 5.8 2026-06-15 PostLoginWelcome 数据语义与真机验证
 
