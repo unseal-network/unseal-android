@@ -605,7 +605,14 @@ private fun JsonSpecReadableFallback(payload: String, onLinkClick: (Link) -> Uni
                         Text(item.first, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                         item.second?.let { value ->
                             if (value.startsWith("http")) {
-                                Text(value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable { onLinkClick(Link(value)) })
+                                Text(
+                                    text = value,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .clickableJsonUrl(url = value, shape = RoundedCornerShape(6.dp), onLinkClick = onLinkClick)
+                                        .padding(horizontal = 3.dp, vertical = 2.dp),
+                                )
                             } else {
                                 Text(value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
