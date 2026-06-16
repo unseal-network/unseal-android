@@ -447,7 +447,7 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 | Agent 详情 | 头像/Matrix ID 复制/provider·model/可见性、Start Chat、Edit、Soul 展开、Skills chips、Rooms 列表、Pop-out 浏览器 | ✅ 基本完成 | 🟡 核对 Rooms 列表、Pop-out、ID 复制 |
 | Agent 编辑 | 见 §3 | ✅ 全量 parity | 🟡 确认弹窗文案未走本地化 |
 | Skills | My/Marketplace tab、搜索、创建、详情含代码 File Editor、分页 | ✅ 多屏齐全 | 🟡 Detail「Files」段缺失（Android 模型无 `presignedUrls`）；核对分页 |
-| Connectors | 真实图标、分类筛选 chip、OAuth WebView、成功撒花 | 🟡 已迁移 | 🟡 需对齐真实图标/数据/OAuth 流/撒花 |
+| Connectors | 真实图标、分类筛选 chip、OAuth WebView、成功撒花 | 🟡 核心数据/交互已迁移 | 🟡 真实远程 logo、分类筛选、OAuth URL 打开、前台 silent refresh、管理页 connect/disconnect 已有实现与 presenter 测试；2026-06-17 已重跑 list/manage 测试通过。剩余：iOS 成功撒花/最终视觉 polish。 |
 | Webhooks | 全局：room 筛选；room 内：agent 筛选；启停开关 | ✅ 已迁移并回归 | ✅ `WebhookTriggerListPresenterTest` 覆盖全局 room filter、room mode agent load/filter；`WebhookTriggerEditPresenterTest` 覆盖选择 room 后清旧 agent 并加载 room agents、create 保存必须选择 agent。2026-06-17 已重跑两组测试通过。 |
 | Credits | Balance/Daily Usage/Usage Ranking 三 tab、sparkline、Top Up、交易记录 | ✅ 数据层、Settings 入口、Topup PaymentSheet 已迁移 | 🟡 Credits period 已对齐 iOS `sevendays/thirtydays/all`；Topup 已有 state/presenter/子页面、PaymentIntent 创建、官方 Stripe `PaymentSheet` bridge、PaymentSheet result 回写、status polling；Settings root 现在通过 `PreferencesFlowNode` refresh flow 在 topup 完成后触发 `PreferencesRootPresenter.loadCreditBalance()`，对齐 iOS `loadCreditBalance()`。剩余：视觉/图标/按钮样式与 View 测试刷新 |
 | Settings AI Hub | iOS Settings AI 区：余额卡 + Agent / Voice / Skills / Vault / Connectors / Triggers 固定顺序入口 | 🟡 数据结构已迁移 | ✅ Android 新增 `SettingsAiAssistantRenderModel`，入口顺序对齐 iOS `SettingsScreenViewModel`，`PreferencesRootPresenter/View` 只消费 model；已补 model/presenter/view 单测，并安装到 PHK110，真机截图 `/tmp/unseal-settings-ai-hub-render-model.png`。剩余：图标/分组/浅深色视觉 polish、逐入口转场截图 |
@@ -479,7 +479,7 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 
 **P1 — 菜单打磨对齐**
 6. Credits 布局/图标/按钮继续对齐 iOS；Topup Stripe PaymentSheet bridge 已接官方 SDK 并完成 presenter 流程，Settings 余额刷新链路和 AI hub render model 已有 presenter/view/model 单测与真机入口截图验证。
-7. Connectors 真实图标 + OAuth WebView + 数据交互。
+7. Connectors 真实图标 + OAuth URL + 数据交互已验证；剩余 iOS 成功撒花/最终视觉 polish。
 8. 独立 Vault 管理页（List + Edit，CRUD）。
 9. Voice Library 最终样式与真机手势对齐（上传 API、current-recording presenter state、下载缓存式试听、原生 recorder bridge、已录音本地回放/进度/seek/scrub、设计系统 waveform UI、真实 m4a waveform 采样已接；还需设备截图和 iOS 视觉对比）。
 10. Webhooks「选 room 后选 agent」回归已通过；后续仅剩真机视觉/权限异常观察。
