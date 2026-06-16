@@ -126,6 +126,11 @@ $ADB -s 5fd76ce3 logcat -s "AiSdkStreamReducer:*" "AiStreamDbg:*" > /tmp/sd.txt
 - **Agent Edit 全量 iOS parity**：头像、基础信息（名称可用性校验）、访问控制、AI 引擎（provider/model 下拉 + 条件 baseUrl/apiKey）、Voice、Personality、Runtime sandbox（含确认弹窗）、Secret variables（vault clone + 手动）、Skills 多选。
 - **全部 ~30 个 Tool 卡片**已迁移：Composio Search、GitHub（primary + activity）、Gmail/Drive、Linear/Twitter、Schedule/Moltbook。
 
+2026-06-17 最新增量：
+- `dc96b5ec0d` `fix(messages): clip ai card pressed states`
+- `7501609ac5` `feat(messages): preserve json action buttons`
+- `13a97c928e` `fix(messages): clip json row press states`
+
 ---
 
 ## 3.1 新增：Room 数据层 iOS parity（数据优先迁移）
@@ -444,7 +449,7 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 | Skills | My/Marketplace tab、搜索、创建、详情含代码 File Editor、分页 | ✅ 多屏齐全 | 🟡 Detail「Files」段缺失（Android 模型无 `presignedUrls`）；核对分页 |
 | Connectors | 真实图标、分类筛选 chip、OAuth WebView、成功撒花 | 🟡 已迁移 | 🟡 需对齐真实图标/数据/OAuth 流/撒花 |
 | Webhooks | 全局：room 筛选；room 内：agent 筛选；启停开关 | 🟡 已迁移 | 🟡 「选了 room 后无法选 agent」需回归验证（疑似 power level / VPN） |
-| Credits | Balance/Daily Usage/Usage Ranking 三 tab、sparkline、Top Up、交易记录 | 🟡 数据层与 Settings 入口已迁移 | 🟡 Credits period 已对齐 iOS `sevendays/thirtydays/all`；Topup 已有 state/presenter/子页面、PaymentIntent 创建和 status polling；Settings root 现在通过 `PreferencesFlowNode` refresh flow 在 topup 完成后触发 `PreferencesRootPresenter.loadCreditBalance()`，对齐 iOS `loadCreditBalance()`。剩余：Android Stripe PaymentSheet bridge、视觉/图标/按钮样式与 View 测试刷新 |
+| Credits | Balance/Daily Usage/Usage Ranking 三 tab、sparkline、Top Up、交易记录 | ✅ 数据层、Settings 入口、Topup PaymentSheet 已迁移 | 🟡 Credits period 已对齐 iOS `sevendays/thirtydays/all`；Topup 已有 state/presenter/子页面、PaymentIntent 创建、官方 Stripe `PaymentSheet` bridge、PaymentSheet result 回写、status polling；Settings root 现在通过 `PreferencesFlowNode` refresh flow 在 topup 完成后触发 `PreferencesRootPresenter.loadCreditBalance()`，对齐 iOS `loadCreditBalance()`。剩余：视觉/图标/按钮样式与 View 测试刷新 |
 | Settings AI Hub | iOS Settings AI 区：余额卡 + Agent / Voice / Skills / Vault / Connectors / Triggers 固定顺序入口 | 🟡 数据结构已迁移 | ✅ Android 新增 `SettingsAiAssistantRenderModel`，入口顺序对齐 iOS `SettingsScreenViewModel`，`PreferencesRootPresenter/View` 只消费 model；已补 model/presenter/view 单测，并安装到 PHK110，真机截图 `/tmp/unseal-settings-ai-hub-render-model.png`。剩余：图标/分组/浅深色视觉 polish、逐入口转场截图 |
 | Voice Library | My/Public tab、录音（mic/录/放）、列表试听、删除确认、分享/导入 | 🟡 Mine/Public、catalog、save/delete/share/import/delete notice、presenter-owned preview state、下载缓存式 preview、recording upload API、current-recording state/events、`RECORD_AUDIO` 权限、原生 m4a/base64 录音 bridge + 已录音本地回放/进度/seek/scrub 状态与设计系统 waveform UI 已接入；已录音 m4a 会解码成真实 waveform samples，不再使用固定 demo 波形 | ⚠️ 视觉和真机录音/拖动手势需继续对齐 |
 | Vault 管理 | 独立 `VaultManagementScreen` + `VaultEditScreen`（key/value/desc 增删改查） | 🟡 已有独立列表/编辑页，CRUD/search 已接入 | 🟡 删除接口已对齐 iOS key 路由；编辑 value 加载/create/update 校验已有 presenter 测试；仍需本地化和视觉 |
@@ -462,16 +467,18 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 **P0 — 内容/交互对齐（影响可用性）**
 1. **JsonRender 组件目录补全**（task #14 follow-up）：`data-ui-spec`/`data-json-render`/`data-spec` 已接第一版 `JsonSpecRender`；文本 `$state`、节点 `visible`、基础 `repeat` 局部 item state、markdown `json/spec` code-block 分流已支持。
    - 2026-06-16：补齐 typed `{type,data}` 入口、input/textfield/textarea/select/dropdown/switch/toggle/checkbox/radio/conditional/action 只读渲染、`on.click` URL、`$template` repeat。后续又补齐 `spacer/gap/space` 和 `scroll/scrollview/scrollarea/list` 的 bounded internal scroll，并把 select/radio 选中态接入 `SelectedStatePill`。验证：`:features:messages:impl:testDebugUnitTest --tests JsonSpecRenderTest` + `:features:messages:impl:compileDebugKotlin` 通过。剩余：复杂非 URL 事件与 iOS Shadcn 目录长尾组件。
+   - 2026-06-17：`JsonRenderButton` 会保留非 URL action metadata，并用只读按钮展示 action-only spec；file/hotel/product/news 富内容行按自身圆角裁剪 pressed layer，不再出现圆角卡片内矩形按压块。验证：`:features:messages:impl:testDebugUnitTest --tests JsonSpecRenderTest` + `:features:messages:impl:compileDebugKotlin` 通过。
 2. **Suspended/审批卡片交互**：Android 已有 iOS-aligned `SuspendedToolRenderModel`，会解析 `suspendPayload` 并只读展示 `requestVaultAuthorization` / `chooseRequest` / `deleteSchedule` / `setSandboxMode` / `deleteAgentVaultEntry` / `moltbookRegister` 的关键字段，不再只读顶层 action 文本；但真实批准/拒绝仍未接。
    - 2026-06-16：`SuspendedToolCard` 改为消费 render model；新增单测覆盖 choose、deleteSchedule、sandbox/vault fallback。验证：`:features:messages:impl:testDebugUnitTest --tests SuspendedToolRenderModelTest` + `:features:messages:impl:compileDebugKotlin` 通过。
    - 交互仍阻塞：iOS 卡片会调用 `AgentMessageViewDelegate.updateMessage(eventId, ToUnsealUpdateData(mAgentSuspended: ...))`，但当前 ElementX host `AIAgentProxy.updateMessage` 也是 `not implemented`。不要在 Android 里自造协议；等 iOS host wire shape 落地后按同一接口迁移。
 3. **Selected/active 视觉状态统一**：当前 Android 多处 selected state 不是 iOS 的圆角 capsule/pill，而是局部 `background(color)` 或缺少同层 shape，导致 tab/chip/选中块出现直角。需要先抽统一的 rounded selectable/token，再替换 `ToolCallRootCard` tabs、Finance 二级 tabs、Weather forecast pills、Composer skill picker、room topbar/menu chips、tool card 内所有 selected/active/pressed 状态；Compose 里不允许继续散落无 shape 的 selected background。验收：深浅色、所有 tool cards、skill picker、room menu 展开态截图里选中效果都必须是圆角/胶囊，不得出现矩形色块。
    - 2026-06-16：新增共享 `SelectedStatePill`，已接入 Tool root tabs、Finance 二级 tabs、Weather forecast pills、Composer agent target picker、JsonRender select/radio；`rg` 确认这些入口不再残留 `background(if (selected...))`。验证：`:features:messages:impl:compileDebugKotlin` 通过；`:app:installGplayDebug` 已安装到 PHK110。
+   - 2026-06-17：新增共享 `ShapedClickableSurface`，ToolCallRootCard header 与 reasoning header 改为同 shape 的 clickable surface，pressed layer 跟随 header/card shape，避免截图中圆角边界内出现矩形选中/按压块。验证：`:features:messages:impl:compileDebugKotlin` 通过。
 4. **Timeline 滚动收尾与恢复密钥卡片**：`TimelineScrollHelper` 的 `OnScrollFinished` 现在等待 fling settle 后再按 index 去重 emit，避免手势结束瞬间重复触发 read receipt / timeline 状态更新；`TimelineItemRoomKeyRecoveryView` 改成 standalone surface card，沿用 reducer 的 `TimelineContentKind.RoomKeyRecovery -> Standalone`，不再呈现为普通消息气泡。验证：`:features:messages:impl:testDebugUnitTest --tests TimelineItemRoomKeyRecoveryDisplayTest --tests TimelinePresentationReducerTest --tests JsonSpecRenderTest` + `:features:messages:impl:compileDebugKotlin` 通过。
 5. **真机逐卡核对**：用 §1.4 抓 `AiSdkStreamReducer` 日志，确认每个 cardType 的 payload 经 CardTransforms 后字段命中、内容与 iOS 一致（尤其 GitHub activity 类、composio search 富卡片）。
 
 **P1 — 菜单打磨对齐**
-6. Credits 布局/图标/按钮 + Topup Stripe PaymentSheet bridge 对齐 iOS；Settings 余额刷新链路和 AI hub render model 已有 presenter/view/model 单测与真机入口截图验证。
+6. Credits 布局/图标/按钮继续对齐 iOS；Topup Stripe PaymentSheet bridge 已接官方 SDK 并完成 presenter 流程，Settings 余额刷新链路和 AI hub render model 已有 presenter/view/model 单测与真机入口截图验证。
 7. Connectors 真实图标 + OAuth WebView + 数据交互。
 8. 独立 Vault 管理页（List + Edit，CRUD）。
 9. Voice Library 最终样式与真机手势对齐（上传 API、current-recording presenter state、下载缓存式试听、原生 recorder bridge、已录音本地回放/进度/seek/scrub、设计系统 waveform UI、真实 m4a waveform 采样已接；还需设备截图和 iOS 视觉对比）。
