@@ -263,6 +263,39 @@ class ToolCardDispatcherTest {
     }
 
     @Test
+    fun `events payload preserves title date venue address url and image`() {
+        val payload = JSONObject(
+            """
+            {
+              "results": {
+                "events_results": [
+                  {
+                    "title": "AI Builders Shanghai",
+                    "date": { "when": "Tomorrow, 2:30 - 4:30 PM" },
+                    "venue": { "name": "West Bund Center" },
+                    "address": ["Shanghai", "Xuhui"],
+                    "thumbnail": "https://example.com/event.png",
+                    "link": "https://example.com/events/ai-builders"
+                  }
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        val transformed = CardTransforms.transform(payload, "eventList")
+        val event = transformed.cardObjects("events").single()
+
+        assertThat(transformed.hasCardContentFor("eventList")).isTrue()
+        assertThat(event.cardString("title")).isEqualTo("AI Builders Shanghai")
+        assertThat(event.cardString("when")).isEqualTo("Tomorrow, 2:30 - 4:30 PM")
+        assertThat(event.cardString("venue")).isEqualTo("West Bund Center")
+        assertThat(event.cardString("address")).isEqualTo("Shanghai, Xuhui")
+        assertThat(event.cardString("thumbnail")).isEqualTo("https://example.com/event.png")
+        assertThat(event.cardString("url")).isEqualTo("https://example.com/events/ai-builders")
+    }
+
+    @Test
     fun `places payload preserves image gallery address rating review count and map url`() {
         val payload = JSONObject(
             """
