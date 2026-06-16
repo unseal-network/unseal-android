@@ -42,6 +42,7 @@ Use them when updating tests, handoff notes, commits, and acceptance evidence.
 | ROOM-MENUS | Task 9 | P0 Menus / Room Interactions, Message Long-Press Action Parity | Attachment menu, message action menu, reactions/read receipts/pinned/footer menu surfaces. | P0 |
 | ROOM-KEY-RECOVERY | Task 10 | Feature Completion Matrix, Room footer/security | Restore room key card and flows: backup, sender retry, room-member recovery, non-bubble timeline presentation. | P0 |
 | PERF-CACHE | Task 11 | P0 Stream / Timeline Workflow, Acceptance Fixtures | Timeline jank fixes, stable LazyColumn keys, markdown/tool memoization, stream cache reuse and no repeated loading. | P0 |
+| SELECTED-STATE-PARITY | Task 12 | Feature Completion Matrix, P0 Visual State Semantics | Unified iOS-style rounded selected/active/pressed state tokens for tool tabs, secondary card tabs, forecast pills, composer skill picker, room menu chips, and any timeline selected controls. | P0 |
 
 ## Feature Completion Matrix
 
@@ -52,6 +53,7 @@ Use them when updating tests, handoff notes, commits, and acceptance evidence.
 | Top floating chrome | `RoomScreen.roomTopOverlay`, `TopChromeBackdrop` | Partial | Match iOS floating capsule/header spacing, backdrop, and top safe-area behavior across scroll states. |
 | Bottom composer chrome | `ComposerChromeBackdrop`, `ComposerToolbar` | Not complete | Add iOS-like floating composer backdrop, focused/disabled/reply/edit/voice/skill states. |
 | Timeline presentation | iOS `TimelineView` + stream screenshots | Partial | Finish avatar column, sender grouping, right gutter, date divider, footer, receipt/reaction positioning, self/other direct-room parity. |
+| Selected/active visual states | iOS capsule/pill selected controls in room chrome, tool tabs, skill chips, segmented tabs | Partial | Replace ad-hoc rectangular `background(color)` selected states with shared rounded/capsule selectable components and tokens. |
 | AI stream render | `unseal-agent-ios` stream views, iOS `BubbleMessageView` behavior | Partial | Keep SDK-only lifecycle, verify cache-first completed streams, finish loading/cursor/text patch animation parity. |
 | Markdown render | iOS `MarkdownRenderView` / `_MarkdownBody` | Partial | Confirm link taps, code block, quote, table/list spacing, completed markdown cache and streaming animation. |
 | Tool root card | iOS `ToolCallRootCard` | Partial | Confirm single/multi-tool insertion, tab state, fixed internal scroll, no raw JSON fallback. |
@@ -112,6 +114,7 @@ Detailed request-client migration contract: `docs/ios-room-data-client-workflow.
 | Markdown | iOS `MarkdownRenderView`, cached stable markdown, cursor while streaming | Links, lists, bold, code, quote | `MarkdownBody.kt` exists | `MarkdownRenderModel` | Verify clickable links and cache by completed content. |
 | Root tool card insertion | iOS `ToolCallRootCard` groups tools at first tool position | Tool card appears once; tool parts not duplicated | `AndroidAgentStreamAdapters`, `TimelineItemAiView` | `ToolCallRootRenderModel` | Formalize adapter and tests. |
 | Loading/cursor | iOS shows stream loading/cursor, not literal `Thinking...` as final content | Loading only while stream is unresolved | `AiLoadingIndicator`, stream state | `AiStreamRenderModel.cursorMode` | Completed cache must not flash loading. |
+| Selected/active state tokens | iOS uses rounded capsule/pill selection across tabs/chips | Android has multiple local `background(color)` selected states | Shared selected-state component/token set | Tool root tabs, finance tabs, weather forecast pills, composer skill picker, room topbar/menu chips must not draw square selected backgrounds. |
 
 ## P0 Tool Cards
 

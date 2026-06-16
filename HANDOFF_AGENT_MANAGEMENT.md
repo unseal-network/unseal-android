@@ -462,15 +462,17 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 **P0 — 内容/交互对齐（影响可用性）**
 1. **JsonRender 组件目录补全**（task #14 follow-up）：`data-ui-spec`/`data-json-render`/`data-spec` 已接第一版 `JsonSpecRender`；文本 `$state`、节点 `visible`、基础 `repeat` 局部 item state、markdown `json/spec` code-block 分流已支持；继续补 iOS Shadcn 目录、`on.click/$template` 和复杂 repeat template。
 2. **Suspended/审批卡片交互**：Android 目前 display-only；iOS 卡片会调用 `AgentMessageViewDelegate.updateMessage(eventId, ToUnsealUpdateData(mAgentSuspended: ...))`，但当前 ElementX host `AIAgentProxy.updateMessage` 也是 `not implemented`。不要在 Android 里自造协议；等 iOS host wire shape 落地后按同一接口迁移。
-3. **真机逐卡核对**：用 §1.4 抓 `AiSdkStreamReducer` 日志，确认每个 cardType 的 payload 经 CardTransforms 后字段命中、内容与 iOS 一致（尤其 GitHub activity 类、composio search 富卡片）。
+3. **Selected/active 视觉状态统一**：当前 Android 多处 selected state 不是 iOS 的圆角 capsule/pill，而是局部 `background(color)` 或缺少同层 shape，导致 tab/chip/选中块出现直角。需要先抽统一的 rounded selectable/token，再替换 `ToolCallRootCard` tabs、Finance 二级 tabs、Weather forecast pills、Composer skill picker、room topbar/menu chips、tool card 内所有 selected/active/pressed 状态；Compose 里不允许继续散落无 shape 的 selected background。验收：深浅色、所有 tool cards、skill picker、room menu 展开态截图里选中效果都必须是圆角/胶囊，不得出现矩形色块。
+   - 2026-06-16：新增共享 `SelectedStatePill`，已接入 Tool root tabs、Finance 二级 tabs、Weather forecast pills、Composer agent target picker；`rg` 确认这些入口不再残留 `background(if (selected...))`。验证：`:features:messages:impl:compileDebugKotlin` 通过；`:app:installGplayDebug` 已完成 APK package，但当前 `adb devices` 为空，安装因 `No connected devices` 阻塞。APK 已生成在 `app/build/outputs/apk/gplay/debug/`。
+4. **真机逐卡核对**：用 §1.4 抓 `AiSdkStreamReducer` 日志，确认每个 cardType 的 payload 经 CardTransforms 后字段命中、内容与 iOS 一致（尤其 GitHub activity 类、composio search 富卡片）。
 
 **P1 — 菜单打磨对齐**
-4. Credits 布局/图标/按钮 + Topup Stripe PaymentSheet bridge 对齐 iOS；Settings 余额刷新链路和 AI hub render model 已有 presenter/view/model 单测与真机入口截图验证。
-5. Connectors 真实图标 + OAuth WebView + 数据交互。
-6. 独立 Vault 管理页（List + Edit，CRUD）。
-7. Voice Library 最终样式与真机手势对齐（上传 API、current-recording presenter state、下载缓存式试听、原生 recorder bridge、已录音本地回放/进度/seek/scrub、设计系统 waveform UI、真实 m4a waveform 采样已接；还需设备截图和 iOS 视觉对比）。
-8. Webhooks「选 room 后选 agent」回归。
-9. Onboarding 继续补 iOS identity-confirmed 中间页与 PostLoginWelcome 产品决策；FTUE 基础状态顺序已经对齐。
+5. Credits 布局/图标/按钮 + Topup Stripe PaymentSheet bridge 对齐 iOS；Settings 余额刷新链路和 AI hub render model 已有 presenter/view/model 单测与真机入口截图验证。
+6. Connectors 真实图标 + OAuth WebView + 数据交互。
+7. 独立 Vault 管理页（List + Edit，CRUD）。
+8. Voice Library 最终样式与真机手势对齐（上传 API、current-recording presenter state、下载缓存式试听、原生 recorder bridge、已录音本地回放/进度/seek/scrub、设计系统 waveform UI、真实 m4a waveform 采样已接；还需设备截图和 iOS 视觉对比）。
+9. Webhooks「选 room 后选 agent」回归。
+10. Onboarding 继续补 iOS identity-confirmed 中间页与 PostLoginWelcome 产品决策；FTUE 基础状态顺序已经对齐。
 
 ### 5.8 2026-06-15 PostLoginWelcome 数据语义与真机验证
 

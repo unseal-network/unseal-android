@@ -7,6 +7,7 @@
 
 package io.element.android.features.messages.impl.timeline.components.event.toolcards
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -68,6 +69,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import io.element.android.features.messages.impl.components.SelectedStatePill
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import java.text.SimpleDateFormat
@@ -963,21 +965,29 @@ private fun FinanceSegmentedTabs(
     ) {
         tabs.forEachIndexed { index, title ->
             val selected = index == selectedIndex
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            SelectedStatePill(
+                selected = selected,
+                onClick = { onSelected(index) },
                 modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(50))
-                    .background(if (selected) FinanceSegmentSelected else Color.Transparent)
-                    .clickable { onSelected(index) }
-                    .padding(horizontal = 8.dp, vertical = 7.dp),
-            )
+                    .weight(1f),
+                selectedColor = FinanceSegmentSelected,
+                unselectedColor = Color.Transparent,
+                selectedContentColor = Color.White,
+                unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                    color = androidx.compose.material3.LocalContentColor.current,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 7.dp),
+                )
+            }
         }
     }
 }
@@ -1500,31 +1510,38 @@ private fun ForecastPill(item: JSONObject, selected: Boolean, onClick: () -> Uni
     val high = item.cardDouble("high", "max", "max_temp", "temperature")
     val low = item.cardDouble("low", "min", "min_temp")
     val precipitation = item.cardDouble("precipitation", "rain_chance", "precipitation_probability") ?: 0.0
-    Column(
+    SelectedStatePill(
+        selected = selected,
+        onClick = onClick,
         modifier = Modifier
-            .width(82.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) color.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.025f))
-            .border(1.dp, if (selected) color.copy(alpha = 0.28f) else Color.Transparent, RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .width(82.dp),
+        selectedColor = color.copy(alpha = 0.14f),
+        unselectedColor = Color.White.copy(alpha = 0.025f),
+        selectedContentColor = color,
+        unselectedContentColor = Color.White.copy(alpha = 0.48f),
+        selectedBorder = BorderStroke(1.dp, color.copy(alpha = 0.28f)),
+        shape = RoundedCornerShape(12.dp),
     ) {
-        Text(
-            text = item.cardString("day", "weekday", "date")?.take(3) ?: "Day",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = if (selected) color else Color.White.copy(alpha = 0.48f),
-            maxLines = 1,
-        )
-        Icon(weatherIcon(condition), contentDescription = null, tint = if (selected) color else Color.White.copy(alpha = 0.34f), modifier = Modifier.size(24.dp))
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(high?.let { "${it.roundedInt()}°" } ?: "—", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = if (selected) Color.White else Color.White.copy(alpha = 0.78f), maxLines = 1)
-            low?.let { Text("${it.roundedInt()}°", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.36f), maxLines = 1) }
-        }
-        if (precipitation > 0) {
-            Text("💧 ${precipitation.roundedInt()}%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium, color = if (selected) Color(0xFF1597F5) else Color(0xFF1597F5).copy(alpha = 0.72f), maxLines = 1)
+        Column(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = item.cardString("day", "weekday", "date")?.take(3) ?: "Day",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = androidx.compose.material3.LocalContentColor.current,
+                maxLines = 1,
+            )
+            Icon(weatherIcon(condition), contentDescription = null, tint = if (selected) color else Color.White.copy(alpha = 0.34f), modifier = Modifier.size(24.dp))
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(high?.let { "${it.roundedInt()}°" } ?: "—", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = if (selected) Color.White else Color.White.copy(alpha = 0.78f), maxLines = 1)
+                low?.let { Text("${it.roundedInt()}°", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.36f), maxLines = 1) }
+            }
+            if (precipitation > 0) {
+                Text("💧 ${precipitation.roundedInt()}%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium, color = if (selected) Color(0xFF1597F5) else Color(0xFF1597F5).copy(alpha = 0.72f), maxLines = 1)
+            }
         }
     }
 }

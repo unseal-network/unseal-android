@@ -69,6 +69,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
+import io.element.android.features.messages.impl.components.SelectedStatePill
 import io.element.android.features.messages.impl.timeline.model.event.AiCustomStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiDataStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiErrorStreamPart
@@ -515,20 +516,22 @@ private fun ToolSelectionTabs(
     ) {
         entries.forEachIndexed { index, entry ->
             val isSelected = index == selectedIndex
-            Surface(
-                shape = RoundedCornerShape(18.dp),
-                color = if (isSelected) MaterialTheme.colorScheme.surface else Color.Transparent,
-                modifier = Modifier.clickable { onSelected(index) },
+            SelectedStatePill(
+                selected = isSelected,
+                onClick = { onSelected(index) },
+                selectedColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                unselectedColor = Color.Transparent,
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     ToolStateDot(entry.state)
                     Text(
                         text = entry.name,
                         style = MaterialTheme.typography.labelMedium,
-                        color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = LocalContentColor.current,
                     )
                 }
             }

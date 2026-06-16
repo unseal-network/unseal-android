@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
+import io.element.android.features.messages.impl.components.SelectedStatePill
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import io.element.android.libraries.designsystem.theme.components.HorizontalDivider
@@ -173,18 +174,22 @@ private fun AgentTargetRow(
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         items(state.targets, key = { it.mxid }) { target ->
             val selected = target.mxid == state.activeAgentMxid
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = if (selected) ElementTheme.colors.bgActionPrimaryRest else ElementTheme.colors.bgCanvasDefault,
-                border = BorderStroke(1.dp, ElementTheme.colors.borderDisabled),
+            SelectedStatePill(
+                selected = selected,
+                onClick = { onSelectTarget(target.mxid) },
+                selectedColor = ElementTheme.colors.bgActionPrimaryRest,
+                unselectedColor = ElementTheme.colors.bgCanvasDefault,
+                selectedContentColor = ElementTheme.colors.textOnSolidPrimary,
+                unselectedContentColor = ElementTheme.colors.textPrimary,
+                selectedBorder = BorderStroke(1.dp, ElementTheme.colors.bgActionPrimaryRest),
+                unselectedBorder = BorderStroke(1.dp, ElementTheme.colors.borderDisabled),
             ) {
                 Text(
                     modifier = Modifier
-                        .clickable { onSelectTarget(target.mxid) }
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                     text = target.label,
                     style = ElementTheme.typography.fontBodySmMedium,
-                    color = if (selected) ElementTheme.colors.textOnSolidPrimary else ElementTheme.colors.textPrimary,
+                    color = androidx.compose.material3.LocalContentColor.current,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
