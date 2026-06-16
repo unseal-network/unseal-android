@@ -10,6 +10,7 @@ package io.element.android.features.preferences.impl
 
 import android.os.Parcelable
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import com.bumble.appyx.core.modality.BuildContext
 import com.bumble.appyx.core.node.Node
@@ -20,6 +21,7 @@ import com.bumble.appyx.navmodel.backstack.operation.push
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
+import io.element.android.features.credits.api.CreditsEntryPoint
 import io.element.android.features.deactivation.api.AccountDeactivationEntryPoint
 import io.element.android.features.licenses.api.OpenSourceLicensesEntryPoint
 import io.element.android.features.lockscreen.api.LockScreenEntryPoint
@@ -35,17 +37,28 @@ import io.element.android.features.preferences.impl.notifications.NotificationSe
 import io.element.android.features.preferences.impl.notifications.edit.EditDefaultNotificationSettingNode
 import io.element.android.features.preferences.impl.root.PreferencesRootNode
 import io.element.android.features.preferences.impl.user.editprofile.EditUserProfileNode
+import io.element.android.features.preferences.impl.vault.VaultManagementNode
+import io.element.android.features.preferences.impl.vault.edit.VaultEditNode
+import io.element.android.features.agentmanagement.api.AgentManagementEntryPoint
+import io.element.android.features.connectors.api.ConnectorsEntryPoint
+import io.element.android.features.skills.api.SkillsEntryPoint
+import io.element.android.features.voicelibrary.api.VoiceLibraryEntryPoint
+import io.element.android.features.webhooks.api.WebhookTriggersEntryPoint
 import io.element.android.libraries.architecture.BackstackView
 import io.element.android.libraries.architecture.BaseFlowNode
 import io.element.android.libraries.architecture.appyx.canPop
 import io.element.android.libraries.architecture.callback
 import io.element.android.libraries.architecture.createNode
+import io.element.android.libraries.chatbot.api.model.credits.CreditBalance
+import io.element.android.libraries.designsystem.utils.OpenUrlInTabView
 import io.element.android.libraries.di.SessionScope
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomId
+import io.element.android.libraries.matrix.api.core.RoomIdOrAlias
 import io.element.android.libraries.matrix.api.user.MatrixUser
 import io.element.android.libraries.troubleshoot.api.NotificationTroubleShootEntryPoint
 import io.element.android.libraries.troubleshoot.api.PushHistoryEntryPoint
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.parcelize.Parcelize
 
 @ContributesNode(SessionScope::class)
@@ -59,6 +72,12 @@ class PreferencesFlowNode(
     private val logoutEntryPoint: LogoutEntryPoint,
     private val openSourceLicensesEntryPoint: OpenSourceLicensesEntryPoint,
     private val accountDeactivationEntryPoint: AccountDeactivationEntryPoint,
+    private val webhookTriggersEntryPoint: WebhookTriggersEntryPoint,
+    private val connectorsEntryPoint: ConnectorsEntryPoint,
+    private val voiceLibraryEntryPoint: VoiceLibraryEntryPoint,
+    private val agentManagementEntryPoint: AgentManagementEntryPoint,
+    private val skillsEntryPoint: SkillsEntryPoint,
+    private val creditsEntryPoint: CreditsEntryPoint,
 ) : BaseFlowNode<PreferencesFlowNode.NavTarget>(
     backstack = BackStack(
         initialElement = plugins.filterIsInstance<PreferencesEntryPoint.Params>().first().initialElement.toNavTarget(),
@@ -99,6 +118,29 @@ class PreferencesFlowNode(
         data object LockScreenSettings : NavTarget
 
         @Parcelize
+        data object WebhookTriggers : NavTarget
+
+        @Parcelize
+        data object Connectors : NavTarget
+
+        @Parcelize
+        data object VoiceLibrary : NavTarget
+
+        @Parcelize
+        data object AgentManagement : NavTarget
+
+        @Parcelize
+        data class Skills(
+            val initialTarget: SkillsEntryPoint.InitialTarget = SkillsEntryPoint.InitialTarget.Home,
+        ) : NavTarget
+
+        @Parcelize
+        data object VaultManagement : NavTarget
+
+        @Parcelize
+        data class VaultEdit(val key: String?, val description: String?) : NavTarget
+
+        @Parcelize
         data class EditDefaultNotificationSetting(val isOneToOne: Boolean) : NavTarget
 
         @Parcelize
@@ -115,9 +157,17 @@ class PreferencesFlowNode(
 
         @Parcelize
         data object OssLicenses : NavTarget
+
+        @Parcelize
+        data class Credits(
+            val initialTab: CreditsEntryPoint.CreditsTab,
+            val openTopUpInitially: Boolean = false,
+        ) : NavTarget
     }
 
     private val callback: PreferencesEntryPoint.Callback = callback()
+    private val vaultReloadRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val creditBalanceReloadRequests = MutableSharedFlow<Unit>(replay = 1, extraBufferCapacity = 1)
 
     override fun resolve(navTarget: NavTarget, buildContext: BuildContext): Node {
         return when (navTarget) {
@@ -155,6 +205,30 @@ class PreferencesFlowNode(
                         backstack.push(NavTarget.LockScreenSettings)
                     }
 
+                    override fun navigateToWebhookTriggers() {
+                        backstack.push(NavTarget.WebhookTriggers)
+                    }
+
+                    override fun navigateToConnectors() {
+                        backstack.push(NavTarget.Connectors)
+                    }
+
+                    override fun navigateToVoiceLibrary() {
+                        backstack.push(NavTarget.VoiceLibrary)
+                    }
+
+                    override fun navigateToAgentManagement() {
+                        backstack.push(NavTarget.AgentManagement)
+                    }
+
+                    override fun navigateToSkills() {
+                        backstack.push(NavTarget.Skills())
+                    }
+
+                    override fun navigateToVaultManagement() {
+                        backstack.push(NavTarget.VaultManagement)
+                    }
+
                     override fun navigateToAdvancedSettings() {
                         backstack.push(NavTarget.AdvancedSettings)
                     }
@@ -182,8 +256,31 @@ class PreferencesFlowNode(
                     override fun startAccountDeactivationFlow() {
                         backstack.push(NavTarget.AccountDeactivation)
                     }
+
+                    override fun navigateToCreditsBilling() {
+                        backstack.push(NavTarget.Credits(CreditsEntryPoint.CreditsTab.Balance))
+                    }
+
+                    override fun navigateToCreditsUsage() {
+                        backstack.push(NavTarget.Credits(CreditsEntryPoint.CreditsTab.DailyUsage))
+                    }
+
+                    override fun openCreditsTopUp() {
+                        backstack.push(
+                            NavTarget.Credits(
+                                initialTab = CreditsEntryPoint.CreditsTab.Balance,
+                                openTopUpInitially = true,
+                            )
+                        )
+                    }
                 }
-                createNode<PreferencesRootNode>(buildContext, plugins = listOf(callback))
+                createNode<PreferencesRootNode>(
+                    buildContext,
+                    plugins = listOf(
+                        callback,
+                        PreferencesRootNode.CreditBalanceRefreshRequests(creditBalanceReloadRequests),
+                    ),
+                )
             }
             NavTarget.DeveloperSettings -> {
                 val developerSettingsCallback = object : DeveloperSettingsNode.Callback {
@@ -303,6 +400,154 @@ class PreferencesFlowNode(
                     }
                 )
             }
+            NavTarget.WebhookTriggers -> {
+                webhookTriggersEntryPoint.createNode(
+                    parentNode = this,
+                    buildContext = buildContext,
+                    params = WebhookTriggersEntryPoint.Params(
+                        initialTarget = WebhookTriggersEntryPoint.InitialTarget.Global,
+                    ),
+                    callback = object : WebhookTriggersEntryPoint.Callback {
+                        override fun onDone() {
+                            if (backstack.canPop()) {
+                                backstack.pop()
+                            } else {
+                                navigateUp()
+                            }
+                        }
+
+                        override fun onTriggersChanged() = Unit
+
+                        override fun onOpenConnectUrl(url: String) {
+                            connectUrl.value = url
+                        }
+                    },
+                )
+            }
+            NavTarget.Connectors -> {
+                connectorsEntryPoint.createNode(
+                    parentNode = this,
+                    buildContext = buildContext,
+                    callback = object : ConnectorsEntryPoint.Callback {
+                        override fun onDone() {
+                            if (backstack.canPop()) {
+                                backstack.pop()
+                            } else {
+                                navigateUp()
+                            }
+                        }
+
+                        override fun onOpenConnectUrl(url: String) {
+                            connectUrl.value = url
+                        }
+                    },
+                )
+            }
+            NavTarget.VoiceLibrary -> {
+                voiceLibraryEntryPoint.createNode(
+                    parentNode = this,
+                    buildContext = buildContext,
+                    callback = object : VoiceLibraryEntryPoint.Callback {
+                        override fun onDone() {
+                            if (backstack.canPop()) {
+                                backstack.pop()
+                            } else {
+                                navigateUp()
+                            }
+                        }
+                    },
+                )
+            }
+            NavTarget.AgentManagement -> {
+                agentManagementEntryPoint.createNode(
+                    parentNode = this,
+                    buildContext = buildContext,
+                    params = AgentManagementEntryPoint.Params(),
+                    callback = object : AgentManagementEntryPoint.Callback {
+                        override fun onDone() {
+                            if (backstack.canPop()) backstack.pop() else navigateUp()
+                        }
+
+                        override fun onOpenRoom(roomIdOrAlias: RoomIdOrAlias) {
+                            callback.navigateToRoom(roomIdOrAlias)
+                        }
+
+                        override fun onOpenSkills(botName: String?) {
+                            backstack.push(
+                                NavTarget.Skills(
+                                    initialTarget = botName
+                                        ?.let(SkillsEntryPoint.InitialTarget::AgentSkills)
+                                        ?: SkillsEntryPoint.InitialTarget.ManagementHub
+                                )
+                            )
+                        }
+
+                        override fun onOpenCreatedDirectRoom(roomId: RoomId) {
+                            callback.navigateToCreatedDirectRoom(roomId)
+                        }
+                    },
+                )
+            }
+            is NavTarget.Skills -> {
+                skillsEntryPoint.createNode(
+                    parentNode = this,
+                    buildContext = buildContext,
+                    params = SkillsEntryPoint.Params(navTarget.initialTarget),
+                    callback = object : SkillsEntryPoint.Callback {
+                        override fun onDone() {
+                            if (backstack.canPop()) backstack.pop() else navigateUp()
+                        }
+
+                        override fun onCreateSkill() = Unit
+
+                        override fun onSkillDeleted(id: String) = Unit
+
+                        override fun onOpenAgentManagement() {
+                            backstack.push(NavTarget.AgentManagement)
+                        }
+                    },
+                )
+            }
+            NavTarget.VaultManagement -> {
+                val vaultCallback = object : VaultManagementNode.Callback {
+                    override fun onDone() {
+                        if (backstack.canPop()) backstack.pop() else navigateUp()
+                    }
+
+                    override fun onAddEntry() {
+                        backstack.push(NavTarget.VaultEdit(key = null, description = null))
+                    }
+
+                    override fun onEditEntry(item: io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem) {
+                        backstack.push(NavTarget.VaultEdit(key = item.key, description = item.description))
+                    }
+                }
+                createNode<VaultManagementNode>(
+                    buildContext,
+                    plugins = listOf(
+                        VaultManagementNode.Inputs(vaultReloadRequests),
+                        vaultCallback,
+                    )
+                )
+            }
+            is NavTarget.VaultEdit -> {
+                val inputs = if (navTarget.key == null) {
+                    VaultEditNode.Inputs.Create
+                } else {
+                    VaultEditNode.Inputs.Edit(navTarget.key, navTarget.description)
+                }
+                val vaultEditCallback = object : VaultEditNode.Callback {
+                    override fun onDone() {
+                        backstack.pop()
+                    }
+
+                    override fun onComplete() {
+                        backstack.pop()
+                        vaultReloadRequests.tryEmit(Unit)
+                    }
+                }
+                createNode<VaultEditNode>(buildContext, plugins = listOf(inputs, vaultEditCallback))
+            }
             NavTarget.BlockedUsers -> {
                 createNode<BlockedUsersNode>(buildContext)
             }
@@ -324,11 +569,37 @@ class PreferencesFlowNode(
             NavTarget.AccountDeactivation -> {
                 accountDeactivationEntryPoint.createNode(this, buildContext)
             }
+            is NavTarget.Credits -> {
+                creditsEntryPoint.createNode(
+                    parentNode = this,
+                    buildContext = buildContext,
+                    params = CreditsEntryPoint.Params(
+                        initialTab = navTarget.initialTab,
+                        openTopUpInitially = navTarget.openTopUpInitially,
+                    ),
+                    callback = object : CreditsEntryPoint.Callback {
+                        override fun onDone() {
+                            if (backstack.canPop()) {
+                                backstack.pop()
+                            } else {
+                                navigateUp()
+                            }
+                        }
+
+                        override fun onTopUpRequested(balance: CreditBalance?) {
+                            creditBalanceReloadRequests.tryEmit(Unit)
+                        }
+                    },
+                )
+            }
         }
     }
+
+    private val connectUrl = mutableStateOf<String?>(null)
 
     @Composable
     override fun View(modifier: Modifier) {
         BackstackView()
+        OpenUrlInTabView(connectUrl)
     }
 }

@@ -20,7 +20,7 @@ class RoomInfoExtTest {
     @Test
     fun `get non empty element Heroes`() {
         val result = aRustRoomInfo(
-            isDm = true,
+            isDirect = true,
             heroes = listOf(aRustRoomHero())
         ).elementHeroes()
         assertThat(result).isEqualTo(
@@ -37,7 +37,7 @@ class RoomInfoExtTest {
     @Test
     fun `too many heroes and element Heroes is empty`() {
         val result = aRustRoomInfo(
-            isDm = true,
+            isDirect = true,
             heroes = listOf(aRustRoomHero(), aRustRoomHero())
         ).elementHeroes()
         assertThat(result).isEmpty()
@@ -46,7 +46,7 @@ class RoomInfoExtTest {
     @Test
     fun `not direct and element Heroes is empty`() {
         val result = aRustRoomInfo(
-            isDm = false,
+            isDirect = false,
             heroes = listOf(aRustRoomHero())
         ).elementHeroes()
         assertThat(result).isEmpty()

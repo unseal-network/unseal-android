@@ -66,6 +66,77 @@ Common Gradle tasks:
 - Format: `./gradlew ktlintFormat`
 - Update Docs TOC: `./gradlew generateDocsToc`
 
+### Android Debugging
+
+Use JDK 17 or newer. JDK 21 is recommended for local Gradle builds.
+
+Before building or installing from the command line, make sure the Android SDK tools are on `PATH`:
+
+```bash
+export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+```
+
+Install or verify the basic Android SDK packages:
+
+```bash
+sdkmanager "platform-tools" "emulator" "platforms;android-36" "build-tools;36.0.0"
+yes | sdkmanager --licenses
+```
+
+Build a debug APK:
+
+```bash
+./gradlew --no-daemon --no-configuration-cache :app:assembleGplayDebug
+```
+
+If the GPlay flavor is not desired, build the F-Droid flavor instead:
+
+```bash
+./gradlew --no-daemon --no-configuration-cache :app:assembleFdroidDebug
+```
+
+Find the generated APK:
+
+```bash
+find app/build/outputs/apk -name "*.apk" -print
+```
+
+Start a visible emulator:
+
+```bash
+emulator -list-avds
+emulator -avd <AVD_NAME> -no-snapshot -gpu swiftshader_indirect
+```
+
+Do not pass `-no-window` when a human needs to inspect the app. A process launched with `-no-window` or `qemu-system-*-headless` is usable by `adb` but will not show an emulator window.
+
+Wait for the emulator or device:
+
+```bash
+adb wait-for-device
+adb devices -l
+```
+
+Install the APK:
+
+```bash
+adb install -r <APK_PATH>
+```
+
+Launch the debug app:
+
+```bash
+adb shell monkey -p io.element.android.x.debug -c android.intent.category.LAUNCHER 1
+```
+
+If launch fails, confirm the package and launchable activity from the APK:
+
+```bash
+aapt dump badging <APK_PATH> | grep -E "package:|launchable-activity"
+```
+
+For true device debugging, enable Developer Options and USB Debugging on the phone, connect it by USB, then use the same `adb devices`, `adb install -r <APK_PATH>`, and `adb shell monkey ...` commands. If the device ABI is unknown, use a universal APK; otherwise prefer the ABI-specific APK that matches the device.
+
 ### Gradle Modules
 
 Features follow a 3-module structure:
@@ -119,3 +190,137 @@ We wrap the `matrix-rust-sdk` to isolate the UI from the underlying SDK.
 - Naming: SDK `Room` → `JoinedRoom` or `RoomInfo`.
 - Type Mapping: Map Rust SDK types to Kotlin data classes in the `api` module to avoid leaking `MatrixRustSDK` into the UI.
 - Always follow Kotlin naming conventions (e.g., `userId` instead of `userID`).
+
+## Agent Stream SDK Dependency
+
+AI SDK stream parsing and `parts` state updates are shared through the Rust stream SDK:
+
+- SDK repo: `git@pagepeek:unseal-network/agent-stream-sdk.git`
+- Current Android integration branch: `feature/stream-core-types`
+- Android wrapper module: `libraries/agentstream`
+- Native library name loaded by Android: `libunseal_agent_stream.so`
+- JNI Kotlin entrypoint: `libraries/agentstream/src/main/kotlin/io/element/android/libraries/agentstream/jni/UnsealAgentStreamNative.kt`
+- Native `.so` destination:
+  - `libraries/agentstream/src/main/jniLibs/arm64-v8a/libunseal_agent_stream.so`
+  - `libraries/agentstream/src/main/jniLibs/armeabi-v7a/libunseal_agent_stream.so`
+  - `libraries/agentstream/src/main/jniLibs/x86_64/libunseal_agent_stream.so`
+
+The ownership split is important:
+
+- Rust stream SDK owns SSE frame parsing, AI SDK / Unseal stream event reduction, canonical `parts`, part states, raw events, and patch coalescing.
+- Android `libraries/agentstream` owns platform lifecycle: `AgentStreamClient.getStream`, memory cache, SQLite storage provider, HTTP provider injection, task runner injection, JNI session lifecycle, listener fan-out, and final snapshot persistence.
+- Timeline UI owns rendering only. UI should render `UI = f(snapshot.parts)` and should not open SSE, run a reducer, or keep a separate stream cache.
+
+Build the Rust stream SDK for Android:
+
+```bash
+export ANDROID_HOME=/usr/local/share/android-commandlinetools
+export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
+rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+cargo install cargo-ndk
+
+git clone git@pagepeek:unseal-network/agent-stream-sdk.git /tmp/agent-stream-sdk
+cd /tmp/agent-stream-sdk
+git checkout feature/stream-core-types
+
+ANDROID_NDK_HOME="$ANDROID_NDK_HOME" \
+cargo ndk \
+  --target aarch64-linux-android \
+  --target armv7-linux-androideabi \
+  --target x86_64-linux-android \
+  --platform 26 \
+  -- build --release -p unseal-agent-stream
+```
+
+Copy the generated `.so` files into this Android repo:
+
+```bash
+ANDROID_REPO=/path/to/unseal-android
+SDK_REPO=/tmp/agent-stream-sdk
+
+mkdir -p \
+  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/arm64-v8a" \
+  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/armeabi-v7a" \
+  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/x86_64"
+
+cp "$SDK_REPO/target/aarch64-linux-android/release/libunseal_agent_stream.so" \
+  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/arm64-v8a/libunseal_agent_stream.so"
+cp "$SDK_REPO/target/armv7-linux-androideabi/release/libunseal_agent_stream.so" \
+  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/armeabi-v7a/libunseal_agent_stream.so"
+cp "$SDK_REPO/target/x86_64-linux-android/release/libunseal_agent_stream.so" \
+  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/x86_64/libunseal_agent_stream.so"
+```
+
+Verify after updating the SDK binary:
+
+```bash
+./gradlew :libraries:agentstream:testDebugUnitTest
+./gradlew :features:messages:impl:testDebugUnitTest --tests '*TimelineItemAiPresenterTest*'
+./gradlew :app:installGplayDebug
+```
+
+More context and the current handoff are in `HANDOFF_AGENT_MANAGEMENT.md`.
+
+---
+
+## Unseal Feature Migration Status
+
+Use the iOS project as the source of truth for behavior. For each remaining Android migration task, first locate the iOS View, ViewModel, Service, Model, and navigation implementation, then migrate the smallest complete Android behavior.
+
+Do not start a long planning flow for routine migration work. Read the relevant existing spec only to confirm scope and acceptance checks, then implement and verify.
+
+### Completed Or Implemented Specs
+
+| Feature | Spec |
+| :--- | :--- |
+| Matrix Rust SDK artifact integration | `docs/superpowers/specs/2026-06-08-matrix-rust-sdk-artifact-integration-design.md` |
+| Matrix Rust SDK 26.06.5 Maven artifact adoption | `docs/superpowers/plans/2026-06-09-rust-sdk-26-06-5-build.md` |
+| Matrix Rust SDK 26.06.5 test fixture adaptation | `docs/superpowers/plans/2026-06-09-rust-sdk-26-06-5-matrix-test-fixtures.md` |
+| Session verification | `docs/superpowers/specs/2026-06-08-session-verification-design.md` |
+| Secure backup recovery | `docs/superpowers/specs/2026-06-08-secure-backup-recovery-design.md` |
+| Encrypted room key recovery | `docs/superpowers/specs/2026-06-09-encrypted-room-key-recovery-design.md` |
+| Agent room key recovery | `docs/superpowers/specs/2026-06-09-agent-room-key-recovery-design.md` |
+| Chatbot API service | `docs/superpowers/specs/2026-06-08-chatbot-api-service-design.md` |
+| Agent management | `docs/superpowers/specs/2026-06-08-agent-management-design.md` |
+| Skills marketplace | `docs/superpowers/specs/2026-06-08-skills-marketplace-design.md` |
+| Agent skills management | `docs/superpowers/specs/2026-06-09-agent-skills-management-design.md` |
+| Room schedules | `docs/superpowers/specs/2026-06-09-room-schedules-design.md` |
+| Webhook triggers feature module | `docs/superpowers/specs/2026-06-09-webhook-triggers-design.md` |
+| Credits dashboard | `docs/superpowers/specs/2026-06-09-credits-dashboard-design.md` |
+
+### Remaining Migration Work
+
+| Feature | Status | Next action |
+| :--- | :--- | :--- |
+| Webhook trigger host entry points | Spec exists; settings and room-details entry points still need completion. | Implement from `docs/superpowers/specs/2026-06-09-webhook-triggers-host-entrypoints-design.md`, using iOS Webhook and Room Details/Settings behavior as the reference. |
+| Connectors | Listed in the migration index; no standalone Android spec or implementation yet. | Find iOS connector list/detail/connect/disconnect/settings implementation, then create the Android feature and settings entry point. |
+| Game picker | Listed in the migration index; no standalone Android spec or implementation yet. | Migrate the room game picker and room event flow only. Do not implement MiniApp runtime in this task. |
+| AI message rich renderer | Component-library dependent; no standalone Android spec or implementation yet. | Find iOS AI timeline rendering, tool/thinking/source blocks, and decide whether Android can ship a degraded native renderer first. |
+| Vault management | Component-library dependent; no standalone Android spec or implementation yet. | Find iOS Vault behavior and identify any UnsealUI/UnsealAgent dependency before implementation. |
+| Local agent runtime | Component-library dependent; no standalone Android spec or implementation yet. | Find iOS local agent runtime, persistence, keychain bridge, stream persistence, and failure recovery behavior before implementation. |
+| MiniApp runtime | Component-library dependent; no standalone Android spec or implementation yet. | Find iOS MiniApp runtime/WebView bridge implementation. Keep separate from the game picker task. |
+| Voice library | Pending dependency classification; no standalone Android spec or implementation yet. | Find iOS Voice Library behavior and classify as native list/detail/manage or component-library dependent recording/playback/generation work. |
+
+The migration index is `docs/superpowers/specs/2026-06-08-unseal-android-feature-migration-index-design.md`.
+
+## Agent Stream SDK For Android AI Rendering
+
+Android AI stream rendering must consume `libraries/agentstream` through `AgentStreamClient`.
+
+Required flow:
+
+1. Matrix timeline event exposes `streamId`.
+2. Room/timeline binding calls `AgentStreamClient.getStream(StreamRequest(...))`.
+3. The binding subscribes to `StreamHandle` snapshots.
+4. `AiSdkStreamReducer.mapSnapshot()` converts SDK `StreamSnapshot` to `TimelineItemAiContent`.
+5. Compose renders `TimelineItemAiContent` only.
+
+Do not fetch SSE, parse full stream JSON, or write stream store from Compose or messages UI code.
+
+Useful commands:
+
+```bash
+./gradlew :libraries:agentstream:testDebugUnitTest
+./gradlew :features:messages:impl:testDebugUnitTest
+./gradlew :features:messages:impl:compileDebugKotlin
+```

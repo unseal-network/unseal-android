@@ -24,6 +24,9 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -220,6 +223,7 @@ private fun RoomsViewList(
     lazyListState: LazyListState,
     modifier: Modifier = Modifier,
 ) {
+    var openedSwipeRoomId by remember { mutableStateOf<String?>(null) }
     OnVisibleRangeChangeEffect(lazyListState) { visibleRange ->
         eventSink(RoomListEvent.UpdateVisibleRange(visibleRange))
     }
@@ -277,9 +281,14 @@ private fun RoomsViewList(
             RoomSummaryRow(
                 room = room,
                 hideInviteAvatars = hideInvitesAvatars,
-                isInviteSeen = room.displayType == RoomSummaryDisplayType.INVITE &&
+                isInviteSeen = room.displayType != RoomSummaryDisplayType.INVITE ||
                     state.seenRoomInvites.contains(room.roomId),
+                isSelected = room.roomId == state.selectedRoomId,
+                activityVisibility = state.activityVisibility,
                 showUnreadCount = state.showUnreadCount,
+                swipeActionsEnabled = true,
+                openedSwipeRoomId = openedSwipeRoomId,
+                onOpenSwipeRoom = { openedSwipeRoomId = it },
                 onClick = onRoomClick,
                 eventSink = eventSink,
             )

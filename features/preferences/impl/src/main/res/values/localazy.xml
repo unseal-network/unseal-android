@@ -127,6 +127,17 @@ If you proceed, some of your settings may change."</string>
   <string name="screen_notification_settings_system_notifications_action_required_content_link">"system settings"</string>
   <string name="screen_notification_settings_system_notifications_turned_off">"System notifications turned off"</string>
   <string name="screen_notification_settings_title">"Notifications"</string>
+  <string name="screen_preferences_webhook_triggers_title">"Webhook triggers"</string>
+  <string name="screen_preferences_connectors_title">"Connectors"</string>
+  <string name="screen_preferences_voice_library_title">"Voice library"</string>
+  <string name="screen_preferences_ai_assistant_section_title">"AI Assistant"</string>
+  <string name="screen_preferences_credit_balance_title">"Credit balance"</string>
+  <string name="screen_preferences_credit_recharge">"Recharge"</string>
+  <string name="screen_preferences_credit_billing">"Billing"</string>
+  <string name="screen_preferences_credit_usage">"Usage"</string>
+  <string name="screen_preferences_agent_management_title">"Agent management"</string>
+  <string name="screen_preferences_skills_management_title">"Skills management"</string>
+  <string name="screen_preferences_vault_management_title">"Vault management"</string>
   <string name="theme_black">"Black"</string>
   <string name="theme_dark">"Dark"</string>
   <string name="theme_light">"Light"</string>

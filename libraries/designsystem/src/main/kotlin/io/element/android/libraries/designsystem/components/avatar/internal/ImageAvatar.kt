@@ -31,6 +31,7 @@ internal fun ImageAvatar(
     forcedAvatarSize: Dp?,
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
+    placeholderType: AvatarPlaceholderType = AvatarPlaceholderType.User,
 ) {
     val size = forcedAvatarSize ?: avatarData.size.dp
     SubcomposeAsyncImage(
@@ -51,18 +52,20 @@ internal fun ImageAvatar(
                         "Error loading avatar $state\n${state.result}"
                     )
                 }
-                InitialLetterAvatar(
+                DefaultAvatar(
                     avatarData = avatarData,
                     avatarShape = avatarShape,
                     forcedAvatarSize = forcedAvatarSize,
                     contentDescription = contentDescription,
+                    placeholderType = placeholderType,
                 )
             }
-            else -> InitialLetterAvatar(
+            else -> DefaultAvatar(
                 avatarData = avatarData,
                 avatarShape = avatarShape,
                 forcedAvatarSize = forcedAvatarSize,
                 contentDescription = contentDescription,
+                placeholderType = placeholderType,
             )
         }
     }

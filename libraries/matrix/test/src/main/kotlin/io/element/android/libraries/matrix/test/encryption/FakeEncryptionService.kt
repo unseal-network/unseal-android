@@ -17,6 +17,11 @@ import io.element.android.libraries.matrix.api.encryption.EncryptionService
 import io.element.android.libraries.matrix.api.encryption.IdentityResetHandle
 import io.element.android.libraries.matrix.api.encryption.RecoveryState
 import io.element.android.libraries.matrix.api.encryption.identity.IdentityState
+import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyForwardingPolicy
+import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryProgress
+import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryRequest
+import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryScope
+import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryTarget
 import io.element.android.tests.testutils.lambda.lambdaError
 import io.element.android.tests.testutils.simulateLongTask
 import kotlinx.coroutines.flow.Flow
@@ -29,6 +34,8 @@ class FakeEncryptionService(
     private val withdrawVerificationResult: (UserId) -> Result<Unit> = { lambdaError() },
     private val getUserIdentityResult: (UserId) -> Result<IdentityState?> = { lambdaError() },
     private val enableRecoveryLambda: (Boolean) -> Result<Unit> = { lambdaError() },
+    private val configureRoomKeyRecoveryResult: (RoomKeyForwardingPolicy) -> Result<Unit> = { lambdaError() },
+    private val requestRoomKeyRecoveryResult: (RoomKeyRecoveryRequest, List<RoomKeyRecoveryTarget>, RoomKeyRecoveryScope) -> Result<RoomKeyRecoveryProgress> = { _, _, _ -> lambdaError() },
 ) : EncryptionService {
     private var disableRecoveryFailure: Exception? = null
     override val backupStateStateFlow: MutableStateFlow<BackupState> = MutableStateFlow(BackupState.UNKNOWN)
@@ -84,6 +91,18 @@ class FakeEncryptionService(
     override suspend fun recover(recoveryKey: String): Result<Unit> = simulateLongTask {
         recoverFailure?.let { return Result.failure(it) }
         return Result.success(Unit)
+    }
+
+    override suspend fun configureRoomKeyRecovery(policy: RoomKeyForwardingPolicy): Result<Unit> = simulateLongTask {
+        configureRoomKeyRecoveryResult(policy)
+    }
+
+    override suspend fun requestRoomKeyRecovery(
+        request: RoomKeyRecoveryRequest,
+        targets: List<RoomKeyRecoveryTarget>,
+        scope: RoomKeyRecoveryScope,
+    ): Result<RoomKeyRecoveryProgress> = simulateLongTask {
+        requestRoomKeyRecoveryResult(request, targets, scope)
     }
 
     fun emitIsLastDevice(isLastDevice: Boolean) {

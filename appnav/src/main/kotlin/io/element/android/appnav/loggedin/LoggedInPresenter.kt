@@ -31,6 +31,7 @@ import io.element.android.libraries.core.meta.BuildMeta
 import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.encryption.EncryptionService
 import io.element.android.libraries.matrix.api.encryption.RecoveryState
+import io.element.android.libraries.matrix.api.encryption.roomkey.MemberAwareRoomKeyForwardingPolicy
 import io.element.android.libraries.matrix.api.roomlist.RoomListService
 import io.element.android.libraries.matrix.api.sync.SlidingSyncVersion
 import io.element.android.libraries.matrix.api.sync.SyncService
@@ -56,6 +57,7 @@ class LoggedInPresenter(
     private val sessionVerificationService: SessionVerificationService,
     private val analyticsService: AnalyticsService,
     private val encryptionService: EncryptionService,
+    private val roomKeyForwardingPolicy: MemberAwareRoomKeyForwardingPolicy,
     private val buildMeta: BuildMeta,
     private val networkMonitor: NetworkMonitor,
 ) : Presenter<LoggedInState> {
@@ -67,6 +69,10 @@ class LoggedInPresenter(
         }.collectAsState(initial = false)
         val pusherRegistrationState = remember<MutableState<AsyncData<Unit>>> { mutableStateOf(AsyncData.Uninitialized) }
         LaunchedEffect(Unit) { preloadAccountManagementUrl() }
+        LaunchedEffect(Unit) {
+            encryptionService.configureRoomKeyRecovery(roomKeyForwardingPolicy)
+                .onFailure { Timber.e(it, "Failed to configure room-key recovery") }
+        }
         LaunchedEffect(Unit) {
             sessionVerificationService.sessionVerifiedStatus
                 .onEach { sessionVerifiedStatus ->

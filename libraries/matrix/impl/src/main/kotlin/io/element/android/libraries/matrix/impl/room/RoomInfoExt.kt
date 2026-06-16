@@ -18,7 +18,7 @@ import org.matrix.rustcomponents.sdk.RoomInfo
  */
 fun RoomInfo.elementHeroes(): List<MatrixUser> {
     return heroes
-        .takeIf { isDm }
+        .takeIf { isDirect }
         ?.takeIf { it.size == 1 }
         ?.map { it.map() }
         .orEmpty()

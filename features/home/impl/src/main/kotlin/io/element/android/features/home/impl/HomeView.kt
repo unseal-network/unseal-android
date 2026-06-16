@@ -12,13 +12,21 @@ package io.element.android.features.home.impl
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -26,12 +34,15 @@ import androidx.compose.material3.FabPosition
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
@@ -64,7 +75,11 @@ import io.element.android.libraries.designsystem.theme.components.HorizontalFloa
 import io.element.android.libraries.designsystem.theme.components.HorizontalFloatingToolbarItem
 import io.element.android.libraries.designsystem.theme.components.HorizontalFloatingToolbarSeparator
 import io.element.android.libraries.designsystem.theme.components.Icon
+import io.element.android.libraries.designsystem.theme.components.Button
+import io.element.android.libraries.designsystem.theme.components.ModalBottomSheet
+import io.element.android.libraries.designsystem.theme.components.OutlinedButton
 import io.element.android.libraries.designsystem.theme.components.Scaffold
+import io.element.android.libraries.designsystem.theme.components.Text
 import io.element.android.libraries.designsystem.utils.snackbar.SnackbarHost
 import io.element.android.libraries.designsystem.utils.snackbar.rememberSnackbarHostState
 import io.element.android.libraries.matrix.api.core.RoomId
@@ -112,6 +127,17 @@ fun HomeView(
 
         leaveRoomView()
 
+        if (homeState.presentedSheet == HomePresentedSheet.AgentWelcome) {
+            HomeAgentWelcomeSheet(
+                onDismiss = { homeState.eventSink(HomeEvent.DismissAgentWelcome) },
+                onGoToSettings = {
+                    homeState.eventSink(HomeEvent.DismissAgentWelcome)
+                    onSettingsClick()
+                },
+                onAppeared = { homeState.eventSink(HomeEvent.AgentWelcomeAppeared) },
+            )
+        }
+
         HomeScaffold(
             state = homeState,
             onSetUpRecoveryClick = onSetUpRecoveryClick,
@@ -138,6 +164,100 @@ fun HomeView(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+private fun HomeAgentWelcomeSheet(
+    onDismiss: () -> Unit,
+    onGoToSettings: () -> Unit,
+    onAppeared: () -> Unit,
+) {
+    LaunchedEffect(Unit) {
+        onAppeared()
+    }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        scrollable = false,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 20.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Icon(
+                imageVector = CompoundIcons.Admin(),
+                contentDescription = null,
+                tint = ElementTheme.colors.iconAccentPrimary,
+            )
+            Text(
+                text = stringResource(R.string.screen_home_agent_welcome_title),
+                style = ElementTheme.typography.fontHeadingMdBold,
+                color = ElementTheme.colors.textPrimary,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = stringResource(R.string.screen_home_agent_welcome_description),
+                style = ElementTheme.typography.fontBodyMdRegular,
+                color = ElementTheme.colors.textSecondary,
+                textAlign = TextAlign.Center,
+            )
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                AgentWelcomeFeatureRow(
+                    icon = CompoundIcons.Admin(),
+                    text = stringResource(R.string.screen_home_agent_welcome_feature_agents),
+                )
+                AgentWelcomeFeatureRow(
+                    icon = CompoundIcons.Extensions(),
+                    text = stringResource(R.string.screen_home_agent_welcome_feature_skills),
+                )
+                AgentWelcomeFeatureRow(
+                    icon = CompoundIcons.Chat(),
+                    text = stringResource(R.string.screen_home_agent_welcome_feature_rooms),
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Button(
+                text = stringResource(R.string.screen_home_agent_welcome_action_settings),
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onGoToSettings,
+            )
+            OutlinedButton(
+                text = stringResource(R.string.screen_home_agent_welcome_action_later),
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onDismiss,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AgentWelcomeFeatureRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = ElementTheme.colors.iconSecondary,
+        )
+        Text(
+            text = text,
+            style = ElementTheme.typography.fontBodyMdMedium,
+            color = ElementTheme.colors.textPrimary,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 private fun HomeScaffold(
     state: HomeState,
     onSetUpRecoveryClick: () -> Unit,
@@ -157,6 +277,7 @@ private fun HomeScaffold(
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(appBarState)
     val snackbarHostState = rememberSnackbarHostState(snackbarMessage = state.snackbarMessage)
     val roomListState: RoomListState = state.roomListState
+    val presentationModel = state.toPresentationModel()
 
     BackHandler(enabled = state.isBackHandlerEnabled) {
         if (state.currentHomeNavigationBarItem != HomeNavigationBarItem.Chats) {
@@ -188,7 +309,7 @@ private fun HomeScaffold(
                     state.eventSink(HomeEvent.SwitchToAccount(it))
                 },
                 scrollBehavior = scrollBehavior,
-                displayFilters = state.displayRoomListFilters,
+                displayFilters = presentationModel.roomList.showFilters,
                 filtersState = roomListState.filtersState,
                 spaceFiltersState = roomListState.spaceFiltersState,
                 canReportBug = state.canReportBug,
@@ -199,6 +320,7 @@ private fun HomeScaffold(
             )
         },
         floatingActionButton = {
+            if (presentationModel.bottomNavigationPolicy == HomeBottomNavigationPolicy.Hidden) return@Scaffold
             val coroutineScope = rememberCoroutineScope()
             HomeBottomBar(
                 currentHomeNavigationBarItem = state.currentHomeNavigationBarItem,

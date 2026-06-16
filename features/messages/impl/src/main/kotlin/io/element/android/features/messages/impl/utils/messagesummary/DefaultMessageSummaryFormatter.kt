@@ -11,6 +11,7 @@ package io.element.android.features.messages.impl.utils.messagesummary
 import android.content.Context
 import dev.zacsweers.metro.ContributesBinding
 import io.element.android.features.messages.impl.timeline.model.event.RtcNotificationState
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAudioContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEventContent
@@ -27,6 +28,7 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextBasedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemUnknownContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVideoContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemGameContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVoiceContent
 import io.element.android.libraries.core.extensions.toSafeLength
 import io.element.android.libraries.di.RoomScope
@@ -40,6 +42,7 @@ class DefaultMessageSummaryFormatter(
     override fun format(content: TimelineItemEventContent): String {
         return when (content) {
             is TimelineItemTextBasedContent -> content.plainText
+            is TimelineItemAiContent -> content.body
             is TimelineItemProfileChangeContent -> content.body
             is TimelineItemStateContent -> content.body
             is TimelineItemLocationContent -> when (content.mode) {
@@ -50,6 +53,7 @@ class DefaultMessageSummaryFormatter(
             is TimelineItemRedactedContent -> context.getString(CommonStrings.common_message_removed)
             is TimelineItemPollContent -> content.question
             is TimelineItemVoiceContent -> context.getString(CommonStrings.common_voice_message)
+            is TimelineItemGameContent -> content.gameName
             is TimelineItemUnknownContent -> context.getString(CommonStrings.common_unsupported_event)
             is TimelineItemImageContent -> context.getString(CommonStrings.common_image)
             is TimelineItemStickerContent -> context.getString(CommonStrings.common_sticker)

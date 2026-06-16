@@ -14,10 +14,12 @@ import io.element.android.features.messages.impl.timeline.TimelineEvent
 import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
 import io.element.android.features.messages.impl.timeline.di.LocalTimelineItemPresenterFactories
 import io.element.android.features.messages.impl.timeline.di.rememberPresenter
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAudioContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEventContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemFileContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemGameContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemImageContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLegacyCallInviteContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
@@ -47,12 +49,17 @@ fun TimelineItemEventContentView(
     eventSink: (TimelineEvent.TimelineItemEvent) -> Unit,
     modifier: Modifier = Modifier,
     onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit = {},
+    // Injected by TimelineItemEventRow so the game card can render the timestamp
+    // inline without coupling TimelineItemGameView to TimelineItem.Event directly.
+    gameCardTimestampSlot: @Composable () -> Unit = {},
 ) {
     val presenterFactories = LocalTimelineItemPresenterFactories.current
     when (content) {
         is TimelineItemEncryptedContent -> TimelineItemEncryptedView(
             content = content,
             onContentLayoutChange = onContentLayoutChange,
+            onVerifyDeviceClick = { eventSink(TimelineEvent.VerifyDeviceForRoomKeyRecovery) },
+            onRetryClick = { recoveryRequest -> eventSink(TimelineEvent.RetryRoomKeyRecovery(recoveryRequest)) },
             modifier = modifier
         )
         is TimelineItemRedactedContent -> TimelineItemRedactedView(
@@ -66,6 +73,22 @@ fun TimelineItemEventContentView(
             onLinkClick = onLinkClick,
             onLinkLongClick = onLinkLongClick,
             onContentLayoutChange = onContentLayoutChange
+        )
+        is TimelineItemAiContent -> {
+            val presenter: Presenter<TimelineItemAiState> = presenterFactories.rememberPresenter(content)
+            TimelineItemAiView(
+                content = presenter.present().content,
+                onLinkClick = onLinkClick,
+                onLinkLongClick = onLinkLongClick,
+                modifier = modifier,
+                onContentLayoutChange = onContentLayoutChange,
+            )
+        }
+        is TimelineItemGameContent -> TimelineItemGameView(
+            content = content,
+            eventSink = eventSink,
+            modifier = modifier,
+            timestampSlot = gameCardTimestampSlot,
         )
         is TimelineItemUnknownContent -> TimelineItemUnknownView(
             content = content,

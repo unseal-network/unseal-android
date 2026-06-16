@@ -1,0 +1,354 @@
+/*
+ * Copyright (c) 2026 New Vector Ltd.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
+ * Please see LICENSE files in the repository root for full details.
+ */
+
+package io.element.android.libraries.miniapp.impl
+
+import android.annotation.SuppressLint
+import android.content.Context
+import android.webkit.WebSettings
+import android.webkit.WebView
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
+import io.element.android.compound.theme.ElementTheme
+import io.element.android.libraries.miniapp.api.MiniAppConfig
+import io.element.android.libraries.miniapp.api.MiniAppHostBridge
+import kotlinx.coroutines.CoroutineScope
+import okhttp3.OkHttpClient
+import timber.log.Timber
+
+// ── Bundle load state ─────────────────────────────────────────────────────────
+
+/**
+ * Internal sealed state for the ZIP bundle download lifecycle.
+ *
+ * Mirrors iOS `WebViewController`'s `hasLoad` / `hasLoadFinish` guards, but
+ * expressed as an explicit state machine so the Composable can show appropriate
+ * UI for each phase.
+ */
+private sealed interface BundleState {
+    /** Direct URL mode (no ZIP), or cache hit — WebView can load immediately. */
+    data class Ready(val loadUrl: String) : BundleState
+
+    /** ZIP is being downloaded; [progress] is in `[0.0, 1.0]`. */
+    data class Downloading(val progress: Float) : BundleState
+
+    /** Download or extraction failed. */
+    data class Error(val message: String) : BundleState
+}
+
+// ── Public composable ─────────────────────────────────────────────────────────
+
+/**
+ * Composable that renders a mini-app inside an Android [WebView].
+ *
+ * This is the primary entry point for the `libraries/miniapp` library.
+ * It mirrors the role of iOS `EditorControllerWrapper` / `WebViewController`.
+ *
+ * ## Load modes
+ *
+ * ### Remote mode ([MiniAppConfig.zipUrl] == null)
+ * The WebView loads [MiniAppConfig.url] directly as a remote URL.
+ * Equivalent to iOS `init(url:cache:…)` path.
+ *
+ * ### Bundle mode ([MiniAppConfig.zipUrl] != null)
+ * Mirrors iOS `checkLoad()` → `loadMiniApp()` → `download()` → `unzipLocalZip()` → `loadLocal()`:
+ *
+ * 1. [MiniAppBundleManager.prepareBundle] checks the local cache. If the bundle
+ *    was already extracted on a previous launch it is used immediately (cache hit).
+ * 2. If not cached: the ZIP is downloaded from [MiniAppConfig.zipUrl] with OkHttp
+ *    (progress 0 → 0.95 reported while streaming).
+ * 3. The ZIP is extracted with [java.util.zip.ZipInputStream] into
+ *    `<filesDir>/miniapp/app_<appId>/`.
+ * 4. `index.html` from the extracted directory is loaded via a `file://` URL.
+ *
+ * A full-screen loading overlay shows download progress while the ZIP is being
+ * fetched. On extraction failure the overlay switches to an error message.
+ *
+ * ## JS bridge
+ * [MiniAppJsBridge] is registered as `window.webkit`; an iOS-compatibility shim
+ * at startup maps `window.webkit.messageHandlers.X.postMessage(body)` calls so the
+ * same JS bundle runs on both platforms without changes.
+ *
+ * @param config        Mini-app session configuration.
+ * @param hostBridge    Optional host callbacks (sendMessage, getToken, etc.).
+ * @param okHttpClient  OkHttp client used for ZIP downloads and the `request` bridge.
+ * @param modifier      Compose modifier applied to the outer container.
+ */
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+fun MiniAppView(
+    config: MiniAppConfig,
+    hostBridge: MiniAppHostBridge?,
+    okHttpClient: OkHttpClient,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // ── Bundle state ─────────────────────────────────────────────────────────
+    // Initial state: if no zipUrl, we are ready immediately.
+    var bundleState by remember(config.appId, config.zipUrl) {
+        mutableStateOf<BundleState>(
+            if (config.zipUrl.isNullOrBlank()) BundleState.Ready(config.url)
+            else BundleState.Downloading(0f)
+        )
+    }
+    // WebView and bridge holders: set in AndroidView factory.
+    val webViewHolder = remember { arrayOfNulls<WebView>(1) }
+    val bridgeHolder = remember { arrayOfNulls<MiniAppJsBridge>(1) }
+
+    // ── Startup script ────────────────────────────────────────────────────────
+    val startupScript = remember(config) { buildStartupScript(config) }
+
+    val webViewClient = remember(config, startupScript) {
+        MiniAppWebViewClient(
+            config = config,
+            startupScript = startupScript,
+            onPageStarted = { },
+            onPageFinished = { },
+        )
+    }
+
+    // ── ZIP download ──────────────────────────────────────────────────────────
+    // Runs only when zipUrl is set; cancelled automatically when config changes
+    // or this Composable leaves the composition.
+    LaunchedEffect(config.appId, config.zipUrl) {
+        val zipUrl = config.zipUrl?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
+
+        val bundleManager = MiniAppBundleManager(context, okHttpClient)
+        bundleManager.prepareBundle(
+            appId = config.appId,
+            zipUrl = zipUrl,
+            onProgress = { progress ->
+                bundleState = BundleState.Downloading(progress)
+            },
+        ).onSuccess { indexFile ->
+            val fileUrl = indexFile.toUri().toString()
+            Timber.d("MiniApp: bundle ready, loading $fileUrl")
+            bundleState = BundleState.Ready(fileUrl)
+            webViewHolder[0]?.loadUrl(fileUrl)
+        }.onFailure { error ->
+            Timber.e(error, "MiniApp: bundle preparation failed")
+            bundleState = BundleState.Error(error.message ?: "Failed to load bundle")
+        }
+    }
+
+    // ── WebView cleanup ───────────────────────────────────────────────────────
+    DisposableEffect(config.appId) {
+        onDispose {
+            Timber.d("MiniApp: disposing WebView for appId=${config.appId}")
+            bridgeHolder[0]?.release()
+            bridgeHolder[0] = null
+            webViewHolder[0]?.let { wv ->
+                wv.stopLoading()
+                wv.destroy()
+            }
+            webViewHolder[0] = null
+        }
+    }
+
+    // ── Layout ────────────────────────────────────────────────────────────────
+    // Black background fills any empty space below the game HTML content so the
+    // viewport remainder doesn't flash white on devices where the game page
+    // doesn't stretch to 100vh.
+    Box(modifier = modifier.background(androidx.compose.ui.graphics.Color.Black)) {
+
+        // WebView — always present in the composition so it is created early.
+        // In bundle mode it stays invisible under the overlay until Ready.
+        MiniAppWebViewContainer(
+            modifier = Modifier.fillMaxSize(),
+            config = config,
+            webViewClient = webViewClient,
+            hostBridge = hostBridge,
+            okHttpClient = okHttpClient,
+            scope = scope,
+            // In bundle mode don't load a URL in the factory — LaunchedEffect does it later.
+            initialUrl = if (config.zipUrl.isNullOrBlank()) config.url else null,
+            onWebViewCreated = { wv, bridge ->
+                webViewHolder[0] = wv
+                bridgeHolder[0] = bridge
+            },
+        )
+
+        // Loading / error overlay — drawn on top of the WebView.
+        when (val state = bundleState) {
+            is BundleState.Downloading -> BundleLoadingOverlay(progress = state.progress)
+            is BundleState.Error -> BundleErrorOverlay(message = state.message)
+            is BundleState.Ready -> { /* WebView visible — no overlay */ }
+        }
+    }
+}
+
+// ── WebView container ─────────────────────────────────────────────────────────
+
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+private fun MiniAppWebViewContainer(
+    modifier: Modifier,
+    config: MiniAppConfig,
+    webViewClient: MiniAppWebViewClient,
+    hostBridge: MiniAppHostBridge?,
+    okHttpClient: OkHttpClient,
+    scope: CoroutineScope,
+    initialUrl: String?,
+    onWebViewCreated: (WebView, MiniAppJsBridge) -> Unit,
+) {
+    androidx.compose.ui.viewinterop.AndroidView(
+        modifier = modifier,
+        factory = { context ->
+            val (wv, bridge) = createWebView(
+                context = context,
+                config = config,
+                client = webViewClient,
+                hostBridge = hostBridge,
+                okHttpClient = okHttpClient,
+                scope = scope,
+            )
+            onWebViewCreated(wv, bridge)
+            if (!initialUrl.isNullOrBlank()) {
+                Timber.d("MiniApp: initialUrl $initialUrl")
+                wv.loadUrl(initialUrl)
+            }
+            wv
+        },
+        update = { /* config is baked into client/bridge at factory time */ },
+    )
+}
+
+// ── Overlay composables ───────────────────────────────────────────────────────
+
+/**
+ * Full-screen overlay shown while a ZIP bundle is downloading.
+ * Mirrors iOS's activity indicator that appears before `loadLocal()` is called.
+ */
+@Composable
+private fun BundleLoadingOverlay(progress: Float) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ElementTheme.colors.bgCanvasDefault),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(horizontal = 48.dp),
+        ) {
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.width(200.dp),
+                color = ElementTheme.colors.iconAccentPrimary,
+                trackColor = ElementTheme.colors.bgSubtleSecondary,
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = "${(progress * 100).toInt()}%",
+                style = ElementTheme.typography.fontBodySmRegular,
+                color = ElementTheme.colors.textSecondary,
+            )
+        }
+    }
+}
+
+/**
+ * Full-screen overlay shown when ZIP download or extraction has failed.
+ */
+@Composable
+private fun BundleErrorOverlay(message: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ElementTheme.colors.bgCanvasDefault),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = message,
+            style = ElementTheme.typography.fontBodyMdRegular,
+            color = ElementTheme.colors.textCriticalPrimary,
+            modifier = Modifier.padding(24.dp),
+        )
+    }
+}
+
+// ── WebView factory ───────────────────────────────────────────────────────────
+
+@SuppressLint("SetJavaScriptEnabled")
+private fun createWebView(
+    context: Context,
+    config: MiniAppConfig,
+    client: MiniAppWebViewClient,
+    hostBridge: MiniAppHostBridge?,
+    okHttpClient: OkHttpClient,
+    scope: CoroutineScope,
+): Pair<WebView, MiniAppJsBridge> {
+    val storage = MiniAppStorage(context, config.appId)
+    lateinit var webViewInstance: WebView
+
+    val bridge = MiniAppJsBridge(
+        context = context,
+        config = config,
+        storage = storage,
+        hostBridge = hostBridge,
+        okHttpClient = okHttpClient,
+        webViewRef = { webViewInstance },
+        scope = scope,
+    )
+
+    webViewInstance = WebView(context).apply {
+        settings.apply {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            @Suppress("DEPRECATION")
+            databaseEnabled = true
+            allowFileAccess = true
+            setSupportZoom(false)
+            cacheMode = WebSettings.LOAD_NO_CACHE
+            mediaPlaybackRequiresUserGesture = false
+
+            // Allow file:// pages to make cross-origin requests (local app bundles).
+            @Suppress("DEPRECATION")
+            allowUniversalAccessFromFileURLs = true
+            @Suppress("DEPRECATION")
+            allowFileAccessFromFileURLs = true
+        }
+
+        // Register bridge as `window.webkit`
+        addJavascriptInterface(bridge, "webkit")
+        WebView.setWebContentsDebuggingEnabled(true)
+        webViewClient = client
+        webChromeClient = MiniAppChromeClient(bridge)
+
+        // Black background: prevents the white flash in the empty area below the
+        // game HTML content on screens where the page doesn't fill 100% of the
+        // viewport height (e.g. the game's error / loading screen).
+        setBackgroundColor(android.graphics.Color.BLACK)
+    }
+
+    return Pair(webViewInstance, bridge)
+}

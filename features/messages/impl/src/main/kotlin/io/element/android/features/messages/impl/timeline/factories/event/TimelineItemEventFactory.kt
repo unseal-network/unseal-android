@@ -21,6 +21,9 @@ import io.element.android.features.messages.impl.timeline.model.TimelineItemGrou
 import io.element.android.features.messages.impl.timeline.model.TimelineItemReactions
 import io.element.android.features.messages.impl.timeline.model.TimelineItemReadReceipts
 import io.element.android.features.messages.impl.timeline.model.TimelineItemThreadInfo
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEventContent
+import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryStatus
 import io.element.android.features.messages.impl.utils.messagesummary.MessageSummaryFormatter
 import io.element.android.libraries.core.bool.orTrue
 import io.element.android.libraries.dateformatter.api.DateFormatter
@@ -57,6 +60,7 @@ class TimelineItemEventFactory(
         index: Int,
         timelineItems: List<MatrixTimelineItem>,
         roomMembers: List<RoomMember>,
+        roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
     ): TimelineItem.Event {
         val currentSender = currentTimelineItem.event.sender
         val groupPosition =
@@ -100,6 +104,9 @@ class TimelineItemEventFactory(
             null -> null
         }
 
+        val content = contentFactory.create(currentTimelineItem.event, roomKeyRecoveryStatuses)
+            .withTimelineContext(roomId = config.roomId, eventId = currentTimelineItem.eventId?.value)
+
         return TimelineItem.Event(
             id = currentTimelineItem.uniqueId,
             eventId = currentTimelineItem.eventId,
@@ -107,7 +114,7 @@ class TimelineItemEventFactory(
             senderId = currentSender,
             senderProfile = senderProfile,
             senderAvatar = senderAvatarData,
-            content = contentFactory.create(currentTimelineItem.event),
+            content = content,
             isMine = currentTimelineItem.event.isOwn,
             isEditable = currentTimelineItem.event.isEditable,
             canBeRepliedTo = currentTimelineItem.event.canBeRepliedTo,
@@ -129,12 +136,22 @@ class TimelineItemEventFactory(
         )
     }
 
-    fun update(
+    private fun TimelineItemEventContent.withTimelineContext(roomId: String?, eventId: String?): TimelineItemEventContent {
+        return when (this) {
+            is TimelineItemAiContent -> copy(roomId = roomId, eventId = eventId)
+            else -> this
+        }
+    }
+
+    suspend fun update(
         timelineItem: TimelineItem.Event,
         receivedMatrixTimelineItem: MatrixTimelineItem.Event,
         roomMembers: List<RoomMember>,
+        roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
     ): TimelineItem.Event {
         return timelineItem.copy(
+            content = contentFactory.create(receivedMatrixTimelineItem.event, roomKeyRecoveryStatuses)
+                .withTimelineContext(roomId = config.roomId, eventId = receivedMatrixTimelineItem.eventId?.value),
             readReceiptState = receivedMatrixTimelineItem.computeReadReceiptState(roomMembers)
         )
     }

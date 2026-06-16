@@ -12,14 +12,14 @@ import dev.zacsweers.metro.Inject
 import io.element.android.libraries.core.meta.BuildMeta
 import io.element.android.libraries.matrix.api.auth.OAuthConfig
 import io.element.android.libraries.matrix.api.auth.OAuthRedirectUrlProvider
-import org.matrix.rustcomponents.sdk.OAuthConfiguration
+import org.matrix.rustcomponents.sdk.OidcConfiguration
 
 @Inject
 class OAuthConfigurationProvider(
     private val buildMeta: BuildMeta,
     private val oAuthRedirectUrlProvider: OAuthRedirectUrlProvider,
 ) {
-    fun get(): OAuthConfiguration = OAuthConfiguration(
+    fun get(): OidcConfiguration = OidcConfiguration(
         clientName = buildMeta.applicationName,
         redirectUri = oAuthRedirectUrlProvider.provide(),
         clientUri = OAuthConfig.CLIENT_URI,

@@ -9,11 +9,11 @@
 package io.element.android.libraries.matrix.impl.room
 
 import io.element.android.libraries.matrix.api.room.StateEventType
-import io.element.android.libraries.matrix.impl.fixtures.fakes.FakeFfiTimelineEventFilter
-import org.matrix.rustcomponents.sdk.TimelineEventFilter
+import io.element.android.libraries.matrix.impl.fixtures.fakes.aFakeFfiTimelineFilter
+import org.matrix.rustcomponents.sdk.TimelineFilter
 
 class FakeTimelineEventFilterFactory : TimelineEventFilterFactory {
-    override fun create(listStateEventType: List<StateEventType>): TimelineEventFilter {
-        return FakeFfiTimelineEventFilter()
+    override fun create(listStateEventType: List<StateEventType>): TimelineFilter {
+        return aFakeFfiTimelineFilter()
     }
 }

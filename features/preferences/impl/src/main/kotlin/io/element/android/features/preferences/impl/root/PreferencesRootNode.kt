@@ -10,11 +10,13 @@ package io.element.android.features.preferences.impl.root
 
 import android.app.Activity
 import androidx.activity.compose.LocalActivity
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.bumble.appyx.core.modality.BuildContext
 import com.bumble.appyx.core.node.Node
 import com.bumble.appyx.core.plugin.Plugin
+import com.bumble.appyx.core.plugin.plugins
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
@@ -25,6 +27,8 @@ import io.element.android.libraries.androidutils.browser.openUrlInChromeCustomTa
 import io.element.android.libraries.architecture.callback
 import io.element.android.libraries.di.SessionScope
 import io.element.android.libraries.matrix.api.user.MatrixUser
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 @ContributesNode(SessionScope::class)
 @AssistedInject
@@ -34,6 +38,10 @@ class PreferencesRootNode(
     private val presenter: PreferencesRootPresenter,
     private val directLogoutView: DirectLogoutView,
 ) : Node(buildContext, plugins = plugins) {
+    data class CreditBalanceRefreshRequests(
+        val flow: Flow<Unit>,
+    ) : Plugin
+
     interface Callback : Plugin {
         fun navigateToAddAccount()
         fun navigateToBugReport()
@@ -43,6 +51,12 @@ class PreferencesRootNode(
         fun navigateToDeveloperSettings()
         fun navigateToNotificationSettings()
         fun navigateToLockScreenSettings()
+        fun navigateToWebhookTriggers()
+        fun navigateToConnectors()
+        fun navigateToVoiceLibrary()
+        fun navigateToAgentManagement()
+        fun navigateToSkills()
+        fun navigateToVaultManagement()
         fun navigateToAdvancedSettings()
         fun navigateToLabs()
         fun navigateToLinkNewDevice()
@@ -50,9 +64,13 @@ class PreferencesRootNode(
         fun navigateToBlockedUsers()
         fun startSignOutFlow()
         fun startAccountDeactivationFlow()
+        fun openCreditsTopUp()
+        fun navigateToCreditsBilling()
+        fun navigateToCreditsUsage()
     }
 
     private val callback: Callback = callback()
+    private val creditBalanceRefreshRequests = plugins<CreditBalanceRefreshRequests>().firstOrNull()?.flow ?: emptyFlow()
 
     private fun onManageAccountClick(
         activity: Activity,
@@ -73,6 +91,11 @@ class PreferencesRootNode(
         val state = presenter.present()
         val activity = requireNotNull(LocalActivity.current)
         val isDark = ElementTheme.isLightTheme.not()
+        LaunchedEffect(creditBalanceRefreshRequests) {
+            creditBalanceRefreshRequests.collect {
+                state.eventSink(PreferencesRootEvent.RefreshCreditBalance)
+            }
+        }
         PreferencesRootView(
             state = state,
             modifier = modifier,
@@ -89,8 +112,17 @@ class PreferencesRootNode(
             onManageAccountClick = { onManageAccountClick(activity, it, isDark) },
             onOpenNotificationSettings = callback::navigateToNotificationSettings,
             onOpenLockScreenSettings = callback::navigateToLockScreenSettings,
+            onOpenWebhookTriggers = callback::navigateToWebhookTriggers,
+            onOpenConnectors = callback::navigateToConnectors,
+            onOpenVoiceLibrary = callback::navigateToVoiceLibrary,
+            onOpenAgentManagement = callback::navigateToAgentManagement,
+            onOpenSkills = callback::navigateToSkills,
+            onOpenVaultManagement = callback::navigateToVaultManagement,
             onOpenUserProfile = callback::navigateToUserProfile,
             onOpenBlockedUsers = callback::navigateToBlockedUsers,
+            onOpenCreditsTopUp = callback::openCreditsTopUp,
+            onOpenCreditsBilling = callback::navigateToCreditsBilling,
+            onOpenCreditsUsage = callback::navigateToCreditsUsage,
             onSignOutClick = {
                 if (state.directLogoutState.canDoDirectSignOut) {
                     state.directLogoutState.eventSink(DirectLogoutEvents.Logout(ignoreSdkError = false))

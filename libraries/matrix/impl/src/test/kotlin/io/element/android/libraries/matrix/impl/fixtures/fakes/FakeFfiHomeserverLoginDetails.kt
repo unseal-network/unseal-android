@@ -10,15 +10,20 @@ package io.element.android.libraries.matrix.impl.fixtures.fakes
 
 import org.matrix.rustcomponents.sdk.HomeserverLoginDetails
 import org.matrix.rustcomponents.sdk.NoHandle
+import org.matrix.rustcomponents.sdk.OidcPrompt
+import org.matrix.rustcomponents.sdk.SlidingSyncVersion
 
 class FakeFfiHomeserverLoginDetails(
     private val url: String = "https://example.org",
     private val supportsPasswordLogin: Boolean = false,
     private val supportsOAuthLogin: Boolean = false,
+    private val supportsOidcLogin: Boolean = false,
     private val supportsSsoLogin: Boolean = false,
 ) : HomeserverLoginDetails(NoHandle) {
     override fun url(): String = url
-    override fun supportsOauthLogin(): Boolean = supportsOAuthLogin
+    override fun supportsOidcLogin(): Boolean = supportsOidcLogin || supportsOAuthLogin
     override fun supportsPasswordLogin(): Boolean = supportsPasswordLogin
     override fun supportsSsoLogin(): Boolean = supportsSsoLogin
+    override fun supportedOidcPrompts(): List<OidcPrompt> = emptyList()
+    override fun slidingSyncVersion(): SlidingSyncVersion = SlidingSyncVersion.NONE
 }

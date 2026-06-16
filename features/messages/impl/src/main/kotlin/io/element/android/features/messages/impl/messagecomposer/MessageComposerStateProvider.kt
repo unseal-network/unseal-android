@@ -9,6 +9,9 @@
 package io.element.android.features.messages.impl.messagecomposer
 
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
+import io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerState
+import io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillState
+import io.element.android.features.messages.impl.messagecomposer.suggestions.ComposerSuggestionRenderModel
 import io.element.android.libraries.architecture.AsyncAction
 import io.element.android.libraries.textcomposer.mentions.ResolvedSuggestion
 import io.element.android.libraries.textcomposer.model.MessageComposerMode
@@ -33,7 +36,10 @@ fun aMessageComposerState(
     showAttachmentSourcePicker: Boolean = false,
     canShareLocation: Boolean = true,
     suggestions: ImmutableList<ResolvedSuggestion> = persistentListOf(),
+    suggestionRenderModels: ImmutableList<ComposerSuggestionRenderModel> = persistentListOf(),
+    agentSkillState: ComposerAgentSkillState = ComposerAgentSkillState.Empty,
     slashCommandAction: AsyncAction<Unit> = AsyncAction.Uninitialized,
+    gamePickerState: GamePickerState? = null,
     eventSink: (MessageComposerEvent) -> Unit = {},
 ) = MessageComposerState(
     textEditorState = textEditorState,
@@ -43,8 +49,11 @@ fun aMessageComposerState(
     showAttachmentSourcePicker = showAttachmentSourcePicker,
     canShareLocation = canShareLocation,
     suggestions = suggestions,
+    suggestionRenderModels = suggestionRenderModels,
+    agentSkillState = agentSkillState,
     resolveMentionDisplay = { _, _ -> TextDisplay.Plain },
     resolveAtRoomMentionDisplay = { TextDisplay.Plain },
     slashCommandAction = slashCommandAction,
+    gamePickerState = gamePickerState,
     eventSink = eventSink,
 )

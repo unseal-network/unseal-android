@@ -14,8 +14,8 @@ import org.matrix.rustcomponents.sdk.AccountManagementAction as RustAccountManag
 fun AccountManagementAction.toRustAction(): RustAccountManagementAction {
     return when (this) {
         AccountManagementAction.Profile -> RustAccountManagementAction.Profile
-        is AccountManagementAction.DeviceDelete -> RustAccountManagementAction.DeviceDelete(deviceId.value)
-        is AccountManagementAction.DeviceView -> RustAccountManagementAction.DeviceView(deviceId.value)
-        AccountManagementAction.DevicesList -> RustAccountManagementAction.DevicesList
+        is AccountManagementAction.DeviceDelete -> RustAccountManagementAction.SessionEnd(deviceId.value)
+        is AccountManagementAction.DeviceView -> RustAccountManagementAction.SessionView(deviceId.value)
+        AccountManagementAction.DevicesList -> RustAccountManagementAction.SessionsList
     }
 }

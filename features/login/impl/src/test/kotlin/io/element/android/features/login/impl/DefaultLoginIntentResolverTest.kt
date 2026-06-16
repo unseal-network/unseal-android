@@ -19,7 +19,7 @@ class DefaultLoginIntentResolverTest {
     @Test
     fun `nominal case`() {
         val sut = DefaultLoginIntentResolver()
-        val uriString = "https://mobile.element.io/element/?account_provider=example.org&login_hint=mxid:@alice:example.org"
+        val uriString = "https://mobile.unseal.network/unseal/?account_provider=example.org&login_hint=mxid:@alice:example.org"
         assertThat(sut.parse(uriString)).isEqualTo(
             LoginParams(
                 accountProvider = "example.org",
@@ -31,7 +31,7 @@ class DefaultLoginIntentResolverTest {
     @Test
     fun `extra unknown param`() {
         val sut = DefaultLoginIntentResolver()
-        val uriString = "https://mobile.element.io/element/?account_provider=example.org&login_hint=mxid:@alice:example.org&extra=uknown"
+        val uriString = "https://mobile.unseal.network/unseal/?account_provider=example.org&login_hint=mxid:@alice:example.org&extra=uknown"
         assertThat(sut.parse(uriString)).isEqualTo(
             LoginParams(
                 accountProvider = "example.org",
@@ -43,39 +43,51 @@ class DefaultLoginIntentResolverTest {
     @Test
     fun `no account provider`() {
         val sut = DefaultLoginIntentResolver()
-        val uriString = "https://mobile.element.io/element/?login_hint=mxid:@alice:example.org"
+        val uriString = "https://mobile.unseal.network/unseal/?login_hint=mxid:@alice:example.org"
         assertThat(sut.parse(uriString)).isNull()
     }
 
     @Test
     fun `no path`() {
         val sut = DefaultLoginIntentResolver()
-        val uriString = "https://mobile.element.io?account_provider=example.org&login_hint=mxid:@alice:example.org"
+        val uriString = "https://mobile.unseal.network?account_provider=example.org&login_hint=mxid:@alice:example.org"
         assertThat(sut.parse(uriString)).isNull()
     }
 
     @Test
     fun `wrong path`() {
         val sut = DefaultLoginIntentResolver()
-        val uriString = "https://mobile.element.io/wrong?account_provider=example.org&login_hint=mxid:@alice:example.org"
+        val uriString = "https://mobile.unseal.network/wrong?account_provider=example.org&login_hint=mxid:@alice:example.org"
         assertThat(sut.parse(uriString)).isNull()
     }
 
     @Test
     fun `wrong host`() {
         val sut = DefaultLoginIntentResolver()
-        val uriString = "https://wrong.element.io/element/?account_provider=example.org&login_hint=mxid:@alice:example.org"
+        val uriString = "https://wrong.unseal.network/unseal/?account_provider=example.org&login_hint=mxid:@alice:example.org"
         assertThat(sut.parse(uriString)).isNull()
     }
 
     @Test
     fun `no login_hint param`() {
         val sut = DefaultLoginIntentResolver()
-        val uriString = "https://mobile.element.io/element/?account_provider=example.org"
+        val uriString = "https://mobile.unseal.network/unseal/?account_provider=example.org"
         assertThat(sut.parse(uriString)).isEqualTo(
             LoginParams(
                 accountProvider = "example.org",
                 loginHint = null,
+            )
+        )
+    }
+
+    @Test
+    fun `legacy element path`() {
+        val sut = DefaultLoginIntentResolver()
+        val uriString = "https://mobile.unseal.network/element/?account_provider=example.org&login_hint=mxid:@alice:example.org"
+        assertThat(sut.parse(uriString)).isEqualTo(
+            LoginParams(
+                accountProvider = "example.org",
+                loginHint = "mxid:@alice:example.org",
             )
         )
     }

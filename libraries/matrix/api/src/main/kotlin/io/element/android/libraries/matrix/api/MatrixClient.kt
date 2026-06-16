@@ -19,6 +19,7 @@ import io.element.android.libraries.matrix.api.core.RoomIdOrAlias
 import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.createroom.CreateRoomParameters
+import io.element.android.libraries.matrix.api.encryption.roomkey.AgentRoomKeyRecoveryRequest
 import io.element.android.libraries.matrix.api.encryption.EncryptionService
 import io.element.android.libraries.matrix.api.linknewdevice.LinkDesktopHandler
 import io.element.android.libraries.matrix.api.linknewdevice.LinkMobileHandler
@@ -41,6 +42,8 @@ import io.element.android.libraries.matrix.api.spaces.SpaceService
 import io.element.android.libraries.matrix.api.sync.SlidingSyncVersion
 import io.element.android.libraries.matrix.api.sync.SyncService
 import io.element.android.libraries.matrix.api.timeline.Timeline
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DOutboundMessage
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DSendResult
 import io.element.android.libraries.matrix.api.user.MatrixSearchUserResults
 import io.element.android.libraries.matrix.api.user.MatrixUser
 import io.element.android.libraries.matrix.api.verification.SessionVerificationService
@@ -107,6 +110,8 @@ interface MatrixClient {
     suspend fun getUserProfile(): Result<MatrixUser>
     suspend fun getAccountManagementUrl(action: AccountManagementAction?): Result<String?>
     suspend fun uploadMedia(mimeType: String, data: ByteArray): Result<String>
+    suspend fun requestAgentRoomKeyRecovery(request: AgentRoomKeyRecoveryRequest): Result<Unit>
+    suspend fun sendUnsealD2DMessage(message: UnsealD2DOutboundMessage): Result<UnsealD2DSendResult>
 
     /**
      * Get a room info flow for a given room ID.
@@ -154,6 +159,11 @@ interface MatrixClient {
      * Execute generic GET requests through the SDKs internal HTTP client.
      */
     suspend fun getUrl(url: String): Result<ByteArray>
+
+    /**
+     * Return the current Matrix access token held by the runtime client.
+     */
+    suspend fun currentAccessToken(): Result<String?>
 
     /**
      * Get a room preview for a given room ID or alias. This is especially useful for rooms that the user is not a member of, or hasn't joined yet.

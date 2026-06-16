@@ -32,6 +32,4 @@ fun defaultFfiRoomPowerLevelValues() = RoomPowerLevelsValues(
     roomTopic = 50,
     spaceChild = 50,
     usersDefault = 0,
-    beacon = 0,
-    beaconInfo = 0,
 )

@@ -29,7 +29,7 @@ object RoomMemberMapper {
             isIgnored = roomMember.isIgnored,
             role = mapRole(roomMember.suggestedRoleForPowerLevel, powerLevel),
             membershipChangeReason = roomMember.membershipChangeReason,
-            isServiceMember = roomMember.isServiceMember,
+            isServiceMember = false,
         )
     }
 

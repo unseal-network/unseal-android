@@ -9,22 +9,32 @@
 package io.element.android.features.login.impl.screens.onboarding
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Alignment.Companion.CenterHorizontally
-import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -36,11 +46,8 @@ import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.login.impl.R
 import io.element.android.features.login.impl.login.LoginModeView
 import io.element.android.libraries.architecture.AsyncData
-import io.element.android.libraries.designsystem.atomic.atoms.ElementLogoAtom
-import io.element.android.libraries.designsystem.atomic.atoms.ElementLogoAtomSize
 import io.element.android.libraries.designsystem.atomic.molecules.ButtonColumnMolecule
 import io.element.android.libraries.designsystem.atomic.pages.FlowStepPage
-import io.element.android.libraries.designsystem.atomic.pages.OnBoardingPage
 import io.element.android.libraries.designsystem.components.BigIcon
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
@@ -125,25 +132,28 @@ private fun AddFirstAccountScaffold(
     onDeveloperSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    OnBoardingPage(
-        modifier = modifier,
-        renderBackground = state.onBoardingLogoResId == null,
-        content = {
+    Box(modifier = modifier.fillMaxSize()) {
+        Image(
+            modifier = Modifier.fillMaxSize(),
+            painter = painterResource(id = R.drawable.unseal_launch_background),
+            contentScale = ContentScale.Crop,
+            contentDescription = null,
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .systemBarsPadding()
+                .padding(horizontal = 20.dp),
+        ) {
             Box(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
             ) {
-                if (state.onBoardingLogoResId != null) {
-                    OnBoardingLogo(
-                        onBoardingLogoResId = state.onBoardingLogoResId,
-                    )
-                } else {
-                    OnBoardingContent(state = state)
-                }
                 if (state.showDeveloperSettings) {
                     IconButton(
                         onClick = onDeveloperSettingsClick,
-                        modifier = Modifier
-                            .align(Alignment.TopStart),
+                        modifier = Modifier.align(Alignment.TopStart),
                     ) {
                         Icon(
                             imageVector = CompoundIcons.SettingsSolid(),
@@ -152,11 +162,9 @@ private fun AddFirstAccountScaffold(
                     }
                 }
                 if (state.showBackButton) {
-                    // Add icon button to "navigate back"
                     IconButton(
                         onClick = onBackClick,
-                        modifier = Modifier
-                            .align(Alignment.TopEnd),
+                        modifier = Modifier.align(Alignment.TopEnd),
                     ) {
                         Icon(
                             imageVector = CompoundIcons.Close(),
@@ -165,12 +173,31 @@ private fun AddFirstAccountScaffold(
                     }
                 }
             }
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+            ) {
+                if (state.onBoardingLogoResId != null) {
+                    OnBoardingLogo(onBoardingLogoResId = state.onBoardingLogoResId)
+                } else {
+                    OnBoardingContent(state = state)
+                }
+            }
             loginView()
-        },
-        footer = {
-            buttons()
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(modifier = Modifier.widthIn(max = 480.dp)) {
+                    buttons()
+                }
+            }
         }
-    )
+    }
 }
 
 @Composable
@@ -192,49 +219,57 @@ private fun AddOtherAccountScaffold(
 
 @Composable
 private fun OnBoardingContent(state: OnBoardingState) {
-    Box(
+    Column(
         modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = CenterHorizontally,
     ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = BiasAlignment(
-                horizontalBias = 0f,
-                verticalBias = -0.4f
-            )
+        Spacer(modifier = Modifier.weight(1f))
+        UnsealStartLogo()
+        Spacer(modifier = Modifier.weight(1f))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 480.dp)
+                .padding(horizontal = 16.dp),
+            horizontalAlignment = CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            ElementLogoAtom(
-                size = ElementLogoAtomSize.Large,
-                modifier = Modifier.padding(top = ElementLogoAtomSize.Large.shadowRadius / 2)
+            Text(
+                text = stringResource(id = R.string.screen_onboarding_welcome_title),
+                color = ElementTheme.colors.textPrimary,
+                style = ElementTheme.typography.fontHeadingLgBold,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = stringResource(id = R.string.screen_onboarding_welcome_message, state.productionApplicationName),
+                color = ElementTheme.colors.textSecondary,
+                style = ElementTheme.typography.fontBodyLgRegular.copy(fontSize = 17.sp),
+                textAlign = TextAlign.Center,
             )
         }
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = BiasAlignment(
-                horizontalBias = 0f,
-                verticalBias = 0.6f
-            )
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth(),
-                horizontalAlignment = CenterHorizontally,
-            ) {
-                Text(
-                    text = stringResource(id = R.string.screen_onboarding_welcome_title),
-                    color = ElementTheme.colors.textPrimary,
-                    style = ElementTheme.typography.fontHeadingLgBold,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = stringResource(id = R.string.screen_onboarding_welcome_message, state.productionApplicationName),
-                    color = ElementTheme.colors.textSecondary,
-                    style = ElementTheme.typography.fontBodyLgRegular.copy(fontSize = 17.sp),
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
+        Spacer(modifier = Modifier.weight(1f))
     }
+}
+
+@Composable
+private fun UnsealStartLogo() {
+    Image(
+        painter = painterResource(id = R.drawable.unseal_app_logo),
+        contentDescription = null,
+        modifier = Modifier
+            .size(120.dp)
+            .shadow(
+                elevation = 24.dp,
+                shape = CircleShape,
+                clip = false,
+            )
+            .clip(CircleShape)
+            .border(
+                width = 0.5.dp,
+                color = Color.White.copy(alpha = 0.9f),
+                shape = CircleShape,
+            ),
+    )
 }
 
 @Composable

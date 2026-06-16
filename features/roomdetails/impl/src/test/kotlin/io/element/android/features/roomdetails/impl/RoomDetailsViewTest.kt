@@ -17,7 +17,9 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.v2.runAndroidComposeUiTest
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.element.android.features.roomdetails.impl.members.aRoomMember
@@ -178,6 +180,36 @@ class RoomDetailsViewTest {
             )
             clickOn(R.string.screen_room_details_security_and_privacy_title)
         }
+    }
+
+    @Config(qualifiers = "h1024dp")
+    @Test
+    fun `click on webhook triggers invokes expected callback`() = runAndroidComposeUiTest {
+        ensureCalledOnce { callback ->
+            setRoomDetailView(
+                state = aRoomDetailsState(
+                    eventSink = EventsRecorder(expectEvents = false),
+                ),
+                onWebhookTriggersClick = callback,
+            )
+            onNodeWithText(activity!!.getString(R.string.screen_room_details_webhook_triggers_title))
+                .performScrollTo()
+                .performClick()
+        }
+    }
+
+    @Config(qualifiers = "h1024dp")
+    @Test
+    fun `webhook triggers is hidden for dm`() = runAndroidComposeUiTest {
+        setRoomDetailView(
+            state = aRoomDetailsState(
+                eventSink = EventsRecorder(expectEvents = false),
+                roomType = RoomDetailsType.Dm(aDmRoomMember(userId = A_USER_ID)),
+            ),
+        )
+
+        onNodeWithText(activity!!.getString(R.string.screen_room_details_webhook_triggers_title))
+            .assertDoesNotExist()
     }
 
     @Config(qualifiers = "h1024dp")
@@ -381,6 +413,7 @@ private fun AndroidComposeUiTest<ComponentActivity>.setRoomDetailView(
     onPinnedMessagesClick: () -> Unit = EnsureNeverCalled(),
     onKnockRequestsClick: () -> Unit = EnsureNeverCalled(),
     onSecurityAndPrivacyClick: () -> Unit = EnsureNeverCalled(),
+    onWebhookTriggersClick: () -> Unit = EnsureNeverCalled(),
     onProfileClick: (UserId) -> Unit = EnsureNeverCalledWithParam(),
     onReportRoomClick: () -> Unit = EnsureNeverCalled(),
 ) {
@@ -401,6 +434,7 @@ private fun AndroidComposeUiTest<ComponentActivity>.setRoomDetailView(
             onPinnedMessagesClick = onPinnedMessagesClick,
             onKnockRequestsClick = onKnockRequestsClick,
             onSecurityAndPrivacyClick = onSecurityAndPrivacyClick,
+            onWebhookTriggersClick = onWebhookTriggersClick,
             onProfileClick = onProfileClick,
             onReportRoomClick = onReportRoomClick,
             leaveRoomView = {},

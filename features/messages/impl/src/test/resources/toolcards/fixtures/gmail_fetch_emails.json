@@ -1,0 +1,26 @@
+{
+  "toolName": "GMAIL_FETCH_EMAILS",
+  "state": "output-available",
+  "input": { "query": "from:alice@example.com" },
+  "output": {
+    "successful": true,
+    "data": {
+      "messages": [
+        {
+          "subject": "Authorization complete",
+          "from": { "email": "alice@example.com", "name": "Alice" },
+          "snippet": "Your Gmail authorization has completed.",
+          "date": "2026-06-12T10:00:00Z",
+          "url": "https://mail.google.com/mail/u/0/#inbox/abc"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "_cardType": "composeEmail",
+    "entryName": "Emails",
+    "entryState": "done",
+    "containsText": "Authorization complete",
+    "clickTarget": "https://mail.google.com/mail/u/0/#inbox/abc"
+  }
+}

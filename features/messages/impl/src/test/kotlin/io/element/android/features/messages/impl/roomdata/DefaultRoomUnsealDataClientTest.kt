@@ -1,0 +1,239 @@
+/*
+ * Copyright (c) 2026 New Vector Ltd.
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
+ * Please see LICENSE files in the repository root for full details.
+ */
+
+package io.element.android.features.messages.impl.roomdata
+
+import com.google.common.truth.Truth.assertThat
+import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
+import io.element.android.libraries.chatbot.api.model.rooms.ChatbotGetRoomAgentsResponse
+import io.element.android.libraries.chatbot.api.model.rooms.ChatbotRoomAgent
+import io.element.android.libraries.chatbot.api.model.schedules.ChatbotSchedule
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotListRoomAgentSkillsResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotRoomAgentSkill
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
+import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookTrigger
+import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookTriggerStatus
+import io.element.android.libraries.chatbot.test.FakeChatbotApiService
+import io.element.android.libraries.chatbot.test.FakeChatbotApiServiceFactory
+import io.element.android.libraries.matrix.api.core.RoomId
+import io.element.android.libraries.matrix.test.FakeMatrixClient
+import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonPrimitive
+import org.junit.Test
+
+class DefaultRoomUnsealDataClientTest {
+    @Test
+    fun `getRoomAgents maps room agents using mxid when present`() = runTest {
+        val service = FakeChatbotApiService().apply {
+            getRoomAgentsResult = {
+                Result.success(
+                    ChatbotGetRoomAgentsResponse(
+                        agents = listOf(
+                            ChatbotRoomAgent(
+                                agentId = "@fallback:example.org",
+                                mxid = "@agent:example.org",
+                                displayName = "Mail Agent",
+                                avatarUrl = "mxc://avatar",
+                                userType = "agent",
+                                membership = "join",
+                            )
+                        )
+                    )
+                )
+            }
+        }
+        val client = createClient(service)
+
+        val agents = client.getRoomAgents(A_ROOM_ID).getOrThrow()
+
+        assertThat(agents).containsExactly(
+            RoomAgentDescriptor(
+                userId = "@agent:example.org",
+                displayName = "Mail Agent",
+                avatarUrl = "mxc://avatar",
+                userType = "agent",
+                membership = "join",
+            )
+        )
+    }
+
+    @Test
+    fun `listAgents maps matrix id and device metadata`() = runTest {
+        val service = FakeChatbotApiService().apply {
+            listAgentsResult = {
+                Result.success(
+                    listOf(
+                        ChatbotAgent(
+                            botName = "device",
+                            localpart = "device-agent",
+                            serverName = "example.org",
+                            displayName = "Device Agent",
+                            avatarUrl = "mxc://device",
+                            metadata = mapOf(
+                                "agent_kind" to JsonPrimitive("device"),
+                                "bound_device_id" to JsonPrimitive("DEVICEID"),
+                            ),
+                        )
+                    )
+                )
+            }
+        }
+        val client = createClient(service)
+
+        val agents = client.listAgents().getOrThrow()
+
+        assertThat(agents).containsExactly(
+            AgentAccountDescriptor(
+                botName = "device",
+                localpart = "device-agent",
+                serverName = "example.org",
+                matrixUserId = "@device-agent:example.org",
+                displayName = "Device Agent",
+                avatarUrl = "mxc://device",
+                isDeviceAgent = true,
+                boundDeviceId = "DEVICEID",
+            )
+        )
+    }
+
+    @Test
+    fun `listSchedules maps enabled status with status taking precedence`() = runTest {
+        val service = FakeChatbotApiService().apply {
+            listSchedulesResult = {
+                Result.success(
+                    listOf(
+                        ChatbotSchedule(
+                            scheduleId = "schedule-1",
+                            name = "Morning",
+                            cron = "0 9 * * *",
+                            action = "hello",
+                            agentId = "@agent:example.org",
+                            roomId = A_ROOM_ID.value,
+                            timezone = "Asia/Shanghai",
+                            status = "enabled",
+                            enabled = false,
+                        )
+                    )
+                )
+            }
+        }
+        val client = createClient(service)
+
+        val schedules = client.listSchedules(A_ROOM_ID).getOrThrow()
+
+        assertThat(schedules.single().isEnabled).isTrue()
+        assertThat(schedules.single().timezone).isEqualTo("Asia/Shanghai")
+    }
+
+    @Test
+    fun `skills APIs map runtime and legacy skills`() = runTest {
+        val service = FakeChatbotApiService().apply {
+            listRoomAgentSkillsResult = { roomId, agentId, runtimeOwner ->
+                assertThat(roomId).isEqualTo(A_ROOM_ID.value)
+                assertThat(agentId).isEqualTo("@agent:example.org")
+                assertThat(runtimeOwner).isEqualTo("@me:example.org")
+                Result.success(
+                    ChatbotListRoomAgentSkillsResponse(
+                        skills = listOf(ChatbotRoomAgentSkill(id = "runtime-1", name = "Runtime Skill", runtimeVisible = true))
+                    )
+                )
+            }
+            listAgentSkillsResult = { botName ->
+                assertThat(botName).isEqualTo("agent-bot")
+                Result.success(listOf(ChatbotUserSkill(id = "legacy-1", name = "Legacy Skill", description = "old")))
+            }
+        }
+        val client = createClient(service)
+
+        val runtimeSkills = client.listRoomAgentSkills(A_ROOM_ID, "@agent:example.org", "@me:example.org").getOrThrow()
+        val legacySkills = client.listLegacyAgentSkills("agent-bot").getOrThrow()
+
+        assertThat(runtimeSkills).containsExactly(RoomAgentSkillDescriptor(id = "runtime-1", name = "Runtime Skill", description = null, runtimeVisible = true))
+        assertThat(legacySkills).containsExactly(RoomLegacyAgentSkillDescriptor(id = "legacy-1", name = "Legacy Skill", description = "old"))
+    }
+
+    @Test
+    fun `webhook and working memory APIs are room scoped`() = runTest {
+        val service = FakeChatbotApiService().apply {
+            listWebhookTriggersResult = { agentId, source, roomId, status ->
+                assertThat(agentId).isNull()
+                assertThat(source).isNull()
+                assertThat(roomId).isEqualTo(A_ROOM_ID.value)
+                assertThat(status).isNull()
+                Result.success(
+                    listOf(
+                        ChatbotWebhookTrigger(
+                            triggerId = "trigger-1",
+                            agentId = "@agent:example.org",
+                            name = "GitHub",
+                            source = "github",
+                            eventTypes = listOf("push"),
+                            actionPrompt = "summarize",
+                            roomId = A_ROOM_ID.value,
+                            status = ChatbotWebhookTriggerStatus.Enabled,
+                        )
+                    )
+                )
+            }
+            getRoomWorkingMemoryResult = { roomId ->
+                assertThat(roomId).isEqualTo(A_ROOM_ID.value)
+                Result.success("memory")
+            }
+        }
+        val client = createClient(service)
+
+        val triggers = client.listWebhookTriggers(A_ROOM_ID).getOrThrow()
+        val workingMemory = client.getRoomWorkingMemory(A_ROOM_ID).getOrThrow()
+
+        assertThat(triggers.single().source).isEqualTo("github")
+        assertThat(workingMemory).isEqualTo("memory")
+    }
+
+    @Test
+    fun `loadRoomData keeps successful resources when another request fails`() = runTest {
+        val failure = IllegalStateException("agents failed")
+        val service = FakeChatbotApiService().apply {
+            getRoomAgentsResult = { Result.failure(failure) }
+            listSchedulesResult = {
+                Result.success(
+                    listOf(
+                        ChatbotSchedule(
+                            scheduleId = "schedule-1",
+                            name = "Morning",
+                            cron = "0 9 * * *",
+                            action = "hello",
+                            agentId = "@agent:example.org",
+                            roomId = A_ROOM_ID.value,
+                            enabled = true,
+                        )
+                    )
+                )
+            }
+            getRoomWorkingMemoryResult = { Result.success("memory") }
+        }
+        val client = createClient(service)
+
+        val snapshot = client.loadRoomData(A_ROOM_ID)
+
+        assertThat(snapshot.roomAgents.value).isEmpty()
+        assertThat(snapshot.roomAgents.error).isSameInstanceAs(failure)
+        assertThat(snapshot.schedules.value.single().id).isEqualTo("schedule-1")
+        assertThat(snapshot.schedules.isSuccess).isTrue()
+        assertThat(snapshot.workingMemory.value).isEqualTo("memory")
+    }
+
+    private fun createClient(service: FakeChatbotApiService): DefaultRoomUnsealDataClient {
+        return DefaultRoomUnsealDataClient(
+            matrixClient = FakeMatrixClient(),
+            chatbotApiServiceFactory = FakeChatbotApiServiceFactory(service),
+        )
+    }
+
+    private companion object {
+        val A_ROOM_ID = RoomId("!room:example.org")
+    }
+}

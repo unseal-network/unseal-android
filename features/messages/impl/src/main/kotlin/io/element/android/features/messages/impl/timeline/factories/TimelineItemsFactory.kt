@@ -16,6 +16,7 @@ import io.element.android.features.messages.impl.timeline.factories.event.Timeli
 import io.element.android.features.messages.impl.timeline.factories.virtual.TimelineItemVirtualFactory
 import io.element.android.features.messages.impl.timeline.groups.TimelineItemGrouper
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
+import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryStatus
 import io.element.android.libraries.androidutils.diff.DiffCacheUpdater
 import io.element.android.libraries.androidutils.diff.MutableListDiffCache
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
@@ -64,22 +65,24 @@ class TimelineItemsFactory(
     suspend fun replaceWith(
         timelineItems: List<MatrixTimelineItem>,
         roomMembers: List<RoomMember>,
+        roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus> = emptyMap(),
     ) = withContext(dispatchers.computation) {
         lock.withLock {
             diffCacheUpdater.updateWith(timelineItems)
-            buildAndEmitTimelineItemStates(timelineItems, roomMembers)
+            buildAndEmitTimelineItemStates(timelineItems, roomMembers, roomKeyRecoveryStatuses)
         }
     }
 
     private suspend fun buildAndEmitTimelineItemStates(
         timelineItems: List<MatrixTimelineItem>,
         roomMembers: List<RoomMember>,
+        roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
     ) {
         val newTimelineItemStates = ArrayList<TimelineItem>()
         for (index in diffCache.indices().reversed()) {
             val cacheItem = diffCache.get(index)
             if (cacheItem == null) {
-                buildAndCacheItem(timelineItems, index, roomMembers)?.also { timelineItemState ->
+                buildAndCacheItem(timelineItems, index, roomMembers, roomKeyRecoveryStatuses)?.also { timelineItemState ->
                     newTimelineItemStates.add(timelineItemState)
                 }
             } else {
@@ -87,7 +90,8 @@ class TimelineItemsFactory(
                     eventItemFactory.update(
                         timelineItem = cacheItem,
                         receivedMatrixTimelineItem = timelineItems[index] as MatrixTimelineItem.Event,
-                        roomMembers = roomMembers
+                        roomMembers = roomMembers,
+                        roomKeyRecoveryStatuses = roomKeyRecoveryStatuses,
                     )
                 } else {
                     cacheItem
@@ -103,10 +107,11 @@ class TimelineItemsFactory(
         timelineItems: List<MatrixTimelineItem>,
         index: Int,
         roomMembers: List<RoomMember>,
+        roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
     ): TimelineItem? {
         val timelineItem =
             when (val currentTimelineItem = timelineItems[index]) {
-                is MatrixTimelineItem.Event -> eventItemFactory.create(currentTimelineItem, index, timelineItems, roomMembers)
+                is MatrixTimelineItem.Event -> eventItemFactory.create(currentTimelineItem, index, timelineItems, roomMembers, roomKeyRecoveryStatuses)
                 is MatrixTimelineItem.Virtual -> virtualItemFactory.create(currentTimelineItem)
                 MatrixTimelineItem.Other -> null
             }

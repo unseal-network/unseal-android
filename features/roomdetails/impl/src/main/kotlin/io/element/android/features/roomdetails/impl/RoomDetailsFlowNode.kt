@@ -28,7 +28,11 @@ import io.element.android.appconfig.LearnMoreConfig
 import io.element.android.features.call.api.CallData
 import io.element.android.features.call.api.ElementCallEntryPoint
 import io.element.android.features.knockrequests.api.list.KnockRequestsListEntryPoint
+import androidx.lifecycle.lifecycleScope
+import io.element.android.features.agentmanagement.api.AgentManagementEntryPoint
 import io.element.android.features.messages.api.MessagesEntryPoint
+import io.element.android.libraries.chatbot.api.RoomAgentProfileRouter
+import kotlinx.coroutines.launch
 import io.element.android.features.poll.api.history.PollHistoryEntryPoint
 import io.element.android.features.reportroom.api.ReportRoomEntryPoint
 import io.element.android.features.rolesandpermissions.api.ChangeRoomMemberRolesEntryPoint
@@ -43,8 +47,10 @@ import io.element.android.features.roomdetailsedit.api.RoomDetailsEditEntryPoint
 import io.element.android.features.securityandprivacy.api.SecurityAndPrivacyEntryPoint
 import io.element.android.features.userprofile.shared.UserProfileNodeHelper
 import io.element.android.features.verifysession.api.OutgoingVerificationEntryPoint
+import io.element.android.features.webhooks.api.WebhookTriggersEntryPoint
 import io.element.android.libraries.architecture.BackstackWithOverlayBox
 import io.element.android.libraries.architecture.BaseFlowNode
+import io.element.android.libraries.architecture.appyx.canPop
 import io.element.android.libraries.architecture.callback
 import io.element.android.libraries.architecture.createNode
 import io.element.android.libraries.architecture.overlay.operation.hide
@@ -53,6 +59,7 @@ import io.element.android.libraries.designsystem.utils.OpenUrlInTabView
 import io.element.android.libraries.di.RoomScope
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomId
+import io.element.android.libraries.matrix.api.core.RoomIdOrAlias
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.core.toRoomIdOrAlias
 import io.element.android.libraries.matrix.api.notification.CallIntent
@@ -87,6 +94,9 @@ class RoomDetailsFlowNode(
     private val rolesAndPermissionsEntryPoint: RolesAndPermissionsEntryPoint,
     private val securityAndPrivacyEntryPoint: SecurityAndPrivacyEntryPoint,
     private val roomDetailsEditEntryPoint: RoomDetailsEditEntryPoint,
+    private val webhookTriggersEntryPoint: WebhookTriggersEntryPoint,
+    private val agentManagementEntryPoint: AgentManagementEntryPoint,
+    private val roomAgentProfileRouter: RoomAgentProfileRouter,
 ) : BaseFlowNode<RoomDetailsFlowNode.NavTarget>(
     backstack = BackStack(
         initialElement = plugins.filterIsInstance<RoomDetailsEntryPoint.Params>().first().initialElement.toNavTarget(),
@@ -121,6 +131,9 @@ class RoomDetailsFlowNode(
         data class RoomMemberDetails(val roomMemberId: UserId) : NavTarget
 
         @Parcelize
+        data class AgentProfile(val botName: String) : NavTarget
+
+        @Parcelize
         data class AvatarPreview(val name: String, val avatarUrl: String) : NavTarget
 
         @Parcelize
@@ -140,6 +153,9 @@ class RoomDetailsFlowNode(
 
         @Parcelize
         data object SecurityAndPrivacy : NavTarget
+
+        @Parcelize
+        data object WebhookTriggers : NavTarget
 
         @Parcelize
         data class VerifyUser(val userId: UserId) : NavTarget
@@ -168,6 +184,20 @@ class RoomDetailsFlowNode(
                         roomDetailsNode.onNewOwnersSelected()
                     }
                 }
+            }
+        }
+    }
+
+    // Agent routing goes through the shared RoomAgentProfileRouter (the single decision point for
+    // member→profile navigation) so a member that is an agent opens the agent profile instead of the
+    // normal Matrix user profile, and no entry point diverges.
+    private fun openMemberOrAgentProfile(userId: UserId) {
+        lifecycleScope.launch {
+            val botName = roomAgentProfileRouter.agentBotNameFor(room.roomId, userId)
+            if (botName != null) {
+                backstack.push(NavTarget.AgentProfile(botName))
+            } else {
+                backstack.push(NavTarget.RoomMemberDetails(userId))
             }
         }
     }
@@ -224,8 +254,12 @@ class RoomDetailsFlowNode(
                         backstack.push(NavTarget.SecurityAndPrivacy)
                     }
 
+                    override fun navigateToWebhookTriggers() {
+                        backstack.push(NavTarget.WebhookTriggers)
+                    }
+
                     override fun navigateToRoomMemberDetails(userId: UserId) {
-                        backstack.push(NavTarget.RoomMemberDetails(userId))
+                        openMemberOrAgentProfile(userId)
                     }
 
                     override fun navigateToRoomCall(callIntent: CallIntent) {
@@ -252,7 +286,7 @@ class RoomDetailsFlowNode(
             NavTarget.RoomMemberList -> {
                 val roomMemberListCallback = object : RoomMemberListNode.Callback {
                     override fun navigateToRoomMemberDetails(roomMemberId: UserId) {
-                        backstack.push(NavTarget.RoomMemberDetails(roomMemberId))
+                        openMemberOrAgentProfile(roomMemberId)
                     }
 
                     override fun navigateToInviteMembers() {
@@ -319,6 +353,30 @@ class RoomDetailsFlowNode(
                 }
                 val plugins = listOf(RoomMemberDetailsNode.RoomMemberDetailsInput(navTarget.roomMemberId), callback)
                 createNode<RoomMemberDetailsNode>(buildContext, plugins)
+            }
+            is NavTarget.AgentProfile -> {
+                agentManagementEntryPoint.createNode(
+                    parentNode = this,
+                    buildContext = buildContext,
+                    params = AgentManagementEntryPoint.Params(
+                        AgentManagementEntryPoint.InitialTarget.Profile(navTarget.botName)
+                    ),
+                    callback = object : AgentManagementEntryPoint.Callback {
+                        override fun onDone() {
+                            if (backstack.canPop()) backstack.pop()
+                        }
+
+                        override fun onOpenRoom(roomIdOrAlias: RoomIdOrAlias) {
+                            (roomIdOrAlias as? RoomIdOrAlias.Id)?.roomId?.let { callback.navigateToRoom(it, emptyList()) }
+                        }
+
+                        override fun onOpenSkills(botName: String?) = Unit
+
+                        override fun onOpenCreatedDirectRoom(roomId: RoomId) {
+                            callback.navigateToRoom(roomId, emptyList())
+                        }
+                    },
+                )
             }
             is NavTarget.AvatarPreview -> {
                 val callback = object : MediaViewerEntryPoint.Callback {
@@ -409,6 +467,8 @@ class RoomDetailsFlowNode(
                     override fun navigateToDeveloperSettings() {
                         callback.navigateToDeveloperSettings()
                     }
+
+                    override fun navigateToRoomSchedules(roomId: RoomId, roomName: String, joinedRoom: JoinedRoom) = Unit
                 }
                 return messagesEntryPoint.createNode(
                     parentNode = this,
@@ -430,6 +490,35 @@ class RoomDetailsFlowNode(
                     parentNode = this,
                     buildContext = buildContext,
                     callback = callback,
+                )
+            }
+            NavTarget.WebhookTriggers -> {
+                webhookTriggersEntryPoint.createNode(
+                    parentNode = this,
+                    buildContext = buildContext,
+                    params = WebhookTriggersEntryPoint.Params(
+                        initialTarget = WebhookTriggersEntryPoint.InitialTarget.Room(
+                            roomId = room.roomId,
+                            roomName = room.info().name?.trim().orEmpty().ifEmpty { room.roomId.value },
+                        ),
+                    ),
+                    callback = object : WebhookTriggersEntryPoint.Callback {
+                        override fun onDone() {
+                            if (backstack.canPop()) {
+                                backstack.pop()
+                            } else {
+                                navigateUp()
+                            }
+                        }
+
+                        override fun onTriggersChanged() {
+                            callback.onRoomConfigChanged()
+                        }
+
+                        override fun onOpenConnectUrl(url: String) {
+                            learnMoreUrl.value = url
+                        }
+                    },
                 )
             }
             is NavTarget.VerifyUser -> {

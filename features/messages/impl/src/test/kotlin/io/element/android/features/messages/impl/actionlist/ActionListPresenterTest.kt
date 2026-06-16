@@ -18,6 +18,7 @@ import io.element.android.features.messages.impl.fixtures.aMessageEvent
 import io.element.android.features.messages.impl.timeline.aTimelineItemEvent
 import io.element.android.features.messages.impl.timeline.model.TimelineItemThreadInfo
 import io.element.android.features.messages.impl.timeline.model.event.RtcNotificationState
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRedactedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRtcNotificationContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextContent
@@ -177,6 +178,7 @@ class ActionListPresenterTest {
                         TimelineItemAction.Forward,
                         TimelineItemAction.CopyLink,
                         TimelineItemAction.Pin,
+                        TimelineItemAction.SelectText,
                         TimelineItemAction.CopyText,
                         TimelineItemAction.ViewSource,
                         TimelineItemAction.ReportContent,
@@ -184,6 +186,49 @@ class ActionListPresenterTest {
                     recentEmojis = suggestedEmojis,
                 )
             )
+            initialState.eventSink.invoke(ActionListEvent.Clear)
+            assertThat(awaitItem().target).isEqualTo(ActionListState.Target.None)
+        }
+    }
+
+    @Test
+    fun `present - compute for AI stream text exposes select and copy text`() = runTest {
+        val presenter = createActionListPresenter(isDeveloperModeEnabled = true)
+        presenter.test {
+            val initialState = awaitItem()
+            val messageEvent = aMessageEvent(
+                isMine = false,
+                isEditable = false,
+                content = TimelineItemAiContent(
+                    body = "AI stream markdown body",
+                    isEdited = false,
+                    isStreaming = false,
+                    isTerminal = true,
+                    streamId = "stream-1",
+                    thinkingSteps = persistentListOf(),
+                    toolCalls = persistentListOf(),
+                    sources = persistentListOf(),
+                    quickActions = persistentListOf(),
+                )
+            )
+            initialState.eventSink.invoke(
+                ActionListEvent.ComputeForMessage(
+                    event = messageEvent,
+                    userEventPermissions = aUserEventPermissions(
+                        canRedactOwn = false,
+                        canRedactOther = false,
+                        canSendMessage = true,
+                        canSendReaction = true,
+                        canPinUnpin = true,
+                    )
+                )
+            )
+            val successState = awaitItem()
+            val actions = (successState.target as ActionListState.Target.Success).actions
+            assertThat(actions).containsAtLeast(
+                TimelineItemAction.SelectText,
+                TimelineItemAction.CopyText,
+            ).inOrder()
             initialState.eventSink.invoke(ActionListEvent.Clear)
             assertThat(awaitItem().target).isEqualTo(ActionListState.Target.None)
         }
@@ -224,6 +269,7 @@ class ActionListPresenterTest {
                         TimelineItemAction.Forward,
                         TimelineItemAction.CopyLink,
                         TimelineItemAction.Pin,
+                        TimelineItemAction.SelectText,
                         TimelineItemAction.CopyText,
                         TimelineItemAction.ViewSource,
                         TimelineItemAction.ReportContent,
@@ -269,6 +315,7 @@ class ActionListPresenterTest {
                         TimelineItemAction.Forward,
                         TimelineItemAction.CopyLink,
                         TimelineItemAction.Pin,
+                        TimelineItemAction.SelectText,
                         TimelineItemAction.CopyText,
                         TimelineItemAction.ViewSource,
                         TimelineItemAction.ReportContent,
@@ -315,6 +362,7 @@ class ActionListPresenterTest {
                         TimelineItemAction.Forward,
                         TimelineItemAction.CopyLink,
                         TimelineItemAction.Pin,
+                        TimelineItemAction.SelectText,
                         TimelineItemAction.CopyText,
                         TimelineItemAction.ViewSource,
                         TimelineItemAction.ReportContent,
@@ -362,6 +410,7 @@ class ActionListPresenterTest {
                         TimelineItemAction.Forward,
                         TimelineItemAction.CopyLink,
                         TimelineItemAction.Pin,
+                        TimelineItemAction.SelectText,
                         TimelineItemAction.CopyText,
                         TimelineItemAction.ViewSource,
                         TimelineItemAction.ReportContent,
@@ -409,6 +458,7 @@ class ActionListPresenterTest {
                         TimelineItemAction.Edit,
                         TimelineItemAction.CopyLink,
                         TimelineItemAction.Pin,
+                        TimelineItemAction.SelectText,
                         TimelineItemAction.CopyText,
                         TimelineItemAction.ViewSource,
                         TimelineItemAction.Redact,
@@ -456,6 +506,7 @@ class ActionListPresenterTest {
                         TimelineItemAction.Edit,
                         TimelineItemAction.CopyLink,
                         TimelineItemAction.Pin,
+                        TimelineItemAction.SelectText,
                         TimelineItemAction.CopyText,
                         TimelineItemAction.ViewSource,
                         TimelineItemAction.Redact,
@@ -502,6 +553,7 @@ class ActionListPresenterTest {
                         TimelineItemAction.Edit,
                         TimelineItemAction.CopyLink,
                         TimelineItemAction.Pin,
+                        TimelineItemAction.SelectText,
                         TimelineItemAction.CopyText,
                         TimelineItemAction.ViewSource,
                     ),
@@ -544,6 +596,7 @@ class ActionListPresenterTest {
                     actions = persistentListOf(
                         TimelineItemAction.Forward,
                         TimelineItemAction.CopyLink,
+                        TimelineItemAction.SelectText,
                         TimelineItemAction.CopyText,
                         TimelineItemAction.ViewSource,
                     ),
@@ -797,6 +850,7 @@ class ActionListPresenterTest {
                         TimelineItemAction.Edit,
                         TimelineItemAction.CopyLink,
                         TimelineItemAction.Pin,
+                        TimelineItemAction.SelectText,
                         TimelineItemAction.CopyText,
                         TimelineItemAction.Redact,
                     ),
@@ -841,6 +895,7 @@ class ActionListPresenterTest {
                         TimelineItemAction.Forward,
                         TimelineItemAction.Edit,
                         TimelineItemAction.CopyLink,
+                        TimelineItemAction.SelectText,
                         TimelineItemAction.CopyText,
                         TimelineItemAction.ViewSource,
                         TimelineItemAction.Redact,
@@ -893,6 +948,7 @@ class ActionListPresenterTest {
                         TimelineItemAction.Edit,
                         TimelineItemAction.CopyLink,
                         TimelineItemAction.Unpin,
+                        TimelineItemAction.SelectText,
                         TimelineItemAction.CopyText,
                         TimelineItemAction.ViewSource,
                         TimelineItemAction.Redact,
@@ -984,6 +1040,7 @@ class ActionListPresenterTest {
                     verifiedUserSendFailure = VerifiedUserSendFailure.None,
                     actions = persistentListOf(
                         TimelineItemAction.Edit,
+                        TimelineItemAction.SelectText,
                         TimelineItemAction.CopyText,
                         TimelineItemAction.Redact,
                     ),

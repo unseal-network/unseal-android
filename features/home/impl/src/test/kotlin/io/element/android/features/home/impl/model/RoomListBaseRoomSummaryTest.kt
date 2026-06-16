@@ -87,6 +87,8 @@ internal fun createRoomListRoomSummary(
     timestamp: String? = null,
     isTombstoned: Boolean = false,
     isSpace: Boolean = false,
+    isPinned: Boolean = false,
+    isArchived: Boolean = false,
 ) = RoomListRoomSummary(
     id = A_ROOM_ID.value,
     roomId = A_ROOM_ID,
@@ -109,5 +111,7 @@ internal fun createRoomListRoomSummary(
     isDm = false,
     heroes = heroes.toImmutableList(),
     isTombstoned = isTombstoned,
-    isSpace = isSpace
+    isSpace = isSpace,
+    isPinned = isPinned,
+    isArchived = isArchived,
 )

@@ -16,6 +16,7 @@ import io.element.android.libraries.architecture.FeatureEntryPoint
 import io.element.android.libraries.architecture.NodeInputs
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomId
+import io.element.android.libraries.matrix.api.core.RoomIdOrAlias
 import kotlinx.parcelize.Parcelize
 
 interface PreferencesEntryPoint : FeatureEntryPoint {
@@ -49,6 +50,8 @@ interface PreferencesEntryPoint : FeatureEntryPoint {
         fun navigateToSecureBackup()
         fun navigateToRoomNotificationSettings(roomId: RoomId)
         fun navigateToEvent(roomId: RoomId, eventId: EventId)
+        fun navigateToRoom(roomIdOrAlias: RoomIdOrAlias)
+        fun navigateToCreatedDirectRoom(roomId: RoomId)
     }
 
     fun createAppDeveloperSettingsNode(

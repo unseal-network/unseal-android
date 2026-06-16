@@ -1,0 +1,1 @@
+@libraries中 实现一个新库miniapp，参考 @/Users/ranjun/Desktop/Works/collection/android/app/src/main/java/com/green/org 中 WebViewActivity.java作为库组件，WebViewActivity对标 @/Users/ranjun/Desktop/Works/me/document-demo/works/unseal/unseal-ios/unseal-mini-app/Sources/Webview/Editor/EditorControllerWrapper.swift，实现这个组件库，先给我方案

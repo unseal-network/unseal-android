@@ -28,6 +28,7 @@ import io.element.android.libraries.matrix.api.core.RoomIdOrAlias
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.createroom.CreateRoomParameters
 import io.element.android.libraries.matrix.api.createroom.RoomPreset
+import io.element.android.libraries.matrix.api.encryption.roomkey.AgentRoomKeyRecoveryRequest
 import io.element.android.libraries.matrix.api.linknewdevice.LinkDesktopHandler
 import io.element.android.libraries.matrix.api.linknewdevice.LinkMobileHandler
 import io.element.android.libraries.matrix.api.media.MatrixMediaLoader
@@ -42,11 +43,16 @@ import io.element.android.libraries.matrix.api.room.RoomMembershipObserver
 import io.element.android.libraries.matrix.api.room.alias.ResolvedRoomAlias
 import io.element.android.libraries.matrix.api.room.history.RoomHistoryVisibility
 import io.element.android.libraries.matrix.api.room.join.JoinRule
+import io.element.android.libraries.matrix.api.room.location.BeaconInfoUpdate
 import io.element.android.libraries.matrix.api.roomdirectory.RoomVisibility
 import io.element.android.libraries.matrix.api.roomlist.RoomListService
 import io.element.android.libraries.matrix.api.spaces.SpaceService
 import io.element.android.libraries.matrix.api.sync.SlidingSyncVersion
 import io.element.android.libraries.matrix.api.sync.SyncState
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DConstants
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DOutboundMessage
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DSendFailure
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DSendResult
 import io.element.android.libraries.matrix.api.user.MatrixSearchUserResults
 import io.element.android.libraries.matrix.api.user.MatrixUser
 import io.element.android.libraries.matrix.impl.encryption.RustEncryptionService
@@ -70,7 +76,6 @@ import io.element.android.libraries.matrix.impl.room.RustRoomFactory
 import io.element.android.libraries.matrix.impl.room.TimelineEventFilterFactory
 import io.element.android.libraries.matrix.impl.room.history.map
 import io.element.android.libraries.matrix.impl.room.join.map
-import io.element.android.libraries.matrix.impl.room.location.map
 import io.element.android.libraries.matrix.impl.room.preview.RoomPreviewInfoMapper
 import io.element.android.libraries.matrix.impl.roomdirectory.RustRoomDirectoryService
 import io.element.android.libraries.matrix.impl.roomdirectory.map
@@ -104,6 +109,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
@@ -114,8 +120,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.matrix.rustcomponents.sdk.AuthData
 import org.matrix.rustcomponents.sdk.AuthDataPasswordDetails
-import org.matrix.rustcomponents.sdk.BeaconInfoListener
-import org.matrix.rustcomponents.sdk.BeaconInfoUpdate
 import org.matrix.rustcomponents.sdk.Client
 import org.matrix.rustcomponents.sdk.ClientException
 import org.matrix.rustcomponents.sdk.IgnoredUsersListener
@@ -210,14 +214,7 @@ class RustMatrixClient(
         analyticsService = analyticsService,
     )
 
-    override val ownBeaconInfoUpdates = mxCallbackFlow {
-        val listener = object : BeaconInfoListener {
-            override fun onUpdate(update: BeaconInfoUpdate) {
-                trySend(update.map())
-            }
-        }
-        innerClient.subscribeToOwnBeaconInfoUpdates(listener)
-    }
+    override val ownBeaconInfoUpdates: Flow<BeaconInfoUpdate> = emptyFlow()
 
     override val sessionVerificationService = RustSessionVerificationService(
         client = innerClient,
@@ -319,9 +316,48 @@ class RustMatrixClient(
             ?: sessionId.value.substringAfter(":")
     }
 
+    override suspend fun requestAgentRoomKeyRecovery(request: AgentRoomKeyRecoveryRequest): Result<Unit> = withContext(sessionDispatcher) {
+        runCatchingExceptions {
+            val result = innerClient.sendToDeviceEvent(
+                eventType = AgentRoomKeyRecoveryRequest.EVENT_TYPE,
+                userId = request.target.userId.value,
+                deviceId = request.target.deviceId,
+                content = request.encodedRoomKeyRequestContent(requestingDeviceId = deviceId.value),
+            )
+            check(result.failures.isEmpty()) {
+                "Failed to send agent room key request: ${result.failures}"
+            }
+        }.mapFailure { it.mapClientException() }
+    }
+
+    override suspend fun sendUnsealD2DMessage(message: UnsealD2DOutboundMessage): Result<UnsealD2DSendResult> = withContext(sessionDispatcher) {
+        runCatchingExceptions {
+            val result = innerClient.sendToDeviceEvent(
+                eventType = UnsealD2DConstants.EVENT_TYPE,
+                userId = message.target.userId.value,
+                deviceId = message.target.deviceId,
+                content = message.encodedToDeviceContent(),
+            )
+            UnsealD2DSendResult(
+                failures = result.failures.map {
+                    UnsealD2DSendFailure(
+                        userId = UserId(it.userId),
+                        deviceId = it.deviceId,
+                    )
+                }
+            )
+        }.mapFailure { it.mapClientException() }
+    }
+
     override suspend fun getUrl(url: String): Result<ByteArray> = withContext(sessionDispatcher) {
         runCatchingExceptions {
             innerClient.getUrl(url)
+        }.mapFailure { it.mapClientException() }
+    }
+
+    override suspend fun currentAccessToken(): Result<String?> = withContext(sessionDispatcher) {
+        runCatchingExceptions {
+            innerClient.session().accessToken.takeIf { it.isNotBlank() }
         }.mapFailure { it.mapClientException() }
     }
 
@@ -810,7 +846,7 @@ class RustMatrixClient(
 
     override suspend fun getMapStyleUrl(): Result<String?> = withContext(sessionDispatcher) {
         runCatchingExceptions {
-            innerClient.tileServer()?.mapStyleUrl
+            null
         }
     }
 
@@ -856,7 +892,7 @@ class RustMatrixClient(
     }
 
     override fun homeserverCapabilities(): HomeserverCapabilitiesProvider {
-        return RustHomeserverCapabilitiesProvider(innerClient.homeserverCapabilities())
+        return RustHomeserverCapabilitiesProvider()
     }
 }
 

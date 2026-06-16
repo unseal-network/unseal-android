@@ -9,13 +9,22 @@
 package io.element.android.features.messages.impl
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -23,14 +32,27 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.BasicAlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,7 +62,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -51,6 +77,8 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
@@ -69,10 +97,16 @@ import io.element.android.features.messages.impl.messagecomposer.AttachmentsBott
 import io.element.android.features.messages.impl.messagecomposer.DisabledComposerView
 import io.element.android.features.messages.impl.messagecomposer.MessageComposerEvent
 import io.element.android.features.messages.impl.messagecomposer.MessageComposerView
+import io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillPickerView
 import io.element.android.features.messages.impl.messagecomposer.suggestions.SuggestionsPickerView
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerState
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerView
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerViewDefaults
+import io.element.android.features.messages.impl.roomdata.RoomDeviceAgent
+import io.element.android.features.messages.impl.roomdata.RoomMenuRenderModel
+import io.element.android.features.messages.impl.roomdata.RoomTopbarAction
+import io.element.android.features.messages.impl.roomdata.RoomTopbarToolRenderModel
+import io.element.android.features.messages.impl.terminal.DeviceAgentTerminalPanelState
 import io.element.android.features.messages.impl.timeline.FOCUS_ON_PINNED_EVENT_DEBOUNCE_DURATION_IN_MILLIS
 import io.element.android.features.messages.impl.timeline.TimelineEvent
 import io.element.android.features.messages.impl.timeline.TimelineView
@@ -80,7 +114,6 @@ import io.element.android.features.messages.impl.timeline.aGroupedEvents
 import io.element.android.features.messages.impl.timeline.aTimelineItemDaySeparator
 import io.element.android.features.messages.impl.timeline.aTimelineItemEvent
 import io.element.android.features.messages.impl.timeline.aTimelineState
-import io.element.android.features.messages.impl.timeline.components.CallMenuItem
 import io.element.android.features.messages.impl.timeline.components.customreaction.CustomReactionBottomSheet
 import io.element.android.features.messages.impl.timeline.components.customreaction.CustomReactionEvent
 import io.element.android.features.messages.impl.timeline.components.reactionsummary.ReactionSummaryEvent
@@ -141,8 +174,12 @@ fun MessagesView(
     onSendLocationClick: () -> Unit,
     onCreatePollClick: () -> Unit,
     onJoinCallClick: (isAudioCall: Boolean) -> Unit,
+    onRoomSchedulesClick: () -> Unit,
+    onRoomWebhooksClick: () -> Unit = {},
     onViewAllPinnedMessagesClick: () -> Unit,
     onThreadsListClick: () -> Unit,
+    onDeviceAgentChatClick: (RoomDeviceAgent) -> Unit = {},
+    onDeviceAgentTerminalClick: (RoomDeviceAgent) -> Unit = {},
     modifier: Modifier = Modifier,
     forceJumpToBottomVisibility: Boolean = false,
     knockRequestsBannerView: @Composable () -> Unit,
@@ -228,25 +265,6 @@ fun MessagesView(
                             isTombstoned = state.isTombstoned,
                             onBackClick = onBackClick,
                         )
-                    } else {
-                        MessagesViewTopBar(
-                            roomName = state.roomName,
-                            roomAvatar = state.roomAvatar,
-                            isTombstoned = state.isTombstoned,
-                            heroes = state.heroes,
-                            dmUserIdentityState = state.dmUserVerificationState,
-                            sharedHistoryIcon = state.topBarSharedHistoryIcon,
-                            onBackClick = { hidingKeyboard { onBackClick() } },
-                            onRoomDetailsClick = { hidingKeyboard { onRoomDetailsClick() } },
-                            menuActions = {
-                                MessagesMenuActions(
-                                    displayThreads = state.timelineState.timelineMode !is Timeline.Mode.Thread && state.threads.hasThreads,
-                                    roomCallState = state.roomCallState,
-                                    onJoinCallClick = onJoinCallClick,
-                                    onThreadsListClick = onThreadsListClick
-                                )
-                            }
-                        )
                     }
                 },
                 content = { padding ->
@@ -288,6 +306,50 @@ fun MessagesView(
                             knockRequestsBannerView = knockRequestsBannerView,
                         )
 
+                        if (state.timelineState.timelineMode !is Timeline.Mode.Thread) {
+                            TopChromeBackdrop(
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .fillMaxWidth()
+                                    .height(152.dp),
+                            )
+                            BottomChromeBackdrop(
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .fillMaxWidth()
+                                    .height(112.dp),
+                            )
+                            MessagesViewTopBar(
+                                modifier = Modifier.align(Alignment.TopStart),
+                                roomName = state.roomName,
+                                roomAvatar = state.roomAvatar,
+                                isTombstoned = state.isTombstoned,
+                                heroes = state.heroes,
+                                dmUserIdentityState = state.dmUserVerificationState,
+                                sharedHistoryIcon = state.topBarSharedHistoryIcon,
+                                onBackClick = { hidingKeyboard { onBackClick() } },
+                                onRoomDetailsClick = { hidingKeyboard { onRoomDetailsClick() } },
+                                menuActions = {
+                                    MessagesMenuActions(
+                                        roomMenu = state.roomMenu,
+                                        roomCallState = state.roomCallState,
+                                        onJoinCallClick = onJoinCallClick,
+                                        onRoomSchedulesClick = onRoomSchedulesClick,
+                                        onRoomWebhooksClick = onRoomWebhooksClick,
+                                        onThreadsListClick = onThreadsListClick,
+                                        onDeviceAgentChatClick = {
+                                            state.eventSink(MessagesEvent.ToggleDeviceAgentChat(it))
+                                            onDeviceAgentChatClick(it)
+                                        },
+                                        onDeviceAgentTerminalClick = {
+                                            state.eventSink(MessagesEvent.OpenDeviceAgentTerminal(it))
+                                            onDeviceAgentTerminalClick(it)
+                                        },
+                                    )
+                                }
+                            )
+                        }
+
                         SuggestionsPickerView(
                             modifier = Modifier
                                     .shadow(10.dp)
@@ -298,9 +360,18 @@ fun MessagesView(
                             roomName = state.roomName,
                             roomAvatarData = state.roomAvatar,
                             suggestions = state.composerState.suggestions,
+                            suggestionRenderModels = state.composerState.suggestionRenderModels,
                             onSelectSuggestion = {
                                 state.composerState.eventSink(MessageComposerEvent.InsertSuggestion(it))
                             }
+                        )
+
+                        DeviceAgentTerminalPanel(
+                            panel = state.deviceAgentTerminalPanel,
+                            onDismiss = { state.eventSink(MessagesEvent.DismissDeviceAgentTerminal) },
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(horizontal = 20.dp, vertical = 96.dp),
                         )
                     }
                 },
@@ -410,28 +481,382 @@ fun MessagesView(
         },
         state = state.linkState,
     )
+    SelectableMessageTextDialog(
+        text = state.selectableMessageText,
+        onDismiss = { state.eventSink(MessagesEvent.DismissSelectableMessageText) },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SelectableMessageTextDialog(
+    text: String?,
+    onDismiss: () -> Unit,
+) {
+    if (text == null) return
+    BasicAlertDialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = ElementTheme.colors.bgCanvasDefault,
+            tonalElevation = 6.dp,
+        ) {
+            Column(
+                modifier = Modifier
+                    .widthIn(min = 280.dp, max = 560.dp)
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text(
+                    text = stringResource(CommonStrings.action_select_text),
+                    style = ElementTheme.typography.fontHeadingMdBold,
+                    color = ElementTheme.colors.textPrimary,
+                )
+                SelectionContainer {
+                    Text(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 320.dp)
+                            .verticalScroll(rememberScrollState()),
+                        text = text,
+                        style = ElementTheme.typography.fontBodyLgRegular,
+                        color = ElementTheme.colors.textPrimary,
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(text = stringResource(CommonStrings.action_ok))
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
 internal fun RowScope.MessagesMenuActions(
-    displayThreads: Boolean,
+    roomMenu: RoomMenuRenderModel,
     roomCallState: RoomCallState,
     onJoinCallClick: (isAudioCall: Boolean) -> Unit,
+    onRoomSchedulesClick: () -> Unit,
+    onRoomWebhooksClick: () -> Unit = {},
     onThreadsListClick: () -> Unit,
+    onDeviceAgentChatClick: (RoomDeviceAgent) -> Unit = {},
+    onDeviceAgentTerminalClick: (RoomDeviceAgent) -> Unit = {},
 ) {
-    if (displayThreads) {
-        Icon(
-            modifier = Modifier.clickable(enabled = true, onClick = onThreadsListClick),
-            imageVector = CompoundIcons.ThreadsSolid(),
-            contentDescription = stringResource(CommonStrings.common_threads),
-        )
-        Spacer(Modifier.width(8.dp))
-    }
-    CallMenuItem(
+    RoomCallButton(
         roomCallState = roomCallState,
         onJoinCallClick = onJoinCallClick,
     )
-    Spacer(Modifier.width(8.dp))
+    RoomToolMenu(
+        roomMenu = roomMenu,
+        onRoomSchedulesClick = onRoomSchedulesClick,
+        onRoomWebhooksClick = onRoomWebhooksClick,
+        onDeviceAgentChatClick = onDeviceAgentChatClick,
+        onDeviceAgentTerminalClick = onDeviceAgentTerminalClick,
+    )
+}
+
+@Composable
+private fun RoomCallButton(
+    roomCallState: RoomCallState,
+    onJoinCallClick: (isAudioCall: Boolean) -> Unit,
+) {
+    when (roomCallState) {
+        RoomCallState.Unavailable -> Unit
+        is RoomCallState.StandBy -> {
+            ToolbarCircleButton(
+                onClick = { onJoinCallClick(false) },
+                enabled = roomCallState.canStartCall,
+            ) {
+                Icon(
+                    modifier = Modifier.size(22.dp),
+                    imageVector = CompoundIcons.VideoCallSolid(),
+                    contentDescription = stringResource(CommonStrings.a11y_start_call),
+                )
+            }
+        }
+        is RoomCallState.OnGoing -> {
+            if (!roomCallState.isUserLocallyInTheCall) {
+                ToolbarCircleButton(
+                    onClick = { onJoinCallClick(roomCallState.isAudioCall) },
+                    enabled = roomCallState.canJoinCall,
+                ) {
+                    Icon(
+                        modifier = Modifier.size(22.dp),
+                        imageVector = if (roomCallState.isAudioCall) {
+                            CompoundIcons.VoiceCallSolid()
+                        } else {
+                            CompoundIcons.VideoCallSolid()
+                        },
+                        contentDescription = stringResource(CommonStrings.action_join),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoomToolMenu(
+    roomMenu: RoomMenuRenderModel,
+    onRoomSchedulesClick: () -> Unit,
+    onRoomWebhooksClick: () -> Unit,
+    onDeviceAgentChatClick: (RoomDeviceAgent) -> Unit,
+    onDeviceAgentTerminalClick: (RoomDeviceAgent) -> Unit,
+) {
+    val tools = roomMenu.topbarTools
+    if (tools.isEmpty()) return
+
+    var expanded by remember { mutableStateOf(false) }
+    val deviceAgent = roomMenu.deviceAgent
+    val topbarAgentChatActive = tools.any { it.action == RoomTopbarAction.DeviceAgentChat && it.isActive }
+    val moreRotation by animateFloatAsState(
+        targetValue = if (expanded) 90f else 0f,
+        animationSpec = spring(dampingRatio = 0.85f),
+        label = "room-tool-menu-rotation",
+    )
+
+    Column(
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        ToolbarCircleButton(
+            onClick = { expanded = !expanded },
+            isActive = topbarAgentChatActive,
+            badgeContent = {
+                if (topbarAgentChatActive) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(ElementTheme.colors.iconSuccessPrimary)
+                    )
+                }
+            },
+        ) {
+            Icon(
+                modifier = Modifier
+                    .size(22.dp)
+                    .rotate(moreRotation),
+                imageVector = CompoundIcons.OverflowHorizontal(),
+                contentDescription = "Room tools",
+            )
+        }
+
+        AnimatedVisibility(
+            visible = expanded,
+            enter = fadeIn(animationSpec = spring()) + slideInVertically(
+                animationSpec = spring(dampingRatio = 0.85f),
+                initialOffsetY = { -it / 2 },
+            ),
+            exit = fadeOut(animationSpec = spring()) + slideOutVertically(
+                animationSpec = spring(dampingRatio = 0.85f),
+                targetOffsetY = { -it / 2 },
+            ),
+        ) {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                tools.forEach { tool ->
+                    RoomTopbarToolButton(
+                        tool = tool,
+                        deviceAgent = deviceAgent,
+                        onClick = {
+                            expanded = false
+                            when (tool.action) {
+                                RoomTopbarAction.DeviceAgentTerminal -> deviceAgent?.let(onDeviceAgentTerminalClick)
+                                RoomTopbarAction.DeviceAgentChat -> deviceAgent?.let(onDeviceAgentChatClick)
+                                RoomTopbarAction.Webhooks -> onRoomWebhooksClick()
+                                RoomTopbarAction.Schedules -> onRoomSchedulesClick()
+                                RoomTopbarAction.Threads -> Unit
+                            }
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoomTopbarToolButton(
+    tool: RoomTopbarToolRenderModel,
+    deviceAgent: RoomDeviceAgent?,
+    onClick: () -> Unit,
+) {
+    val enabled = tool.isEnabled && when (tool.action) {
+        RoomTopbarAction.DeviceAgentTerminal,
+        RoomTopbarAction.DeviceAgentChat -> deviceAgent != null
+        RoomTopbarAction.Schedules,
+        RoomTopbarAction.Webhooks -> true
+        RoomTopbarAction.Threads -> false
+    }
+    ToolbarCircleButton(
+        onClick = onClick,
+        enabled = enabled,
+        isActive = tool.isActive,
+        badgeContent = {
+            tool.badgeCount?.let { count ->
+                Badge(
+                    containerColor = when (tool.action) {
+                        RoomTopbarAction.Schedules -> Color(0xFF8B5CF6)
+                        else -> ElementTheme.colors.iconAccentPrimary
+                    },
+                    contentColor = Color.White,
+                ) {
+                    Text(count.toString())
+                }
+            }
+        },
+    ) {
+        Icon(
+            modifier = Modifier.size(22.dp),
+            tint = if (tool.isActive) ElementTheme.colors.iconSuccessPrimary else ElementTheme.colors.iconPrimary,
+            imageVector = when (tool.action) {
+                RoomTopbarAction.DeviceAgentTerminal -> CompoundIcons.Code()
+                RoomTopbarAction.DeviceAgentChat -> CompoundIcons.Computer()
+                RoomTopbarAction.Webhooks -> CompoundIcons.Link()
+                RoomTopbarAction.Schedules -> CompoundIcons.Time()
+                RoomTopbarAction.Threads -> CompoundIcons.Threads()
+            },
+            contentDescription = when (tool.action) {
+                RoomTopbarAction.DeviceAgentTerminal -> "Remote terminal"
+                RoomTopbarAction.DeviceAgentChat -> "Chat with device agent"
+                RoomTopbarAction.Webhooks -> "Webhook triggers"
+                RoomTopbarAction.Schedules -> "Room AI Config"
+                RoomTopbarAction.Threads -> stringResource(CommonStrings.common_threads)
+            },
+        )
+    }
+}
+
+@Composable
+private fun DeviceAgentTerminalPanel(
+    panel: DeviceAgentTerminalPanelState?,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    AnimatedVisibility(
+        visible = panel != null,
+        modifier = modifier,
+        enter = fadeIn(animationSpec = spring()) + slideInVertically(
+            animationSpec = spring(dampingRatio = 0.86f),
+            initialOffsetY = { it / 2 },
+        ),
+        exit = fadeOut(animationSpec = spring()) + slideOutVertically(
+            animationSpec = spring(dampingRatio = 0.86f),
+            targetOffsetY = { it / 2 },
+        ),
+    ) {
+        if (panel != null) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 420.dp)
+                    .shadow(12.dp, MaterialTheme.shapes.medium)
+                    .background(ElementTheme.colors.bgSubtleSecondary.copy(alpha = 0.94f), MaterialTheme.shapes.medium)
+                    .border(1.dp, ElementTheme.colors.borderInteractivePrimary, MaterialTheme.shapes.medium),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Icon(
+                        imageVector = CompoundIcons.Code(),
+                        contentDescription = null,
+                        tint = ElementTheme.colors.iconAccentPrimary,
+                    )
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(1.dp),
+                    ) {
+                        Text(
+                            text = panel.title,
+                            style = ElementTheme.typography.fontBodyMdMedium,
+                            color = ElementTheme.colors.textPrimary,
+                            maxLines = 1,
+                        )
+                        Text(
+                            text = panel.subtitle,
+                            style = ElementTheme.typography.fontBodyXsRegular,
+                            color = ElementTheme.colors.textSecondary,
+                            maxLines = 1,
+                        )
+                    }
+                    Text(
+                        text = panel.statusTitle,
+                        style = ElementTheme.typography.fontBodyXsRegular,
+                        color = ElementTheme.colors.textSecondary,
+                        maxLines = 1,
+                    )
+                    ToolbarCircleButton(
+                        onClick = onDismiss,
+                    ) {
+                        Icon(
+                            imageVector = CompoundIcons.Close(),
+                            contentDescription = "Close remote terminal",
+                        )
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .background(Color.Black)
+                        .verticalScroll(rememberScrollState())
+                        .padding(10.dp),
+                ) {
+                    Text(
+                        text = panel.outputText,
+                        style = ElementTheme.typography.fontBodyXsRegular.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Normal,
+                        ),
+                        color = Color(0xFF45E06F),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolbarCircleButton(
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    isActive: Boolean = false,
+    badgeContent: @Composable BoxScope.() -> Unit = {},
+    content: @Composable () -> Unit,
+) {
+    BadgedBox(
+        badge = badgeContent,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(
+                    if (isActive) {
+                        ElementTheme.colors.bgCanvasDefault.copy(alpha = 0.88f)
+                    } else {
+                        ElementTheme.colors.bgSubtleSecondary.copy(alpha = 0.88f)
+                    }
+                )
+                .border(1.dp, ElementTheme.colors.borderDisabled, CircleShape)
+                .clickable(enabled = enabled, onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            content()
+        }
+    }
 }
 
 @Composable
@@ -475,9 +900,9 @@ private fun MessagesViewContent(
     ) {
         AttachmentsBottomSheet(
             state = state.composerState,
+            attachmentActions = state.roomMenu.attachmentActions,
             onSendLocationClick = onSendLocationClick,
             onCreatePollClick = onCreatePollClick,
-            enableTextFormatting = state.enableTextFormatting,
         )
 
         if (state.voiceMessageComposerState.showPermissionRationaleDialog) {
@@ -560,38 +985,118 @@ private fun MessagesViewComposerBottomSheetContents(
     onRoomSuccessorClick: (RoomId) -> Unit,
     onLinkClick: (String, Boolean) -> Unit,
 ) {
-    when {
-        state.successorRoom != null -> {
-            SuccessorRoomBanner(roomSuccessor = state.successorRoom, onRoomSuccessorClick = onRoomSuccessorClick)
-        }
-        state.userEventPermissions.canSendMessage -> {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                // Do not show the identity change if user is composing a Rich message or is seeing suggestion(s).
-                if (state.composerState.suggestions.isEmpty() &&
-                    state.composerState.textEditorState is TextEditorState.Markdown) {
-                    IdentityChangeStateView(
-                        state = state.identityChangeState,
-                        onLinkClick = onLinkClick,
-                    )
-                }
-                val verificationViolation = state.identityChangeState.roomMemberIdentityStateChanges.firstOrNull {
-                    it.identityState == IdentityState.VerificationViolation
-                }
-                if (verificationViolation != null) {
-                    DisabledComposerView(modifier = Modifier.fillMaxWidth())
-                } else {
-                    MessageComposerView(
-                        state = state.composerState,
-                        voiceMessageState = state.voiceMessageComposerState,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+    RoomComposerChrome {
+        when {
+            state.successorRoom != null -> {
+                SuccessorRoomBanner(roomSuccessor = state.successorRoom, onRoomSuccessorClick = onRoomSuccessorClick)
+            }
+            state.userEventPermissions.canSendMessage -> {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Do not show the identity change if user is composing a Rich message or is seeing suggestion(s).
+                    if (state.composerState.suggestions.isEmpty() &&
+                        state.composerState.textEditorState is TextEditorState.Markdown) {
+                        IdentityChangeStateView(
+                            state = state.identityChangeState,
+                            onLinkClick = onLinkClick,
+                        )
+                    }
+                    val verificationViolation = state.identityChangeState.roomMemberIdentityStateChanges.firstOrNull {
+                        it.identityState == IdentityState.VerificationViolation
+                    }
+                    if (verificationViolation != null) {
+                        DisabledComposerView(modifier = Modifier.fillMaxWidth())
+                    } else {
+                        ComposerAgentSkillPickerView(
+                            state = state.composerState.agentSkillState,
+                            onTogglePicker = {
+                                state.composerState.eventSink(MessageComposerEvent.ToggleAgentSkillPicker)
+                            },
+                            onSelectTarget = {
+                                state.composerState.eventSink(MessageComposerEvent.SelectAgentSkillTarget(it))
+                            },
+                            onSelectSkill = {
+                                state.composerState.eventSink(MessageComposerEvent.SelectAgentSkill(it))
+                            },
+                            onRemoveSkill = {
+                                state.composerState.eventSink(MessageComposerEvent.RemoveSelectedAgentSkill(it))
+                            },
+                        )
+                        MessageComposerView(
+                            state = state.composerState,
+                            voiceMessageState = state.voiceMessageComposerState,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
             }
-        }
-        else -> {
-            CantSendMessageBanner()
+            else -> {
+                CantSendMessageBanner()
+            }
         }
     }
+}
+
+@Composable
+private fun RoomComposerChrome(
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val canvas = ElementTheme.colors.bgCanvasDefault
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color.Transparent,
+                        canvas.copy(alpha = 0.12f),
+                        canvas.copy(alpha = 0.28f),
+                    )
+                )
+            )
+            .padding(top = 8.dp, start = 12.dp, end = 12.dp, bottom = 10.dp),
+        content = content,
+    )
+}
+
+@Composable
+private fun TopChromeBackdrop(
+    modifier: Modifier = Modifier,
+) {
+    val canvas = ElementTheme.colors.bgCanvasDefault
+    Box(
+        modifier = modifier
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        canvas,
+                        canvas.copy(alpha = 0.98f),
+                        canvas.copy(alpha = 0.82f),
+                        canvas.copy(alpha = 0.36f),
+                        Color.Transparent,
+                    )
+                )
+            )
+    )
+}
+
+@Composable
+private fun BottomChromeBackdrop(
+    modifier: Modifier = Modifier,
+) {
+    val canvas = ElementTheme.colors.bgCanvasDefault
+    Box(
+        modifier = modifier
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color.Transparent,
+                        canvas.copy(alpha = 0.16f),
+                        canvas.copy(alpha = 0.48f),
+                        canvas.copy(alpha = 0.78f),
+                    )
+                )
+            )
+    )
 }
 
 @Composable
@@ -642,6 +1147,7 @@ internal fun MessagesViewPreview(@PreviewParameter(MessagesStateProvider::class)
         onSendLocationClick = {},
         onCreatePollClick = {},
         onJoinCallClick = {},
+        onRoomSchedulesClick = {},
         onViewAllPinnedMessagesClick = { },
         forceJumpToBottomVisibility = true,
         knockRequestsBannerView = {},
@@ -697,6 +1203,7 @@ internal fun MessagesViewA11yPreview() = ElementPreview {
         onSendLocationClick = {},
         onCreatePollClick = {},
         onJoinCallClick = {},
+        onRoomSchedulesClick = {},
         onViewAllPinnedMessagesClick = {},
         onThreadsListClick = {},
         forceJumpToBottomVisibility = true,

@@ -40,6 +40,8 @@ object NetworkModule {
     @SingleIn(AppScope::class)
     fun providesHttpLoggingInterceptor(): HttpLoggingInterceptor {
         val logger = FormattedJsonHttpLogger(HttpLoggingInterceptor.Level.BODY)
-        return HttpLoggingInterceptor(logger)
+        return HttpLoggingInterceptor(logger).apply {
+            redactHeader("Authorization")
+        }
     }
 }

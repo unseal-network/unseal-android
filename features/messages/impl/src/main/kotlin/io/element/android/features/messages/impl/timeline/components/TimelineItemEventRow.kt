@@ -12,6 +12,7 @@ import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -56,12 +57,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.constraintlayout.compose.ConstrainScope
 import androidx.constraintlayout.compose.ConstraintLayout
+import androidx.constraintlayout.compose.Dimension
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.messages.impl.timeline.TimelineEvent
 import io.element.android.features.messages.impl.timeline.TimelineRoomInfo
 import io.element.android.features.messages.impl.timeline.aTimelineItemEvent
 import io.element.android.features.messages.impl.timeline.components.event.TimelineItemEventContentView
+import io.element.android.features.messages.impl.timeline.components.event.LocalTimelineTextLayoutMeasurementEnabled
 import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayout
 import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
 import io.element.android.features.messages.impl.timeline.components.receipt.ReadReceiptViewState
@@ -69,10 +72,18 @@ import io.element.android.features.messages.impl.timeline.components.receipt.Tim
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.timeline.model.TimelineItemGroupPosition
 import io.element.android.features.messages.impl.timeline.model.TimelineItemThreadInfo
+import io.element.android.features.messages.impl.timeline.model.TimelineItemAlignment
+import io.element.android.features.messages.impl.timeline.model.TimelinePresentationModel
+import io.element.android.features.messages.impl.timeline.model.TimelinePresentationReducer
+import io.element.android.features.messages.impl.timeline.model.TimelineReplySwipePolicy
+import io.element.android.features.messages.impl.timeline.model.TimelineSupplementaryPolicy
 import io.element.android.features.messages.impl.timeline.model.bubble.BubbleState
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemGameContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemImageContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemPollContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextBasedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemStickerContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVideoContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVoiceContent
@@ -135,6 +146,10 @@ val NEGATIVE_MARGIN_FOR_BUBBLE = (-8).dp
 val SENDER_AVATAR_BORDER_WIDTH = 3.dp
 
 private val BUBBLE_INCOMING_OFFSET = 16.dp
+private val TIMELINE_ROW_HORIZONTAL_PADDING = 16.dp
+private val AI_SENDER_DETAILS_SPACING = 4.dp
+private val AI_INCOMING_CONTENT_START = TIMELINE_ROW_HORIZONTAL_PADDING + AvatarSize.TimelineSender.dp + AI_SENDER_DETAILS_SPACING
+private val AI_INCOMING_CONTENT_END = 16.dp
 
 @Composable
 fun TimelineItemEventRow(
@@ -172,7 +187,12 @@ fun TimelineItemEventRow(
             onLinkLongClick = onLinkLongClick,
             eventSink = eventSink,
             modifier = contentModifier,
-            onContentLayoutChange = onContentLayoutChange
+            onContentLayoutChange = onContentLayoutChange,
+            // Game cards embed the timestamp inside the card itself (inline with the action row)
+            // so no separate timestamp row is rendered by the bubble layout system.
+            gameCardTimestampSlot = {
+                TimelineEventTimestampView(event = event, eventSink = eventSink)
+            },
         )
     },
 ) {
@@ -206,70 +226,111 @@ fun TimelineItemEventRow(
         } else {
             Spacer(modifier = Modifier.height(2.dp))
         }
-        val canReply = timelineRoomInfo.userHasPermissionToSendMessage && event.canBeRepliedTo
-        if (canReply) {
-            val state: SwipeableActionsState = rememberSwipeableActionsState()
-            val offset = state.offset.floatValue
-            val swipeThresholdPx = 40.dp.toPx()
-            val thresholdCrossed = abs(offset) > swipeThresholdPx
-            SwipeSensitivity(3f) {
-                Box(Modifier.fillMaxWidth()) {
-                    Row(modifier = Modifier.matchParentSize()) {
-                        ReplySwipeIndicator({ offset / 120 })
-                    }
-                    TimelineItemEventRowContent(
-                        event = event,
-                        timelineMode = timelineMode,
-                        timelineProtectionState = timelineProtectionState,
-                        timelineRoomInfo = timelineRoomInfo,
-                        interactionSource = interactionSource,
-                        onContentClick = onContentClick,
-                        onLongClick = onLongClick,
-                        inReplyToClick = ::inReplyToClick,
-                        onUserDataClick = ::onUserDataClick,
-                        onReactionClick = { emoji -> onReactionClick(emoji, event) },
-                        onReactionLongClick = { emoji -> onReactionLongClick(emoji, event) },
-                        onMoreReactionsClick = { onMoreReactionsClick(event) },
-                        modifier = Modifier
-                            .absoluteOffset { IntOffset(x = offset.roundToInt(), y = 0) }
-                            .draggable(
-                                orientation = Orientation.Horizontal,
-                                enabled = !state.isResettingOnRelease,
-                                onDragStopped = {
-                                    coroutineScope.launch {
-                                        if (thresholdCrossed) {
-                                            onSwipeToReply()
-                                        }
-                                        state.resetOffset()
-                                    }
-                                },
-                                state = state.draggableState,
-                            ),
-                        eventSink = eventSink,
-                        eventContentView = eventContentView,
-                    )
-                }
-            }
-        } else {
-            TimelineItemEventRowContent(
+
+        val isEventPinned = timelineRoomInfo.pinnedEventIds.contains(event.eventId)
+        val hasThreadSummary = displayThreadSummaries && timelineMode !is Timeline.Mode.Thread && event.threadInfo is TimelineItemThreadInfo.ThreadRoot
+        val presentation = remember(
+            event.content,
+            event.isMine,
+            event.groupPosition,
+            timelineRoomInfo.isDm,
+            event.inReplyTo,
+            event.reactionsState.reactions,
+            isEventPinned,
+            hasThreadSummary,
+        ) {
+            TimelinePresentationReducer.reduce(
+                content = event.content,
+                isMine = event.isMine,
+                groupPosition = event.groupPosition,
+                isDirectRoom = timelineRoomInfo.isDm,
+                hasReply = event.inReplyTo != null,
+                hasReactions = event.reactionsState.reactions.isNotEmpty(),
+                isPinned = isEventPinned,
+                hasThreadSummary = hasThreadSummary,
+            )
+        }
+        val canUseStandaloneFastPath = presentation.isStandalone &&
+            presentation.supplementaryPolicy == TimelineSupplementaryPolicy.None
+
+        if (canUseStandaloneFastPath) {
+            TimelineItemStandaloneRow(
                 event = event,
-                timelineMode = timelineMode,
-                timelineProtectionState = timelineProtectionState,
                 timelineRoomInfo = timelineRoomInfo,
-                interactionSource = interactionSource,
-                onContentClick = onContentClick,
+                presentation = presentation,
                 onLongClick = onLongClick,
-                inReplyToClick = ::inReplyToClick,
                 onUserDataClick = ::onUserDataClick,
-                onReactionClick = { emoji -> onReactionClick(emoji, event) },
-                onReactionLongClick = { emoji -> onReactionLongClick(emoji, event) },
-                onMoreReactionsClick = { onMoreReactionsClick(event) },
                 eventSink = eventSink,
                 eventContentView = eventContentView,
             )
+        } else {
+            val canReply = timelineRoomInfo.userHasPermissionToSendMessage &&
+                event.canBeRepliedTo &&
+                presentation.replySwipePolicy == TimelineReplySwipePolicy.Enabled
+            if (canReply) {
+                val state: SwipeableActionsState = rememberSwipeableActionsState()
+                val offset = state.offset.floatValue
+                val swipeThresholdPx = 40.dp.toPx()
+                val thresholdCrossed = abs(offset) > swipeThresholdPx
+                SwipeSensitivity(3f) {
+                    Box(Modifier.fillMaxWidth()) {
+                        Row(modifier = Modifier.matchParentSize()) {
+                            ReplySwipeIndicator({ offset / 120 })
+                        }
+                        TimelineItemEventRowContent(
+                            event = event,
+                            timelineMode = timelineMode,
+                            timelineProtectionState = timelineProtectionState,
+                            timelineRoomInfo = timelineRoomInfo,
+                            interactionSource = interactionSource,
+                            onContentClick = onContentClick,
+                            onLongClick = onLongClick,
+                            inReplyToClick = ::inReplyToClick,
+                            onUserDataClick = ::onUserDataClick,
+                            onReactionClick = { emoji -> onReactionClick(emoji, event) },
+                            onReactionLongClick = { emoji -> onReactionLongClick(emoji, event) },
+                            onMoreReactionsClick = { onMoreReactionsClick(event) },
+                            modifier = Modifier
+                                .absoluteOffset { IntOffset(x = offset.roundToInt(), y = 0) }
+                                .draggable(
+                                    orientation = Orientation.Horizontal,
+                                    enabled = !state.isResettingOnRelease,
+                                    onDragStopped = {
+                                        coroutineScope.launch {
+                                            if (thresholdCrossed) {
+                                                onSwipeToReply()
+                                            }
+                                            state.resetOffset()
+                                        }
+                                    },
+                                    state = state.draggableState,
+                                ),
+                            eventSink = eventSink,
+                            eventContentView = eventContentView,
+                        )
+                    }
+                }
+            } else {
+                TimelineItemEventRowContent(
+                    event = event,
+                    timelineMode = timelineMode,
+                    timelineProtectionState = timelineProtectionState,
+                    timelineRoomInfo = timelineRoomInfo,
+                    interactionSource = interactionSource,
+                    onContentClick = onContentClick,
+                    onLongClick = onLongClick,
+                    inReplyToClick = ::inReplyToClick,
+                    onUserDataClick = ::onUserDataClick,
+                    onReactionClick = { emoji -> onReactionClick(emoji, event) },
+                    onReactionLongClick = { emoji -> onReactionLongClick(emoji, event) },
+                    onMoreReactionsClick = { onMoreReactionsClick(event) },
+                    eventSink = eventSink,
+                    eventContentView = eventContentView,
+                )
+            }
         }
 
-        if (displayThreadSummaries && timelineMode !is Timeline.Mode.Thread && event.threadInfo is TimelineItemThreadInfo.ThreadRoot) {
+        if (hasThreadSummary) {
             ThreadSummaryView(
                 modifier = if (event.isMine) {
                     Modifier
@@ -296,10 +357,79 @@ fun TimelineItemEventRow(
                 isLastOutgoingMessage = isLastOutgoingMessage,
                 receipts = event.readReceiptState.receipts,
             ),
-            renderReadReceipts = renderReadReceipts,
+            renderReadReceipts = renderReadReceipts && event.content !is TimelineItemAiContent,
             onReadReceiptsClick = { onReadReceiptClick(event) },
             modifier = Modifier.padding(top = 4.dp)
         )
+    }
+}
+
+@Composable
+private fun TimelineItemStandaloneRow(
+    event: TimelineItem.Event,
+    timelineRoomInfo: TimelineRoomInfo,
+    presentation: TimelinePresentationModel,
+    onLongClick: () -> Unit,
+    onUserDataClick: () -> Unit,
+    eventSink: (TimelineEvent.TimelineItemEvent) -> Unit,
+    eventContentView: @Composable (Modifier, (ContentAvoidingLayoutData) -> Unit) -> Unit,
+) {
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val contentStartMargin = when {
+            timelineRoomInfo.isDm || maxWidth < 360.dp -> TIMELINE_ROW_HORIZONTAL_PADDING + AvatarSize.TimelineSender.dp
+            maxWidth < 430.dp -> AI_INCOMING_CONTENT_START + 4.dp
+            else -> AI_INCOMING_CONTENT_START + 16.dp
+        }
+        val contentEndMargin = when {
+            maxWidth < 390.dp -> 32.dp
+            maxWidth < 600.dp -> 48.dp
+            else -> 72.dp
+        }
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            if (presentation.showSenderInformation) {
+                MessageSenderInformation(
+                    event.senderId,
+                    event.senderProfile,
+                    event.senderAvatar,
+                    onUserDataClick,
+                    Modifier.padding(horizontal = TIMELINE_ROW_HORIZONTAL_PADDING),
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = contentStartMargin, end = contentEndMargin)
+                    .combinedClickable(
+                        onClick = {},
+                        onLongClick = onLongClick,
+                    )
+                    .semantics(mergeDescendants = false) {
+                        isTraversalGroup = true
+                        traversalIndex = -1f
+                    },
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    CompositionLocalProvider(
+                        LocalTimelineTextLayoutMeasurementEnabled provides false,
+                    ) {
+                        eventContentView(Modifier.fillMaxWidth()) {}
+                    }
+                    if (event.content !is TimelineItemAiContent) {
+                        TimelineEventTimestampView(
+                            event = event,
+                            eventSink = eventSink,
+                            modifier = Modifier
+                                .align(Alignment.End)
+                                .padding(top = 4.dp),
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -425,11 +555,46 @@ private fun TimelineItemEventRowContent(
         start.linkTo(parent.start)
     }
 
-    ConstraintLayout(
+    BoxWithConstraints(
         modifier = modifier
             .wrapContentHeight()
             .fillMaxWidth(),
     ) {
+        val isEventPinned = timelineRoomInfo.pinnedEventIds.contains(event.eventId)
+        val presentation = remember(
+            event.content,
+            event.isMine,
+            event.groupPosition,
+            timelineRoomInfo.isDm,
+            event.inReplyTo,
+            event.reactionsState.reactions,
+            isEventPinned,
+        ) {
+            TimelinePresentationReducer.reduce(
+                content = event.content,
+                isMine = event.isMine,
+                groupPosition = event.groupPosition,
+                isDirectRoom = timelineRoomInfo.isDm,
+                hasReply = event.inReplyTo != null,
+                hasReactions = event.reactionsState.reactions.isNotEmpty(),
+                isPinned = isEventPinned,
+            )
+        }
+        val standaloneContentStartMargin = when {
+            maxWidth < 360.dp -> TIMELINE_ROW_HORIZONTAL_PADDING + 28.dp
+            else -> AI_INCOMING_CONTENT_START
+        }
+        val standaloneContentEndMargin = when {
+            maxWidth < 390.dp -> 32.dp
+            maxWidth < 600.dp -> 48.dp
+            else -> 64.dp
+        }
+
+        ConstraintLayout(
+            modifier = Modifier
+                .wrapContentHeight()
+                .fillMaxWidth(),
+        ) {
         val (
             sender,
             message,
@@ -438,7 +603,7 @@ private fun TimelineItemEventRowContent(
         ) = createRefs()
 
         // Sender
-        if (event.showSenderInformation && !timelineRoomInfo.isDm) {
+        if (presentation.showSenderInformation) {
             MessageSenderInformation(
                 event.senderId,
                 event.senderProfile,
@@ -461,40 +626,71 @@ private fun TimelineItemEventRowContent(
             isMine = event.isMine,
             timelineRoomInfo = timelineRoomInfo,
         )
-        MessageEventBubble(
-            modifier = Modifier
-                .constrainAs(message) {
-                    val topMargin = if (bubbleState.cutTopStart) {
-                        NEGATIVE_MARGIN_FOR_BUBBLE
+        val messageModifier = Modifier
+            .constrainAs(message) {
+                val topMargin = if (!presentation.isStandalone && bubbleState.cutTopStart) {
+                    NEGATIVE_MARGIN_FOR_BUBBLE
+                } else {
+                    0.dp
+                }
+                top.linkTo(sender.bottom, margin = topMargin)
+                if (presentation.alignment == TimelineItemAlignment.End) {
+                    end.linkTo(parent.end, margin = 16.dp)
+                } else {
+                    val startMargin = if (presentation.reserveAvatarColumn) {
+                        standaloneContentStartMargin
+                    } else if (timelineRoomInfo.isDm) {
+                        16.dp
                     } else {
-                        0.dp
+                        16.dp + BUBBLE_INCOMING_OFFSET
                     }
-                    top.linkTo(sender.bottom, margin = topMargin)
-                    if (event.isMine) {
-                        end.linkTo(parent.end, margin = 16.dp)
-                    } else {
-                        val startMargin = if (timelineRoomInfo.isDm) 16.dp else 16.dp + BUBBLE_INCOMING_OFFSET
-                        start.linkTo(parent.start, margin = startMargin)
+                    start.linkTo(parent.start, margin = startMargin)
+                    if (presentation.isStandalone) {
+                        end.linkTo(parent.end, margin = standaloneContentEndMargin)
+                        width = Dimension.fillToConstraints
                     }
-                },
-            state = bubbleState,
-            interactionSource = interactionSource,
-            onClick = onContentClick,
-            onLongClick = onLongClick,
-        ) {
-            MessageEventBubbleContent(
-                event = event,
-                timelineMode = timelineMode,
-                timelineProtectionState = timelineProtectionState,
-                onMessageLongClick = onLongClick,
-                inReplyToClick = inReplyToClick,
-                eventSink = eventSink,
-                eventContentView = eventContentView,
-            )
+                }
+            }
+        if (presentation.isStandalone) {
+            BoxWithConstraints(
+                modifier = messageModifier,
+                contentAlignment = if (presentation.alignment == TimelineItemAlignment.End) Alignment.CenterEnd else Alignment.CenterStart,
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    MessageEventBubbleContent(
+                        event = event,
+                        timelineMode = timelineMode,
+                        timelineProtectionState = timelineProtectionState,
+                        onMessageLongClick = onLongClick,
+                        inReplyToClick = inReplyToClick,
+                        eventSink = eventSink,
+                        eventContentView = eventContentView,
+                    )
+                }
+            }
+        } else {
+            MessageEventBubble(
+                modifier = messageModifier,
+                state = bubbleState,
+                interactionSource = interactionSource,
+                onClick = onContentClick,
+                onLongClick = onLongClick,
+            ) {
+                MessageEventBubbleContent(
+                    event = event,
+                    timelineMode = timelineMode,
+                    timelineProtectionState = timelineProtectionState,
+                    onMessageLongClick = onLongClick,
+                    inReplyToClick = inReplyToClick,
+                    eventSink = eventSink,
+                    eventContentView = eventContentView,
+                )
+            }
         }
 
         // Pin icon
-        val isEventPinned = timelineRoomInfo.pinnedEventIds.contains(event.eventId)
         if (isEventPinned) {
             Icon(
                 imageVector = CompoundIcons.PinSolid(),
@@ -541,6 +737,7 @@ private fun TimelineItemEventRowContent(
                     )
             )
         }
+    }
     }
 }
 
@@ -786,14 +983,23 @@ private fun MessageEventBubbleContent(
                 content.mode.isOwnUser
             if (shouldHide) TimestampPosition.Hidden else TimestampPosition.Overlay
         }
-        is TimelineItemPollContent -> TimestampPosition.Below
+        is TimelineItemPollContent,
+        is TimelineItemTextBasedContent -> TimestampPosition.Below
+        // AI stream messages mirror iOS: cards + markdown are standalone timeline content and
+        // should not pay the normal bubble/timestamp avoidance layout cost.
+        is TimelineItemAiContent -> TimestampPosition.Hidden
+        // Game cards render the timestamp inline inside the card itself — suppress the external one
+        is TimelineItemGameContent -> TimestampPosition.Hidden
         else -> TimestampPosition.Default
     }
     val paddingBehaviour = when (event.content) {
         is TimelineItemImageContent -> if (event.content.showCaption) ContentPadding.CaptionedMedia else ContentPadding.Media
         is TimelineItemVideoContent -> if (event.content.showCaption) ContentPadding.CaptionedMedia else ContentPadding.Media
         is TimelineItemStickerContent,
-        is TimelineItemLocationContent -> ContentPadding.Media
+        is TimelineItemLocationContent,
+        // Game card has its own internal padding — no extra bubble padding needed
+        is TimelineItemGameContent,
+        is TimelineItemAiContent -> ContentPadding.Media
         else -> ContentPadding.Textual
     }
     CommonLayout(

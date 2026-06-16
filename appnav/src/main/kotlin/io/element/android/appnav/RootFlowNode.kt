@@ -10,6 +10,7 @@ package io.element.android.appnav
 
 import android.content.Intent
 import android.os.Parcelable
+import android.os.SystemClock
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.runtime.Composable
@@ -19,6 +20,7 @@ import com.bumble.appyx.core.modality.BuildContext
 import com.bumble.appyx.core.navigation.NavElements
 import com.bumble.appyx.core.navigation.NavKey
 import com.bumble.appyx.core.node.Node
+import com.bumble.appyx.core.node.node
 import com.bumble.appyx.core.plugin.Plugin
 import com.bumble.appyx.core.state.MutableSavedStateMap
 import com.bumble.appyx.core.state.SavedStateMap
@@ -40,6 +42,8 @@ import io.element.android.appnav.room.RoomNavigationTarget
 import io.element.android.appnav.root.RootNavStateFlowFactory
 import io.element.android.appnav.root.RootPresenter
 import io.element.android.appnav.root.RootView
+import io.element.android.appnav.root.PostLoginWelcomeView
+import io.element.android.appnav.root.UnsealSplashView
 import io.element.android.features.announcement.api.AnnouncementService
 import io.element.android.features.login.api.LoginParams
 import io.element.android.features.login.api.accesscontrol.AccountProviderAccessControl
@@ -65,6 +69,7 @@ import io.element.android.libraries.matrix.api.core.toRoomIdOrAlias
 import io.element.android.libraries.matrix.api.permalink.PermalinkData
 import io.element.android.libraries.oauth.api.OAuthAction
 import io.element.android.libraries.oauth.api.OAuthActionFlow
+import io.element.android.libraries.preferences.api.store.AppPreferencesStore
 import io.element.android.libraries.sessionstorage.api.LoggedInState
 import io.element.android.libraries.sessionstorage.api.SessionStore
 import io.element.android.libraries.ui.common.nodes.emptyNode
@@ -73,8 +78,10 @@ import io.element.android.services.analytics.api.AnalyticsService
 import io.element.android.services.analytics.api.watchers.AnalyticsColdStartWatcher
 import io.element.android.services.appnavstate.api.ROOM_OPENED_FROM_NOTIFICATION
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -96,6 +103,7 @@ class RootFlowNode(
     private val accountSelectEntryPoint: AccountSelectEntryPoint,
     private val intentResolver: IntentResolver,
     private val oAuthActionFlow: OAuthActionFlow,
+    private val appPreferencesStore: AppPreferencesStore,
     private val featureFlagService: FeatureFlagService,
     private val announcementService: AnnouncementService,
     private val analyticsService: AnalyticsService,
@@ -109,6 +117,25 @@ class RootFlowNode(
     buildContext = buildContext,
     plugins = plugins
 ) {
+    private val splashShownAtMark = SystemClock.elapsedRealtime()
+    private var minimumSplashEnforced = false
+    private var postLoginWelcomeCompleted = false
+
+    /**
+     * Suspends until the Unseal splash has been visible for at least [MINIMUM_SPLASH_DISPLAY_MS],
+     * but only the first time it is called. Mirrors the iOS enforced minimum splash duration so the
+     * branded logo animation plays before the app routes to the logged-in/out flow.
+     */
+    private suspend fun ensureMinimumSplashDisplay() {
+        if (minimumSplashEnforced) return
+        minimumSplashEnforced = true
+        val elapsed = SystemClock.elapsedRealtime() - splashShownAtMark
+        val remaining = MINIMUM_SPLASH_DISPLAY_MS - elapsed
+        if (remaining > 0) {
+            delay(remaining)
+        }
+    }
+
     override fun onBuilt() {
         analyticsColdStartWatcher.start()
         appCoroutineScope.launch {
@@ -135,6 +162,10 @@ class RootFlowNode(
             .drop(if (skipFirst) 1 else 0)
             .onEach { navState ->
                 Timber.v("navState=$navState")
+                // Keep the Unseal splash animation on screen for a minimum duration on first
+                // launch (mirrors iOS SplashScreenCoordinator's enforced minimum display time),
+                // so the branded logo animation is actually seen before we route away.
+                ensureMinimumSplashDisplay()
                 when (navState.loggedInState) {
                     is LoggedInState.LoggedIn -> {
                         if (navState.loggedInState.isTokenValid) {
@@ -152,7 +183,14 @@ class RootFlowNode(
                         }
                     }
                     LoggedInState.NotLoggedIn -> {
-                        switchToNotLoggedInFlow(null)
+                        val hasCompletedWelcome = postLoginWelcomeCompleted ||
+                            appPreferencesStore.getPostLoginWelcomeCompletedFlow().first()
+                        if (hasCompletedWelcome) {
+                            postLoginWelcomeCompleted = true
+                            switchToNotLoggedInFlow(null)
+                        } else {
+                            switchToPostLoginWelcomeFlow()
+                        }
                     }
                 }
             }
@@ -200,6 +238,11 @@ class RootFlowNode(
     private fun switchToNotLoggedInFlow(params: LoginParams?) {
         matrixSessionCache.removeAll()
         backstack.safeRoot(NavTarget.NotLoggedInFlow(params))
+    }
+
+    private fun switchToPostLoginWelcomeFlow() {
+        matrixSessionCache.removeAll()
+        backstack.safeRoot(NavTarget.PostLoginWelcome)
     }
 
     private fun switchToSignedOutFlow(sessionId: SessionId) {
@@ -252,6 +295,7 @@ class RootFlowNode(
             val transitionHandler = rememberDelegateTransitionHandler<NavTarget, BackStack.State> { navTarget ->
                 when (navTarget) {
                     is NavTarget.SplashScreen,
+                    is NavTarget.PostLoginWelcome,
                     is NavTarget.LoggedInFlow,
                     is NavTarget.NotLoggedInFlow -> backstackFader
                     else -> backstackSlider
@@ -264,6 +308,8 @@ class RootFlowNode(
 
     sealed interface NavTarget : Parcelable {
         @Parcelize data object SplashScreen : NavTarget
+
+        @Parcelize data object PostLoginWelcome : NavTarget
 
         @Parcelize data class AccountSelect(
             val currentSessionId: SessionId,
@@ -336,7 +382,31 @@ class RootFlowNode(
                     ),
                 )
             }
-            NavTarget.SplashScreen -> emptyNode(buildContext)
+            NavTarget.SplashScreen -> node(buildContext) { nodeModifier ->
+                UnsealSplashView(nodeModifier)
+            }
+            NavTarget.PostLoginWelcome -> node(buildContext) { nodeModifier ->
+                PostLoginWelcomeView(
+                    modifier = nodeModifier,
+                    onThemeSelected = { theme ->
+                        lifecycleScope.launch {
+                            appPreferencesStore.setTheme(theme.storedTheme.name)
+                        }
+                    },
+                    onComplete = { result ->
+                        lifecycleScope.launch {
+                            appPreferencesStore.setTheme(result.selectedTheme.storedTheme.name)
+                            appPreferencesStore.setOnboardingSubscriptions(
+                                subscribeChangelog = result.subscribeChangelog,
+                                subscribeMarketing = result.subscribeMarketing,
+                            )
+                            appPreferencesStore.setPostLoginWelcomeCompleted(true)
+                            postLoginWelcomeCompleted = true
+                            switchToNotLoggedInFlow(null)
+                        }
+                    },
+                )
+            }
             NavTarget.BugReport -> {
                 val callback = object : BugReportEntryPoint.Callback {
                     override fun onDone() {
@@ -543,3 +613,6 @@ class RootFlowNode(
 }
 
 private suspend fun SessionStore.getLatestSessionId() = getLatestSession()?.userId?.let(::SessionId)
+
+/** Minimum time the Unseal splash animation stays on screen before routing away (matches iOS). */
+private const val MINIMUM_SPLASH_DISPLAY_MS = 2500L

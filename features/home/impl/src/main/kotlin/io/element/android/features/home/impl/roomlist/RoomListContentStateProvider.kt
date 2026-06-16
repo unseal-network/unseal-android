@@ -9,6 +9,7 @@
 package io.element.android.features.home.impl.roomlist
 
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
+import io.element.android.features.home.impl.model.HomeRoomActivityVisibility
 import io.element.android.features.home.impl.model.RoomListRoomSummary
 import io.element.android.libraries.fullscreenintent.api.FullScreenIntentPermissionsState
 import io.element.android.libraries.fullscreenintent.api.aFullScreenIntentPermissionsState
@@ -41,6 +42,8 @@ internal fun aRoomsContentState(
     fullScreenIntentPermissionsState: FullScreenIntentPermissionsState = aFullScreenIntentPermissionsState(),
     batteryOptimizationState: BatteryOptimizationState = aBatteryOptimizationState(),
     seenRoomInvites: Set<RoomId> = emptySet(),
+    selectedRoomId: RoomId? = null,
+    activityVisibility: HomeRoomActivityVisibility = HomeRoomActivityVisibility.Current,
 ) = RoomListContentState.Rooms(
     securityBannerState = securityBannerState,
     showNewNotificationSoundBanner = showNewNotificationSoundBanner,
@@ -49,6 +52,8 @@ internal fun aRoomsContentState(
     batteryOptimizationState = batteryOptimizationState,
     summaries = summaries,
     seenRoomInvites = seenRoomInvites.toImmutableSet(),
+    selectedRoomId = selectedRoomId,
+    activityVisibility = activityVisibility,
 )
 
 internal fun aSkeletonContentState() = RoomListContentState.Skeleton(16)

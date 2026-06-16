@@ -27,11 +27,13 @@ import io.element.android.libraries.matrix.test.A_USER_ID
 import io.element.android.libraries.matrix.test.A_USER_NAME
 import io.element.android.libraries.matrix.test.FakeMatrixClient
 import io.element.android.libraries.matrix.test.sync.FakeSyncService
+import io.element.android.libraries.preferences.test.InMemoryAppPreferencesStore
 import io.element.android.libraries.sessionstorage.api.SessionStore
 import io.element.android.libraries.sessionstorage.test.InMemorySessionStore
 import io.element.android.libraries.sessionstorage.test.aSessionData
 import io.element.android.tests.testutils.WarmUpRule
 import io.element.android.tests.testutils.test
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
@@ -145,6 +147,46 @@ class HomePresenterTest {
             assertThat(finalState.currentHomeNavigationBarItem).isEqualTo(HomeNavigationBarItem.Spaces)
         }
     }
+
+    @Test
+    fun `present - shows agent welcome once when preference has not been seen`() = runTest {
+        val appPreferencesStore = InMemoryAppPreferencesStore(hasSeenAgentWelcome = false)
+        val presenter = createHomePresenter(
+            appPreferencesStore = appPreferencesStore,
+            sessionStore = InMemorySessionStore(
+                updateUserProfileResult = { _, _, _ -> },
+            ),
+        )
+
+        presenter.test {
+            assertThat(awaitItem().presentedSheet).isNull()
+            val welcomeState = awaitItem()
+            assertThat(welcomeState.presentedSheet).isEqualTo(HomePresentedSheet.AgentWelcome)
+
+            welcomeState.eventSink(HomeEvent.AgentWelcomeAppeared)
+            assertThat(appPreferencesStore.getHasSeenAgentWelcomeFlow().first()).isTrue()
+            val appearedState = awaitItem()
+            assertThat(appearedState.presentedSheet).isEqualTo(HomePresentedSheet.AgentWelcome)
+
+            welcomeState.eventSink(HomeEvent.DismissAgentWelcome)
+            assertThat(awaitItem().presentedSheet).isNull()
+        }
+    }
+
+    @Test
+    fun `present - does not show agent welcome when already seen`() = runTest {
+        val presenter = createHomePresenter(
+            appPreferencesStore = InMemoryAppPreferencesStore(hasSeenAgentWelcome = true),
+            sessionStore = InMemorySessionStore(
+                updateUserProfileResult = { _, _, _ -> },
+            ),
+        )
+
+        presenter.test {
+            assertThat(awaitItem().presentedSheet).isNull()
+            expectNoEvents()
+        }
+    }
 }
 
 internal fun createHomePresenter(
@@ -155,6 +197,7 @@ internal fun createHomePresenter(
     indicatorService: IndicatorService = FakeIndicatorService(),
     homeSpacesPresenter: Presenter<HomeSpacesState> = Presenter { aHomeSpacesState() },
     sessionStore: SessionStore = InMemorySessionStore(),
+    appPreferencesStore: InMemoryAppPreferencesStore = InMemoryAppPreferencesStore(hasSeenAgentWelcome = true),
 ) = HomePresenter(
     client = client,
     syncService = syncService,
@@ -165,4 +208,5 @@ internal fun createHomePresenter(
     logoutPresenter = { aDirectLogoutState() },
     rageshakeFeatureAvailability = rageshakeFeatureAvailability,
     sessionStore = sessionStore,
+    appPreferencesStore = appPreferencesStore,
 )

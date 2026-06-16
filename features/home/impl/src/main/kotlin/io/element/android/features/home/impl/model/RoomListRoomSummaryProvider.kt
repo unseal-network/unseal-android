@@ -182,6 +182,8 @@ internal fun aRoomListRoomSummary(
     heroes: List<AvatarData> = emptyList(),
     isTombstoned: Boolean = false,
     isSpace: Boolean = false,
+    isPinned: Boolean = false,
+    isArchived: Boolean = false,
 ) = RoomListRoomSummary(
     id = id,
     roomId = RoomId(id),
@@ -204,5 +206,7 @@ internal fun aRoomListRoomSummary(
     canonicalAlias = canonicalAlias,
     heroes = heroes.toImmutableList(),
     isTombstoned = isTombstoned,
-    isSpace = isSpace
+    isSpace = isSpace,
+    isPinned = isPinned,
+    isArchived = isArchived,
 )

@@ -20,6 +20,7 @@ import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.createroom.CreateRoomParameters
 import io.element.android.libraries.matrix.api.encryption.EncryptionService
+import io.element.android.libraries.matrix.api.encryption.roomkey.AgentRoomKeyRecoveryRequest
 import io.element.android.libraries.matrix.api.linknewdevice.LinkDesktopHandler
 import io.element.android.libraries.matrix.api.linknewdevice.LinkMobileHandler
 import io.element.android.libraries.matrix.api.media.MatrixMediaLoader
@@ -40,6 +41,8 @@ import io.element.android.libraries.matrix.api.roomlist.RoomListService
 import io.element.android.libraries.matrix.api.spaces.SpaceService
 import io.element.android.libraries.matrix.api.sync.SlidingSyncVersion
 import io.element.android.libraries.matrix.api.sync.SyncService
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DOutboundMessage
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DSendResult
 import io.element.android.libraries.matrix.api.user.MatrixSearchUserResults
 import io.element.android.libraries.matrix.api.user.MatrixUser
 import io.element.android.libraries.matrix.api.verification.SessionVerificationService
@@ -97,6 +100,7 @@ class FakeMatrixClient(
     private val clearCacheLambda: () -> Unit = { lambdaError() },
     private val userIdServerNameLambda: () -> String = { lambdaError() },
     private val getUrlLambda: (String) -> Result<ByteArray> = { lambdaError() },
+    private val currentAccessTokenLambda: () -> Result<String?> = { Result.success(null) },
     private val canDeactivateAccountResult: () -> Boolean = { lambdaError() },
     private val deactivateAccountResult: (String, Boolean) -> Result<Unit> = { _, _ -> lambdaError() },
     private val currentSlidingSyncVersionLambda: () -> Result<SlidingSyncVersion> = { lambdaError() },
@@ -118,6 +122,8 @@ class FakeMatrixClient(
     private val getMapStyleUrlResult: () -> Result<String?> = { lambdaError() },
     private val getDatabaseSizesLambda: () -> Result<SdkStoreSizes> = { lambdaError() },
     private val resetWellKnownConfigLambda: () -> Result<Unit> = { lambdaError() },
+    private val requestAgentRoomKeyRecoveryLambda: (AgentRoomKeyRecoveryRequest) -> Result<Unit> = { lambdaError() },
+    private val sendUnsealD2DMessageLambda: (UnsealD2DOutboundMessage) -> Result<UnsealD2DSendResult> = { lambdaError() },
 ) : MatrixClient {
     var setDisplayNameCalled: Boolean = false
         private set
@@ -232,6 +238,14 @@ class FakeMatrixClient(
         return uploadMediaResult
     }
 
+    override suspend fun requestAgentRoomKeyRecovery(request: AgentRoomKeyRecoveryRequest): Result<Unit> = simulateLongTask {
+        requestAgentRoomKeyRecoveryLambda(request)
+    }
+
+    override suspend fun sendUnsealD2DMessage(message: UnsealD2DOutboundMessage): Result<UnsealD2DSendResult> = simulateLongTask {
+        sendUnsealD2DMessageLambda(message)
+    }
+
     override suspend fun setDisplayName(displayName: String): Result<Unit> = simulateLongTask {
         setDisplayNameCalled = true
         return setDisplayNameResult
@@ -340,6 +354,10 @@ class FakeMatrixClient(
 
     override suspend fun getUrl(url: String): Result<ByteArray> {
         return getUrlLambda(url)
+    }
+
+    override suspend fun currentAccessToken(): Result<String?> {
+        return currentAccessTokenLambda()
     }
 
     override suspend fun currentSlidingSyncVersion(): Result<SlidingSyncVersion> {

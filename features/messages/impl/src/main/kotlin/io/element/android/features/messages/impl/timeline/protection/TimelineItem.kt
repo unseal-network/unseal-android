@@ -9,6 +9,7 @@
 package io.element.android.features.messages.impl.timeline.protection
 
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAudioContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEmoteContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContent
@@ -25,6 +26,7 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemStateEventContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemStickerContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemGameContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemUnknownContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVideoContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVoiceContent
@@ -42,6 +44,7 @@ fun TimelineItem.mustBeProtected(): Boolean {
                     is TimelineItemImageContent,
                     is TimelineItemVideoContent,
                     is TimelineItemStickerContent -> true
+                    is TimelineItemAiContent,
                     is TimelineItemAudioContent,
                     is TimelineItemRtcNotificationContent,
                     is TimelineItemEncryptedContent,
@@ -57,6 +60,7 @@ fun TimelineItem.mustBeProtected(): Boolean {
                     is TimelineItemNoticeContent,
                     is TimelineItemTextContent,
                     TimelineItemUnknownContent,
+                    is TimelineItemGameContent,
                     is TimelineItemVoiceContent -> false
                 }
             }

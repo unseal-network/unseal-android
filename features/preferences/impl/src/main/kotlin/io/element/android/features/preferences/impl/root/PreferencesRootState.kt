@@ -30,9 +30,17 @@ data class PreferencesRootState(
     val canDeactivateAccount: Boolean,
     val nbOfBlockedUsers: Int,
     val showLabsItem: Boolean,
+    val creditBalanceLoadState: CreditBalanceLoadState,
+    val aiAssistant: SettingsAiAssistantRenderModel,
     val directLogoutState: DirectLogoutState,
     val snackbarMessage: SnackbarMessage?,
     val eventSink: (PreferencesRootEvent) -> Unit,
 ) {
     val showBlockedUsersItem = nbOfBlockedUsers > 0
+}
+
+sealed interface CreditBalanceLoadState {
+    data object Loading : CreditBalanceLoadState
+    data class Loaded(val balanceUsd: String) : CreditBalanceLoadState
+    data object Unavailable : CreditBalanceLoadState
 }

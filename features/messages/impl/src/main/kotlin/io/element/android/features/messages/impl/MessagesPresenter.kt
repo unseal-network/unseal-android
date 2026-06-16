@@ -38,6 +38,13 @@ import io.element.android.features.messages.impl.link.LinkState
 import io.element.android.features.messages.impl.messagecomposer.MessageComposerEvent
 import io.element.android.features.messages.impl.messagecomposer.MessageComposerState
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerState
+import io.element.android.features.messages.impl.roomdata.AgentChatModeMemoryCache
+import io.element.android.features.messages.impl.roomdata.RoomMenuReducer
+import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
+import io.element.android.features.messages.impl.roomdata.RoomUnsealContextStore
+import io.element.android.features.messages.impl.roomdata.RoomUnsealRefreshReason
+import io.element.android.features.messages.impl.roomdata.roomUnsealMemberSignature
+import io.element.android.features.messages.impl.terminal.DeviceAgentTerminalPanelState
 import io.element.android.features.messages.impl.timeline.MarkAsFullyRead
 import io.element.android.features.messages.impl.timeline.TimelineController
 import io.element.android.features.messages.impl.timeline.TimelineEvent
@@ -47,6 +54,7 @@ import io.element.android.features.messages.impl.timeline.components.reactionsum
 import io.element.android.features.messages.impl.timeline.components.receipt.bottomsheet.ReadReceiptBottomSheetState
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.timeline.model.TimelineItemThreadInfo
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEventContentWithAttachment
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemPollContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemStateContent
@@ -56,6 +64,8 @@ import io.element.android.features.messages.impl.voicemessages.composer.DefaultV
 import io.element.android.features.roomcall.api.RoomCallState
 import io.element.android.features.roommembermoderation.api.RoomMemberModerationEvents
 import io.element.android.features.roommembermoderation.api.RoomMemberModerationState
+import io.element.android.features.roomschedules.api.room.RoomScheduleBadgeEvents
+import io.element.android.features.roomschedules.api.room.RoomScheduleBadgeState
 import io.element.android.libraries.androidutils.clipboard.ClipboardHelper
 import io.element.android.libraries.architecture.AsyncData
 import io.element.android.libraries.architecture.Presenter
@@ -93,6 +103,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -129,7 +140,9 @@ class MessagesPresenter(
     private val addRecentEmoji: AddRecentEmoji,
     private val markAsFullyRead: MarkAsFullyRead,
     private val liveLocationShareManager: ActiveLiveLocationShareManager,
+    private val roomUnsealContextStore: RoomUnsealContextStore,
     @SessionCoroutineScope private val sessionCoroutineScope: CoroutineScope,
+    @Assisted private val roomConfigChangeRequests: Flow<Unit>,
 ) : Presenter<MessagesState> {
     @AssistedFactory
     interface Factory {
@@ -139,13 +152,13 @@ class MessagesPresenter(
             timelinePresenter: Presenter<TimelineState>,
             actionListPresenter: Presenter<ActionListState>,
             timelineController: TimelineController,
+            roomConfigChangeRequests: Flow<Unit>,
         ): MessagesPresenter
     }
 
     private val voiceMessageComposerPresenter = voiceMessageComposerPresenterFactory.create(
         timelineMode = timelineController.mainTimelineMode()
     )
-
     private val markingAsReadAndExiting = AtomicBoolean(false)
 
     @Composable
@@ -168,6 +181,20 @@ class MessagesPresenter(
         val pinnedMessagesBannerState = pinnedMessagesBannerPresenter.present()
         val roomCallState = roomCallStatePresenter.present()
         val roomMemberModerationState = roomMemberModerationPresenter.present()
+        val roomUnsealContextState by roomUnsealContextStore.context.collectAsState()
+        var activeDeviceAgentBoundDeviceId by remember(room.roomId) {
+            mutableStateOf(AgentChatModeMemoryCache.targetDeviceIdFor(room.roomId))
+        }
+        var deviceAgentTerminalPanel by remember(room.roomId) {
+            mutableStateOf<DeviceAgentTerminalPanelState?>(null)
+        }
+        var selectableMessageText by remember(room.roomId) {
+            mutableStateOf<String?>(null)
+        }
+        val membersState by room.membersStateFlow.collectAsState()
+        val roomMemberSignature = remember(membersState) {
+            membersState.roomUnsealMemberSignature()
+        }
         val threadsList by produceState(persistentListOf()) {
             room.threadsListService.subscribeToItemUpdates()
                 .onStart { room.threadsListService.paginate() }
@@ -191,6 +218,19 @@ class MessagesPresenter(
         var hasDismissedInviteDialog by rememberSaveable {
             mutableStateOf(false)
         }
+        fun handleRoomScheduleBadgeEvent(event: RoomScheduleBadgeEvents) {
+            when (event) {
+                RoomScheduleBadgeEvents.OnAppear -> if (roomUnsealContextState.isUninitialized()) {
+                    coroutineScope.launch { roomUnsealContextStore.refresh(RoomUnsealRefreshReason.Initial) }
+                }
+                RoomScheduleBadgeEvents.Refresh -> if (!roomUnsealContextState.isLoading()) {
+                    coroutineScope.launch { roomUnsealContextStore.refresh(RoomUnsealRefreshReason.ScheduleChanged) }
+                }
+            }
+        }
+
+        val roomScheduleBadgeState = roomUnsealContextState.toRoomScheduleBadgeState(::handleRoomScheduleBadgeEvent)
+
         LaunchedEffect(Unit) {
             // Remove the unread flag on entering but don't send read receipts
             // as those will be handled by the timeline.
@@ -202,6 +242,38 @@ class MessagesPresenter(
                     room.getUpdatedIsEncrypted()
                 }
             }
+        }
+        LaunchedEffect(room.roomId) {
+            roomUnsealContextStore.refresh(RoomUnsealRefreshReason.Initial)
+        }
+        LaunchedEffect(activeDeviceAgentBoundDeviceId) {
+            composerState.eventSink(MessageComposerEvent.SetAgentChatTargetDeviceId(activeDeviceAgentBoundDeviceId))
+        }
+        LaunchedEffect(roomUnsealContextState, activeDeviceAgentBoundDeviceId) {
+            val deviceAgent = roomUnsealContextState.dataOrNull()?.deviceAgentInRoom
+            if (activeDeviceAgentBoundDeviceId != null && deviceAgent?.boundDeviceId != activeDeviceAgentBoundDeviceId) {
+                activeDeviceAgentBoundDeviceId = null
+                AgentChatModeMemoryCache.setTargetDeviceId(room.roomId, null)
+            }
+            if (deviceAgentTerminalPanel != null && deviceAgent?.boundDeviceId != deviceAgentTerminalPanel?.deviceAgent?.boundDeviceId) {
+                deviceAgentTerminalPanel = null
+            }
+        }
+        LaunchedEffect(roomConfigChangeRequests) {
+            roomConfigChangeRequests.collectLatest {
+                roomUnsealContextStore.refresh(RoomUnsealRefreshReason.RoomConfigChanged)
+            }
+        }
+        LaunchedEffect(roomMemberSignature) {
+            if (roomMemberSignature != null && roomUnsealContextState.dataOrNull() != null && !roomUnsealContextState.isLoading()) {
+                roomUnsealContextStore.refresh(RoomUnsealRefreshReason.MembersChanged)
+            }
+        }
+        LifecycleResumeEffect(Unit) {
+            if (!roomUnsealContextState.isLoading()) {
+                coroutineScope.launch { roomUnsealContextStore.refresh(RoomUnsealRefreshReason.AppResumed) }
+            }
+            onPauseOrDispose {}
         }
 
         val inviteProgress = remember { mutableStateOf<AsyncData<Unit>>(AsyncData.Uninitialized) }
@@ -217,7 +289,6 @@ class MessagesPresenter(
 
         var dmUserVerificationState by remember { mutableStateOf<IdentityState?>(null) }
 
-        val membersState by room.membersStateFlow.collectAsState()
         val dmRoomMember by room.getDirectRoomMember(membersState)
         val roomMemberIdentityStateChanges = identityChangeState.roomMemberIdentityStateChanges
 
@@ -249,6 +320,7 @@ class MessagesPresenter(
                         enableTextFormatting = composerState.showTextFormatting,
                         timelineState = timelineState,
                         timelineProtectionState = timelineProtectionState,
+                        onSelectText = { selectableMessageText = it },
                     )
                 }
                 is MessagesEvent.ToggleReaction -> {
@@ -276,6 +348,26 @@ class MessagesPresenter(
                 MessagesEvent.ShowLiveLocationShare -> {
                     navigator.navigateToCurrentLiveLocation()
                 }
+                is MessagesEvent.ToggleDeviceAgentChat -> {
+                    val nextTargetDeviceId = if (activeDeviceAgentBoundDeviceId == event.deviceAgent.boundDeviceId) {
+                        null
+                    } else {
+                        event.deviceAgent.boundDeviceId
+                    }
+                    activeDeviceAgentBoundDeviceId = nextTargetDeviceId
+                    AgentChatModeMemoryCache.setTargetDeviceId(room.roomId, nextTargetDeviceId)
+                    composerState.eventSink(MessageComposerEvent.SetAgentChatTargetDeviceId(nextTargetDeviceId))
+                }
+                is MessagesEvent.OpenDeviceAgentTerminal -> {
+                    Timber.i("Device agent terminal requested for boundDeviceId=${event.deviceAgent.boundDeviceId}")
+                    deviceAgentTerminalPanel = DeviceAgentTerminalPanelState.ready(event.deviceAgent)
+                }
+                MessagesEvent.DismissDeviceAgentTerminal -> {
+                    deviceAgentTerminalPanel = null
+                }
+                MessagesEvent.DismissSelectableMessageText -> {
+                    selectableMessageText = null
+                }
                 is MessagesEvent.MarkAsFullyReadAndExit -> if (!markingAsReadAndExiting.getAndSet(true)) {
                     coroutineScope.launch {
                         val latestEventId = room.liveTimeline.getLatestEventId().getOrElse {
@@ -294,6 +386,12 @@ class MessagesPresenter(
                 }
             }
         }
+
+        val threads = Threads(
+            hasThreads = canOpenThreadList && threadsList.isNotEmpty(),
+            // TODO calculate this properly based on the thread list and the read state of each thread
+            hasUnreadThreads = false,
+        )
 
         return MessagesState(
             roomId = room.roomId,
@@ -316,17 +414,25 @@ class MessagesPresenter(
             showReinvitePrompt = showReinvitePrompt,
             enableTextFormatting = MessageComposerConfig.ENABLE_RICH_TEXT_EDITING,
             roomCallState = roomCallState,
+            roomScheduleBadgeState = roomScheduleBadgeState,
+            roomUnsealContext = roomUnsealContextState,
+            roomMenu = RoomMenuReducer.reduce(
+                roomUnsealContext = roomUnsealContextState,
+                hasThreads = threads.hasThreads,
+                isThreadTimeline = timelineState.timelineMode is Timeline.Mode.Thread,
+                canShareLocation = composerState.canShareLocation,
+                enableTextFormatting = MessageComposerConfig.ENABLE_RICH_TEXT_EDITING,
+                activeDeviceAgentBoundDeviceId = activeDeviceAgentBoundDeviceId,
+            ),
+            deviceAgentTerminalPanel = deviceAgentTerminalPanel,
+            selectableMessageText = selectableMessageText,
             appName = buildMeta.applicationName,
             pinnedMessagesBannerState = pinnedMessagesBannerState,
             dmUserVerificationState = dmUserVerificationState,
             roomMemberModerationState = roomMemberModerationState,
             topBarSharedHistoryIcon = topBarSharedHistoryIcon,
             successorRoom = roomInfo.successorRoom,
-            threads = Threads(
-                hasThreads = canOpenThreadList && threadsList.isNotEmpty(),
-                // TODO calculate this properly based on the thread list and the read state of each thread
-                hasUnreadThreads = false,
-            ),
+            threads = threads,
             showLiveLocationShareBanner = isCurrentlySharingLiveLocationInRoom && timelineState.timelineMode !is Timeline.Mode.Thread,
             eventSink = ::handleEvent,
         )
@@ -366,8 +472,10 @@ class MessagesPresenter(
         timelineProtectionState: TimelineProtectionState,
         enableTextFormatting: Boolean,
         timelineState: TimelineState,
+        onSelectText: (String) -> Unit,
     ) = launch {
         when (action) {
+            TimelineItemAction.SelectText -> targetEvent.selectableText()?.let(onSelectText)
             TimelineItemAction.CopyText -> handleCopyContents(targetEvent)
             TimelineItemAction.CopyCaption -> handleCopyCaption(targetEvent)
             TimelineItemAction.CopyLink -> handleCopyLink(targetEvent)
@@ -594,11 +702,7 @@ class MessagesPresenter(
     }
 
     private fun handleCopyContents(event: TimelineItem.Event) {
-        val content = when (event.content) {
-            is TimelineItemTextBasedContent -> event.content.body
-            is TimelineItemStateContent -> event.content.body
-            else -> return
-        }
+        val content = event.selectableText() ?: return
         clipboardHelper.copyPlainText(content)
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             snackbarDispatcher.post(SnackbarMessage(R.string.screen_room_timeline_message_copied))
@@ -612,4 +716,26 @@ class MessagesPresenter(
             snackbarDispatcher.post(SnackbarMessage(CommonStrings.common_copied_to_clipboard))
         }
     }
+}
+
+private fun TimelineItem.Event.selectableText(): String? {
+    return when (val content = content) {
+        is TimelineItemTextBasedContent -> content.plainText.ifBlank { content.body }
+        is TimelineItemAiContent -> content.body.ifBlank { null }
+        is TimelineItemStateContent -> content.body
+        else -> null
+    }
+}
+
+private fun AsyncData<RoomUnsealContext>.toRoomScheduleBadgeState(
+    eventSink: (RoomScheduleBadgeEvents) -> Unit,
+): RoomScheduleBadgeState {
+    val context = dataOrNull()
+    return RoomScheduleBadgeState(
+        isLoading = isLoading(),
+        isVisible = context?.hasAgentInRoom == true,
+        activeScheduleCount = context?.activeScheduleCount ?: 0,
+        error = errorOrNull()?.message,
+        eventSink = eventSink,
+    )
 }

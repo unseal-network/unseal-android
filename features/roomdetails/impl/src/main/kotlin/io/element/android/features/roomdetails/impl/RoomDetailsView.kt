@@ -117,6 +117,7 @@ fun RoomDetailsView(
     onPinnedMessagesClick: () -> Unit,
     onKnockRequestsClick: () -> Unit,
     onSecurityAndPrivacyClick: () -> Unit,
+    onWebhookTriggersClick: () -> Unit,
     onProfileClick: (UserId) -> Unit,
     onReportRoomClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -267,6 +268,11 @@ fun RoomDetailsView(
                                 onClick = openAdminSettings,
                             )
                         }
+                        ListItem(
+                            headlineContent = { Text(stringResource(R.string.screen_room_details_webhook_triggers_title)) },
+                            leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.Notifications())),
+                            onClick = onWebhookTriggersClick,
+                        )
                     }
                 }
                 is RoomDetailsType.Dm -> {
@@ -925,6 +931,7 @@ private fun ContentToPreview(state: RoomDetailsState) {
         onPinnedMessagesClick = {},
         onKnockRequestsClick = {},
         onSecurityAndPrivacyClick = {},
+        onWebhookTriggersClick = {},
         onProfileClick = {},
         onReportRoomClick = {},
         leaveRoomView = {},

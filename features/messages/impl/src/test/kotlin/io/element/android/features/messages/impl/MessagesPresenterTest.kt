@@ -25,6 +25,17 @@ import io.element.android.features.messages.impl.messagecomposer.MessageComposer
 import io.element.android.features.messages.impl.messagecomposer.MessageComposerState
 import io.element.android.features.messages.impl.messagecomposer.aMessageComposerState
 import io.element.android.features.messages.impl.pinned.banner.aLoadedPinnedMessagesBannerState
+import io.element.android.features.messages.impl.roomdata.AgentAccountDescriptor
+import io.element.android.features.messages.impl.roomdata.RoomAgentDescriptor
+import io.element.android.features.messages.impl.roomdata.RoomAgentSkillDescriptor
+import io.element.android.features.messages.impl.roomdata.RoomLegacyAgentSkillDescriptor
+import io.element.android.features.messages.impl.roomdata.RoomScheduleDescriptor
+import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
+import io.element.android.features.messages.impl.roomdata.RoomUnsealDataClient
+import io.element.android.features.messages.impl.roomdata.RoomUnsealDataSnapshot
+import io.element.android.features.messages.impl.roomdata.FakeRoomUnsealContextStore
+import io.element.android.features.messages.impl.roomdata.RoomUnsealResource
+import io.element.android.features.messages.impl.roomdata.RoomWebhookTriggerDescriptor
 import io.element.android.features.messages.impl.threads.list.aThreadListItem
 import io.element.android.features.messages.impl.timeline.FakeMarkAsFullyRead
 import io.element.android.features.messages.impl.timeline.MarkAsFullyRead
@@ -63,10 +74,12 @@ import io.element.android.libraries.matrix.api.encryption.identity.IdentityState
 import io.element.android.libraries.matrix.api.media.MediaSource
 import io.element.android.libraries.matrix.api.permalink.PermalinkParser
 import io.element.android.libraries.matrix.api.room.MessageEventType
+import io.element.android.libraries.matrix.api.room.JoinedRoom
 import io.element.android.libraries.matrix.api.room.RoomMembersState
 import io.element.android.libraries.matrix.api.room.RoomMembershipState
 import io.element.android.libraries.matrix.api.room.StateEventType
 import io.element.android.libraries.matrix.api.room.history.RoomHistoryVisibility
+import io.element.android.libraries.matrix.api.room.roomMembers
 import io.element.android.libraries.matrix.api.room.tombstone.SuccessorRoom
 import io.element.android.libraries.matrix.api.timeline.Timeline
 import io.element.android.libraries.matrix.api.timeline.item.TimelineItemDebugInfo
@@ -114,6 +127,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
@@ -143,6 +157,42 @@ class MessagesPresenterTest {
             assertThat(initialState.inviteProgress).isEqualTo(AsyncData.Uninitialized)
             assertThat(initialState.showReinvitePrompt).isFalse()
             assertThat(initialState.showLiveLocationShareBanner).isFalse()
+        }
+    }
+
+    @Test
+    fun `present - exposes loaded room unseal context`() = runTest {
+        val room = FakeJoinedRoom(
+            baseRoom = FakeBaseRoom(roomId = A_ROOM_ID, initialRoomInfo = aRoomInfo()),
+            typingNoticeResult = { Result.success(Unit) },
+        ).apply {
+            givenRoomMembersState(RoomMembersState.Ready(persistentListOf(aRoomMember(userId = A_USER_ID, membership = RoomMembershipState.JOIN))))
+        }
+        val presenter = createMessagesPresenter(
+            joinedRoom = room,
+            roomUnsealDataClient = FakeRoomUnsealDataClient(
+                snapshot = RoomUnsealDataSnapshot(
+                    schedules = RoomUnsealResource.success(
+                        listOf(
+                            RoomScheduleDescriptor(
+                                id = "schedule-1",
+                                name = "Daily update",
+                                cron = "0 8 * * *",
+                                action = "Summarize",
+                                agentId = "agent-1",
+                                roomId = A_ROOM_ID.value,
+                                timezone = "UTC",
+                                isEnabled = true,
+                            )
+                        )
+                    )
+                )
+            )
+        )
+
+        presenter.testWithLifecycleOwner {
+            val loadedState = consumeItemsUntilPredicate { it.roomUnsealContext.isSuccess() }.last()
+            assertThat(loadedState.roomUnsealContext.dataOrNull()?.activeScheduleCount).isEqualTo(1)
         }
     }
 
@@ -1383,7 +1433,11 @@ class MessagesPresenterTest {
         addRecentEmoji: AddRecentEmoji = AddRecentEmoji { _ -> lambdaError() },
         markAsFullyRead: MarkAsFullyRead = FakeMarkAsFullyRead(),
         liveLocationShareManager: FakeActiveLiveLocationShareManager = FakeActiveLiveLocationShareManager(),
+        roomUnsealDataClient: FakeRoomUnsealDataClient = FakeRoomUnsealDataClient(),
     ): MessagesPresenter {
+        if (joinedRoom.membersStateFlow.value == RoomMembersState.Unknown) {
+            joinedRoom.givenRoomMembersState(RoomMembersState.Ready(persistentListOf()))
+        }
         return MessagesPresenter(
             navigator = navigator,
             room = joinedRoom,
@@ -1413,7 +1467,30 @@ class MessagesPresenterTest {
             addRecentEmoji = addRecentEmoji,
             markAsFullyRead = markAsFullyRead,
             liveLocationShareManager = liveLocationShareManager,
+            roomUnsealContextStore = FakeRoomUnsealContextStore(
+                AsyncData.Success(
+                    RoomUnsealContext.from(
+                        roomId = joinedRoom.roomId,
+                        members = joinedRoom.membersStateFlow.value.roomMembers().orEmpty(),
+                        snapshot = roomUnsealDataClient.snapshot,
+                    )
+                )
+            ),
             sessionCoroutineScope = backgroundScope,
+            roomConfigChangeRequests = emptyFlow(),
         )
     }
+}
+
+private class FakeRoomUnsealDataClient(
+    val snapshot: RoomUnsealDataSnapshot = RoomUnsealDataSnapshot(),
+) : RoomUnsealDataClient {
+    override suspend fun getRoomAgents(roomId: RoomId): Result<List<RoomAgentDescriptor>> = Result.success(emptyList())
+    override suspend fun listAgents(): Result<List<AgentAccountDescriptor>> = Result.success(emptyList())
+    override suspend fun listSchedules(roomId: RoomId): Result<List<RoomScheduleDescriptor>> = Result.success(emptyList())
+    override suspend fun listRoomAgentSkills(roomId: RoomId, agentId: String, runtimeOwnerUserId: String?): Result<List<RoomAgentSkillDescriptor>> = Result.success(emptyList())
+    override suspend fun listLegacyAgentSkills(agentLookupId: String): Result<List<RoomLegacyAgentSkillDescriptor>> = Result.success(emptyList())
+    override suspend fun listWebhookTriggers(roomId: RoomId): Result<List<RoomWebhookTriggerDescriptor>> = Result.success(emptyList())
+    override suspend fun getRoomWorkingMemory(roomId: RoomId): Result<String> = Result.success("")
+    override suspend fun loadRoomData(roomId: RoomId): RoomUnsealDataSnapshot = snapshot
 }

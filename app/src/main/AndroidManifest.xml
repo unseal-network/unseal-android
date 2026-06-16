@@ -52,7 +52,7 @@
         Using launchMode singleTask to avoid multiple instances of the Activity
         when the app is already open. This is important for incoming share (see
         https://github.com/element-hq/element-x-android/issues/4074) and for opening
-        the application from a mobile.element.io link.
+        the application from a mobile.unseal.network link.
         -->
         <activity
             android:name=".MainActivity"
@@ -72,7 +72,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data
                     android:host="open"
-                    android:scheme="elementx" />
+                    android:scheme="unseal" />
             </intent-filter>
             <!--
               OAuth redirection
@@ -86,7 +86,7 @@
                 <data android:scheme="@string/login_redirect_scheme" />
             </intent-filter>
             <!--
-              Element web links
+              Unseal web links
             -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
@@ -95,17 +95,13 @@
                 <category android:name="android.intent.category.BROWSABLE" />
 
                 <data android:scheme="https" />
-                <!-- Note: we can't use "*.element.io" here because it'll intercept the "mas.element.io" domain too. -->
-                <!-- Matching asset file: https://app.element.io/.well-known/assetlinks.json -->
-                <data android:host="app.element.io" />
-                <!-- Matching asset file: https://develop.element.io/.well-known/assetlinks.json -->
-                <data android:host="develop.element.io" />
-                <!-- Matching asset file: https://staging.element.io/.well-known/assetlinks.json -->
-                <data android:host="staging.element.io" />
+                <data android:host="app.unseal.network" />
+                <data android:host="develop.unseal.network" />
+                <data android:host="staging.unseal.network" />
             </intent-filter>
             <!--
-              Element mobile links
-              Example: https://mobile.element.io/element/?account_provider=example.org&login_hint=mxid:@alice:example.org
+              Unseal mobile links
+              Example: https://mobile.unseal.network/unseal/?account_provider=example.org&login_hint=mxid:@alice:example.org
             -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
@@ -114,8 +110,8 @@
                 <category android:name="android.intent.category.BROWSABLE" />
 
                 <data android:scheme="https" />
-                <!-- Matching asset file: https://mobile.element.io/.well-known/assetlinks.json -->
-                <data android:host="mobile.element.io" />
+                <data android:host="mobile.unseal.network" />
+                <data android:path="/unseal/" />
                 <data android:path="/element/" />
             </intent-filter>
             <!--
@@ -138,6 +134,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
 
+                <data android:scheme="unseal" />
                 <data android:scheme="element" />
                 <data android:host="user" />
                 <data android:host="room" />

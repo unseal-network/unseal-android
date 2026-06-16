@@ -133,4 +133,15 @@
   <string name="troubleshoot_notifications_entry_point_push_history_title">"推送历史"</string>
   <string name="troubleshoot_notifications_entry_point_section">"排查问题"</string>
   <string name="troubleshoot_notifications_entry_point_title">"排查通知问题"</string>
+  <string name="screen_preferences_ai_assistant_section_title">"AI 助手"</string>
+  <string name="screen_preferences_agent_management_title">"Agent 管理"</string>
+  <string name="screen_preferences_voice_library_title">"语音库"</string>
+  <string name="screen_preferences_skills_management_title">"技能管理"</string>
+  <string name="screen_preferences_vault_management_title">"密钥库管理"</string>
+  <string name="screen_preferences_connectors_title">"连接器"</string>
+  <string name="screen_preferences_webhook_triggers_title">"Webhook 触发器"</string>
+  <string name="screen_preferences_credit_balance_title">"积分余额"</string>
+  <string name="screen_preferences_credit_recharge">"充值"</string>
+  <string name="screen_preferences_credit_billing">"账单"</string>
+  <string name="screen_preferences_credit_usage">"用量"</string>
 </resources>

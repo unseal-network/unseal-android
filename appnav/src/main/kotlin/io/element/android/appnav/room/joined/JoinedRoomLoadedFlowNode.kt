@@ -30,6 +30,8 @@ import io.element.android.appnav.room.RoomNavigationTarget
 import io.element.android.features.forward.api.ForwardEntryPoint
 import io.element.android.features.messages.api.MessagesEntryPoint
 import io.element.android.features.roomdetails.api.RoomDetailsEntryPoint
+import io.element.android.libraries.chatbot.api.RoomAgentProfileRouter
+import io.element.android.features.roomschedules.api.RoomSchedulesEntryPoint
 import io.element.android.features.space.api.SpaceEntryPoint
 import io.element.android.libraries.architecture.BackstackView
 import io.element.android.libraries.architecture.BaseFlowNode
@@ -53,6 +55,7 @@ import io.element.android.services.analytics.api.finishLongRunningTransaction
 import io.element.android.services.appnavstate.api.ActiveRoomsHolder
 import io.element.android.services.appnavstate.api.AppNavigationStateService
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.parcelize.Parcelize
 import timber.log.Timber
@@ -63,6 +66,7 @@ class JoinedRoomLoadedFlowNode(
     @Assisted buildContext: BuildContext,
     @Assisted plugins: List<Plugin>,
     private val messagesEntryPoint: MessagesEntryPoint,
+    private val roomSchedulesEntryPoint: RoomSchedulesEntryPoint,
     private val roomDetailsEntryPoint: RoomDetailsEntryPoint,
     private val spaceEntryPoint: SpaceEntryPoint,
     private val forwardEntryPoint: ForwardEntryPoint,
@@ -70,6 +74,7 @@ class JoinedRoomLoadedFlowNode(
     @SessionCoroutineScope
     private val sessionCoroutineScope: CoroutineScope,
     private val matrixClient: MatrixClient,
+    private val roomAgentProfileRouter: RoomAgentProfileRouter,
     private val activeRoomsHolder: ActiveRoomsHolder,
     private val analyticsService: AnalyticsService,
     roomGraphFactory: RoomGraphFactory,
@@ -96,6 +101,7 @@ class JoinedRoomLoadedFlowNode(
 
     private val inputs: Inputs = inputs()
     private val callback: Callback = callback()
+    private val roomConfigChangeRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     override val graph = roomGraphFactory.create(inputs.room)
 
     private val sendMessageWatcher = (graph as? TimelineBindings)?.analyticsSendMessageWatcher
@@ -166,6 +172,10 @@ class JoinedRoomLoadedFlowNode(
             override fun startForwardEventFlow(eventId: EventId, fromPinnedEvents: Boolean) {
                 backstack.push(NavTarget.ForwardEvent(eventId, fromPinnedEvents))
             }
+
+            override fun onRoomConfigChanged() {
+                roomConfigChangeRequests.tryEmit(Unit)
+            }
         }
         return roomDetailsEntryPoint.createNode(
             parentNode = this,
@@ -183,8 +193,14 @@ class JoinedRoomLoadedFlowNode(
             NavTarget.RoomDetails -> {
                 createRoomDetailsNode(buildContext, RoomDetailsEntryPoint.InitialTarget.RoomDetails)
             }
+            is NavTarget.RoomSchedules -> {
+                createRoomSchedulesNode(buildContext, navTarget.roomName)
+            }
             is NavTarget.RoomMemberDetails -> {
                 createRoomDetailsNode(buildContext, RoomDetailsEntryPoint.InitialTarget.RoomMemberDetails(navTarget.userId))
+            }
+            is NavTarget.AgentProfile -> {
+                createRoomDetailsNode(buildContext, RoomDetailsEntryPoint.InitialTarget.AgentProfile(navTarget.botName))
             }
             NavTarget.RoomNotificationSettings -> {
                 createRoomDetailsNode(buildContext, RoomDetailsEntryPoint.InitialTarget.RoomNotificationSettings)
@@ -238,17 +254,47 @@ class JoinedRoomLoadedFlowNode(
         )
     }
 
+    private fun createRoomSchedulesNode(buildContext: BuildContext, roomName: String): Node {
+        val callback = object : RoomSchedulesEntryPoint.Callback {
+            override fun onDone() {
+                backstack.pop()
+            }
+
+            override fun onSchedulesChanged() {
+                roomConfigChangeRequests.tryEmit(Unit)
+            }
+        }
+        return roomSchedulesEntryPoint.createNode(
+            parentNode = this,
+            buildContext = buildContext,
+            params = RoomSchedulesEntryPoint.Params(
+                roomId = inputs.room.roomId,
+                roomName = roomName,
+                joinedRoom = inputs.room,
+            ),
+            callback = callback,
+        )
+    }
+
     private fun createMessagesNode(
         buildContext: BuildContext,
         navTarget: NavTarget.Messages,
     ): Node {
         val callback = object : MessagesEntryPoint.Callback {
             override fun navigateToRoomDetails() {
-                backstack.push(NavTarget.RoomDetails)
+                // DM with an agent: open the agent profile first; otherwise the normal room details.
+                lifecycleScope.launch {
+                    val botName = roomAgentProfileRouter.directRoomAgentBotName(inputs.room.roomId)
+                    backstack.push(if (botName != null) NavTarget.AgentProfile(botName) else NavTarget.RoomDetails)
+                }
             }
 
             override fun navigateToRoomMemberDetails(userId: UserId) {
-                backstack.push(NavTarget.RoomMemberDetails(userId))
+                // Timeline avatar / mention: agent → agent profile, normal user → user profile.
+                lifecycleScope.launch {
+                    val botName = roomAgentProfileRouter.agentBotNameFor(inputs.room.roomId, userId)
+                    backstack.push(if (botName != null) NavTarget.AgentProfile(botName) else NavTarget.RoomMemberDetails(userId))
+                }
             }
 
             override fun handlePermalinkClick(data: PermalinkData, pushToBackstack: Boolean) {
@@ -266,9 +312,14 @@ class JoinedRoomLoadedFlowNode(
             override fun navigateToDeveloperSettings() {
                 callback.navigateToDeveloperSettings()
             }
+
+            override fun navigateToRoomSchedules(roomId: RoomId, roomName: String, joinedRoom: JoinedRoom) {
+                backstack.push(NavTarget.RoomSchedules(roomName))
+            }
         }
         val params = MessagesEntryPoint.Params(
-            MessagesEntryPoint.InitialTarget.Messages(navTarget.focusedEventId)
+            initialTarget = MessagesEntryPoint.InitialTarget.Messages(navTarget.focusedEventId),
+            roomConfigChangeRequests = roomConfigChangeRequests,
         )
         return messagesEntryPoint.createNode(
             parentNode = this,
@@ -291,10 +342,18 @@ class JoinedRoomLoadedFlowNode(
         data object RoomDetails : NavTarget
 
         @Parcelize
+        data class RoomSchedules(
+            val roomName: String,
+        ) : NavTarget
+
+        @Parcelize
         data object RoomMemberList : NavTarget
 
         @Parcelize
         data class RoomMemberDetails(val userId: UserId) : NavTarget
+
+        @Parcelize
+        data class AgentProfile(val botName: String) : NavTarget
 
         @Parcelize
         data class ForwardEvent(val eventId: EventId, val fromPinnedEvents: Boolean) : NavTarget

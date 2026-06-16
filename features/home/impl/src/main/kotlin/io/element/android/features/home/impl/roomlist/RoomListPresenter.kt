@@ -143,6 +143,7 @@ class RoomListPresenter(
                     leaveRoomState.eventSink(LeaveRoomEvent.LeaveRoom(event.roomId, needsConfirmation = event.needsConfirmation))
                 }
                 is RoomListEvent.SetRoomIsFavorite -> coroutineScope.setRoomIsFavorite(event.roomId, event.isFavorite)
+                is RoomListEvent.SetRoomMuted -> coroutineScope.setRoomMuted(event.roomId, event.isMuted)
                 is RoomListEvent.MarkAsRead -> coroutineScope.markAsRead(event.roomId)
                 is RoomListEvent.MarkAsUnread -> coroutineScope.markAsUnread(event.roomId)
                 is RoomListEvent.AcceptInvite -> {
@@ -275,11 +276,15 @@ class RoomListPresenter(
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun CoroutineScope.showContextMenu(event: RoomListEvent.ShowContextMenu, contextMenuState: MutableState<RoomListState.ContextMenu>) = launch {
         val initialState = RoomListState.ContextMenu.Shown(
+            roomSummary = event.roomSummary,
             roomId = event.roomSummary.roomId,
             roomName = event.roomSummary.name,
             isDm = event.roomSummary.isDm,
             isFavorite = event.roomSummary.isFavorite,
+            userDefinedNotificationMode = event.roomSummary.userDefinedNotificationMode,
             hasNewContent = event.roomSummary.hasNewContent,
+            isPinned = event.roomSummary.isPinned,
+            isArchived = event.roomSummary.isArchived,
             displayClearRoomCacheAction = appPreferencesStore.isDeveloperModeEnabledFlow().first(),
         )
         contextMenuState.value = initialState
@@ -289,13 +294,23 @@ class RoomListPresenter(
             val isShowingContextMenuFlow = snapshotFlow { contextMenuState.value is RoomListState.ContextMenu.Shown }
                 .distinctUntilChanged()
 
-            val isFavoriteFlow = room.roomInfoFlow
-                .map { it.isFavorite }
+            val roomContextStateFlow = room.roomInfoFlow
+                .map { roomInfo ->
+                    Triple(
+                        roomInfo.isFavorite,
+                        roomInfo.userDefinedNotificationMode,
+                        roomInfo.isLowPriority,
+                    )
+                }
                 .distinctUntilChanged()
 
-            isFavoriteFlow
-                .onEach { isFavorite ->
-                    contextMenuState.value = initialState.copy(isFavorite = isFavorite)
+            roomContextStateFlow
+                .onEach { (isFavorite, notificationMode, isArchived) ->
+                    contextMenuState.value = initialState.copy(
+                        isFavorite = isFavorite,
+                        userDefinedNotificationMode = notificationMode,
+                        isArchived = isArchived,
+                    )
                 }
                 .flatMapLatest { isShowingContextMenuFlow }
                 .takeWhile { isShowingContextMenu -> isShowingContextMenu }
@@ -309,6 +324,21 @@ class RoomListPresenter(
                 .onSuccess {
                     analyticsService.captureInteraction(name = Interaction.Name.MobileRoomListRoomContextMenuFavouriteToggle)
                 }
+        }
+    }
+
+    private fun CoroutineScope.setRoomMuted(roomId: RoomId, isMuted: Boolean) = launch {
+        val notificationSettingsService = client.notificationSettingsService
+        if (isMuted) {
+            notificationSettingsService.muteRoom(roomId)
+        } else {
+            client.getRoom(roomId)?.use { room ->
+                notificationSettingsService.unmuteRoom(
+                    roomId = roomId,
+                    isEncrypted = room.info().isEncrypted ?: false,
+                    isOneToOne = room.isDm(),
+                )
+            }
         }
     }
 

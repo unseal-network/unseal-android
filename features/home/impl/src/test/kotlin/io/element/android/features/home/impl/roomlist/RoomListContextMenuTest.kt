@@ -17,6 +17,7 @@ import androidx.compose.ui.test.v2.runAndroidComposeUiTest
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.element.android.features.home.impl.R
 import io.element.android.libraries.matrix.api.core.RoomId
+import io.element.android.libraries.matrix.api.room.RoomNotificationMode
 import io.element.android.libraries.ui.strings.CommonStrings
 import io.element.android.tests.testutils.EnsureCalledOnceWithParam
 import io.element.android.tests.testutils.EnsureNeverCalledWithParam
@@ -75,6 +76,40 @@ class RoomListContextMenuTest {
             listOf(
                 RoomListEvent.HideContextMenu,
                 RoomListEvent.LeaveRoom(contextMenu.roomId, needsConfirmation = true),
+            )
+        )
+    }
+
+    @Test
+    fun `clicking on Mute generates expected Events`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<RoomListEvent>()
+        val contextMenu = aContextMenuShown(userDefinedNotificationMode = null)
+        setRoomListContextMenu(
+            contextMenu = contextMenu,
+            eventSink = eventsRecorder,
+        )
+        clickOn(CommonStrings.common_mute)
+        eventsRecorder.assertList(
+            listOf(
+                RoomListEvent.HideContextMenu,
+                RoomListEvent.SetRoomMuted(contextMenu.roomId, true),
+            )
+        )
+    }
+
+    @Test
+    fun `clicking on Unmute generates expected Events`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<RoomListEvent>()
+        val contextMenu = aContextMenuShown(userDefinedNotificationMode = RoomNotificationMode.MUTE)
+        setRoomListContextMenu(
+            contextMenu = contextMenu,
+            eventSink = eventsRecorder,
+        )
+        clickOn(CommonStrings.common_unmute)
+        eventsRecorder.assertList(
+            listOf(
+                RoomListEvent.HideContextMenu,
+                RoomListEvent.SetRoomMuted(contextMenu.roomId, false),
             )
         )
     }

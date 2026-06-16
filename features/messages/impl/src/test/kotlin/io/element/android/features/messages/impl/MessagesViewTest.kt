@@ -616,7 +616,7 @@ class MessagesViewTest {
     }
 
     @Test
-    fun `clicking on threads list button calls the expected function`() = runAndroidComposeUiTest {
+    fun `threads list is not exposed in the iOS parity room topbar`() = runAndroidComposeUiTest {
         val state = aMessagesState(
             threads = MessagesState.Threads(
                 hasThreads = true,
@@ -628,8 +628,8 @@ class MessagesViewTest {
             state = state,
             onThreadsListClicked = onThreadsListClicked,
         )
-        onNodeWithContentDescription("Threads").performClick()
-        onThreadsListClicked.assertions().isCalledOnce()
+        onNodeWithContentDescription("Threads").assertDoesNotExist()
+        onThreadsListClicked.assertions().isNeverCalled()
     }
 
     @Test
@@ -695,6 +695,7 @@ private fun AndroidComposeUiTest<ComponentActivity>.setMessagesView(
     onJoinCallClick: (Boolean) -> Unit = EnsureNeverCalledWithParam(),
     onViewAllPinnedMessagesClick: () -> Unit = EnsureNeverCalled(),
     onThreadsListClicked: () -> Unit = EnsureNeverCalled(),
+    onRoomSchedulesClick: () -> Unit = EnsureNeverCalled(),
 ) {
     setSafeContent {
         // Cannot use the RichTextEditor, so simulate a LocalInspectionMode
@@ -710,6 +711,7 @@ private fun AndroidComposeUiTest<ComponentActivity>.setMessagesView(
                 onCreatePollClick = onCreatePollClick,
                 onJoinCallClick = onJoinCallClick,
                 onViewAllPinnedMessagesClick = onViewAllPinnedMessagesClick,
+                onRoomSchedulesClick = onRoomSchedulesClick,
                 knockRequestsBannerView = {},
                 onThreadsListClick = onThreadsListClicked,
             )

@@ -24,6 +24,10 @@ class InMemoryAppPreferencesStore(
     hideInviteAvatars: Boolean? = null,
     timelineMediaPreviewValue: MediaPreviewValue? = null,
     theme: String? = null,
+    onboardingSubscribeChangelog: Boolean = false,
+    onboardingSubscribeMarketing: Boolean = false,
+    postLoginWelcomeCompleted: Boolean = false,
+    hasSeenAgentWelcome: Boolean = false,
     liveLocationMinimumDistanceUpdate: Int = 10,
     logLevel: LogLevel = LogLevel.INFO,
     traceLogPacks: Set<TraceLogPack> = emptySet(),
@@ -42,6 +46,10 @@ class InMemoryAppPreferencesStore(
     private val tracingLogPacks = MutableStateFlow(traceLogPacks)
     private val hideInviteAvatars = MutableStateFlow(hideInviteAvatars)
     private val timelineMediaPreviewValue = MutableStateFlow(timelineMediaPreviewValue)
+    private val onboardingSubscribeChangelog = MutableStateFlow(onboardingSubscribeChangelog)
+    private val onboardingSubscribeMarketing = MutableStateFlow(onboardingSubscribeMarketing)
+    private val postLoginWelcomeCompleted = MutableStateFlow(postLoginWelcomeCompleted)
+    private val hasSeenAgentWelcome = MutableStateFlow(hasSeenAgentWelcome)
     private val messageSound = MutableStateFlow(messageSound)
     private val messageSoundChannelVersion = MutableStateFlow(messageSoundChannelVersion)
     private val messageSoundDisplayName = MutableStateFlow(messageSoundDisplayName)
@@ -71,6 +79,35 @@ class InMemoryAppPreferencesStore(
 
     override fun getThemeFlow(): Flow<String?> {
         return theme
+    }
+
+    override suspend fun setOnboardingSubscriptions(subscribeChangelog: Boolean, subscribeMarketing: Boolean) {
+        onboardingSubscribeChangelog.value = subscribeChangelog
+        onboardingSubscribeMarketing.value = subscribeMarketing
+    }
+
+    override fun getOnboardingSubscribeChangelogFlow(): Flow<Boolean> {
+        return onboardingSubscribeChangelog
+    }
+
+    override fun getOnboardingSubscribeMarketingFlow(): Flow<Boolean> {
+        return onboardingSubscribeMarketing
+    }
+
+    override suspend fun setPostLoginWelcomeCompleted(completed: Boolean) {
+        postLoginWelcomeCompleted.value = completed
+    }
+
+    override fun getPostLoginWelcomeCompletedFlow(): Flow<Boolean> {
+        return postLoginWelcomeCompleted
+    }
+
+    override suspend fun setHasSeenAgentWelcome(seen: Boolean) {
+        hasSeenAgentWelcome.value = seen
+    }
+
+    override fun getHasSeenAgentWelcomeFlow(): Flow<Boolean> {
+        return hasSeenAgentWelcome
     }
 
     override suspend fun setLiveLocationMinimumDistanceInMetersUpdate(value: Int) {

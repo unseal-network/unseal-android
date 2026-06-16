@@ -45,7 +45,6 @@ class RustPushersService(
                     deviceDisplayName = setHttpPusherData.deviceDisplayName,
                     profileTag = setHttpPusherData.profileTag,
                     lang = setHttpPusherData.lang,
-                    append = setHttpPusherData.append,
                 )
             }
                 .mapFailure { it.mapClientException() }

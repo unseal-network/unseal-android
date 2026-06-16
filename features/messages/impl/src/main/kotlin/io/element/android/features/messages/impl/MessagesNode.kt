@@ -76,6 +76,7 @@ import io.element.android.services.analytics.api.finishLongRunningTransaction
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
 @ContributesNode(RoomScope::class)
@@ -99,6 +100,7 @@ class MessagesNode(
 ) : Node(buildContext, plugins = plugins), MessagesNavigator {
     data class Inputs(
         val focusedEventId: EventId?,
+        val roomConfigChangeRequests: Flow<Unit>,
     ) : NodeInputs
 
     private val inputs = inputs<Inputs>()
@@ -114,6 +116,7 @@ class MessagesNode(
             timelineMode = timelineController.mainTimelineMode(),
         ),
         timelineController = timelineController,
+        roomConfigChangeRequests = inputs.roomConfigChangeRequests,
     )
 
     interface Callback : Plugin {
@@ -132,8 +135,11 @@ class MessagesNode(
         fun navigateToThread(threadRootId: ThreadId, focusedEventId: EventId?)
         fun navigateToRoomDetails()
         fun navigateToPinnedMessagesList()
+        fun navigateToRoomSchedules(roomId: RoomId, roomName: String, joinedRoom: JoinedRoom)
+        fun navigateToRoomWebhooks(roomId: RoomId, roomName: String)
         fun navigateToKnockRequestsList()
         fun navigateToDeveloperSettings()
+        fun navigateToMiniApp(appId: Long, remoteUrl: String?, meetId: String)
 
         fun navigateToThreadsList()
     }
@@ -244,6 +250,10 @@ class MessagesNode(
         callback.navigateToCurrentLiveLocation()
     }
 
+    override fun navigateToMiniApp(appId: Long, remoteUrl: String?, meetId: String) {
+        callback.navigateToMiniApp(appId, remoteUrl, meetId)
+    }
+
     private fun displaySameRoomToast() {
         context.toast(CommonStrings.screen_room_permalink_same_room_android)
     }
@@ -300,6 +310,19 @@ class MessagesNode(
                 onCreatePollClick = callback::navigateToCreatePoll,
                 onJoinCallClick = { isAudioCall ->
                     callback.navigateToRoomCall(room.roomId, isAudioCall)
+                },
+                onRoomSchedulesClick = {
+                    callback.navigateToRoomSchedules(
+                        roomId = room.roomId,
+                        roomName = state.roomName ?: room.roomId.value,
+                        joinedRoom = room,
+                    )
+                },
+                onRoomWebhooksClick = {
+                    callback.navigateToRoomWebhooks(
+                        roomId = room.roomId,
+                        roomName = state.roomName ?: room.roomId.value,
+                    )
                 },
                 onViewAllPinnedMessagesClick = callback::navigateToPinnedMessagesList,
                 modifier = modifier,

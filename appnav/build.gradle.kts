@@ -33,6 +33,7 @@ dependencies {
     implementation(projects.libraries.deeplink.api)
     implementation(projects.libraries.featureflag.api)
     implementation(projects.libraries.matrix.api)
+    implementation(projects.libraries.chatbot.api)
     implementation(projects.libraries.oauth.api)
     implementation(projects.libraries.preferences.api)
     implementation(projects.libraries.push.api)

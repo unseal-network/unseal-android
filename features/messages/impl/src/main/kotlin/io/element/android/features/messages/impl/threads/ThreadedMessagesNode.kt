@@ -73,7 +73,9 @@ import io.element.android.services.analytics.api.AnalyticsService
 import io.element.android.services.appnavstate.api.AppNavigationStateService
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 @ContributesNode(RoomScope::class)
 @AssistedInject
@@ -120,6 +122,7 @@ class ThreadedMessagesNode(
                 timelineMode = timelineController.mainTimelineMode(),
             ),
             timelineController = timelineController,
+            roomConfigChangeRequests = emptyFlow(),
         )
     }
 
@@ -249,6 +252,11 @@ class ThreadedMessagesNode(
         callback.navigateToCurrentLiveLocation()
     }
 
+    override fun navigateToMiniApp(appId: Long, remoteUrl: String?, meetId: String) {
+        // MiniApp navigation is not supported from thread view.
+        Timber.d("navigateToMiniApp called from thread, ignoring")
+    }
+
     override fun close() = navigateUp()
 
     @Composable
@@ -301,6 +309,7 @@ class ThreadedMessagesNode(
                     onJoinCallClick = { isAudioCall ->
                         callback.navigateToRoomCall(room.roomId, isAudioCall)
                     },
+                    onRoomSchedulesClick = {},
                     onViewAllPinnedMessagesClick = {},
                     modifier = modifier,
                     knockRequestsBannerView = {},

@@ -10,13 +10,17 @@ package io.element.android.features.home.impl.roomlist
 
 import androidx.compose.runtime.Immutable
 import io.element.android.features.home.impl.filters.RoomListFiltersState
+import io.element.android.features.home.impl.model.HomeRoomActivityVisibility
+import io.element.android.features.home.impl.model.HomeRoomRowRenderModel
 import io.element.android.features.home.impl.model.RoomListRoomSummary
+import io.element.android.features.home.impl.model.toHomeRoomRowRenderModel
 import io.element.android.features.home.impl.search.RoomListSearchState
 import io.element.android.features.home.impl.spacefilters.SpaceFiltersState
 import io.element.android.features.invite.api.acceptdecline.AcceptDeclineInviteState
 import io.element.android.features.leaveroom.api.LeaveRoomState
 import io.element.android.libraries.fullscreenintent.api.FullScreenIntentPermissionsState
 import io.element.android.libraries.matrix.api.core.RoomId
+import io.element.android.libraries.matrix.api.room.RoomNotificationMode
 import io.element.android.libraries.push.api.battery.BatteryOptimizationState
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableSet
@@ -39,13 +43,29 @@ data class RoomListState(
     sealed interface ContextMenu {
         data object Hidden : ContextMenu
         data class Shown(
+            val roomSummary: RoomListRoomSummary,
             val roomId: RoomId,
             val roomName: String?,
             val isDm: Boolean,
             val isFavorite: Boolean,
+            val userDefinedNotificationMode: RoomNotificationMode? = null,
             val hasNewContent: Boolean,
+            val isPinned: Boolean = false,
+            val isArchived: Boolean = false,
             val displayClearRoomCacheAction: Boolean,
-        ) : ContextMenu
+        ) : ContextMenu {
+            fun toHomeRoomRowRenderModel(canReportRoom: Boolean): HomeRoomRowRenderModel {
+                return roomSummary.copy(
+                    isFavorite = isFavorite,
+                    userDefinedNotificationMode = userDefinedNotificationMode,
+                    isArchived = isArchived,
+                    isPinned = isPinned,
+                ).toHomeRoomRowRenderModel(
+                    canReportRoom = canReportRoom,
+                    displayClearRoomCacheAction = displayClearRoomCacheAction,
+                )
+            }
+        }
     }
 
     sealed interface DeclineInviteMenu {
@@ -75,5 +95,7 @@ sealed interface RoomListContentState {
         val showUnreadCount: Boolean,
         val summaries: ImmutableList<RoomListRoomSummary>,
         val seenRoomInvites: ImmutableSet<RoomId>,
+        val selectedRoomId: RoomId? = null,
+        val activityVisibility: HomeRoomActivityVisibility = HomeRoomActivityVisibility.Current,
     ) : RoomListContentState
 }

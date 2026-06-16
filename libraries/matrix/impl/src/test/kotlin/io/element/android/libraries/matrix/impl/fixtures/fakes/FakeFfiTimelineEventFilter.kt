@@ -8,7 +8,6 @@
 
 package io.element.android.libraries.matrix.impl.fixtures.fakes
 
-import org.matrix.rustcomponents.sdk.NoHandle
-import org.matrix.rustcomponents.sdk.TimelineEventFilter
+import org.matrix.rustcomponents.sdk.TimelineFilter
 
-class FakeFfiTimelineEventFilter : TimelineEventFilter(NoHandle)
+fun aFakeFfiTimelineFilter(): TimelineFilter = TimelineFilter.All

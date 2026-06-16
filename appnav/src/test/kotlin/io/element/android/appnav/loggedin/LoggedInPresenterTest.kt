@@ -20,6 +20,8 @@ import io.element.android.libraries.core.meta.BuildMeta
 import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.libraries.matrix.api.encryption.EncryptionService
+import io.element.android.libraries.matrix.api.encryption.roomkey.MemberAwareRoomKeyForwardingPolicy
+import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyForwardingPolicy
 import io.element.android.libraries.matrix.api.encryption.RecoveryState
 import io.element.android.libraries.matrix.api.oauth.AccountManagementAction
 import io.element.android.libraries.matrix.api.roomlist.RoomListService
@@ -122,6 +124,7 @@ class LoggedInPresenterTest {
             sessionVerificationService = verificationService,
             analyticsService = analyticsService,
             encryptionService = encryptionService,
+            roomKeyForwardingPolicy = MemberAwareRoomKeyForwardingPolicy(),
             buildMeta = buildMeta,
             networkMonitor = networkMonitor,
         ).test {
@@ -138,6 +141,27 @@ class LoggedInPresenterTest {
             roomListService.postSyncIndicator(RoomListService.SyncIndicator.Show)
             skipItems(1)
             assertThat(analyticsService.capturedEvents.size).isEqualTo(1)
+        }
+    }
+
+    @Test
+    fun `present - configures room key recovery`() = runTest {
+        val configureRoomKeyRecoveryResult = lambdaRecorder<RoomKeyForwardingPolicy, Result<Unit>> {
+            Result.success(Unit)
+        }
+        val policy = MemberAwareRoomKeyForwardingPolicy()
+        val encryptionService = FakeEncryptionService(
+            configureRoomKeyRecoveryResult = configureRoomKeyRecoveryResult,
+        )
+        createLoggedInPresenter(
+            encryptionService = encryptionService,
+            roomKeyForwardingPolicy = policy,
+        ).test {
+            awaitItem()
+            advanceUntilIdle()
+            configureRoomKeyRecoveryResult.assertions()
+                .isCalledOnce()
+                .with(value(policy))
         }
     }
 
@@ -352,6 +376,7 @@ class LoggedInPresenterTest {
         analyticsService: AnalyticsService = FakeAnalyticsService(),
         sessionVerificationService: SessionVerificationService = FakeSessionVerificationService(),
         encryptionService: EncryptionService = FakeEncryptionService(),
+        roomKeyForwardingPolicy: MemberAwareRoomKeyForwardingPolicy = MemberAwareRoomKeyForwardingPolicy(),
         pushService: PushService = FakePushService(),
         matrixClient: MatrixClient = FakeMatrixClient(
             accountManagementUrlResult = { Result.success(null) },
@@ -366,6 +391,7 @@ class LoggedInPresenterTest {
             sessionVerificationService = sessionVerificationService,
             analyticsService = analyticsService,
             encryptionService = encryptionService,
+            roomKeyForwardingPolicy = roomKeyForwardingPolicy,
             buildMeta = buildMeta,
             networkMonitor = networkMonitor,
         )

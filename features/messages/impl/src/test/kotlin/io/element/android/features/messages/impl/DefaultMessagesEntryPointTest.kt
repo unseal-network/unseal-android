@@ -23,12 +23,14 @@ import io.element.android.features.messages.api.MessagesEntryPoint
 import io.element.android.features.messages.impl.pinned.banner.createPinnedEventsTimelineProvider
 import io.element.android.features.messages.impl.timeline.createTimelineController
 import io.element.android.features.poll.test.create.FakeCreatePollEntryPoint
+import io.element.android.features.webhooks.test.FakeWebhookTriggersEntryPoint
 import io.element.android.libraries.androidutils.system.DeviceHasVulkanSupport
 import io.element.android.libraries.dateformatter.test.FakeDateFormatter
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.permalink.PermalinkData
+import io.element.android.libraries.matrix.api.room.JoinedRoom
 import io.element.android.libraries.matrix.test.AN_EVENT_ID
 import io.element.android.libraries.matrix.test.A_SESSION_ID
 import io.element.android.libraries.matrix.test.A_USER_ID
@@ -63,6 +65,7 @@ class DefaultMessagesEntryPointTest {
                 buildContext = buildContext,
                 plugins = plugins,
                 roomListService = FakeRoomListService(),
+                context = mockk(relaxed = true),
                 sessionId = A_SESSION_ID,
                 shareLocationEntryPoint = FakeShareLocationEntryPoint(),
                 showLocationEntryPoint = FakeShowLocationEntryPoint(),
@@ -85,6 +88,7 @@ class DefaultMessagesEntryPointTest {
                 pinnedEventsTimelineProvider = createPinnedEventsTimelineProvider(),
                 timelineController = createTimelineController(),
                 knockRequestsListEntryPoint = FakeKnockRequestsListEntryPoint(),
+                webhookTriggersEntryPoint = FakeWebhookTriggersEntryPoint(),
                 dateFormatter = FakeDateFormatter(),
                 coroutineDispatchers = testCoroutineDispatchers(),
                 hasVulkanSupport = DeviceHasVulkanSupport(mockk(relaxed = true))
@@ -97,6 +101,7 @@ class DefaultMessagesEntryPointTest {
             override fun forwardEvent(eventId: EventId, fromPinnedEvents: Boolean) = lambdaError()
             override fun navigateToRoom(roomId: RoomId) = lambdaError()
             override fun navigateToDeveloperSettings() = lambdaError()
+            override fun navigateToRoomSchedules(roomId: RoomId, roomName: String, joinedRoom: JoinedRoom) = lambdaError()
         }
         val initialTarget = MessagesEntryPoint.InitialTarget.Messages(focusedEventId = AN_EVENT_ID)
         val params = MessagesEntryPoint.Params(initialTarget)

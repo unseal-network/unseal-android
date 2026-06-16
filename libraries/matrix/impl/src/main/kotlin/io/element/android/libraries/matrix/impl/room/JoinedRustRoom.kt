@@ -45,7 +45,6 @@ import io.element.android.libraries.matrix.impl.room.history.map
 import io.element.android.libraries.matrix.impl.room.join.map
 import io.element.android.libraries.matrix.impl.room.knock.RustKnockRequest
 import io.element.android.libraries.matrix.impl.room.location.liveLocationSharesFlow
-import io.element.android.libraries.matrix.impl.room.location.map
 import io.element.android.libraries.matrix.impl.room.location.timedByExpiry
 import io.element.android.libraries.matrix.impl.room.member.RoomMemberListFetcher
 import io.element.android.libraries.matrix.impl.room.threads.RustThreadsListService
@@ -73,7 +72,6 @@ import kotlinx.coroutines.withContext
 import org.matrix.rustcomponents.sdk.DateDividerMode
 import org.matrix.rustcomponents.sdk.IdentityStatusChangeListener
 import org.matrix.rustcomponents.sdk.KnockRequestsListener
-import org.matrix.rustcomponents.sdk.LiveLocationException
 import org.matrix.rustcomponents.sdk.RoomMessageEventMessageType
 import org.matrix.rustcomponents.sdk.RoomSendQueueUpdate
 import org.matrix.rustcomponents.sdk.SendQueueListener
@@ -88,7 +86,6 @@ import org.matrix.rustcomponents.sdk.getElementCallRequiredPermissions
 import org.matrix.rustcomponents.sdk.use
 import timber.log.Timber
 import uniffi.matrix_sdk.RoomPowerLevelChanges
-import uniffi.matrix_sdk_ui.TimelineEventFocusThreadMode
 import uniffi.matrix_sdk_ui.TimelineReadReceiptTracking
 import kotlin.coroutines.cancellation.CancellationException
 import org.matrix.rustcomponents.sdk.IdentityStatusChange as RustIdentityStateChange
@@ -152,11 +149,7 @@ class JoinedRustRoom(
 
     override val liveTimeline = liveInnerTimeline.map(mode = Timeline.Mode.Live)
 
-    override val threadsListService: ThreadsListService = RustThreadsListService(
-        inner = innerRoom.threadListService(),
-        contentMapper = TimelineEventContentMapper(),
-        roomCoroutineScope = roomCoroutineScope,
-    )
+    override val threadsListService: ThreadsListService = RustThreadsListService()
 
     override val syncUpdateFlow = flow {
         var counter = 0L
@@ -192,18 +185,21 @@ class JoinedRustRoom(
     ): Result<Timeline> = withContext(roomDispatcher) {
         val hideThreadedEvents = featureFlagService.isFeatureEnabled(FeatureFlags.Threads)
         val focus = when (createTimelineParams) {
-            is CreateTimelineParams.PinnedOnly -> TimelineFocus.PinnedEvents
+            is CreateTimelineParams.PinnedOnly -> TimelineFocus.PinnedEvents(
+                maxEventsToLoad = 50u,
+                maxConcurrentRequests = 10u,
+            )
             is CreateTimelineParams.MediaOnly -> TimelineFocus.Live(hideThreadedEvents = hideThreadedEvents)
             is CreateTimelineParams.Focused -> TimelineFocus.Event(
                 eventId = createTimelineParams.focusedEventId.value,
                 numContextEvents = 50u,
-                threadMode = TimelineEventFocusThreadMode.Automatic(hideThreadedEvents),
+                hideThreadedEvents = hideThreadedEvents,
             )
             is CreateTimelineParams.MediaOnlyFocused -> TimelineFocus.Event(
                 eventId = createTimelineParams.focusedEventId.value,
                 numContextEvents = 50u,
                 // Never hide threaded events in media focused timeline
-                threadMode = TimelineEventFocusThreadMode.Automatic(false),
+                hideThreadedEvents = false,
             )
             is CreateTimelineParams.Threaded -> TimelineFocus.Thread(
                 rootEventId = createTimelineParams.threadRootEventId.value,
@@ -297,6 +293,12 @@ class JoinedRustRoom(
         }
     }
 
+    override suspend fun sendRawRoomMessage(contentJson: String, eventType: String): Result<Unit> = withContext(roomDispatcher) {
+        runCatchingExceptions {
+            innerRoom.sendRaw(eventType, contentJson)
+        }
+    }
+
     override suspend fun typingNotice(isTyping: Boolean) = withContext(roomDispatcher) {
         runCatchingExceptions {
             innerRoom.typingNotice(isTyping)
@@ -335,7 +337,7 @@ class JoinedRustRoom(
 
     override suspend fun reportContent(eventId: EventId, reason: String, blockUserId: UserId?): Result<Unit> = withContext(roomDispatcher) {
         runCatchingExceptions {
-            innerRoom.reportContent(eventId = eventId.value, reason = reason)
+            innerRoom.reportContent(eventId = eventId.value, score = null, reason = reason)
             if (blockUserId != null) {
                 innerRoom.ignoreUser(blockUserId.value)
             }
@@ -421,8 +423,6 @@ class JoinedRustRoom(
                 roomAvatar = roomPowerLevelsValues.roomAvatar,
                 roomTopic = roomPowerLevelsValues.roomTopic,
                 spaceChild = roomPowerLevelsValues.spaceChild,
-                beacon = roomPowerLevelsValues.beacon,
-                beaconInfo = roomPowerLevelsValues.beaconInfo,
             )
             innerRoom.applyPowerLevelChanges(changes)
         }
@@ -523,28 +523,19 @@ class JoinedRustRoom(
     override suspend fun startLiveLocationShare(durationMillis: Long): Result<EventId> = withContext(roomDispatcher) {
         runCatchingExceptions {
             innerRoom.startLiveLocationShare(durationMillis.toULong())
-        }.map(::EventId)
+            EventId("\$live-location-${roomId.value}")
+        }
     }
 
     override suspend fun stopLiveLocationShare(): Result<Unit> = withContext(roomDispatcher) {
         runCatchingExceptions {
             innerRoom.stopLiveLocationShare()
-        }.mapFailure { throwable ->
-            when (throwable) {
-                is LiveLocationException -> throwable.map()
-                else -> throwable
-            }
         }
     }
 
     override suspend fun sendLiveLocation(geoUri: String): Result<Unit> = withContext(roomDispatcher) {
         runCatchingExceptions {
             innerRoom.sendLiveLocation(geoUri)
-        }.mapFailure { throwable ->
-            when (throwable) {
-                is LiveLocationException -> throwable.map()
-                else -> throwable
-            }
         }
     }
 

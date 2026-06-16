@@ -23,6 +23,10 @@ import io.element.android.features.messages.impl.messagecomposer.MessageComposer
 import io.element.android.features.messages.impl.messagecomposer.aMessageComposerState
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerState
 import io.element.android.features.messages.impl.pinned.banner.aLoadedPinnedMessagesBannerState
+import io.element.android.features.messages.impl.roomdata.RoomMenuRenderModel
+import io.element.android.features.messages.impl.roomdata.RoomMenuReducer
+import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
+import io.element.android.features.messages.impl.terminal.DeviceAgentTerminalPanelState
 import io.element.android.features.messages.impl.timeline.TimelineState
 import io.element.android.features.messages.impl.timeline.aTimelineItemList
 import io.element.android.features.messages.impl.timeline.aTimelineState
@@ -41,6 +45,7 @@ import io.element.android.features.roomcall.api.aStandByCallState
 import io.element.android.features.roommembermoderation.api.RoomMemberModerationEvents
 import io.element.android.features.roommembermoderation.api.RoomMemberModerationPermissions
 import io.element.android.features.roommembermoderation.api.RoomMemberModerationState
+import io.element.android.features.roomschedules.api.room.RoomScheduleBadgeState
 import io.element.android.libraries.architecture.AsyncData
 import io.element.android.libraries.designsystem.components.avatar.AvatarData
 import io.element.android.libraries.designsystem.components.avatar.AvatarSize
@@ -119,14 +124,24 @@ fun aMessagesState(
     reactionSummaryState: ReactionSummaryState = aReactionSummaryState(),
     showReinvitePrompt: Boolean = false,
     roomCallState: RoomCallState = aStandByCallState(),
+    roomScheduleBadgeState: RoomScheduleBadgeState = aRoomScheduleBadgeState(),
+    roomUnsealContext: AsyncData<RoomUnsealContext> = AsyncData.Uninitialized,
     pinnedMessagesBannerState: PinnedMessagesBannerState = aLoadedPinnedMessagesBannerState(),
     dmUserVerificationState: IdentityState? = null,
     roomMemberModerationState: RoomMemberModerationState = aRoomMemberModerationState(),
+    deviceAgentTerminalPanel: DeviceAgentTerminalPanelState? = null,
     topBarSharedHistoryIcon: SharedHistoryIcon = SharedHistoryIcon.NONE,
     successorRoom: SuccessorRoom? = null,
     threads: MessagesState.Threads = MessagesState.Threads(
         hasThreads = false,
         hasUnreadThreads = false,
+    ),
+    roomMenu: RoomMenuRenderModel = RoomMenuReducer.reduce(
+        roomUnsealContext = roomUnsealContext,
+        hasThreads = threads.hasThreads,
+        isThreadTimeline = timelineState.timelineMode is Timeline.Mode.Thread,
+        canShareLocation = composerState.canShareLocation,
+        enableTextFormatting = true,
     ),
     isCurrentlySharingLiveLocationInRoom: Boolean = false,
     eventSink: (MessagesEvent) -> Unit = {},
@@ -151,6 +166,11 @@ fun aMessagesState(
     showReinvitePrompt = showReinvitePrompt,
     enableTextFormatting = true,
     roomCallState = roomCallState,
+    roomScheduleBadgeState = roomScheduleBadgeState,
+    roomUnsealContext = roomUnsealContext,
+    roomMenu = roomMenu,
+    deviceAgentTerminalPanel = deviceAgentTerminalPanel,
+    selectableMessageText = null,
     appName = "Element",
     pinnedMessagesBannerState = pinnedMessagesBannerState,
     dmUserVerificationState = dmUserVerificationState,
@@ -160,6 +180,15 @@ fun aMessagesState(
     threads = threads,
     showLiveLocationShareBanner = isCurrentlySharingLiveLocationInRoom,
     eventSink = eventSink,
+)
+
+fun aRoomScheduleBadgeState(
+    isVisible: Boolean = false,
+    activeScheduleCount: Int = 0,
+) = RoomScheduleBadgeState(
+    isVisible = isVisible,
+    activeScheduleCount = activeScheduleCount,
+    eventSink = {},
 )
 
 fun aRoomMemberModerationState(

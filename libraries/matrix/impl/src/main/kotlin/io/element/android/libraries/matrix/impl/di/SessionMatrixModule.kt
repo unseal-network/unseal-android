@@ -11,12 +11,14 @@ package io.element.android.libraries.matrix.impl.di
 import dev.zacsweers.metro.BindingContainer
 import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.Provides
+import dev.zacsweers.metro.SingleIn
 import io.element.android.libraries.di.SessionScope
 import io.element.android.libraries.di.annotations.SessionCoroutineScope
 import io.element.android.libraries.matrix.api.HomeserverCapabilitiesProvider
 import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.libraries.matrix.api.encryption.EncryptionService
+import io.element.android.libraries.matrix.api.encryption.roomkey.MemberAwareRoomKeyForwardingPolicy
 import io.element.android.libraries.matrix.api.media.MatrixMediaLoader
 import io.element.android.libraries.matrix.api.media.MediaPreviewService
 import io.element.android.libraries.matrix.api.notificationsettings.NotificationSettingsService
@@ -64,6 +66,12 @@ object SessionMatrixModule {
     @Provides
     fun providesEncryptionService(matrixClient: MatrixClient): EncryptionService {
         return matrixClient.encryptionService
+    }
+
+    @SingleIn(SessionScope::class)
+    @Provides
+    fun providesMemberAwareRoomKeyForwardingPolicy(): MemberAwareRoomKeyForwardingPolicy {
+        return MemberAwareRoomKeyForwardingPolicy()
     }
 
     @Provides

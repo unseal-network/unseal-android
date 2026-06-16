@@ -10,7 +10,7 @@ package io.element.android.libraries.matrix.impl.auth
 
 import io.element.android.libraries.matrix.api.auth.AuthenticationException
 import org.matrix.rustcomponents.sdk.ClientBuildException
-import org.matrix.rustcomponents.sdk.OAuthException
+import org.matrix.rustcomponents.sdk.OidcException
 
 fun Throwable.mapAuthenticationException(): AuthenticationException {
     return when (this) {
@@ -28,14 +28,13 @@ fun Throwable.mapAuthenticationException(): AuthenticationException {
             }
             is ClientBuildException.WellKnownLookupFailed -> AuthenticationException.Generic(message)
             is ClientBuildException.EventCache -> AuthenticationException.Generic(message)
-            is ClientBuildException.InvalidRawKey -> AuthenticationException.Generic(message)
         }
-        is OAuthException -> when (this) {
-            is OAuthException.Generic -> AuthenticationException.OAuth(message)
-            is OAuthException.CallbackUrlInvalid -> AuthenticationException.OAuth(message)
-            is OAuthException.Cancelled -> AuthenticationException.OAuth(message)
-            is OAuthException.MetadataInvalid -> AuthenticationException.OAuth(message)
-            is OAuthException.NotSupported -> AuthenticationException.OAuth(message)
+        is OidcException -> when (this) {
+            is OidcException.Generic -> AuthenticationException.OAuth(message)
+            is OidcException.CallbackUrlInvalid -> AuthenticationException.OAuth(message)
+            is OidcException.Cancelled -> AuthenticationException.OAuth(message)
+            is OidcException.MetadataInvalid -> AuthenticationException.OAuth(message)
+            is OidcException.NotSupported -> AuthenticationException.OAuth(message)
         }
         else -> AuthenticationException.Generic(message)
     }

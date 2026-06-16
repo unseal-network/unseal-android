@@ -26,17 +26,30 @@ import io.element.android.features.messages.impl.MessagesNavigator
 import io.element.android.features.messages.impl.attachments.Attachment
 import io.element.android.features.messages.impl.draft.ComposerDraftService
 import io.element.android.features.messages.impl.draft.FakeComposerDraftService
+import io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerPresenter
+import io.element.android.features.messages.impl.messagecomposer.gamepicker.FakeRoomGameApiServiceProvider
+import io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillCatalogLoader
+import io.element.android.features.messages.impl.roomdata.AgentAccountDescriptor
+import io.element.android.features.messages.impl.roomdata.FakeRoomUnsealDataClient
 import io.element.android.features.messages.impl.messagecomposer.suggestions.SuggestionsProcessor
+import io.element.android.features.messages.impl.roomdata.FakeRoomUnsealContextStore
+import io.element.android.features.messages.impl.roomdata.RoomAgentSkillDescriptor
+import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
+import io.element.android.features.messages.impl.roomdata.RoomUnsealDataSnapshot
+import io.element.android.features.messages.impl.roomdata.RoomUnsealResource
 import io.element.android.features.messages.impl.timeline.TimelineController
 import io.element.android.features.messages.impl.utils.FakeMentionSpanFormatter
 import io.element.android.features.messages.impl.utils.FakeTextPillificationHelper
 import io.element.android.features.messages.impl.utils.TextPillificationHelper
 import io.element.android.libraries.architecture.AsyncAction
+import io.element.android.libraries.architecture.AsyncData
+import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.core.mimetype.MimeTypes
 import io.element.android.libraries.designsystem.utils.snackbar.SnackbarDispatcher
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.ThreadId
+import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.media.ImageInfo
 import io.element.android.libraries.matrix.api.media.VideoInfo
 import io.element.android.libraries.matrix.api.permalink.PermalinkBuilder
@@ -113,9 +126,11 @@ import io.mockk.mockk
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import org.json.JSONObject
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -448,6 +463,127 @@ class MessageComposerPresenterTest {
                     messageType = Composer.MessageType.Text,
                 )
             )
+        }
+    }
+
+    @Test
+    fun `present - selected agent skill sends raw message content matching iOS shape`() = runTest {
+        val agentUserId = UserId("@mail-agent:server.org")
+        val roomUnsealContextStore = FakeRoomUnsealContextStore(
+            initialContext = AsyncData.Success(
+                RoomUnsealContext.from(
+                    roomId = A_ROOM_ID,
+                    members = listOf(
+                        aRoomMember(userId = A_USER_ID, displayName = "Me"),
+                        aRoomMember(userId = agentUserId, displayName = "Mail Agent"),
+                    ),
+                    snapshot = RoomUnsealDataSnapshot(
+                        allAgents = RoomUnsealResource.success(
+                            listOf(
+                                AgentAccountDescriptor(
+                                    botName = "mail-agent",
+                                    localpart = "mail-agent",
+                                    serverName = "server.org",
+                                    matrixUserId = agentUserId.value,
+                                    displayName = "Mail Agent",
+                                    avatarUrl = null,
+                                    isDeviceAgent = false,
+                                    boundDeviceId = null,
+                                )
+                            )
+                        )
+                    ),
+                )
+            )
+        )
+        val roomUnsealDataClient = FakeRoomUnsealDataClient().apply {
+            roomAgentSkillsResult = { _, _, _ ->
+                Result.success(listOf(RoomAgentSkillDescriptor(id = "skill-mail", name = "mail", description = null, runtimeVisible = true)))
+            }
+        }
+        var rawContent: String? = null
+        var rawEventType: String? = null
+        val room = FakeJoinedRoom(
+            baseRoom = FakeBaseRoom(initialRoomInfo = aRoomInfo(isDm = true)),
+            sendRawRoomMessageResult = { content, eventType ->
+                rawContent = content
+                rawEventType = eventType
+                Result.success(Unit)
+            },
+            typingNoticeResult = { Result.success(Unit) },
+        )
+        val presenter = createPresenter(
+            room = room,
+            isRichTextEditorEnabled = false,
+            roomUnsealContextStore = roomUnsealContextStore,
+            roomUnsealDataClient = roomUnsealDataClient,
+            slashCommandService = FakeSlashCommandService(
+                parseResult = { _, _, _ -> SlashCommand.NotACommand }
+            ),
+        )
+
+        moleculeFlow(RecompositionMode.Immediate) {
+            presenter.present()
+        }.test {
+            var state = awaitFirstItem()
+            repeat(8) {
+                if (state.agentSkillState.candidates.isNotEmpty()) return@repeat
+                state = awaitItem()
+            }
+            assertThat(state.agentSkillState.targets.map { it.mxid }).containsExactly(agentUserId.value)
+            val candidate = state.agentSkillState.candidates.single()
+            state.textEditorState.setMarkdown(A_MESSAGE)
+            state.eventSink(MessageComposerEvent.SelectAgentSkill(candidate))
+            state.eventSink(MessageComposerEvent.SendMessage)
+
+            advanceUntilIdle()
+
+            assertThat(rawEventType).isEqualTo("m.room.message")
+            val content = JSONObject(checkNotNull(rawContent))
+            assertThat(content.getString("msgtype")).isEqualTo("m.text")
+            assertThat(content.getString("body")).isEqualTo(A_MESSAGE)
+            val skill = content.getJSONArray("skills").getJSONObject(0)
+            assertThat(skill.getString("agent_id")).isEqualTo(agentUserId.value)
+            assertThat(skill.getString("name")).isEqualTo("mail")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - agent chat target sends raw message with top level device id`() = runTest {
+        var rawContent: String? = null
+        val room = FakeJoinedRoom(
+            baseRoom = FakeBaseRoom(initialRoomInfo = aRoomInfo()),
+            sendRawRoomMessageResult = { content, _ ->
+                rawContent = content
+                Result.success(Unit)
+            },
+            typingNoticeResult = { Result.success(Unit) },
+        )
+        val presenter = createPresenter(
+            room = room,
+            isRichTextEditorEnabled = false,
+            slashCommandService = FakeSlashCommandService(
+                parseResult = { _, _, _ -> SlashCommand.NotACommand }
+            ),
+        )
+
+        moleculeFlow(RecompositionMode.Immediate) {
+            presenter.present()
+        }.test {
+            val state = awaitFirstItem()
+            state.textEditorState.setMarkdown(A_MESSAGE)
+            state.eventSink(MessageComposerEvent.SetAgentChatTargetDeviceId("desktop-device-1"))
+            state.eventSink(MessageComposerEvent.SendMessage)
+
+            advanceUntilIdle()
+
+            val content = JSONObject(checkNotNull(rawContent))
+            assertThat(content.getString("msgtype")).isEqualTo("m.text")
+            assertThat(content.getString("body")).isEqualTo(A_MESSAGE)
+            assertThat(content.getString("device_id")).isEqualTo("desktop-device-1")
+            assertThat(content.has("skills")).isFalse()
+            cancelAndIgnoreRemainingEvents()
         }
     }
 
@@ -1012,6 +1148,48 @@ class MessageComposerPresenterTest {
             // If the suggestion isn't a mention, no suggestions are returned
             initialState.eventSink(MessageComposerEvent.SuggestionReceived(Suggestion(0, 0, SuggestionType.Command, "")))
             assertThat(awaitItem().suggestions).isEmpty()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - refreshes room unseal context when mention suggestions start`() = runTest {
+        val roomUnsealContextStore = FakeRoomUnsealContextStore()
+        val room = FakeJoinedRoom(
+            baseRoom = FakeBaseRoom(
+                roomPermissions = FakeRoomPermissions(
+                    canTriggerRoomNotification = true,
+                )
+            ),
+            typingNoticeResult = { Result.success(Unit) }
+        ).apply {
+            givenRoomMembersState(RoomMembersState.Ready(persistentListOf(aRoomMember(userId = A_USER_ID_2, membership = RoomMembershipState.JOIN))))
+            givenRoomInfo(aRoomInfo(isDirect = false))
+        }
+        val presenter = createPresenter(
+            room = room,
+            roomUnsealContextStore = roomUnsealContextStore,
+            slashCommandService = FakeSlashCommandService(
+                getSuggestionsResult = { _, _ -> emptyList() },
+            ),
+        )
+        presenter.test {
+            val initialState = awaitItem()
+            waitForPredicate { roomUnsealContextStore.refreshCount == 1 }
+
+            initialState.eventSink(MessageComposerEvent.SuggestionReceived(Suggestion(0, 0, SuggestionType.Command, "")))
+            awaitItem()
+            assertThat(roomUnsealContextStore.refreshCount).isEqualTo(1)
+
+            initialState.eventSink(MessageComposerEvent.SuggestionReceived(Suggestion(0, 0, SuggestionType.Mention, "")))
+            awaitItem()
+            waitForPredicate { roomUnsealContextStore.refreshCount == 2 }
+            assertThat(roomUnsealContextStore.lastRefreshForce).isTrue()
+
+            initialState.eventSink(MessageComposerEvent.SuggestionReceived(Suggestion(0, 0, SuggestionType.Mention, "agent")))
+            awaitItem()
+            assertThat(roomUnsealContextStore.refreshCount).isEqualTo(2)
+            cancelAndIgnoreRemainingEvents()
         }
     }
 
@@ -1082,7 +1260,8 @@ class MessageComposerPresenterTest {
         }
     }
 
-    fun `present - InsertSuggestion`() = runTest {
+    @Test
+    fun `present - InsertSuggestion uses member display name as visible mention text`() = runTest {
         val presenter = createPresenter(
             permalinkBuilder = FakePermalinkBuilder(
                 permalinkForUserLambda = {
@@ -1093,10 +1272,87 @@ class MessageComposerPresenterTest {
         presenter.test {
             val initialState = awaitFirstItem()
             initialState.textEditorState.setHtml("Hey @bo")
-            initialState.eventSink(MessageComposerEvent.InsertSuggestion(ResolvedSuggestion.Member(aRoomMember(userId = A_USER_ID_2))))
+            initialState.eventSink(
+                MessageComposerEvent.InsertSuggestion(
+                    ResolvedSuggestion.Member(
+                        aRoomMember(userId = A_USER_ID_2, displayName = "Bob")
+                    )
+                )
+            )
 
             assertThat(initialState.textEditorState.messageHtml())
-                .isEqualTo("Hey <a href='https://matrix.to/#/${A_USER_ID_2.value}'>${A_USER_ID_2.value}</a>")
+                .isEqualTo("Hey <a href='https://matrix.to/#/${A_USER_ID_2.value}'>Bob</a>")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - InsertSuggestion for agent mention opens skill picker and loads catalog`() = runTest {
+        val agentUserId = UserId("@mail-agent:server.org")
+        val roomUnsealContextStore = FakeRoomUnsealContextStore(
+            initialContext = AsyncData.Success(
+                RoomUnsealContext.from(
+                    roomId = A_ROOM_ID,
+                    members = listOf(
+                        aRoomMember(userId = A_USER_ID, displayName = "Me"),
+                        aRoomMember(userId = agentUserId, displayName = "Mail Agent"),
+                    ),
+                    snapshot = RoomUnsealDataSnapshot(
+                        allAgents = RoomUnsealResource.success(
+                            listOf(
+                                AgentAccountDescriptor(
+                                    botName = "mail-agent",
+                                    localpart = "mail-agent",
+                                    serverName = "server.org",
+                                    matrixUserId = agentUserId.value,
+                                    displayName = "Mail Agent",
+                                    avatarUrl = null,
+                                    isDeviceAgent = false,
+                                    boundDeviceId = null,
+                                )
+                            )
+                        )
+                    ),
+                )
+            )
+        )
+        val roomUnsealDataClient = FakeRoomUnsealDataClient().apply {
+            roomAgentSkillsResult = { _, _, _ ->
+                Result.success(listOf(RoomAgentSkillDescriptor(id = "skill-mail", name = "mail", description = null, runtimeVisible = true)))
+            }
+        }
+        val presenter = createPresenter(
+            roomUnsealContextStore = roomUnsealContextStore,
+            roomUnsealDataClient = roomUnsealDataClient,
+            permalinkBuilder = FakePermalinkBuilder(
+                permalinkForUserLambda = {
+                    Result.success("https://matrix.to/#/$agentUserId")
+                }
+            )
+        )
+
+        presenter.test {
+            val initialState = awaitFirstItem()
+            initialState.textEditorState.setHtml("Ask @mail")
+            initialState.eventSink(
+                MessageComposerEvent.InsertSuggestion(
+                    ResolvedSuggestion.Member(
+                        aRoomMember(userId = agentUserId, displayName = "Mail Agent")
+                    )
+                )
+            )
+
+            var state = awaitItem()
+            repeat(8) {
+                if (state.agentSkillState.isPresented && state.agentSkillState.candidates.isNotEmpty()) return@repeat
+                state = awaitItem()
+            }
+
+            assertThat(state.agentSkillState.isPresented).isTrue()
+            assertThat(state.agentSkillState.targets.map { it.mxid }).containsExactly(agentUserId.value)
+            assertThat(state.agentSkillState.candidates.single().skillName).isEqualTo("mail")
+            assertThat(roomUnsealDataClient.roomAgentSkillRequests.map { it.agentId }).contains(agentUserId.value)
+            cancelAndIgnoreRemainingEvents()
         }
     }
 
@@ -1533,6 +1789,8 @@ class MessageComposerPresenterTest {
         textPillificationHelper: TextPillificationHelper = FakeTextPillificationHelper(),
         isRichTextEditorEnabled: Boolean = true,
         draftService: ComposerDraftService = FakeComposerDraftService(),
+        roomUnsealContextStore: FakeRoomUnsealContextStore = FakeRoomUnsealContextStore(),
+        roomUnsealDataClient: FakeRoomUnsealDataClient = FakeRoomUnsealDataClient(),
         mediaOptimizationConfigProvider: FakeMediaOptimizationConfigProvider = FakeMediaOptimizationConfigProvider(),
         isInThread: Boolean = false,
         slashCommandService: SlashCommandService = FakeSlashCommandService(),
@@ -1571,9 +1829,24 @@ class MessageComposerPresenterTest {
         mentionSpanProvider = mentionSpanProvider,
         pillificationHelper = textPillificationHelper,
         suggestionsProcessor = SuggestionsProcessor(slashCommandService = slashCommandService),
+        roomUnsealContextStore = roomUnsealContextStore,
+        composerAgentSkillCatalogLoader = ComposerAgentSkillCatalogLoader(
+            room = room,
+            roomUnsealDataClient = roomUnsealDataClient,
+            dispatchers = CoroutineDispatchers(UnconfinedTestDispatcher(testScheduler), UnconfinedTestDispatcher(testScheduler), UnconfinedTestDispatcher(testScheduler)),
+        ),
         mediaOptimizationConfigProvider = mediaOptimizationConfigProvider,
         notificationConversationService = notificationConversationService,
         slashCommandService = slashCommandService,
+        gamePickerPresenterFactory = object : GamePickerPresenter.Factory {
+            override fun create(onNavigateToMiniApp: (appId: Long, remoteUrl: String?, meetId: String) -> Unit): GamePickerPresenter {
+                return GamePickerPresenter(
+                    room = room,
+                    gameApiServiceProvider = FakeRoomGameApiServiceProvider(),
+                    onNavigateToMiniApp = onNavigateToMiniApp,
+                )
+            }
+        },
     ).apply {
         isTesting = true
         showTextFormatting = isRichTextEditorEnabled

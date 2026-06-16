@@ -9,6 +9,11 @@
 package io.element.android.features.messages.impl.messagecomposer.suggestions
 
 import com.google.common.truth.Truth.assertThat
+import io.element.android.features.messages.impl.roomdata.RoomAgentDescriptor
+import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
+import io.element.android.features.messages.impl.roomdata.RoomUnsealDataSnapshot
+import io.element.android.features.messages.impl.roomdata.RoomUnsealResource
+import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.room.RoomMembersState
 import io.element.android.libraries.matrix.api.room.RoomMembershipState
@@ -360,6 +365,53 @@ class SuggestionsProcessorTest {
         assertThat(result).isEqualTo(
             listOf(
                 ResolvedSuggestion.Member(aRoomMember)
+            )
+        )
+    }
+
+    @Test
+    fun `processing Mention suggestion returns enriched agent member data`() = runTest {
+        val agentMember = aRoomMember(
+            userId = UserId("@agent:server.org"),
+            displayName = "Matrix fallback",
+            membership = RoomMembershipState.JOIN,
+        )
+        val context = RoomUnsealContext.from(
+            roomId = RoomId("!room:server.org"),
+            members = listOf(agentMember),
+            snapshot = RoomUnsealDataSnapshot(
+                roomAgents = RoomUnsealResource.success(
+                    listOf(
+                        RoomAgentDescriptor(
+                            userId = "@agent:server.org",
+                            displayName = "Rayson",
+                            avatarUrl = "mxc://agent/avatar",
+                            userType = "agent",
+                            membership = "join",
+                        )
+                    )
+                )
+            ),
+        )
+
+        val result = suggestionsProcessor.process(
+            suggestion = aMentionSuggestion("ray"),
+            roomMembersState = RoomMembersState.Ready(persistentListOf(agentMember)),
+            roomAliasSuggestions = emptyList(),
+            currentUserId = A_USER_ID_2,
+            canSendRoomMention = { true },
+            isInThread = false,
+            roomUnsealContext = context,
+        )
+
+        assertThat(result).isEqualTo(
+            listOf(
+                ResolvedSuggestion.Member(
+                    agentMember.copy(
+                        displayName = "Rayson",
+                        avatarUrl = "mxc://agent/avatar",
+                    )
+                )
             )
         )
     }

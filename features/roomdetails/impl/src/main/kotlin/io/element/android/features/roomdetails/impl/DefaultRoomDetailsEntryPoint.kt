@@ -35,6 +35,7 @@ class DefaultRoomDetailsEntryPoint : RoomDetailsEntryPoint {
 internal fun InitialTarget.toNavTarget() = when (this) {
     is InitialTarget.RoomDetails -> NavTarget.RoomDetails
     is InitialTarget.RoomMemberDetails -> NavTarget.RoomMemberDetails(roomMemberId)
+    is InitialTarget.AgentProfile -> NavTarget.AgentProfile(botName)
     is InitialTarget.RoomNotificationSettings -> NavTarget.RoomNotificationSettings(showUserDefinedSettingStyle = true)
     InitialTarget.RoomMemberList -> NavTarget.RoomMemberList
 }

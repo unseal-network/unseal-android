@@ -34,6 +34,7 @@ import io.element.android.features.messages.impl.timeline.factories.TimelineItem
 import io.element.android.features.messages.impl.timeline.model.NewEventState
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.timeline.model.virtual.TimelineItemTypingNotificationModel
+import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryTimelineRunner
 import io.element.android.features.messages.impl.typing.TypingNotificationState
 import io.element.android.features.messages.impl.userEventPermissions
 import io.element.android.features.messages.impl.voicemessages.timeline.RedactedVoiceMessageManager
@@ -48,12 +49,15 @@ import io.element.android.libraries.featureflag.api.FeatureFlags
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.UniqueId
 import io.element.android.libraries.matrix.api.core.asEventId
+import io.element.android.libraries.matrix.api.encryption.EncryptionService
 import io.element.android.libraries.matrix.api.room.JoinedRoom
+import io.element.android.libraries.matrix.api.room.activeRoomMembers
 import io.element.android.libraries.matrix.api.room.powerlevels.permissionsAsState
 import io.element.android.libraries.matrix.api.room.roomMembers
 import io.element.android.libraries.matrix.api.timeline.ReceiptType
 import io.element.android.libraries.matrix.api.timeline.Timeline
 import io.element.android.libraries.matrix.api.timeline.item.event.TimelineItemEventOrigin
+import io.element.android.libraries.matrix.api.verification.SessionVerificationService
 import io.element.android.libraries.preferences.api.store.SessionPreferencesStore
 import io.element.android.services.analytics.api.AnalyticsLongRunningTransaction.DisplayFirstTimelineItems
 import io.element.android.services.analytics.api.AnalyticsLongRunningTransaction.NotificationToMessage
@@ -96,6 +100,9 @@ class TimelinePresenter(
     private val featureFlagService: FeatureFlagService,
     private val analyticsService: AnalyticsService,
     private val liveLocationShareManager: ActiveLiveLocationShareManager,
+    private val encryptionService: EncryptionService,
+    private val sessionVerificationService: SessionVerificationService,
+    private val roomKeyRecoveryTimelineRunner: RoomKeyRecoveryTimelineRunner,
 ) : Presenter<TimelineState> {
     private val tag = "TimelinePresenter"
 
@@ -111,6 +118,7 @@ class TimelinePresenter(
         config = TimelineItemsFactoryConfig(
             computeReadReceipts = true,
             computeReactions = true,
+            roomId = room.roomId.value,
         )
     )
     private var timelineItems by mutableStateOf<ImmutableList<TimelineItem>>(persistentListOf())
@@ -125,7 +133,6 @@ class TimelinePresenter(
         }
 
         val localScope = rememberCoroutineScope()
-
         val timelineMode = remember { timelineController.mainTimelineMode() }
 
         val lastReadReceiptId = rememberSaveable { mutableStateOf<EventId?>(null) }
@@ -165,7 +172,6 @@ class TimelinePresenter(
                         if (event.firstIndex == 0) {
                             newEventState.value = NewEventState.None
                         }
-                        Timber.tag(tag).d("## sendReadReceiptIfNeeded firstVisibleIndex: ${event.firstIndex}")
                         sessionCoroutineScope.launch {
                             val sendPublicReadReceipts = sessionPreferencesStore.isSendPublicReadReceiptsEnabled().first()
                             sendReadReceiptIfNeeded(
@@ -236,6 +242,20 @@ class TimelinePresenter(
                         focusedEventId = event.focusedEvent,
                     )
                 }
+                is TimelineEvent.RetryRoomKeyRecovery -> {
+                    roomKeyRecoveryTimelineRunner.retry(event.request)
+                }
+                TimelineEvent.VerifyDeviceForRoomKeyRecovery -> {
+                    roomKeyRecoveryTimelineRunner.verifyCurrentSession()
+                }
+                is TimelineEvent.OpenGame -> {
+                    Timber.tag(tag).d("OpenGame: gameId=%d gameRoomId=%s", event.gameId, event.gameRoomId)
+                    navigator.navigateToMiniApp(
+                        appId = event.gameId.toLong(),
+                        remoteUrl = event.remoteUrl,
+                        meetId = event.gameRoomId,
+                    )
+                }
             }
         }
 
@@ -252,13 +272,28 @@ class TimelinePresenter(
                 }
                 .launchIn(this)
 
-            combine(timelineController.timelineItems(), room.membersStateFlow) { items, membersState ->
+            combine(
+                timelineController.timelineItems(),
+                room.membersStateFlow,
+                sessionVerificationService.sessionVerifiedStatus,
+                encryptionService.backupStateStateFlow,
+                roomKeyRecoveryTimelineRunner.statuses,
+            ) { items, membersState, sessionVerifiedStatus, backupState, roomKeyRecoveryStatuses ->
                 val parent = analyticsService.getLongRunningTransaction(DisplayFirstTimelineItems)
                 val transaction = parent?.startChild("timelineItemsFactory.replaceWith", "Processing timeline items")
                 transaction?.putExtraData(AnalyticsUserData.TIMELINE_ITEM_COUNT, items.count().toString())
+                val activeRoomMembers = membersState.activeRoomMembers()
+                roomKeyRecoveryTimelineRunner.recoverVisibleItems(
+                    roomId = room.roomId,
+                    timelineItems = items,
+                    roomMembers = activeRoomMembers,
+                    sessionVerifiedStatus = sessionVerifiedStatus,
+                    backupState = backupState,
+                )
                 timelineItemsFactory.replaceWith(
                     timelineItems = items,
-                    roomMembers = membersState.roomMembers().orEmpty()
+                    roomMembers = membersState.roomMembers().orEmpty(),
+                    roomKeyRecoveryStatuses = roomKeyRecoveryStatuses,
                 )
                 transaction?.finish()
                 items

@@ -32,6 +32,9 @@ interface RoomDetailsEntryPoint : FeatureEntryPoint {
         data class RoomMemberDetails(val roomMemberId: UserId) : InitialTarget
 
         @Parcelize
+        data class AgentProfile(val botName: String) : InitialTarget
+
+        @Parcelize
         data object RoomNotificationSettings : InitialTarget
     }
 
@@ -44,6 +47,7 @@ interface RoomDetailsEntryPoint : FeatureEntryPoint {
         fun navigateToRoom(roomId: RoomId, serverNames: List<String>, clearBackStack: Boolean = false)
         fun handlePermalinkClick(data: PermalinkData, pushToBackstack: Boolean)
         fun startForwardEventFlow(eventId: EventId, fromPinnedEvents: Boolean)
+        fun onRoomConfigChanged() = Unit
     }
 
     fun createNode(

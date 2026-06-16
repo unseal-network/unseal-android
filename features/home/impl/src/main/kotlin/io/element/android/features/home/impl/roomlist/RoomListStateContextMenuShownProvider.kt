@@ -9,7 +9,9 @@
 package io.element.android.features.home.impl.roomlist
 
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
+import io.element.android.features.home.impl.model.aRoomListRoomSummary
 import io.element.android.libraries.matrix.api.core.RoomId
+import io.element.android.libraries.matrix.api.room.RoomNotificationMode
 
 open class RoomListStateContextMenuShownProvider : PreviewParameterProvider<RoomListState.ContextMenu.Shown> {
     override val values: Sequence<RoomListState.ContextMenu.Shown>
@@ -25,11 +27,27 @@ internal fun aContextMenuShown(
     isDm: Boolean = false,
     hasNewContent: Boolean = false,
     isFavorite: Boolean = false,
+    userDefinedNotificationMode: RoomNotificationMode? = null,
+    isPinned: Boolean = false,
+    isArchived: Boolean = false,
 ) = RoomListState.ContextMenu.Shown(
+    roomSummary = aRoomListRoomSummary(
+        id = "!aRoom:aDomain",
+        name = roomName,
+        isDm = isDm,
+        isFavorite = isFavorite,
+        notificationMode = userDefinedNotificationMode,
+        numberOfUnreadMessages = if (hasNewContent) 1 else 0,
+        isPinned = isPinned,
+        isArchived = isArchived,
+    ),
     roomId = RoomId("!aRoom:aDomain"),
     roomName = roomName,
     isDm = isDm,
     hasNewContent = hasNewContent,
     isFavorite = isFavorite,
+    userDefinedNotificationMode = userDefinedNotificationMode,
+    isPinned = isPinned,
+    isArchived = isArchived,
     displayClearRoomCacheAction = false,
 )

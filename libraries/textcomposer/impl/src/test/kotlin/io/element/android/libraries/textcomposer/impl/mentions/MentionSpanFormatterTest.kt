@@ -46,7 +46,7 @@ class MentionSpanFormatterTest {
         roomMemberProfilesCache.replace(listOf(roomMember))
         val mentionType = MentionType.User(userId)
         val result = formatter.formatDisplayText(mentionType)
-        assertThat(result.toString()).isEqualTo("@alice")
+        assertThat(result.toString()).isEqualTo("alice")
     }
 
     @Test

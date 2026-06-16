@@ -193,14 +193,14 @@ private fun TimelineItemGroupedEventsRowContent(
                     )
                 }
             }
-        } else if (renderReadReceipts) {
+        } else if (timelineItem.aggregatedReadReceipts.isNotEmpty()) {
             TimelineItemReadReceiptView(
                 state = ReadReceiptViewState(
                     sendState = null,
                     isLastOutgoingMessage = false,
                     receipts = timelineItem.aggregatedReadReceipts,
                 ),
-                renderReadReceipts = true,
+                renderReadReceipts = renderReadReceipts,
                 onReadReceiptsClick = onExpandGroupClick
             )
         }

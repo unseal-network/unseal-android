@@ -8,9 +8,9 @@
 
 package io.element.android.libraries.matrix.impl.roomlist
 
-import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.roomlist.LatestEventValue
 import io.element.android.libraries.matrix.api.roomlist.RoomSummary
+import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.impl.room.RoomInfoMapper
 import io.element.android.libraries.matrix.impl.timeline.item.event.TimelineEventContentMapper
 import io.element.android.libraries.matrix.impl.timeline.item.event.map
@@ -52,11 +52,6 @@ class RoomSummaryFactory(
                     senderId = UserId(event.sender),
                     senderProfile = event.profile.map(),
                     isOwn = event.isOwn,
-                )
-                is RustLatestEventValue.RemoteInvite -> LatestEventValue.RoomInvite(
-                    timestamp = event.timestamp.toLong(),
-                    inviterId = event.inviter?.let(::UserId),
-                    invitedProfile = event.inviterProfile.map(),
                 )
             }
         }

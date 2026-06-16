@@ -15,7 +15,10 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLegacyCallInviteContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRtcNotificationContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemUnknownContent
+import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryRequestParser
+import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryStatus
 import io.element.android.libraries.dateformatter.api.DateFormatter
 import io.element.android.libraries.dateformatter.api.DateFormatterMode
 import io.element.android.libraries.matrix.api.core.EventId
@@ -41,10 +44,16 @@ import io.element.android.libraries.matrix.api.timeline.item.event.UnknownConten
 import io.element.android.libraries.matrix.api.timeline.item.event.getDisambiguatedDisplayName
 import io.element.android.libraries.ui.strings.CommonStrings
 import io.element.android.services.toolbox.api.strings.StringProvider
+import timber.log.Timber
 
 @Inject
 class TimelineItemContentFactory(
     private val messageFactory: TimelineItemContentMessageFactory,
+    private val aiMessageContentParser: AiMessageContentParser,
+    private val aiStreamHandleStore: AiStreamHandleStore,
+    private val aiStreamContentCache: AiStreamContentCache,
+    private val aiSdkStreamReducer: AiSdkStreamReducer,
+    private val gameMessageContentParser: GameMessageContentParser,
     private val redactedMessageFactory: TimelineItemContentRedactedFactory,
     private val stickerFactory: TimelineItemContentStickerFactory,
     private val pollFactory: TimelineItemContentPollFactory,
@@ -58,14 +67,65 @@ class TimelineItemContentFactory(
     private val dateFormatter: DateFormatter,
     private val stringProvider: StringProvider,
 ) {
-    suspend fun create(eventTimelineItem: EventTimelineItem): TimelineItemEventContent {
+    private val roomKeyRecoveryRequestParser = RoomKeyRecoveryRequestParser()
+
+    suspend fun create(
+        eventTimelineItem: EventTimelineItem,
+        roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus> = emptyMap(),
+    ): TimelineItemEventContent {
+        // Unseal AI/assistant messages can arrive either as "m.aisdk.protocol" or as a normal
+        // message with a content.stream pointer. The Matrix SDK maps the latter to regular text,
+        // so the original JSON must be inspected before falling back to normal rendering.
+        val itemContent = eventTimelineItem.content
+        val originalJson = eventTimelineItem.timelineItemDebugInfoProvider().originalJson
+        aiMessageContentParser.parse(
+            originalJson = originalJson,
+            isEdited = itemContent.isEdited(),
+            fallbackSender = eventTimelineItem.sender.value,
+        )?.let { aiContent ->
+            return hydrateAiContent(aiContent)
+        }
+
+        // Game invite messages use custom fields not exposed by the typed SDK.
+        // Parse from the original JSON before falling back to OtherMessageType → plain text.
+        if (itemContent is MessageContent) {
+            gameMessageContentParser.parse(
+                originalJson = originalJson,
+                senderUserId = eventTimelineItem.sender,
+            )?.let { gameContent ->
+                Timber.tag("TimelineItemContentFactory").d(
+                    "Game message parsed: gameId=%d gameRoomId=%s",
+                    gameContent.gameId,
+                    gameContent.gameRoomId,
+                )
+                return gameContent
+            }
+        }
+
         return create(
             itemContent = eventTimelineItem.content,
             eventId = eventTimelineItem.eventId,
             isEditable = eventTimelineItem.isEditable,
             sender = eventTimelineItem.sender,
             senderProfile = eventTimelineItem.senderProfile,
+            roomKeyRecoveryStatus = eventTimelineItem.roomKeyRecoveryStatus(roomKeyRecoveryStatuses),
         )
+    }
+
+    private suspend fun hydrateAiContent(aiContent: TimelineItemAiContent): TimelineItemAiContent {
+        val streamId = aiContent.streamId ?: return aiContent
+        if (aiContent.isTerminalRenderableStream(streamId)) {
+            return aiContent
+        }
+        aiStreamContentCache.get(streamId)?.let { return it.withFallbackMetadata(aiContent) }
+        val cachedSnapshot = aiStreamHandleStore.cachedCompletedSnapshot(streamId) ?: return aiContent
+        return aiSdkStreamReducer.mapSnapshot(
+            snapshot = cachedSnapshot,
+            isEdited = aiContent.isEdited,
+            sender = aiContent.sender,
+        )
+            .withFallbackMetadata(aiContent)
+            .also(aiStreamContentCache::put)
     }
 
     suspend fun create(
@@ -74,6 +134,7 @@ class TimelineItemContentFactory(
         isEditable: Boolean,
         sender: UserId,
         senderProfile: ProfileDetails,
+        roomKeyRecoveryStatus: RoomKeyRecoveryStatus? = null,
     ): TimelineItemEventContent {
         val isOutgoing = sessionId == sender
         return when (itemContent) {
@@ -103,7 +164,7 @@ class TimelineItemContentFactory(
             }
             is StickerContent -> stickerFactory.create(itemContent)
             is PollContent -> pollFactory.create(eventId, isEditable, isOutgoing, itemContent)
-            is UnableToDecryptContent -> utdFactory.create(itemContent)
+            is UnableToDecryptContent -> utdFactory.create(itemContent, roomKeyRecoveryStatus)
             is CallNotifyContent -> TimelineItemRtcNotificationContent(
                 callIntent = itemContent.callIntent,
                 state = if (itemContent.declinedBy.isEmpty()) {
@@ -139,4 +200,35 @@ class TimelineItemContentFactory(
             }
         }
     }
+
+    private fun EventTimelineItem.roomKeyRecoveryStatus(
+        roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
+    ): RoomKeyRecoveryStatus? {
+        if (content !is UnableToDecryptContent) return null
+        val request = roomKeyRecoveryRequestParser.parse(timelineItemDebugInfoProvider().originalJson) ?: return null
+        return roomKeyRecoveryStatuses[request.identityKey]
+    }
+
+    private fun EventContent.isEdited(): Boolean {
+        return when (this) {
+            is MessageContent -> isEdited
+            is PollContent -> isEdited
+            else -> false
+        }
+    }
+}
+
+private fun TimelineItemAiContent.isTerminalRenderableStream(streamId: String): Boolean {
+    return this.streamId == streamId &&
+        isTerminal &&
+        (hasRichParts || body.isNotBlank())
+}
+
+private fun TimelineItemAiContent.withFallbackMetadata(fallback: TimelineItemAiContent): TimelineItemAiContent {
+    return copy(
+        isEdited = fallback.isEdited,
+        sender = sender ?: fallback.sender,
+        roomId = roomId ?: fallback.roomId,
+        eventId = eventId ?: fallback.eventId,
+    )
 }

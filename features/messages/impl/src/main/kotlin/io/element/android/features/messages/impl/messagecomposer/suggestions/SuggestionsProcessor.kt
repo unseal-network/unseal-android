@@ -9,6 +9,7 @@
 package io.element.android.features.messages.impl.messagecomposer.suggestions
 
 import dev.zacsweers.metro.Inject
+import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
 import io.element.android.libraries.core.data.filterUpTo
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.room.RoomMember
@@ -44,6 +45,7 @@ class SuggestionsProcessor(
         currentUserId: UserId,
         canSendRoomMention: suspend () -> Boolean,
         isInThread: Boolean,
+        roomUnsealContext: RoomUnsealContext? = null,
     ): List<ResolvedSuggestion> {
         suggestion ?: return emptyList()
         return when (suggestion.type) {
@@ -54,7 +56,8 @@ class SuggestionsProcessor(
                     query = suggestion.text,
                     roomMembers = members,
                     currentUserId = currentUserId,
-                    canSendRoomMention = canSendRoomMention()
+                    canSendRoomMention = canSendRoomMention(),
+                    roomUnsealContext = roomUnsealContext,
                 )
                 matchingMembers
             }
@@ -97,17 +100,24 @@ class SuggestionsProcessor(
         roomMembers: List<RoomMember>?,
         currentUserId: UserId,
         canSendRoomMention: Boolean,
+        roomUnsealContext: RoomUnsealContext?,
     ): List<ResolvedSuggestion> {
         return if (roomMembers.isNullOrEmpty()) {
             emptyList()
         } else {
+            val enrichedMembersByUserId = roomUnsealContext?.members
+                ?.associateBy { it.userId }
+                .orEmpty()
+
             fun isJoinedMemberAndNotSelf(member: RoomMember): Boolean {
                 return member.membership == RoomMembershipState.JOIN && currentUserId != member.userId
             }
 
             fun memberMatchesQuery(member: RoomMember, query: String): Boolean {
+                val enrichedMember = enrichedMembersByUserId[member.userId]
                 return member.userId.value.contains(query, ignoreCase = true) ||
-                    member.displayName?.contains(query, ignoreCase = true) == true
+                    member.displayName?.contains(query, ignoreCase = true) == true ||
+                    enrichedMember?.displayName?.contains(query, ignoreCase = true) == true
             }
 
             val matchingMembers = roomMembers
@@ -115,7 +125,15 @@ class SuggestionsProcessor(
                 .filterUpTo(MAX_BATCH_ITEMS) { member ->
                     isJoinedMemberAndNotSelf(member) && memberMatchesQuery(member, query)
                 }
-                .map(ResolvedSuggestion::Member)
+                .map { member ->
+                    val enrichedMember = enrichedMembersByUserId[member.userId]
+                    ResolvedSuggestion.Member(
+                        member.copy(
+                            displayName = enrichedMember?.displayName ?: member.displayName,
+                            avatarUrl = enrichedMember?.avatarUrl ?: member.avatarUrl,
+                        )
+                    )
+                }
 
             if ("room".contains(query) && canSendRoomMention) {
                 listOf(ResolvedSuggestion.AtRoom) + matchingMembers

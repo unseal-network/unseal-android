@@ -45,6 +45,7 @@ class DefaultFtueService(
     private val sessionPreferencesStore: SessionPreferencesStore,
 ) : FtueService {
     private val userNeedsToConfirmSessionVerificationSuccess = MutableStateFlow(false)
+    private val userNeedsToAcknowledgeIdentityConfirmed = MutableStateFlow(false)
 
     val ftueStepStateFlow = MutableStateFlow<InternalFtueState>(InternalFtueState.Unknown)
 
@@ -66,6 +67,7 @@ class DefaultFtueService(
                 }
             },
             userNeedsToConfirmSessionVerificationSuccess,
+            userNeedsToAcknowledgeIdentityConfirmed,
             analyticsService.didAskUserConsentFlow.distinctUntilChanged(),
         ) {
             updateFtueStep()
@@ -93,12 +95,12 @@ class DefaultFtueService(
             } else {
                 getNextStep(FtueStep.SessionVerification)
             }
-            FtueStep.SessionVerification -> if (shouldAskNotificationPermissions()) {
-                FtueStep.NotificationsOptIn
+            FtueStep.SessionVerification -> if (userNeedsToAcknowledgeIdentityConfirmed.value) {
+                FtueStep.IdentityConfirmed
             } else {
-                getNextStep(FtueStep.NotificationsOptIn)
+                getNextStep(FtueStep.IdentityConfirmed)
             }
-            FtueStep.NotificationsOptIn -> if (shouldDisplayLockscreenSetup()) {
+            FtueStep.IdentityConfirmed -> if (shouldDisplayLockscreenSetup()) {
                 FtueStep.LockscreenSetup
             } else {
                 getNextStep(FtueStep.LockscreenSetup)
@@ -108,7 +110,12 @@ class DefaultFtueService(
             } else {
                 getNextStep(FtueStep.AnalyticsOptIn)
             }
-            FtueStep.AnalyticsOptIn -> null
+            FtueStep.AnalyticsOptIn -> if (shouldAskNotificationPermissions()) {
+                FtueStep.NotificationsOptIn
+            } else {
+                getNextStep(FtueStep.NotificationsOptIn)
+            }
+            FtueStep.NotificationsOptIn -> null
         }
 
     private fun isSessionVerificationStateReady(): Boolean {
@@ -144,12 +151,18 @@ class DefaultFtueService(
 
     fun onUserCompletedSessionVerification() {
         userNeedsToConfirmSessionVerificationSuccess.value = false
+        userNeedsToAcknowledgeIdentityConfirmed.value = true
+    }
+
+    fun onUserAcknowledgedIdentityConfirmed() {
+        userNeedsToAcknowledgeIdentityConfirmed.value = false
     }
 }
 
 sealed interface FtueStep {
     data object WaitingForInitialState : FtueStep
     data object SessionVerification : FtueStep
+    data object IdentityConfirmed : FtueStep
     data object NotificationsOptIn : FtueStep
     data object AnalyticsOptIn : FtueStep
     data object LockscreenSetup : FtueStep

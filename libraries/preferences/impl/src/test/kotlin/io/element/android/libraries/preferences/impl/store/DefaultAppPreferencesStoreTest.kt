@@ -54,4 +54,51 @@ class DefaultAppPreferencesStoreTest {
 
         assertThat(store.getLiveLocationMinimumDistanceInMetersUpdateFlow().first()).isEqualTo(25)
     }
+
+    @Test
+    fun `onboarding subscription preferences default to false and persist updates`() = runTest {
+        val store = DefaultAppPreferencesStore(
+            buildMeta = buildMeta,
+            preferenceDataStoreFactory = FakePreferenceDataStoreFactory(),
+        )
+
+        assertThat(store.getOnboardingSubscribeChangelogFlow().first()).isFalse()
+        assertThat(store.getOnboardingSubscribeMarketingFlow().first()).isFalse()
+
+        store.setOnboardingSubscriptions(
+            subscribeChangelog = true,
+            subscribeMarketing = true,
+        )
+
+        assertThat(store.getOnboardingSubscribeChangelogFlow().first()).isTrue()
+        assertThat(store.getOnboardingSubscribeMarketingFlow().first()).isTrue()
+    }
+
+    @Test
+    fun `agent welcome preference defaults to false and persists updates`() = runTest {
+        val store = DefaultAppPreferencesStore(
+            buildMeta = buildMeta,
+            preferenceDataStoreFactory = FakePreferenceDataStoreFactory(),
+        )
+
+        assertThat(store.getHasSeenAgentWelcomeFlow().first()).isFalse()
+
+        store.setHasSeenAgentWelcome(true)
+
+        assertThat(store.getHasSeenAgentWelcomeFlow().first()).isTrue()
+    }
+
+    @Test
+    fun `post login welcome preference defaults to false and persists updates`() = runTest {
+        val store = DefaultAppPreferencesStore(
+            buildMeta = buildMeta,
+            preferenceDataStoreFactory = FakePreferenceDataStoreFactory(),
+        )
+
+        assertThat(store.getPostLoginWelcomeCompletedFlow().first()).isFalse()
+
+        store.setPostLoginWelcomeCompleted(true)
+
+        assertThat(store.getPostLoginWelcomeCompletedFlow().first()).isTrue()
+    }
 }

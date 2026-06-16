@@ -1,0 +1,32 @@
+{
+  "toolName": "COMPOSIO_MULTI_EXECUTE_TOOL",
+  "state": "output-available",
+  "input": {
+    "tools": [
+      { "tool_slug": "GMAIL_FETCH_EMAILS" }
+    ]
+  },
+  "output": {
+    "data": {
+      "results": [
+        {
+          "tool_slug": "GMAIL_FETCH_EMAILS",
+          "response": {
+            "successful": true,
+            "data": {
+              "messages": [
+                { "subject": "Invoice", "from": "billing@example.com", "snippet": "June invoice", "url": "https://mail.example/invoice" }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "expected": {
+    "_cardType": "composeEmail",
+    "entryName": "Emails",
+    "entryState": "done",
+    "containsText": "Invoice"
+  }
+}

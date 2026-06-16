@@ -46,7 +46,7 @@ Required iOS behaviors for this plan:
 - Modify: `features/securebackup/impl/src/test/kotlin/io/element/android/features/securebackup/impl/root/SecureBackupRootPresenterTest.kt`
 - Modify: `features/securebackup/impl/src/main/kotlin/io/element/android/features/securebackup/impl/root/SecureBackupRootPresenter.kt`
 
-- [ ] **Step 1: Write failing test for BackupExistsOnServer-as-success**
+- [x] **Step 1: Write failing test for BackupExistsOnServer-as-success**
 
 Add this import to `SecureBackupRootPresenterTest.kt`:
 
@@ -77,7 +77,7 @@ Add this test inside `SecureBackupRootPresenterTest`:
     }
 ```
 
-- [ ] **Step 2: Write failing test for generic enable failure**
+- [x] **Step 2: Write failing test for generic enable failure**
 
 Add this test inside `SecureBackupRootPresenterTest`:
 
@@ -102,7 +102,7 @@ Add this test inside `SecureBackupRootPresenterTest`:
     }
 ```
 
-- [ ] **Step 3: Run root tests and verify failure**
+- [x] **Step 3: Run root tests and verify failure**
 
 Run:
 
@@ -112,7 +112,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
 
 Expected: the new `BackupExistsOnServer` test fails because `enableBackup()` currently propagates all failures.
 
-- [ ] **Step 4: Implement iOS-compatible enable handling**
+- [x] **Step 4: Implement iOS-compatible enable handling**
 
 In `SecureBackupRootPresenter.kt`, add this import:
 
@@ -140,13 +140,13 @@ Replace `enableBackup` with:
     }
 ```
 
-- [ ] **Step 5: Run root tests and verify pass**
+- [x] **Step 5: Run root tests and verify pass**
 
 Run the command from Step 3.
 
 Expected: `SecureBackupRootPresenterTest` passes.
 
-- [ ] **Step 6: Commit Task 1**
+- [x] **Step 6: Commit Task 1**
 
 ```bash
 git add features/securebackup/impl/src/main/kotlin/io/element/android/features/securebackup/impl/root/SecureBackupRootPresenter.kt features/securebackup/impl/src/test/kotlin/io/element/android/features/securebackup/impl/root/SecureBackupRootPresenterTest.kt
@@ -159,7 +159,7 @@ git commit -m "fix: align secure backup enable retry state"
 - Modify: `features/securebackup/impl/src/test/kotlin/io/element/android/features/securebackup/impl/setup/SecureBackupSetupPresenterTest.kt`
 - Modify: `features/securebackup/impl/src/main/kotlin/io/element/android/features/securebackup/impl/setup/SecureBackupSetupPresenter.kt`
 
-- [ ] **Step 1: Write failing test for room key upload error**
+- [x] **Step 1: Write failing test for room key upload error**
 
 Add this test inside `SecureBackupSetupPresenterTest`:
 
@@ -186,7 +186,7 @@ Add this test inside `SecureBackupSetupPresenterTest`:
     }
 ```
 
-- [ ] **Step 2: Write failing test for BackupExistsOnServer setup error**
+- [x] **Step 2: Write failing test for BackupExistsOnServer setup error**
 
 Add this import:
 
@@ -218,7 +218,7 @@ Add this test inside `SecureBackupSetupPresenterTest`:
     }
 ```
 
-- [ ] **Step 3: Run setup tests and verify failure**
+- [x] **Step 3: Run setup tests and verify failure**
 
 Run:
 
@@ -228,7 +228,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
 
 Expected: the room-key-upload-error test fails because `RoomKeyUploadError` is currently ignored. The `BackupExistsOnServer` test may already pass; keep it to lock iOS-specific error identity.
 
-- [ ] **Step 4: Implement room key upload error transition**
+- [x] **Step 4: Implement room key upload error transition**
 
 In `SecureBackupSetupPresenter.kt`, replace the `EnableRecoveryProgress` `when` branch in `observeEncryptionService` with:
 
@@ -249,13 +249,13 @@ In `SecureBackupSetupPresenter.kt`, replace the `EnableRecoveryProgress` `when` 
             }
 ```
 
-- [ ] **Step 5: Run setup tests and verify pass**
+- [x] **Step 5: Run setup tests and verify pass**
 
 Run the command from Step 3.
 
 Expected: `SecureBackupSetupPresenterTest` passes.
 
-- [ ] **Step 6: Commit Task 2**
+- [x] **Step 6: Commit Task 2**
 
 ```bash
 git add features/securebackup/impl/src/main/kotlin/io/element/android/features/securebackup/impl/setup/SecureBackupSetupPresenter.kt features/securebackup/impl/src/test/kotlin/io/element/android/features/securebackup/impl/setup/SecureBackupSetupPresenterTest.kt
@@ -268,7 +268,7 @@ git commit -m "fix: align recovery setup upload errors"
 - Modify: `libraries/matrix/test/src/main/kotlin/io/element/android/libraries/matrix/test/encryption/FakeEncryptionService.kt`
 - Modify: `features/securebackup/impl/src/test/kotlin/io/element/android/features/securebackup/impl/setup/SecureBackupSetupPresenterTest.kt`
 
-- [ ] **Step 1: Add configurable resetRecoveryKey failure seam**
+- [x] **Step 1: Add configurable resetRecoveryKey failure seam**
 
 In `FakeEncryptionService.kt`, add a private field near `recoverFailure`:
 
@@ -293,7 +293,7 @@ Replace `resetRecoveryKey()` with:
     }
 ```
 
-- [ ] **Step 2: Add change recovery key failure test**
+- [x] **Step 2: Add change recovery key failure test**
 
 Add this test inside `SecureBackupSetupPresenterTest`:
 
@@ -321,7 +321,7 @@ Add this test inside `SecureBackupSetupPresenterTest`:
     }
 ```
 
-- [ ] **Step 3: Run setup tests and verify pass**
+- [x] **Step 3: Run setup tests and verify pass**
 
 Run:
 
@@ -331,7 +331,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
 
 Expected: `SecureBackupSetupPresenterTest` passes.
 
-- [ ] **Step 4: Commit Task 3**
+- [x] **Step 4: Commit Task 3**
 
 ```bash
 git add libraries/matrix/test/src/main/kotlin/io/element/android/libraries/matrix/test/encryption/FakeEncryptionService.kt features/securebackup/impl/src/test/kotlin/io/element/android/features/securebackup/impl/setup/SecureBackupSetupPresenterTest.kt
@@ -343,7 +343,7 @@ git commit -m "test: cover recovery key reset failures"
 **Files:**
 - Verify: secure backup implementation and Matrix wrapper tests.
 
-- [ ] **Step 1: Run securebackup module tests**
+- [x] **Step 1: Run securebackup module tests**
 
 Run:
 
@@ -353,7 +353,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
 
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 2: Run Matrix implementation encryption tests**
+- [x] **Step 2: Run Matrix implementation encryption tests**
 
 Run:
 
@@ -363,7 +363,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
 
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 3: Assemble securebackup debug**
+- [x] **Step 3: Assemble securebackup debug**
 
 Run:
 
@@ -373,7 +373,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
 
 Expected: BUILD SUCCESSFUL.
 
-- [ ] **Step 4: Check whitespace**
+- [x] **Step 4: Check whitespace**
 
 Run:
 
@@ -383,7 +383,7 @@ git diff --check
 
 Expected: no output.
 
-- [ ] **Step 5: Commit docs/spec/plan if not already committed**
+- [x] **Step 5: Commit docs/spec/plan if not already committed**
 
 ```bash
 git add docs/superpowers/specs/2026-06-08-secure-backup-recovery-design.md docs/superpowers/plans/2026-06-08-secure-backup-recovery.md
@@ -391,3 +391,12 @@ git commit -m "docs: plan secure backup recovery migration"
 ```
 
 If the docs were included in an earlier commit, this command should be skipped after confirming `git status --short` has no doc changes.
+
+Verification performed after SDK 26.06.5 fixture adaptation:
+
+```text
+:features:securebackup:impl:testDebugUnitTest PASS
+:libraries:matrix:impl:testDebugUnitTest --tests 'io.element.android.libraries.matrix.impl.encryption.*' PASS
+:features:securebackup:impl:assembleDebug PASS
+git diff --check PASS
+```

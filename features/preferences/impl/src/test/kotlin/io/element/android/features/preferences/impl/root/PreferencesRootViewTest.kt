@@ -12,8 +12,10 @@ package io.element.android.features.preferences.impl.root
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.AndroidComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.v2.runAndroidComposeUiTest
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.element.android.features.preferences.impl.R
@@ -120,7 +122,9 @@ class PreferencesRootViewTest {
                 ),
                 onSecureBackupClick = callback,
             )
-            clickOn(CommonStrings.common_encryption)
+            onNodeWithText(activity!!.getString(CommonStrings.common_encryption))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -147,7 +151,9 @@ class PreferencesRootViewTest {
                 ),
                 onManageAccountClick = callback,
             )
-            clickOn(CommonStrings.action_manage_account_and_devices)
+            onNodeWithText(activity!!.getString(CommonStrings.action_manage_account_and_devices))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -174,7 +180,9 @@ class PreferencesRootViewTest {
                 ),
                 onLinkNewDeviceClick = callback,
             )
-            clickOn(CommonStrings.common_link_new_device)
+            onNodeWithText(activity!!.getString(CommonStrings.common_link_new_device))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -201,7 +209,9 @@ class PreferencesRootViewTest {
                 ),
                 onOpenAnalytics = callback,
             )
-            clickOn(CommonStrings.common_analytics)
+            onNodeWithText(activity!!.getString(CommonStrings.common_analytics))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -228,7 +238,9 @@ class PreferencesRootViewTest {
                 ),
                 onOpenRageShake = callback,
             )
-            clickOn(CommonStrings.common_report_a_problem)
+            onNodeWithText(activity!!.getString(CommonStrings.common_report_a_problem))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -254,7 +266,9 @@ class PreferencesRootViewTest {
                 ),
                 onOpenLockScreenSettings = callback,
             )
-            clickOn(CommonStrings.common_screen_lock)
+            onNodeWithText(activity!!.getString(CommonStrings.common_screen_lock))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -268,7 +282,9 @@ class PreferencesRootViewTest {
                 ),
                 onOpenAbout = callback,
             )
-            clickOn(CommonStrings.common_about)
+            onNodeWithText(activity!!.getString(CommonStrings.common_about))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -283,7 +299,9 @@ class PreferencesRootViewTest {
                 ),
                 onOpenDeveloperSettings = callback,
             )
-            clickOn(CommonStrings.common_developer_options)
+            onNodeWithText(activity!!.getString(CommonStrings.common_developer_options))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -309,7 +327,9 @@ class PreferencesRootViewTest {
                 ),
                 onOpenAdvancedSettings = callback,
             )
-            clickOn(CommonStrings.common_advanced_settings)
+            onNodeWithText(activity!!.getString(CommonStrings.common_advanced_settings))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -324,7 +344,9 @@ class PreferencesRootViewTest {
                 ),
                 onOpenLabs = callback,
             )
-            clickOn(R.string.screen_labs_title)
+            onNodeWithText(activity!!.getString(R.string.screen_labs_title))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -350,7 +372,105 @@ class PreferencesRootViewTest {
                 ),
                 onOpenNotificationSettings = callback,
             )
-            clickOn(R.string.screen_notification_settings_title)
+            onNodeWithText(activity!!.getString(R.string.screen_notification_settings_title))
+                .performScrollTo()
+                .performClick()
+        }
+    }
+
+    @Test
+    fun `click on Agent management invokes the expected callback`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        ensureCalledOnce { callback ->
+            setView(
+                aPreferencesRootState(
+                    eventSink = eventsRecorder,
+                ),
+                onOpenAgentManagement = callback,
+            )
+            onNodeWithText(activity!!.getString(R.string.screen_preferences_agent_management_title))
+                .performScrollTo()
+                .performClick()
+        }
+    }
+
+    @Test
+    fun `click on Voice library invokes the expected callback`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        ensureCalledOnce { callback ->
+            setView(
+                aPreferencesRootState(
+                    eventSink = eventsRecorder,
+                ),
+                onOpenVoiceLibrary = callback,
+            )
+            onNodeWithText(activity!!.getString(R.string.screen_preferences_voice_library_title))
+                .performScrollTo()
+                .performClick()
+        }
+    }
+
+    @Test
+    fun `click on Skills management invokes the expected callback`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        ensureCalledOnce { callback ->
+            setView(
+                aPreferencesRootState(
+                    eventSink = eventsRecorder,
+                ),
+                onOpenSkills = callback,
+            )
+            onNodeWithText(activity!!.getString(R.string.screen_preferences_skills_management_title))
+                .performScrollTo()
+                .performClick()
+        }
+    }
+
+    @Test
+    fun `click on Vault management invokes the expected callback`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        ensureCalledOnce { callback ->
+            setView(
+                aPreferencesRootState(
+                    eventSink = eventsRecorder,
+                ),
+                onOpenVaultManagement = callback,
+            )
+            onNodeWithText(activity!!.getString(R.string.screen_preferences_vault_management_title))
+                .performScrollTo()
+                .performClick()
+        }
+    }
+
+    @Test
+    fun `click on Connectors invokes the expected callback`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        ensureCalledOnce { callback ->
+            setView(
+                aPreferencesRootState(
+                    eventSink = eventsRecorder,
+                ),
+                onOpenConnectors = callback,
+            )
+            onNodeWithText(activity!!.getString(R.string.screen_preferences_connectors_title))
+                .performScrollTo()
+                .performClick()
+        }
+    }
+
+    @Test
+    fun `click on Webhook triggers invokes the expected callback`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        ensureCalledOnce { callback ->
+            setView(
+                aPreferencesRootState(
+                    eventSink = eventsRecorder,
+                ),
+                onOpenWebhookTriggers = callback,
+            )
+            onNodeWithText(activity!!.getString(R.string.screen_preferences_webhook_triggers_title))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -365,7 +485,9 @@ class PreferencesRootViewTest {
                 ),
                 onOpenBlockedUsers = callback,
             )
-            clickOn(CommonStrings.common_blocked_users)
+            onNodeWithText(activity!!.getString(CommonStrings.common_blocked_users))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -391,7 +513,9 @@ class PreferencesRootViewTest {
                 ),
                 onSignOutClick = callback,
             )
-            clickOn(CommonStrings.action_signout)
+            onNodeWithText(activity!!.getString(CommonStrings.action_signout))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -406,7 +530,9 @@ class PreferencesRootViewTest {
                 ),
                 onDeactivateClick = callback,
             )
-            clickOn(CommonStrings.action_delete_account)
+            onNodeWithText(activity!!.getString(CommonStrings.action_delete_account))
+                .performScrollTo()
+                .performClick()
         }
     }
 
@@ -432,8 +558,83 @@ class PreferencesRootViewTest {
                 eventSink = eventsRecorder,
             ),
         )
-        onNodeWithText(version).performClick()
+        onNodeWithText(version)
+            .performScrollTo()
+            .performClick()
         eventsRecorder.assertSingle(PreferencesRootEvent.OnVersionInfoClick)
+    }
+
+    @Test
+    fun `credit balance card shows loaded prefixed balance`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        setView(
+            aPreferencesRootState(
+                creditBalanceLoadState = CreditBalanceLoadState.Loaded("12.50"),
+                eventSink = eventsRecorder,
+            ),
+        )
+        onNodeWithText("Credit balance")
+            .performScrollTo()
+            .assertIsDisplayed()
+        onNodeWithText("$12.50")
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun `credit balance card shows unavailable zero balance`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        setView(
+            aPreferencesRootState(
+                creditBalanceLoadState = CreditBalanceLoadState.Unavailable,
+                eventSink = eventsRecorder,
+            ),
+        )
+        onNodeWithText("$0.00")
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun `click on Recharge invokes the expected callback`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        ensureCalledOnce { callback ->
+            setView(
+                aPreferencesRootState(eventSink = eventsRecorder),
+                onOpenCreditsTopUp = callback,
+            )
+            onNodeWithText("Recharge")
+                .performScrollTo()
+                .performClick()
+        }
+    }
+
+    @Test
+    fun `click on Billing invokes the expected callback`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        ensureCalledOnce { callback ->
+            setView(
+                aPreferencesRootState(eventSink = eventsRecorder),
+                onOpenCreditsBilling = callback,
+            )
+            onNodeWithText("Billing")
+                .performScrollTo()
+                .performClick()
+        }
+    }
+
+    @Test
+    fun `click on Usage invokes the expected callback`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<PreferencesRootEvent>(expectEvents = false)
+        ensureCalledOnce { callback ->
+            setView(
+                aPreferencesRootState(eventSink = eventsRecorder),
+                onOpenCreditsUsage = callback,
+            )
+            onNodeWithText("Usage")
+                .performScrollTo()
+                .performClick()
+        }
     }
 }
 
@@ -452,6 +653,15 @@ private fun AndroidComposeUiTest<ComponentActivity>.setView(
     onOpenAdvancedSettings: () -> Unit = EnsureNeverCalled(),
     onOpenLabs: () -> Unit = EnsureNeverCalled(),
     onOpenNotificationSettings: () -> Unit = EnsureNeverCalled(),
+    onOpenWebhookTriggers: () -> Unit = EnsureNeverCalled(),
+    onOpenConnectors: () -> Unit = EnsureNeverCalled(),
+    onOpenVoiceLibrary: () -> Unit = EnsureNeverCalled(),
+    onOpenAgentManagement: () -> Unit = EnsureNeverCalled(),
+    onOpenSkills: () -> Unit = EnsureNeverCalled(),
+    onOpenVaultManagement: () -> Unit = EnsureNeverCalled(),
+    onOpenCreditsTopUp: () -> Unit = EnsureNeverCalled(),
+    onOpenCreditsBilling: () -> Unit = EnsureNeverCalled(),
+    onOpenCreditsUsage: () -> Unit = EnsureNeverCalled(),
     onOpenUserProfile: (MatrixUser) -> Unit = EnsureNeverCalledWithParam(),
     onOpenBlockedUsers: () -> Unit = EnsureNeverCalled(),
     onSignOutClick: () -> Unit = EnsureNeverCalled(),
@@ -473,6 +683,15 @@ private fun AndroidComposeUiTest<ComponentActivity>.setView(
             onOpenAdvancedSettings = onOpenAdvancedSettings,
             onOpenLabs = onOpenLabs,
             onOpenNotificationSettings = onOpenNotificationSettings,
+            onOpenWebhookTriggers = onOpenWebhookTriggers,
+            onOpenConnectors = onOpenConnectors,
+            onOpenVoiceLibrary = onOpenVoiceLibrary,
+            onOpenAgentManagement = onOpenAgentManagement,
+            onOpenSkills = onOpenSkills,
+            onOpenVaultManagement = onOpenVaultManagement,
+            onOpenCreditsTopUp = onOpenCreditsTopUp,
+            onOpenCreditsBilling = onOpenCreditsBilling,
+            onOpenCreditsUsage = onOpenCreditsUsage,
             onOpenUserProfile = onOpenUserProfile,
             onOpenBlockedUsers = onOpenBlockedUsers,
             onSignOutClick = onSignOutClick,

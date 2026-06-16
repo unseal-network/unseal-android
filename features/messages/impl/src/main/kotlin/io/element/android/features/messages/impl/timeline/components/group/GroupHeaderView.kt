@@ -10,7 +10,6 @@ package io.element.android.features.messages.impl.timeline.components.group
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -55,11 +54,6 @@ fun GroupHeaderView(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .toggleable(
-                value = isExpanded,
-                onValueChange = { onClick() },
-                role = Role.DropdownList,
-            )
             .clearAndSetSemantics {
                 contentDescription = text
             },
@@ -68,7 +62,11 @@ fun GroupHeaderView(
         Surface(
             modifier = Modifier
                 .clip(shape)
-                .clickable(onClick = onClick),
+                .toggleable(
+                    value = isExpanded,
+                    onValueChange = { onClick() },
+                    role = Role.DropdownList,
+                ),
             color = backgroundColor,
             shape = shape,
         ) {

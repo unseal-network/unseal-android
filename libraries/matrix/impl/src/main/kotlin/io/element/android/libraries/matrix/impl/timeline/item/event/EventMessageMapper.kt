@@ -23,6 +23,7 @@ import io.element.android.libraries.matrix.api.timeline.item.event.OtherMessageT
 import io.element.android.libraries.matrix.api.timeline.item.event.TextMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.VideoMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.VoiceMessageType
+import io.element.android.libraries.matrix.api.room.location.AssetType
 import io.element.android.libraries.matrix.impl.media.map
 import io.element.android.libraries.matrix.impl.room.location.into
 import io.element.android.libraries.matrix.impl.timeline.reply.InReplyToMapper
@@ -117,7 +118,7 @@ class EventMessageMapper {
                 body = type.content.body,
                 geoUri = type.content.geoUri,
                 description = type.content.description,
-                assetType = type.content.asset.into()
+                assetType = type.content.asset?.into() ?: AssetType.UNKNOWN
             )
         }
         is MessageType.Other -> {

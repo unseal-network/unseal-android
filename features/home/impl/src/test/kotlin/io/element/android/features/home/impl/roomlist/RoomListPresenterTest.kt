@@ -225,6 +225,7 @@ class RoomListPresenterTest {
                 assertThat(state.contextMenu)
                     .isEqualTo(
                         RoomListState.ContextMenu.Shown(
+                            roomSummary = summary,
                             roomId = summary.roomId,
                             roomName = summary.name,
                             isDm = false,
@@ -242,6 +243,7 @@ class RoomListPresenterTest {
                 assertThat(state.contextMenu)
                     .isEqualTo(
                         RoomListState.ContextMenu.Shown(
+                            roomSummary = summary,
                             roomId = summary.roomId,
                             roomName = summary.name,
                             isDm = false,
@@ -269,6 +271,7 @@ class RoomListPresenterTest {
                 assertThat(state.contextMenu)
                     .isEqualTo(
                         RoomListState.ContextMenu.Shown(
+                            roomSummary = summary,
                             roomId = summary.roomId,
                             roomName = summary.name,
                             isDm = false,
@@ -298,6 +301,7 @@ class RoomListPresenterTest {
             assertThat(shownState.contextMenu)
                 .isEqualTo(
                     RoomListState.ContextMenu.Shown(
+                        roomSummary = summary,
                         roomId = summary.roomId,
                         roomName = summary.name,
                         isDm = false,
@@ -411,6 +415,70 @@ class RoomListPresenterTest {
                 Interaction(name = Interaction.Name.MobileRoomListRoomContextMenuFavouriteToggle),
                 Interaction(name = Interaction.Name.MobileRoomListRoomContextMenuFavouriteToggle)
             )
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - when mute room event is emitted, then notification settings are muted`() = runTest {
+        val notificationSettingsService = FakeNotificationSettingsService(
+            initialRoomMode = RoomNotificationMode.ALL_MESSAGES,
+            initialRoomModeIsDefault = true,
+            initialGroupDefaultMode = RoomNotificationMode.ALL_MESSAGES,
+            initialEncryptedGroupDefaultMode = RoomNotificationMode.ALL_MESSAGES,
+        )
+        val client = FakeMatrixClient(
+            notificationSettingsService = notificationSettingsService,
+        )
+        val presenter = createRoomListPresenter(client = client)
+
+        presenter.test {
+            val initialState = awaitItem()
+            initialState.eventSink(RoomListEvent.SetRoomMuted(A_ROOM_ID, true))
+
+            val settings = notificationSettingsService.getRoomNotificationSettings(
+                roomId = A_ROOM_ID,
+                isEncrypted = false,
+                isOneToOne = false,
+            ).getOrThrow()
+            assertThat(settings.mode).isEqualTo(RoomNotificationMode.MUTE)
+            assertThat(settings.isDefault).isFalse()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - when unmute room event is emitted, then notification settings restore defaults`() = runTest {
+        val notificationSettingsService = FakeNotificationSettingsService(
+            initialRoomMode = RoomNotificationMode.MUTE,
+            initialRoomModeIsDefault = false,
+            initialGroupDefaultMode = RoomNotificationMode.ALL_MESSAGES,
+            initialEncryptedGroupDefaultMode = RoomNotificationMode.ALL_MESSAGES,
+        )
+        val room = FakeBaseRoom(
+            initialRoomInfo = aRoomInfo(
+                isEncrypted = false,
+                isDm = false,
+            )
+        )
+        val client = FakeMatrixClient(
+            notificationSettingsService = notificationSettingsService,
+        ).apply {
+            givenGetRoomResult(A_ROOM_ID, room)
+        }
+        val presenter = createRoomListPresenter(client = client)
+
+        presenter.test {
+            val initialState = awaitItem()
+            initialState.eventSink(RoomListEvent.SetRoomMuted(A_ROOM_ID, false))
+
+            val settings = notificationSettingsService.getRoomNotificationSettings(
+                roomId = A_ROOM_ID,
+                isEncrypted = false,
+                isOneToOne = false,
+            ).getOrThrow()
+            assertThat(settings.mode).isEqualTo(RoomNotificationMode.ALL_MESSAGES)
+            assertThat(settings.isDefault).isTrue()
             cancelAndIgnoreRemainingEvents()
         }
     }

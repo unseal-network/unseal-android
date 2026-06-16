@@ -18,11 +18,17 @@ import io.element.android.features.messages.impl.FakeMessagesNavigator
 import io.element.android.features.messages.impl.MessagesNavigator
 import io.element.android.features.messages.impl.draft.ComposerDraftService
 import io.element.android.features.messages.impl.draft.FakeComposerDraftService
+import io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerPresenter
+import io.element.android.features.messages.impl.messagecomposer.gamepicker.FakeRoomGameApiServiceProvider
+import io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillCatalogLoader
 import io.element.android.features.messages.impl.messagecomposer.suggestions.SuggestionsProcessor
+import io.element.android.features.messages.impl.roomdata.FakeRoomUnsealDataClient
+import io.element.android.features.messages.impl.roomdata.FakeRoomUnsealContextStore
 import io.element.android.features.messages.impl.timeline.TimelineController
 import io.element.android.features.messages.impl.utils.FakeMentionSpanFormatter
 import io.element.android.features.messages.impl.utils.FakeTextPillificationHelper
 import io.element.android.features.messages.impl.utils.TextPillificationHelper
+import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.designsystem.utils.snackbar.SnackbarDispatcher
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.permalink.PermalinkBuilder
@@ -65,6 +71,7 @@ import io.element.android.tests.testutils.test
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
@@ -308,9 +315,24 @@ class MessageComposerPresenterSlashCommandTest {
         mentionSpanProvider = mentionSpanProvider,
         pillificationHelper = textPillificationHelper,
         suggestionsProcessor = SuggestionsProcessor(slashCommandService = slashCommandService),
+        roomUnsealContextStore = FakeRoomUnsealContextStore(),
+        composerAgentSkillCatalogLoader = ComposerAgentSkillCatalogLoader(
+            room = room,
+            roomUnsealDataClient = FakeRoomUnsealDataClient(),
+            dispatchers = CoroutineDispatchers(UnconfinedTestDispatcher(testScheduler), UnconfinedTestDispatcher(testScheduler), UnconfinedTestDispatcher(testScheduler)),
+        ),
         mediaOptimizationConfigProvider = mediaOptimizationConfigProvider,
         notificationConversationService = notificationConversationService,
         slashCommandService = slashCommandService,
+        gamePickerPresenterFactory = object : GamePickerPresenter.Factory {
+            override fun create(onNavigateToMiniApp: (appId: Long, remoteUrl: String?, meetId: String) -> Unit): GamePickerPresenter {
+                return GamePickerPresenter(
+                    room = room,
+                    gameApiServiceProvider = FakeRoomGameApiServiceProvider(),
+                    onNavigateToMiniApp = onNavigateToMiniApp,
+                )
+            }
+        },
     ).apply {
         isTesting = true
         showTextFormatting = isRichTextEditorEnabled

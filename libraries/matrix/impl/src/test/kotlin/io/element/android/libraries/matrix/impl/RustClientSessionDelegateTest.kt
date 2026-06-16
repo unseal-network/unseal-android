@@ -9,17 +9,13 @@
 package io.element.android.libraries.matrix.impl
 
 import com.google.common.truth.Truth.assertThat
-import io.element.android.libraries.matrix.impl.core.SdkBackgroundTaskError
 import io.element.android.libraries.matrix.impl.fixtures.factories.aRustSession
 import io.element.android.libraries.sessionstorage.api.SessionStore
 import io.element.android.libraries.sessionstorage.test.InMemorySessionStore
 import io.element.android.libraries.sessionstorage.test.aSessionData
-import io.element.android.services.analytics.api.AnalyticsService
-import io.element.android.services.analytics.test.FakeAnalyticsService
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
-import uniffi.matrix_sdk_common.BackgroundTaskFailureReason
 
 class RustClientSessionDelegateTest {
     @Test
@@ -44,35 +40,11 @@ class RustClientSessionDelegateTest {
         assertThat(result.refreshToken).isEqualTo("rt")
     }
 
-    @Test
-    fun `onBackgroundTaskErrorReport reports the error to analytics if recoverable`() = runTest {
-        val analyticsService = FakeAnalyticsService(isEnabled = true)
-        val sut = aRustClientSessionDelegate(analyticsService = analyticsService)
-        sut.onBackgroundTaskErrorReport("Crasher", BackgroundTaskFailureReason.EarlyTermination)
-        sut.onBackgroundTaskErrorReport("Crasher", BackgroundTaskFailureReason.Error("BOOM"))
-
-        assertThat(analyticsService.trackedErrors).hasSize(2)
-        assertThat(analyticsService.trackedErrors[0].message).isEqualTo("SDK background task 'Crasher' failure: \nEarly termination")
-        assertThat(analyticsService.trackedErrors[1].message).isEqualTo("SDK background task 'Crasher' failure: \nError: BOOM")
-    }
-
-    @Test(expected = SdkBackgroundTaskError::class)
-    fun `onBackgroundTaskErrorReport reports the error to analytics and throws it if it's a panic`() = runTest {
-        val analyticsService = FakeAnalyticsService(isEnabled = true)
-        val sut = aRustClientSessionDelegate(analyticsService = analyticsService)
-        sut.onBackgroundTaskErrorReport("Crasher", BackgroundTaskFailureReason.Panic("BOOM", "Stacktrace"))
-
-        assertThat(analyticsService.trackedErrors).hasSize(1)
-        assertThat(analyticsService.trackedErrors[0].message)
-            .isEqualTo("SDK background task 'Crasher' failure: \nPanic (unrecoverable): BOOM\nStacktrace")
-    }
 }
 
 fun TestScope.aRustClientSessionDelegate(
     sessionStore: SessionStore = InMemorySessionStore(),
-    analyticsService: AnalyticsService = FakeAnalyticsService(),
 ) = RustClientSessionDelegate(
     sessionStore = sessionStore,
     appCoroutineScope = this,
-    analyticsService = analyticsService,
 )

@@ -44,6 +44,7 @@ fun RustStateEventType.map(): StateEventType = when (this) {
     RustStateEventType.PolicyRuleRoom -> StateEventType.PolicyRuleRoom
     RustStateEventType.PolicyRuleServer -> StateEventType.PolicyRuleServer
     RustStateEventType.PolicyRuleUser -> StateEventType.PolicyRuleUser
+    RustStateEventType.RoomAliases -> StateEventType.Custom("m.room.aliases")
     RustStateEventType.CallMember -> StateEventType.CallMember
     RustStateEventType.RoomAvatar -> StateEventType.RoomAvatar
     RustStateEventType.RoomCanonicalAlias -> StateEventType.RoomCanonicalAlias

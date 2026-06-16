@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (c) 2026 New Vector Ltd.
+  ~
+  ~ SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
+  ~ Please see LICENSE files in the repository root for full details.
+  -->
+
+<!-- Strings that are pending import to Localazy. Do NOT edit localazy.xml. -->
+<resources>
+    <!-- Game picker entry in the attachment source picker menu -->
+    <string name="screen_room_attachment_source_game">Game</string>
+    <!-- Section headers in the game picker bottom sheet -->
+    <string name="screen_room_game_picker_my_games">My games</string>
+    <string name="screen_room_game_picker_all_games">All games</string>
+    <!-- Empty state when no games are available -->
+    <string name="screen_room_game_picker_no_games">No games available</string>
+    <!-- Badge shown on a playing room the current user created -->
+    <string name="screen_room_game_picker_room_owner">Owner</string>
+    <!-- Game invite card in the timeline (m.game.v1) -->
+    <string name="screen_room_game_card_start">Start game →</string>
+    <string name="screen_room_game_card_opened">Game opened →</string>
+    <string name="screen_room_game_card_missing">Game info missing</string>
+</resources>

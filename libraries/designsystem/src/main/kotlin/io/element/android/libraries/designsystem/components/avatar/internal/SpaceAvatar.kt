@@ -57,6 +57,7 @@ internal fun SpaceAvatar(
             forcedAvatarSize = forcedAvatarSize,
             modifier = commonModifier,
             contentDescription = contentDescription,
+            placeholderType = AvatarPlaceholderType.Space,
         )
     }
 }

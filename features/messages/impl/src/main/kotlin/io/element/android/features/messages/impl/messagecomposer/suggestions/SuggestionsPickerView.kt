@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -53,15 +53,16 @@ fun SuggestionsPickerView(
     roomName: String?,
     roomAvatarData: AvatarData,
     suggestions: ImmutableList<ResolvedSuggestion>,
+    suggestionRenderModels: ImmutableList<ComposerSuggestionRenderModel> = persistentListOf(),
     onSelectSuggestion: (ResolvedSuggestion) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
     ) {
-        items(
+        itemsIndexed(
             suggestions,
-            key = { suggestion ->
+            key = { _, suggestion ->
                 when (suggestion) {
                     is ResolvedSuggestion.AtRoom -> "@room"
                     is ResolvedSuggestion.Member -> suggestion.roomMember.userId.value
@@ -69,10 +70,11 @@ fun SuggestionsPickerView(
                     is ResolvedSuggestion.Command -> suggestion.command.command
                 }
             }
-        ) {
+        ) { index, suggestion ->
             Column(modifier = Modifier.fillParentMaxWidth()) {
                 SuggestionItemView(
-                    suggestion = it,
+                    suggestion = suggestion,
+                    renderModel = suggestionRenderModels.getOrNull(index),
                     roomId = roomId.value,
                     roomName = roomName,
                     roomAvatar = roomAvatarData,
@@ -88,6 +90,7 @@ fun SuggestionsPickerView(
 @Composable
 private fun SuggestionItemView(
     suggestion: ResolvedSuggestion,
+    renderModel: ComposerSuggestionRenderModel?,
     roomId: String,
     roomName: String?,
     roomAvatar: AvatarData?,
@@ -101,9 +104,17 @@ private fun SuggestionItemView(
     ) {
         val avatarSize = AvatarSize.Suggestion
         val avatarData = when (suggestion) {
-            is ResolvedSuggestion.AtRoom -> roomAvatar?.copy(size = avatarSize) ?: AvatarData(roomId, roomName, null, avatarSize)
-            is ResolvedSuggestion.Member -> suggestion.roomMember.getAvatarData(avatarSize)
-            is ResolvedSuggestion.Alias -> suggestion.getAvatarData(avatarSize)
+            is ResolvedSuggestion.AtRoom -> renderModel?.toAvatarData(avatarSize)
+                ?: roomAvatar?.copy(size = avatarSize)
+                ?: AvatarData(roomId, roomName, null, avatarSize)
+            is ResolvedSuggestion.Member -> renderModel?.toAvatarData(
+                size = avatarSize,
+                fallback = suggestion.roomMember.getAvatarData(avatarSize),
+            ) ?: suggestion.roomMember.getAvatarData(avatarSize)
+            is ResolvedSuggestion.Alias -> renderModel?.toAvatarData(
+                size = avatarSize,
+                fallback = suggestion.getAvatarData(avatarSize),
+            ) ?: suggestion.getAvatarData(avatarSize)
             is ResolvedSuggestion.Command -> null
         }
         val avatarType = when (suggestion) {
@@ -112,19 +123,19 @@ private fun SuggestionItemView(
             is ResolvedSuggestion.Member -> AvatarType.User
             is ResolvedSuggestion.Command -> null
         }
-        val title = when (suggestion) {
+        val title = renderModel?.displayName ?: when (suggestion) {
             is ResolvedSuggestion.AtRoom -> stringResource(R.string.screen_room_mentions_at_room_title)
             is ResolvedSuggestion.Member -> suggestion.roomMember.displayName
             is ResolvedSuggestion.Alias -> suggestion.roomName
             is ResolvedSuggestion.Command -> suggestion.command.command
-        }
+        } ?: renderModel?.id
         val details = when (suggestion) {
             is ResolvedSuggestion.AtRoom,
             is ResolvedSuggestion.Member,
             is ResolvedSuggestion.Alias -> null
             is ResolvedSuggestion.Command -> suggestion.command.parameters
         }
-        val subtitle = when (suggestion) {
+        val subtitle = renderModel?.subtitle ?: when (suggestion) {
             is ResolvedSuggestion.AtRoom -> "@room"
             is ResolvedSuggestion.Member -> suggestion.roomMember.userId.value
             is ResolvedSuggestion.Alias -> suggestion.roomAlias.value
@@ -164,6 +175,13 @@ private fun SuggestionItemView(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+                if (renderModel?.isAgent == true) {
+                    Text(
+                        text = "Agent",
+                        style = ElementTheme.typography.fontBodySmMedium,
+                        color = ElementTheme.colors.textBadgeAccent,
+                    )
+                }
             }
             Text(
                 text = subtitle,
@@ -174,6 +192,18 @@ private fun SuggestionItemView(
             )
         }
     }
+}
+
+private fun ComposerSuggestionRenderModel.toAvatarData(
+    size: AvatarSize,
+    fallback: AvatarData? = null,
+): AvatarData {
+    return AvatarData(
+        id = id,
+        name = displayName ?: fallback?.name,
+        url = avatarUrl ?: fallback?.url,
+        size = size,
+    )
 }
 
 @PreviewsDayNight

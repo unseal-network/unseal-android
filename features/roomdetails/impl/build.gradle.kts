@@ -53,6 +53,8 @@ dependencies {
     implementation(projects.services.analytics.compose)
     implementation(projects.features.poll.api)
     implementation(projects.features.messages.api)
+    implementation(projects.features.agentmanagement.api)
+    implementation(projects.libraries.chatbot.api)
     implementation(projects.features.roomcall.api)
     implementation(projects.features.knockrequests.api)
     implementation(projects.features.verifysession.api)
@@ -62,6 +64,7 @@ dependencies {
     implementation(projects.features.securityandprivacy.api)
     implementation(projects.features.roomdetailsedit.api)
     implementation(projects.features.invitepeople.api)
+    implementation(projects.features.webhooks.api)
 
     testCommonDependencies(libs, true)
     testImplementation(projects.libraries.matrix.test)
@@ -83,5 +86,6 @@ dependencies {
     testImplementation(projects.features.reportroom.test)
     testImplementation(projects.features.startchat.test)
     testImplementation(projects.features.verifysession.test)
+    testImplementation(projects.features.webhooks.test)
     testImplementation(projects.services.analytics.test)
 }

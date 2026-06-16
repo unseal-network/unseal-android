@@ -17,60 +17,34 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.callbackFlow
-import org.matrix.rustcomponents.sdk.LiveLocationShareUpdate
-import org.matrix.rustcomponents.sdk.LiveLocationsListener
+import org.matrix.rustcomponents.sdk.LiveLocationShareListener
 import org.matrix.rustcomponents.sdk.RoomInterface
 import org.matrix.rustcomponents.sdk.LiveLocationShare as RustLiveLocationShare
 
 fun RoomInterface.liveLocationSharesFlow(): Flow<List<LiveLocationShare>> {
-    fun MutableList<LiveLocationShare>.applyUpdate(update: LiveLocationShareUpdate) {
-        when (update) {
-            is LiveLocationShareUpdate.Append -> addAll(update.values.map { it.into() })
-            is LiveLocationShareUpdate.Clear -> clear()
-            is LiveLocationShareUpdate.Insert -> add(update.index.toInt(), update.value.into())
-            is LiveLocationShareUpdate.PopBack -> if (isNotEmpty()) removeAt(lastIndex)
-            is LiveLocationShareUpdate.PopFront -> if (isNotEmpty()) removeAt(0)
-            is LiveLocationShareUpdate.PushBack -> add(update.value.into())
-            is LiveLocationShareUpdate.PushFront -> add(0, update.value.into())
-            is LiveLocationShareUpdate.Remove -> removeAt(update.index.toInt())
-            is LiveLocationShareUpdate.Reset -> {
-                clear()
-                addAll(update.values.map { it.into() })
-            }
-            is LiveLocationShareUpdate.Set -> set(update.index.toInt(), update.value.into())
-            is LiveLocationShareUpdate.Truncate -> subList(update.length.toInt(), size).clear()
-        }
-    }
     return callbackFlow {
-        val observer = liveLocationsObserver()
-        val shares: MutableList<LiveLocationShare> = ArrayList()
-        val taskHandle = observer.subscribe(object : LiveLocationsListener {
-            override fun onUpdate(updates: List<LiveLocationShareUpdate>) {
-                for (update in updates) {
-                    shares.applyUpdate(update)
-                }
-                trySend(shares)
+        val taskHandle = subscribeToLiveLocationShares(object : LiveLocationShareListener {
+            override fun call(shares: List<RustLiveLocationShare>) {
+                trySend(shares.map { it.into() })
             }
         })
         awaitClose {
             taskHandle.cancelAndDestroy()
-            observer.destroy()
         }
     }.buffer(Channel.UNLIMITED)
 }
 
 private fun RustLiveLocationShare.into(): LiveLocationShare {
+    val lastLocationTimestamp = lastLocation.ts.toLong()
     return LiveLocationShare(
-        beaconId = EventId(beaconId),
+        beaconId = EventId("\$live-location-$userId"),
         userId = UserId(userId),
-        lastLocation = lastLocation?.let {
-            LastLocation(
-                geoUri = it.location.geoUri,
-                timestamp = it.ts.toLong(),
-                assetType = it.location.asset.into(),
-            )
-        },
-        startTimestamp = startTs.toLong(),
-        endTimestamp = (startTs + timeout).toLong(),
+        lastLocation = LastLocation(
+            geoUri = lastLocation.location.geoUri,
+            timestamp = lastLocationTimestamp,
+            assetType = lastLocation.location.asset?.into() ?: io.element.android.libraries.matrix.api.room.location.AssetType.UNKNOWN,
+        ),
+        startTimestamp = lastLocationTimestamp,
+        endTimestamp = if (isLive) Long.MAX_VALUE else lastLocationTimestamp,
     )
 }
