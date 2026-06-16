@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -169,22 +170,27 @@ internal fun <T> CreditPillPicker(
     ) {
         options.forEach { (value, label) ->
             val isSelected = value == selected
-            Box(
+            Surface(
+                onClick = { onSelect(value) },
                 modifier = Modifier
-                    .clip(CircleShape)
-                    .background(if (isSelected) MaterialTheme.colorScheme.surface else Color.Transparent)
-                    .clickable { onSelect(value) }
-                    .padding(horizontal = if (compact) 10.dp else 12.dp, vertical = if (compact) 5.dp else 6.dp),
-                contentAlignment = Alignment.Center,
+                    .clip(CircleShape),
+                shape = CircleShape,
+                color = if (isSelected) MaterialTheme.colorScheme.surface else Color.Transparent,
+                contentColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             ) {
-                Text(
-                    text = label,
-                    style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium,
-                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    softWrap = false,
-                )
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = if (compact) 10.dp else 12.dp, vertical = if (compact) 5.dp else 6.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = label,
+                        style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        softWrap = false,
+                    )
+                }
             }
         }
     }
