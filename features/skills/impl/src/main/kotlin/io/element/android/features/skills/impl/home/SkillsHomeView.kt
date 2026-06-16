@@ -35,6 +35,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -43,7 +44,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
@@ -220,20 +220,21 @@ private fun SkillsTabPicker(
     ) {
         SkillsHomeTab.entries.forEach { tab ->
             val selected = tab == selectedTab
-            Text(
+            Surface(
                 modifier = Modifier
-                    .weight(1f)
-                    .background(
-                        if (selected) MaterialTheme.colorScheme.surface else Color.Transparent,
-                        RoundedCornerShape(percent = 50),
-                    )
-                    .clickable { onSelect(tab) }
-                    .padding(vertical = 7.dp),
-                text = if (tab == SkillsHomeTab.Mine) "我的" else "市场",
-                style = MaterialTheme.typography.labelLarge,
-                color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
+                    .weight(1f),
+                onClick = { onSelect(tab) },
+                shape = RoundedCornerShape(percent = 50),
+                color = if (selected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+            ) {
+                Text(
+                    modifier = Modifier.padding(vertical = 7.dp),
+                    text = if (tab == SkillsHomeTab.Mine) "我的" else "市场",
+                    style = MaterialTheme.typography.labelLarge,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
     }
 }
