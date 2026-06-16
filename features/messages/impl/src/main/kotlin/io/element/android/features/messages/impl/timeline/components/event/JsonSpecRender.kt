@@ -42,7 +42,9 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -486,7 +488,7 @@ private fun JsonRenderFile(element: JsonRenderElement, onLinkClick: (Link) -> Un
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = !url.isNullOrBlank()) { url?.let { onLinkClick(Link(it)) } }
+            .clickableJsonUrl(url = url, shape = RoundedCornerShape(10.dp), onLinkClick = onLinkClick)
             .padding(vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -517,7 +519,7 @@ private fun JsonRenderHotel(element: JsonRenderElement, onLinkClick: (Link) -> U
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = !url.isNullOrBlank()) { url?.let { onLinkClick(Link(it)) } }
+            .clickableJsonUrl(url = url, shape = RoundedCornerShape(12.dp), onLinkClick = onLinkClick)
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.Top,
@@ -550,7 +552,7 @@ private fun JsonRenderProduct(element: JsonRenderElement, onLinkClick: (Link) ->
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = !url.isNullOrBlank()) { url?.let { onLinkClick(Link(it)) } }
+            .clickableJsonUrl(url = url, shape = RoundedCornerShape(12.dp), onLinkClick = onLinkClick)
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.Top,
@@ -579,7 +581,7 @@ private fun JsonRenderNews(element: JsonRenderElement, onLinkClick: (Link) -> Un
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = !url.isNullOrBlank()) { url?.let { onLinkClick(Link(it)) } }
+            .clickableJsonUrl(url = url, shape = RoundedCornerShape(10.dp), onLinkClick = onLinkClick)
             .padding(vertical = 7.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -918,6 +920,16 @@ private fun JSONObject.clickUrl(state: JSONObject?): String? {
     val on = optJSONObject("on") ?: optJSONObject("actions") ?: return null
     val click = on.optJSONObject("click") ?: on.optJSONObject("tap") ?: on.optJSONObject("press") ?: on
     return click.firstString(state, "url", "href", "link")
+}
+
+private fun Modifier.clickableJsonUrl(
+    url: String?,
+    shape: Shape,
+    onLinkClick: (Link) -> Unit,
+): Modifier {
+    if (url.isNullOrBlank()) return this
+    return clip(shape)
+        .clickable { onLinkClick(Link(url)) }
 }
 
 internal fun JSONObject.clickActionLabel(state: JSONObject?): String? {
