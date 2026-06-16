@@ -37,7 +37,7 @@ class AgentProfileNode(
     presenterFactory: AgentDetailPresenter.Factory,
 ) : Node(buildContext, plugins = plugins) {
     @Parcelize
-    data class Inputs(val botName: String) : Plugin, Parcelable
+    data class Inputs(val botName: String, val matrixUserId: String? = null) : Plugin, Parcelable
 
     interface Callback : Plugin {
         fun onDone()
@@ -50,6 +50,7 @@ class AgentProfileNode(
     private val callback = plugins<Callback>().first()
     private val presenter = presenterFactory.create(
         botName = inputs.botName,
+        initialMatrixUserId = inputs.matrixUserId,
         navigator = object : AgentDetailNavigator {
             override fun onEdit(botName: String) = callback.onEdit(botName)
             override fun onOpenRoom(roomIdOrAlias: RoomIdOrAlias) = callback.onOpenRoom(roomIdOrAlias)

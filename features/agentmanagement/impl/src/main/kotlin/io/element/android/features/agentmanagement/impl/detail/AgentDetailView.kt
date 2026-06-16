@@ -39,7 +39,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,7 +67,6 @@ fun AgentDetailView(
 ) {
     val renderModel = state.renderModel
     LaunchedEffect(Unit) { state.eventSink(AgentDetailEvents.OnAppear) }
-    val uriHandler = LocalUriHandler.current
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.surface,
@@ -79,8 +77,10 @@ fun AgentDetailView(
                     IconButton(onClick = onBackClick) { Icon(CompoundIcons.ChevronLeft(), "返回") }
                 },
                 actions = {
-                    renderModel.agentProfileUrl?.let { url ->
-                        IconButton(onClick = { uriHandler.openUri(url) }) { Icon(CompoundIcons.PopOut(), "智能体资料") }
+                    if (state.canEdit) {
+                        IconButton(onClick = { state.eventSink(AgentDetailEvents.Edit) }) {
+                            Icon(CompoundIcons.Edit(), contentDescription = null)
+                        }
                     }
                 },
             )
@@ -155,27 +155,14 @@ private fun Chip(text: String, icon: androidx.compose.ui.graphics.vector.ImageVe
 
 @Composable
 private fun ActionButtons(state: AgentDetailState, renderModel: AgentDetailRenderModel) {
-    Row(
+    Button(
         modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        enabled = renderModel.canStartChat,
+        onClick = { state.eventSink(AgentDetailEvents.StartChat) },
     ) {
-        Button(
-            modifier = Modifier.weight(1f),
-            enabled = renderModel.canStartChat,
-            onClick = { state.eventSink(AgentDetailEvents.StartChat) },
-        ) {
-            Icon(CompoundIcons.Chat(), null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.size(8.dp))
-            Text(renderModel.startChatLabel)
-        }
-        OutlinedButton(
-            modifier = Modifier.weight(1f),
-            onClick = { state.eventSink(AgentDetailEvents.Edit) },
-        ) {
-            Icon(CompoundIcons.Edit(), null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.size(8.dp))
-            Text(renderModel.editLabel)
-        }
+        Icon(CompoundIcons.Chat(), null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.size(8.dp))
+        Text(renderModel.startChatLabel)
     }
 }
 

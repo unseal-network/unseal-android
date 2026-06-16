@@ -20,6 +20,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -51,6 +52,7 @@ import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ripple
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -851,7 +853,12 @@ private fun ToolbarCircleButton(
                     }
                 )
                 .border(1.dp, ElementTheme.colors.borderDisabled, CircleShape)
-                .clickable(enabled = enabled, onClick = onClick),
+                .clickable(
+                    enabled = enabled,
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = ripple(bounded = true),
+                    onClick = onClick,
+                ),
             contentAlignment = Alignment.Center,
         ) {
             content()
@@ -900,7 +907,7 @@ private fun MessagesViewContent(
     ) {
         AttachmentsBottomSheet(
             state = state.composerState,
-            attachmentActions = state.roomMenu.attachmentActions,
+            attachmentActions = state.roomMenu.attachmentActionEntries,
             onSendLocationClick = onSendLocationClick,
             onCreatePollClick = onCreatePollClick,
         )

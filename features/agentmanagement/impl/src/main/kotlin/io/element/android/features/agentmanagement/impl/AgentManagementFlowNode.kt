@@ -55,7 +55,7 @@ class AgentManagementFlowNode(
         data class Detail(val botName: String) : NavTarget
 
         @Parcelize
-        data class Profile(val botName: String) : NavTarget
+        data class Profile(val botName: String, val matrixUserId: String? = null) : NavTarget
 
         @Parcelize
         data object Create : NavTarget
@@ -94,7 +94,7 @@ class AgentManagementFlowNode(
             is NavTarget.Profile -> createNode<AgentProfileNode>(
                 buildContext = buildContext,
                 plugins = listOf(
-                    AgentProfileNode.Inputs(navTarget.botName),
+                    AgentProfileNode.Inputs(navTarget.botName, navTarget.matrixUserId),
                     object : AgentProfileNode.Callback {
                         override fun onDone() = closeOrPop()
                         override fun onEdit(botName: String) = backstack.push(NavTarget.Edit(botName))
@@ -157,7 +157,7 @@ class AgentManagementFlowNode(
 private fun AgentManagementEntryPoint.InitialTarget.toNavTarget(): AgentManagementFlowNode.NavTarget = when (this) {
     AgentManagementEntryPoint.InitialTarget.List -> AgentManagementFlowNode.NavTarget.List
     is AgentManagementEntryPoint.InitialTarget.Detail -> AgentManagementFlowNode.NavTarget.Detail(botName)
-    is AgentManagementEntryPoint.InitialTarget.Profile -> AgentManagementFlowNode.NavTarget.Profile(botName)
+    is AgentManagementEntryPoint.InitialTarget.Profile -> AgentManagementFlowNode.NavTarget.Profile(botName, matrixUserId)
     AgentManagementEntryPoint.InitialTarget.Create -> AgentManagementFlowNode.NavTarget.Create
     is AgentManagementEntryPoint.InitialTarget.Edit -> AgentManagementFlowNode.NavTarget.Edit(botName)
 }

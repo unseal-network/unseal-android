@@ -99,7 +99,7 @@ internal fun composioSearchCard(cardType: String, data: JSONObject, onLinkClick:
         "productList" -> ProductListCard(data, onLinkClick)
         "finance" -> FinanceCard(data, onLinkClick)
         "weather" -> WeatherCard(data)
-        "eventList" -> EventListCard(data)
+        "eventList" -> EventListCard(data, onLinkClick)
         "placeList" -> PlaceListCard(data, onLinkClick)
         "urlContent" -> UrlContentCard(data, onLinkClick)
         else -> return false
@@ -1648,7 +1648,7 @@ private fun String.trimTrailingZero(): String = replace(".0", "")
 // MARK: - Events (eventList)
 
 @Composable
-private fun EventListCard(data: JSONObject) {
+private fun EventListCard(data: JSONObject, onLinkClick: () -> Unit) {
     val all = data.cardObjects("events")
     ToolCardSurface {
         ToolCardHeader(title = "Events", count = all.size)
@@ -1656,18 +1656,22 @@ private fun EventListCard(data: JSONObject) {
             MetaText("No events found")
             return@ToolCardSurface
         }
-        DividedList(all.take(MAX_ITEMS)) { EventRow(it) }
+        DividedList(all.take(MAX_ITEMS)) { EventRow(it, onLinkClick) }
     }
 }
 
 @Composable
-private fun EventRow(event: JSONObject) {
+private fun EventRow(event: JSONObject, onLinkClick: () -> Unit) {
     val title = event.cardString("title") ?: ""
     val whenText = event.cardString("when")
     val location = event.cardString("venue", "address")
     val thumb = event.cardString("thumbnail")
+    val action = openLinkAction(event.cardString("url"), onLinkClick)
 
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickableIfLink(action).padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         CardRemoteImage(url = thumb, modifier = Modifier.size(50.dp), corner = 8)
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(title, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)

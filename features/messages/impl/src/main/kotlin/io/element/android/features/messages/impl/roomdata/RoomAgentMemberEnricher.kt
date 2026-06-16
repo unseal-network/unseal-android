@@ -27,8 +27,7 @@ object RoomAgentMemberEnricher {
     private fun activeAgentFor(member: RoomMember, agentsByUserId: Map<String, RoomAgentDescriptor>): RoomAgentDescriptor? {
         if (member.membership != RoomMembershipState.JOIN) return null
         val agent = agentsByUserId[member.userId.value] ?: return null
-        val agentMembership = agent.membership?.trim()
-        if (!agentMembership.isNullOrEmpty() && agentMembership != "join") return null
+        if (!agent.isJoinedOrUnknownMembership()) return null
         return agent
     }
 }

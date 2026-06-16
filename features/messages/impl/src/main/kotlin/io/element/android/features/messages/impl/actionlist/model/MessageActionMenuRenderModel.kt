@@ -24,6 +24,7 @@ data class MessageActionMenuRenderModel(
     val recentEmojis: ImmutableList<String>,
     val verifiedUserSendFailure: VerifiedUserSendFailure,
     val sections: ImmutableList<MessageActionMenuSectionModel>,
+    val unavailableIosActions: ImmutableList<MessageActionMenuUnavailableEntry>,
 )
 
 @Immutable
@@ -40,6 +41,12 @@ data class MessageActionMenuEntry(
     val destructive: Boolean,
 )
 
+@Immutable
+data class MessageActionMenuUnavailableEntry(
+    val action: IosTimelineAction,
+    val reason: MessageActionUnavailableReason,
+)
+
 enum class MessageActionMenuSection {
     Primary,
     Edit,
@@ -47,6 +54,18 @@ enum class MessageActionMenuSection {
     Pin,
     Debug,
     Danger,
+}
+
+enum class IosTimelineAction {
+    SaveMessage,
+    UnsaveMessage,
+    Translate,
+    ShareMedia,
+    SaveMedia,
+}
+
+enum class MessageActionUnavailableReason {
+    RequiresBottomLayer,
 }
 
 object MessageActionMenuReducer {
@@ -77,6 +96,12 @@ object MessageActionMenuReducer {
                 }
                 .sortedBy { it.kind.ordinal }
                 .toImmutableList(),
+            unavailableIosActions = IOS_ACTION_GAPS.map { action ->
+                MessageActionMenuUnavailableEntry(
+                    action = action,
+                    reason = MessageActionUnavailableReason.RequiresBottomLayer,
+                )
+            }.toImmutableList(),
         )
     }
 
@@ -103,4 +128,12 @@ object MessageActionMenuReducer {
             TimelineItemAction.Redact -> MessageActionMenuSection.Danger
         }
     }
+
+    private val IOS_ACTION_GAPS = listOf(
+        IosTimelineAction.SaveMessage,
+        IosTimelineAction.UnsaveMessage,
+        IosTimelineAction.Translate,
+        IosTimelineAction.ShareMedia,
+        IosTimelineAction.SaveMedia,
+    )
 }

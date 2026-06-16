@@ -74,4 +74,28 @@ class MessageActionMenuReducerTest {
         assertThat(model.verifiedUserSendFailure).isEqualTo(VerifiedUserSendFailure.UnsignedDevice.FromYou)
         assertThat(model.sections.single().entries.single().destructive).isTrue()
     }
+
+    @Test
+    fun `reduce exposes iOS actions that are intentionally unavailable on Android`() {
+        val target = ActionListState.Target.Success(
+            event = aTimelineItemEvent(),
+            sentTimeFull = "June 14, 2026",
+            displayEmojiReactions = false,
+            recentEmojis = persistentListOf(),
+            verifiedUserSendFailure = VerifiedUserSendFailure.None,
+            actions = persistentListOf(TimelineItemAction.CopyText),
+        )
+
+        val model = MessageActionMenuReducer.reduce(target)
+
+        assertThat(model.unavailableIosActions.map { it.action }).containsExactly(
+            IosTimelineAction.SaveMessage,
+            IosTimelineAction.UnsaveMessage,
+            IosTimelineAction.Translate,
+            IosTimelineAction.ShareMedia,
+            IosTimelineAction.SaveMedia,
+        ).inOrder()
+        assertThat(model.unavailableIosActions.map { it.reason }.toSet())
+            .containsExactly(MessageActionUnavailableReason.RequiresBottomLayer)
+    }
 }

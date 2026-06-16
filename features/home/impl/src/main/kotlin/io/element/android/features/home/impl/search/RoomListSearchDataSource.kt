@@ -25,6 +25,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 
 private const val PAGE_SIZE = 30
 
@@ -32,7 +33,7 @@ private const val PAGE_SIZE = 30
 class RoomListSearchDataSource(
     @Assisted coroutineScope: CoroutineScope,
     roomListService: RoomListService,
-    coroutineDispatchers: CoroutineDispatchers,
+    private val coroutineDispatchers: CoroutineDispatchers,
     private val roomSummaryFactory: RoomListRoomSummaryFactory,
 ) {
     @AssistedFactory
@@ -54,7 +55,7 @@ class RoomListSearchDataSource(
         }
         .flowOn(coroutineDispatchers.computation)
 
-    suspend fun updateVisibleRange(visibleRange: IntRange) {
+    suspend fun updateVisibleRange(visibleRange: IntRange) = withContext(coroutineDispatchers.io) {
         roomList.updateVisibleRange(visibleRange)
     }
 

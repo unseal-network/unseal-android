@@ -12,7 +12,6 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -41,12 +40,13 @@ fun MessageStateEventContainer(
     Surface(
         modifier = modifier
             .widthIn(min = 80.dp)
+            .timelinePressFeedback(interactionSource, shape)
             .clip(shape)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick,
                 onLongClickLabel = stringResource(CommonStrings.action_open_context_menu),
-                indication = ripple(),
+                indication = null,
                 interactionSource = interactionSource
             )
             .onKeyboardContextMenuAction(onLongClick),

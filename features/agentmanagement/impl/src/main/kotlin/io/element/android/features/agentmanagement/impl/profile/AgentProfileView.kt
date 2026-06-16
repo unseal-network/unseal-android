@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -103,10 +104,10 @@ fun AgentProfileView(
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             item { Hero(state) }
-            item { ConnectCard(connectUrl = state.agentConnectUrl) }
+            item { ConnectCard(connectUrl = state.agentConnectUrl, isLoading = state.isLoading, title = model.connectTitle, hint = model.connectHint) }
             when {
                 model.skills.items.isNotEmpty() -> item { SkillsSection(state) }
-                state.isLoading -> item { SkillsLoadingSection() }
+                else -> item { SkillsLoadingSection() }
             }
         }
     }
@@ -132,10 +133,13 @@ private fun Hero(state: AgentDetailState) {
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
         )
-        model.matrixId?.let { id ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            if (model.matrixId != null) {
                 Text(
-                    text = id,
+                    text = model.matrixId,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -144,6 +148,13 @@ private fun Hero(state: AgentDetailState) {
                 IconButton(onClick = { state.eventSink(AgentDetailEvents.CopyAgentId) }, modifier = Modifier.size(20.dp)) {
                     Icon(CompoundIcons.Copy(), contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .width(140.dp)
+                        .height(14.dp)
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f), RoundedCornerShape(4.dp))
+                )
             }
         }
         ProfileChip(text = model.visibilityLabel)
@@ -156,25 +167,15 @@ private fun Hero(state: AgentDetailState) {
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
-        Row(
+        Button(
+            onClick = { state.eventSink(AgentDetailEvents.StartChat) },
+            enabled = model.canStartChat,
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Button(
-                onClick = { state.eventSink(AgentDetailEvents.StartChat) },
-                enabled = model.canStartChat,
-                modifier = Modifier.weight(1f),
-            ) {
-                if (state.isStartingChat) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                } else {
-                    Text(model.startChatLabel)
-                }
-            }
-            if (state.canEdit) {
-                OutlinedButton(onClick = { state.eventSink(AgentDetailEvents.Edit) }) {
-                    Text(model.editLabel)
-                }
+            if (state.isStartingChat) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+            } else {
+                Text(model.startChatLabel)
             }
         }
     }
@@ -196,25 +197,23 @@ private fun ProfileChip(text: String) {
 }
 
 @Composable
-private fun ConnectCard(connectUrl: String?) {
-    if (connectUrl.isNullOrBlank()) return
+private fun ConnectCard(connectUrl: String?, isLoading: Boolean, title: String, hint: String) {
     val clipboard = LocalClipboardManager.current
-    val connectText = "Follow this instructions to connect me $connectUrl"
     var copied by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val hasUrl = !connectUrl.isNullOrBlank()
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
-            .shapeAwareClickable(RoundedCornerShape(16.dp)) {
-                clipboard.setText(AnnotatedString(connectText))
-                copied = true
-                scope.launch {
-                    delay(2000)
-                    copied = false
-                }
-            },
+            .then(
+                if (hasUrl) Modifier.shapeAwareClickable(RoundedCornerShape(16.dp)) {
+                    clipboard.setText(AnnotatedString("Follow this instructions to connect me $connectUrl"))
+                    copied = true
+                    scope.launch { delay(2000); copied = false }
+                } else Modifier
+            ),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 1.dp,
@@ -236,23 +235,35 @@ private fun ConnectCard(connectUrl: String?) {
                 )
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Connect with me",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = "Give this to your agent",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (!hasUrl && isLoading) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth(0.5f).height(14.dp)
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f), RoundedCornerShape(4.dp))
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier.fillMaxWidth(0.7f).height(12.dp)
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f), RoundedCornerShape(4.dp))
+                    )
+                } else {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = hint,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             Icon(
                 if (copied) CompoundIcons.Check() else CompoundIcons.Copy(),
                 contentDescription = null,
                 modifier = Modifier.size(18.dp),
-                tint = if (copied) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = if (copied) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (hasUrl) 1f else 0.3f),
             )
         }
     }

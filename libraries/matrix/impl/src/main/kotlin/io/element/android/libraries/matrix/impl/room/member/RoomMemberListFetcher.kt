@@ -34,6 +34,8 @@ internal class RoomMemberListFetcher(
     private val room: RoomInterface,
     private val dispatcher: CoroutineDispatcher,
     private val pageSize: Int = 10_000,
+    private val roomAgentMemberProvider: RoomAgentMemberProvider = NoopRoomAgentMemberProvider,
+    private val roomAgentMemberEnricher: RoomAgentMemberEnricher = RoomAgentMemberEnricher(),
 ) {
     enum class Source {
         CACHE,
@@ -126,7 +128,8 @@ internal class RoomMemberListFetcher(
                     Timber.i("Loaded first $size members for room $roomId")
                 }
             }
-            results.toImmutableList()
+            val roomAgents = roomAgentMemberProvider.getRoomAgents(roomId)
+            roomAgentMemberEnricher.enrich(results, roomAgents).toImmutableList()
         }
     }
 

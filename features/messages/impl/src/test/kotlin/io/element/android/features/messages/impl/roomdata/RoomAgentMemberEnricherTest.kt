@@ -26,6 +26,17 @@ class RoomAgentMemberEnricherTest {
     }
 
     @Test
+    fun `enrich accepts room agent membership case insensitively`() {
+        val members = listOf(aRoomMember(userId = AGENT_ID, membership = RoomMembershipState.JOIN))
+        val agents = listOf(RoomAgentDescriptor(userId = AGENT_ID.value, displayName = "Agent", avatarUrl = null, userType = null, membership = " JOIN "))
+
+        val enriched = RoomAgentMemberEnricher.enrich(members, agents)
+
+        assertThat(enriched.single().userType).isEqualTo("agent")
+        assertThat(enriched.single().isAgent).isTrue()
+    }
+
+    @Test
     fun `enrich preserves external bot as agent type`() {
         val members = listOf(aRoomMember(userId = AGENT_ID, membership = RoomMembershipState.JOIN))
         val agents = listOf(RoomAgentDescriptor(userId = AGENT_ID.value, displayName = "Agent", avatarUrl = null, userType = "trusted_external_bot", membership = "join"))
@@ -79,6 +90,16 @@ class RoomAgentMemberEnricherTest {
         val agents = listOf(RoomAgentDescriptor(userId = AGENT_ID.value, displayName = "Agent", avatarUrl = null, userType = "agent", membership = "leave"))
 
         val enriched = RoomAgentMemberEnricher.enrich(members, agents)
+
+        assertThat(enriched.single().userType).isNull()
+        assertThat(enriched.single().isAgent).isFalse()
+    }
+
+    @Test
+    fun `enrich clears stale matrix agent type when endpoint no longer returns member`() {
+        val members = listOf(aRoomMember(userId = AGENT_ID, userType = "agent", membership = RoomMembershipState.JOIN))
+
+        val enriched = RoomAgentMemberEnricher.enrich(members, emptyList())
 
         assertThat(enriched.single().userType).isNull()
         assertThat(enriched.single().isAgent).isFalse()

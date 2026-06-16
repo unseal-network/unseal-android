@@ -166,6 +166,7 @@ private fun RoomListSearchContent(
             ) {
                 items(
                     items = state.results,
+                    key = { room -> room.id },
                     contentType = { room -> room.contentType() },
                 ) { room ->
                     RoomSummaryRow(

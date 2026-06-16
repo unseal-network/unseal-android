@@ -42,7 +42,7 @@ internal object ToolCallRootCardAdapter {
             callingCount = callingCount,
             allFinished = allFinished,
             isSingleTool = isSingleTool,
-            expandedByDefault = !allFinished,
+            expandedByDefault = true,
         )
     }
 }

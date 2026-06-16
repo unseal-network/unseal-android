@@ -151,6 +151,11 @@ data class RoomAgentDescriptor(
     val membership: String?,
 )
 
+internal fun RoomAgentDescriptor.isJoinedOrUnknownMembership(): Boolean {
+    val membership = membership?.trim()
+    return membership.isNullOrEmpty() || membership.equals("join", ignoreCase = true)
+}
+
 data class AgentAccountDescriptor(
     val botName: String,
     val localpart: String?,

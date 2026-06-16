@@ -107,11 +107,13 @@ internal fun RoomSummaryRow(
     onOpenSwipeRoom: (String?) -> Unit = {},
     eventSink: (RoomListEvent) -> Unit,
 ) {
-    val renderModel = room.toHomeRoomRowRenderModel(
-        isSelected = isSelected,
-        isInviteSeen = isInviteSeen,
-        activityVisibility = activityVisibility,
-    )
+    val renderModel = remember(room, isSelected, isInviteSeen, activityVisibility) {
+        room.toHomeRoomRowRenderModel(
+            isSelected = isSelected,
+            isInviteSeen = isInviteSeen,
+            activityVisibility = activityVisibility,
+        )
+    }
     Box(modifier = modifier) {
         when (room.displayType) {
             RoomSummaryDisplayType.PLACEHOLDER -> {
@@ -408,6 +410,19 @@ private fun RoomSummaryScaffoldRow(
             interactionSource = remember { MutableInteractionSource() }
         )
         .onKeyboardContextMenuAction { onLongClick(room) }
+    val avatarData = if (room.isDm && room.avatarData.url == null && room.heroes.isEmpty()) {
+        room.avatarData.copy(id = room.name ?: room.id, name = room.name)
+    } else {
+        room.avatarData
+    }
+    val avatarType = when {
+        room.isSpace -> AvatarType.Space(isTombstoned = room.isTombstoned)
+        room.isDm && room.avatarData.url == null && room.heroes.isEmpty() -> AvatarType.User
+        else -> AvatarType.Room(
+            heroes = room.heroes,
+            isTombstoned = room.isTombstoned,
+        )
+    }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -423,15 +438,8 @@ private fun RoomSummaryScaffoldRow(
             .padding(horizontal = 16.dp, vertical = 11.dp),
     ) {
         Avatar(
-            avatarData = room.avatarData,
-            avatarType = if (room.isSpace) {
-                AvatarType.Space(isTombstoned = room.isTombstoned)
-            } else {
-                AvatarType.Room(
-                    heroes = room.heroes,
-                    isTombstoned = room.isTombstoned,
-                )
-            },
+            avatarData = avatarData,
+            avatarType = avatarType,
             hideImage = hideAvatarImage,
         )
         Spacer(modifier = Modifier.width(16.dp))

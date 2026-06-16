@@ -79,6 +79,7 @@ import io.element.android.features.messages.impl.timeline.model.TimelineReplySwi
 import io.element.android.features.messages.impl.timeline.model.TimelineSupplementaryPolicy
 import io.element.android.features.messages.impl.timeline.model.bubble.BubbleState
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemGameContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemImageContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
@@ -399,13 +400,17 @@ private fun TimelineItemStandaloneRow(
                 )
             }
 
+            val standaloneInteractionSource = remember { MutableInteractionSource() }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = contentStartMargin, end = contentEndMargin)
+                    .timelinePressFeedback(standaloneInteractionSource, RoundedCornerShape(24.dp), shadow = false)
                     .combinedClickable(
                         onClick = {},
                         onLongClick = onLongClick,
+                        indication = null,
+                        interactionSource = standaloneInteractionSource,
                     )
                     .semantics(mergeDescendants = false) {
                         isTraversalGroup = true
@@ -1000,6 +1005,7 @@ private fun MessageEventBubbleContent(
         // Game card has its own internal padding — no extra bubble padding needed
         is TimelineItemGameContent,
         is TimelineItemAiContent -> ContentPadding.Media
+        is TimelineItemEncryptedContent -> if (event.content.recovery != null) ContentPadding.Media else ContentPadding.Textual
         else -> ContentPadding.Textual
     }
     CommonLayout(

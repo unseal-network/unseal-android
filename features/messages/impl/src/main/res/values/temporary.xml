@@ -10,6 +10,16 @@
 <resources>
     <!-- Game picker entry in the attachment source picker menu -->
     <string name="screen_room_attachment_source_game">Game</string>
+    <!-- iOS parity entries in the attachment source picker menu. Disabled until the Android bottom layer exists. -->
+    <string name="screen_room_attachment_source_ping">Ping</string>
+    <string name="screen_room_attachment_source_sketch">Sketch</string>
+    <!-- iOS parity entries in the message action menu. Disabled until Android actions are wired. -->
+    <string name="screen_timeline_item_menu_save_message">Save message</string>
+    <string name="screen_timeline_item_menu_unsave_message">Unsave message</string>
+    <string name="screen_timeline_item_menu_translate">Translate</string>
+    <string name="screen_timeline_item_menu_share_media">Share media</string>
+    <string name="screen_timeline_item_menu_save_media">Save media</string>
+    <string name="screen_timeline_item_menu_action_unavailable">Not available on Android yet</string>
     <!-- Section headers in the game picker bottom sheet -->
     <string name="screen_room_game_picker_my_games">My games</string>
     <string name="screen_room_game_picker_all_games">All games</string>

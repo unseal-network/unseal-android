@@ -65,6 +65,7 @@ import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -121,11 +122,18 @@ class RoomListPresenter(
 
         val contextMenu = remember { mutableStateOf<RoomListState.ContextMenu>(RoomListState.ContextMenu.Hidden) }
         val declineInviteMenu = remember { mutableStateOf<RoomListState.DeclineInviteMenu>(RoomListState.DeclineInviteMenu.Hidden) }
+        val updateVisibleRangeJob = remember { arrayOfNulls<Job>(1) }
+        val lastVisibleRange = remember { arrayOfNulls<IntRange>(1) }
 
         fun handleEvent(event: RoomListEvent) {
             when (event) {
-                is RoomListEvent.UpdateVisibleRange -> coroutineScope.launch {
-                    roomListDataSource.updateVisibleRange(event.range)
+                is RoomListEvent.UpdateVisibleRange -> {
+                    if (lastVisibleRange[0] == event.range) return
+                    lastVisibleRange[0] = event.range
+                    updateVisibleRangeJob[0]?.cancel()
+                    updateVisibleRangeJob[0] = coroutineScope.launch {
+                        roomListDataSource.updateVisibleRange(event.range)
+                    }
                 }
                 RoomListEvent.DismissRequestVerificationPrompt -> securityBannerDismissed = true
                 RoomListEvent.DismissBanner -> securityBannerDismissed = true

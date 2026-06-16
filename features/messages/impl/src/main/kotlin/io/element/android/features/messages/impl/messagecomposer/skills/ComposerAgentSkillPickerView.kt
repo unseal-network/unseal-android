@@ -9,6 +9,7 @@ package io.element.android.features.messages.impl.messagecomposer.skills
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,10 +22,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
@@ -137,13 +140,19 @@ private fun SelectedSkillsRow(
 ) {
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         items(selectedSkills, key = { it.id }) { selected ->
+            val chipShape = RoundedCornerShape(18.dp)
             Surface(
-                shape = RoundedCornerShape(18.dp),
+                shape = chipShape,
                 color = ElementTheme.colors.bgAccentRest,
             ) {
                 Row(
                     modifier = Modifier
-                        .clickable { onRemoveSkill(selected) }
+                        .clip(chipShape)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = ripple(bounded = true),
+                            onClick = { onRemoveSkill(selected) },
+                        )
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -249,11 +258,17 @@ private fun CandidateRow(
     candidate: ComposerAgentSkillCandidate,
     onSelectSkill: (ComposerAgentSkillCandidate) -> Unit,
 ) {
+    val rowShape = RoundedCornerShape(12.dp)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onSelectSkill(candidate) }
-            .padding(vertical = 10.dp),
+            .clip(rowShape)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = ripple(bounded = true),
+                onClick = { onSelectSkill(candidate) },
+            )
+            .padding(horizontal = 10.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {

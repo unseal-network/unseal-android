@@ -96,12 +96,14 @@ class RoomListDataSource(
         roomList.updateFilter(filter)
     }
 
-    suspend fun updateVisibleRange(visibleRange: IntRange) = coroutineScope {
-        launch {
-            roomList.updateVisibleRange(visibleRange, PAGINATION_THRESHOLD)
-        }
-        launch {
-            subscribeToVisibleRoomsIfNeeded(visibleRange)
+    suspend fun updateVisibleRange(visibleRange: IntRange) = withContext(coroutineDispatchers.io) {
+        coroutineScope {
+            launch {
+                roomList.updateVisibleRange(visibleRange, PAGINATION_THRESHOLD)
+            }
+            launch {
+                subscribeToVisibleRoomsIfNeeded(visibleRange)
+            }
         }
     }
 

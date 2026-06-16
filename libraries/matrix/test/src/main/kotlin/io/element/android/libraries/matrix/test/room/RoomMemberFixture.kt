@@ -24,6 +24,7 @@ fun aRoomMember(
     role: RoomMember.Role = RoomMember.Role.User,
     membershipChangeReason: String? = null,
     isServiceMember: Boolean = false,
+    userType: String? = null,
 ) = RoomMember(
     userId = userId,
     displayName = displayName,
@@ -35,6 +36,7 @@ fun aRoomMember(
     role = role,
     membershipChangeReason = membershipChangeReason,
     isServiceMember = isServiceMember,
+    userType = userType,
 )
 
 fun aRoomMemberList() = persistentListOf(

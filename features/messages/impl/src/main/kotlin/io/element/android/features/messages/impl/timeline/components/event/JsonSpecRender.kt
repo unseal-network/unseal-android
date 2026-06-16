@@ -9,12 +9,15 @@ package io.element.android.features.messages.impl.timeline.components.event
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -39,10 +42,14 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.element.android.features.messages.impl.components.SelectedStatePill
+import io.element.android.features.messages.impl.components.ShapedClickableSurface
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.CardChip
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.CardRemoteImage
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.DividedList
@@ -124,8 +131,10 @@ private fun JsonRenderElementNode(
     if (!element.isVisible(spec, state)) return
     val type = element.type.normalizedJsonType()
     when (type) {
-        "stack", "vstack", "hstack", "group", "section", "scroll", "container", "conditional" -> JsonRenderStack(spec, element, onLinkClick, depth, state)
+        "stack", "vstack", "hstack", "group", "section", "container", "conditional" -> JsonRenderStack(spec, element, onLinkClick, depth, state)
+        "scroll", "scrollview", "scrollarea", "list" -> JsonRenderScroll(spec, element, onLinkClick, depth, state)
         "card" -> JsonRenderCard(spec, element, onLinkClick, depth, state)
+        "spacer", "gap", "space" -> JsonRenderSpacer(state, element)
         "text", "paragraph", "span", "label" -> JsonRenderText(state, element)
         "heading", "title", "headline" -> JsonRenderHeading(state, element)
         "button", "link", "action" -> JsonRenderButton(state, element, onLinkClick)
@@ -151,6 +160,30 @@ private fun JsonRenderElementNode(
             }
         }
     }
+}
+
+@Composable
+private fun JsonRenderScroll(spec: JsonRenderSpec, element: JsonRenderElement, onLinkClick: (Link) -> Unit, depth: Int, state: JSONObject?) {
+    val maxHeight = element.props.dp(state, "maxHeight", "height") ?: 220.dp
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = maxHeight)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        element.renderChildren(spec, state).forEach { child ->
+            child.element?.let {
+                JsonRenderElementNode(spec, it, onLinkClick, depth + 1, child.state)
+            } ?: JsonRenderNode(spec, child.id, onLinkClick, depth + 1, child.state)
+        }
+    }
+}
+
+@Composable
+private fun JsonRenderSpacer(state: JSONObject?, element: JsonRenderElement) {
+    val height = element.props.dp(state, "height", "size", "value") ?: 8.dp
+    Box(modifier = Modifier.height(height.coerceIn(0.dp, 96.dp)))
 }
 
 @Composable
@@ -225,19 +258,34 @@ private fun JsonRenderHeading(state: JSONObject?, element: JsonRenderElement) {
 
 @Composable
 private fun JsonRenderButton(state: JSONObject?, element: JsonRenderElement, onLinkClick: (Link) -> Unit) {
-    val label = element.props.firstString(state, "label", "text", "title").orEmpty()
+    val actionLabel = element.props.clickActionLabel(state)
+    val label = element.props.firstString(state, "label", "text", "title") ?: actionLabel.orEmpty()
     val url = element.props.firstString(state, "url", "href") ?: element.props.clickUrl(state)
     if (label.isBlank() && url.isNullOrBlank()) return
-    Text(
-        text = label.ifBlank { url.orEmpty() },
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier
-            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), RoundedCornerShape(50))
-            .clickable(enabled = !url.isNullOrBlank()) { url?.let { onLinkClick(Link(it)) } }
-            .padding(horizontal = 12.dp, vertical = 7.dp),
-    )
+    val enabled = !url.isNullOrBlank()
+    ShapedClickableSurface(
+        onClick = { url?.let { onLinkClick(Link(it)) } },
+        enabled = enabled,
+        shape = RoundedCornerShape(50),
+        color = if (enabled) {
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+        },
+        contentColor = if (enabled) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+    ) {
+        Text(
+            text = label.ifBlank { url.orEmpty() },
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = androidx.compose.material3.LocalContentColor.current,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+        )
+    }
 }
 
 @Composable
@@ -274,11 +322,30 @@ private fun JsonRenderSelect(state: JSONObject?, element: JsonRenderElement) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             options.take(4).forEach { option ->
                 val selected = selectedValue != null && (option == selectedValue || option.contains(selectedValue, ignoreCase = true))
-                CardChip(
-                    text = option,
-                    color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (selected) {
+                    SelectedStatePill(
+                        selected = true,
+                        onClick = {},
+                        selectedColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    ) {
+                        Text(
+                            text = option,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = androidx.compose.material3.LocalContentColor.current,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        )
+                    }
+                } else {
+                    CardChip(
+                        text = option,
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             if (options.size > 4) {
                 CardChip(text = "+${options.size - 4}")
@@ -319,15 +386,29 @@ private fun JsonRenderRadioGroup(state: JSONObject?, element: JsonRenderElement)
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
         label?.let { Text(it, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold) }
         options.take(MAX_JSON_RENDER_ITEMS).forEach { option ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                val selected = selectedValue != null && (option == selectedValue || option.contains(selectedValue, ignoreCase = true))
+            val selected = selectedValue != null && (option == selectedValue || option.contains(selectedValue, ignoreCase = true))
+            SelectedStatePill(
+                selected = selected,
+                onClick = {},
+                selectedColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
+                unselectedColor = Color.Transparent,
+                selectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                shape = RoundedCornerShape(10.dp),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                 Icon(
                     imageVector = if (selected) Icons.Outlined.RadioButtonChecked else Icons.Outlined.RadioButtonUnchecked,
                     contentDescription = null,
-                    tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = androidx.compose.material3.LocalContentColor.current,
                     modifier = Modifier.size(18.dp),
                 )
-                Text(option, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(option, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
     }
@@ -407,7 +488,7 @@ private fun JsonRenderFile(element: JsonRenderElement, onLinkClick: (Link) -> Un
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = !url.isNullOrBlank()) { url?.let { onLinkClick(Link(it)) } }
+            .clickableJsonUrl(url = url, shape = RoundedCornerShape(10.dp), onLinkClick = onLinkClick)
             .padding(vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -438,7 +519,7 @@ private fun JsonRenderHotel(element: JsonRenderElement, onLinkClick: (Link) -> U
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = !url.isNullOrBlank()) { url?.let { onLinkClick(Link(it)) } }
+            .clickableJsonUrl(url = url, shape = RoundedCornerShape(12.dp), onLinkClick = onLinkClick)
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.Top,
@@ -471,7 +552,7 @@ private fun JsonRenderProduct(element: JsonRenderElement, onLinkClick: (Link) ->
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = !url.isNullOrBlank()) { url?.let { onLinkClick(Link(it)) } }
+            .clickableJsonUrl(url = url, shape = RoundedCornerShape(12.dp), onLinkClick = onLinkClick)
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.Top,
@@ -500,7 +581,7 @@ private fun JsonRenderNews(element: JsonRenderElement, onLinkClick: (Link) -> Un
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = !url.isNullOrBlank()) { url?.let { onLinkClick(Link(it)) } }
+            .clickableJsonUrl(url = url, shape = RoundedCornerShape(10.dp), onLinkClick = onLinkClick)
             .padding(vertical = 7.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -828,12 +909,37 @@ private fun JSONObject.double(state: JSONObject?, key: String): Double? {
     }
 }
 
+private fun JSONObject.dp(state: JSONObject?, vararg keys: String) = keys
+    .firstNotNullOfOrNull { key -> double(state, key) }
+    ?.coerceIn(0.0, 640.0)
+    ?.dp
+
 private fun JSONObject.boolean(state: JSONObject?, key: String): Boolean? = opt(key).toJsonRenderBoolean(state)
 
 private fun JSONObject.clickUrl(state: JSONObject?): String? {
     val on = optJSONObject("on") ?: optJSONObject("actions") ?: return null
     val click = on.optJSONObject("click") ?: on.optJSONObject("tap") ?: on.optJSONObject("press") ?: on
     return click.firstString(state, "url", "href", "link")
+}
+
+private fun Modifier.clickableJsonUrl(
+    url: String?,
+    shape: Shape,
+    onLinkClick: (Link) -> Unit,
+): Modifier {
+    if (url.isNullOrBlank()) return this
+    return clip(shape)
+        .clickable { onLinkClick(Link(url)) }
+}
+
+internal fun JSONObject.clickActionLabel(state: JSONObject?): String? {
+    val on = optJSONObject("on") ?: optJSONObject("actions") ?: return null
+    val click = on.optJSONObject("click") ?: on.optJSONObject("tap") ?: on.optJSONObject("press") ?: on
+    return click.firstString(state, "label", "text", "title", "name", "action", "type", "id")
+        ?.replace("_", " ")
+        ?.replace("-", " ")
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
 }
 
 private fun JSONObject.optionLabels(state: JSONObject?): List<String> {
