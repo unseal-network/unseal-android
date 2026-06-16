@@ -177,6 +177,8 @@ private fun AttachmentActionRow(
             leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.TextFormatting())),
             headlineContent = { Text(stringResource(R.string.screen_room_attachment_text_formatting)) },
         )
+        RoomAttachmentAction.Ping,
+        RoomAttachmentAction.Sketch -> Unit
     }
 }
 
@@ -187,7 +189,9 @@ internal fun AttachmentSourcePickerMenuPreview() = ElementPreview {
         state = aMessageComposerState(
             canShareLocation = true,
         ),
-        attachmentActions = RoomAttachmentAction.entries,
+        attachmentActions = RoomAttachmentAction.entries.filterNot {
+            it == RoomAttachmentAction.Ping || it == RoomAttachmentAction.Sketch
+        },
         onSendLocationClick = {},
         onCreatePollClick = {},
     )

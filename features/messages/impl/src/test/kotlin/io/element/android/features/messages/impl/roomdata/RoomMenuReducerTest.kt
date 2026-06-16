@@ -143,6 +143,36 @@ class RoomMenuReducerTest {
     }
 
     @Test
+    fun `reduce exposes full ios attachment action contract with unavailable gaps`() {
+        val roomMenu = RoomMenuReducer.reduce(
+            roomUnsealContext = AsyncData.Uninitialized,
+            hasThreads = false,
+            isThreadTimeline = false,
+            canShareLocation = true,
+            enableTextFormatting = true,
+        )
+
+        assertThat(roomMenu.attachmentActionEntries.map { it.action }).containsExactly(
+            RoomAttachmentAction.Game,
+            RoomAttachmentAction.TextFormatting,
+            RoomAttachmentAction.Poll,
+            RoomAttachmentAction.Ping,
+            RoomAttachmentAction.Sketch,
+            RoomAttachmentAction.Location,
+            RoomAttachmentAction.Files,
+            RoomAttachmentAction.Gallery,
+            RoomAttachmentAction.PhotoFromCamera,
+            RoomAttachmentAction.VideoFromCamera,
+        ).inOrder()
+        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Ping }.isAvailable).isFalse()
+        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Ping }.unavailableReason)
+            .isEqualTo(RoomAttachmentActionUnavailableReason.RequiresBottomLayer)
+        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Sketch }.isAvailable).isFalse()
+        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Sketch }.unavailableReason)
+            .isEqualTo(RoomAttachmentActionUnavailableReason.RequiresBottomLayer)
+    }
+
+    @Test
     fun `reduce hides gated attachment actions`() {
         val roomMenu = RoomMenuReducer.reduce(
             roomUnsealContext = AsyncData.Uninitialized,
@@ -160,6 +190,12 @@ class RoomMenuReducerTest {
             RoomAttachmentAction.PhotoFromCamera,
             RoomAttachmentAction.VideoFromCamera,
         ).inOrder()
+        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.TextFormatting }.isAvailable).isFalse()
+        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.TextFormatting }.unavailableReason)
+            .isEqualTo(RoomAttachmentActionUnavailableReason.DisabledByRoomCapability)
+        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Location }.isAvailable).isFalse()
+        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Location }.unavailableReason)
+            .isEqualTo(RoomAttachmentActionUnavailableReason.DisabledByRoomCapability)
     }
 
     private fun contextWithAgent(

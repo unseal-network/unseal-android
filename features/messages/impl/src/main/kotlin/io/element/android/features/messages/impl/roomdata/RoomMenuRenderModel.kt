@@ -13,6 +13,9 @@ data class RoomMenuRenderModel(
     val topbarActions: List<RoomTopbarAction>,
     val topbarTools: List<RoomTopbarToolRenderModel>,
     val attachmentActions: List<RoomAttachmentAction>,
+    val attachmentActionEntries: List<RoomAttachmentActionEntry> = attachmentActions.map {
+        RoomAttachmentActionEntry(action = it)
+    },
     val scheduleBadge: RoomScheduleMenuBadge?,
     val deviceAgent: RoomDeviceAgent?,
     val isDeviceAgentChatActive: Boolean = false,
@@ -63,6 +66,17 @@ data class RoomWorkingMemoryMenuState(
     val error: String?,
 )
 
+data class RoomAttachmentActionEntry(
+    val action: RoomAttachmentAction,
+    val isAvailable: Boolean = true,
+    val unavailableReason: RoomAttachmentActionUnavailableReason? = null,
+)
+
+enum class RoomAttachmentActionUnavailableReason {
+    DisabledByRoomCapability,
+    RequiresBottomLayer,
+}
+
 enum class RoomTopbarAction {
     Threads,
     Schedules,
@@ -80,6 +94,8 @@ enum class RoomAttachmentAction {
     Poll,
     Game,
     TextFormatting,
+    Ping,
+    Sketch,
 }
 
 object RoomMenuReducer {
@@ -103,20 +119,11 @@ object RoomMenuReducer {
                 add(RoomTopbarAction.DeviceAgentTerminal)
             }
         }
-        val attachmentActions = buildList {
-            add(RoomAttachmentAction.Game)
-            if (enableTextFormatting) {
-                add(RoomAttachmentAction.TextFormatting)
-            }
-            add(RoomAttachmentAction.Poll)
-            if (canShareLocation) {
-                add(RoomAttachmentAction.Location)
-            }
-            add(RoomAttachmentAction.Files)
-            add(RoomAttachmentAction.Gallery)
-            add(RoomAttachmentAction.PhotoFromCamera)
-            add(RoomAttachmentAction.VideoFromCamera)
-        }
+        val attachmentActionEntries = buildAttachmentActionEntries(
+            canShareLocation = canShareLocation,
+            enableTextFormatting = enableTextFormatting,
+        )
+        val attachmentActions = attachmentActionEntries.filter { it.isAvailable }.map { it.action }
         val scheduleBadge = context?.takeIf { it.hasAgentInRoom }?.let {
             RoomScheduleMenuBadge(
                 activeScheduleCount = it.activeScheduleCount,
@@ -140,6 +147,7 @@ object RoomMenuReducer {
                 isDeviceAgentChatActive = deviceAgent?.boundDeviceId == activeDeviceAgentBoundDeviceId,
             ),
             attachmentActions = attachmentActions,
+            attachmentActionEntries = attachmentActionEntries,
             scheduleBadge = scheduleBadge,
             deviceAgent = deviceAgent,
             isDeviceAgentChatActive = deviceAgent?.boundDeviceId == activeDeviceAgentBoundDeviceId,
@@ -155,6 +163,50 @@ object RoomMenuReducer {
         )
     }
 }
+
+private fun buildAttachmentActionEntries(
+    canShareLocation: Boolean,
+    enableTextFormatting: Boolean,
+): List<RoomAttachmentActionEntry> = listOf(
+    RoomAttachmentActionEntry(
+        action = RoomAttachmentAction.Game,
+    ),
+    RoomAttachmentActionEntry(
+        action = RoomAttachmentAction.TextFormatting,
+        isAvailable = enableTextFormatting,
+        unavailableReason = RoomAttachmentActionUnavailableReason.DisabledByRoomCapability.takeUnless { enableTextFormatting },
+    ),
+    RoomAttachmentActionEntry(
+        action = RoomAttachmentAction.Poll,
+    ),
+    RoomAttachmentActionEntry(
+        action = RoomAttachmentAction.Ping,
+        isAvailable = false,
+        unavailableReason = RoomAttachmentActionUnavailableReason.RequiresBottomLayer,
+    ),
+    RoomAttachmentActionEntry(
+        action = RoomAttachmentAction.Sketch,
+        isAvailable = false,
+        unavailableReason = RoomAttachmentActionUnavailableReason.RequiresBottomLayer,
+    ),
+    RoomAttachmentActionEntry(
+        action = RoomAttachmentAction.Location,
+        isAvailable = canShareLocation,
+        unavailableReason = RoomAttachmentActionUnavailableReason.DisabledByRoomCapability.takeUnless { canShareLocation },
+    ),
+    RoomAttachmentActionEntry(
+        action = RoomAttachmentAction.Files,
+    ),
+    RoomAttachmentActionEntry(
+        action = RoomAttachmentAction.Gallery,
+    ),
+    RoomAttachmentActionEntry(
+        action = RoomAttachmentAction.PhotoFromCamera,
+    ),
+    RoomAttachmentActionEntry(
+        action = RoomAttachmentAction.VideoFromCamera,
+    ),
+)
 
 private fun List<RoomTopbarAction>.toTopbarTools(
     scheduleBadge: RoomScheduleMenuBadge?,
