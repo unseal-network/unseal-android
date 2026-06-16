@@ -56,6 +56,9 @@ import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.messages.impl.R
+import io.element.android.features.messages.impl.actionlist.model.IosTimelineAction
+import io.element.android.features.messages.impl.actionlist.model.MessageActionMenuUnavailableEntry
 import io.element.android.features.messages.impl.actionlist.model.TimelineItemAction
 import io.element.android.features.messages.impl.actionlist.model.MessageActionMenuReducer
 import io.element.android.features.messages.impl.crypto.sendfailure.VerifiedUserSendFailure
@@ -265,9 +268,56 @@ private fun ActionListViewContent(
                         )
                     }
                 }
+                if (renderModel.unavailableIosActions.isNotEmpty()) {
+                    item(key = "divider-ios-unavailable") {
+                        HorizontalDivider()
+                    }
+                    items(
+                        items = renderModel.unavailableIosActions,
+                        key = { entry -> "ios-unavailable-${entry.action.name}" },
+                    ) { entry ->
+                        DisabledIosActionRow(entry)
+                    }
+                }
             }
         }
     }
+}
+
+@Composable
+private fun DisabledIosActionRow(entry: MessageActionMenuUnavailableEntry) {
+    ListItem(
+        headlineContent = {
+            Text(text = stringResource(entry.action.titleRes()))
+        },
+        supportingContent = {
+            Text(text = stringResource(R.string.screen_timeline_item_menu_action_unavailable))
+        },
+        leadingContent = ListItemContent.Icon(IconSource.Vector(entry.action.icon())),
+        colors = ListItemDefaults.colors(
+            containerColor = Color.Transparent,
+            leadingIconColor = ElementTheme.colors.iconDisabled,
+            headlineColor = ElementTheme.colors.textDisabled,
+            supportingColor = ElementTheme.colors.textDisabled,
+        ),
+    )
+}
+
+private fun IosTimelineAction.titleRes(): Int = when (this) {
+    IosTimelineAction.SaveMessage -> R.string.screen_timeline_item_menu_save_message
+    IosTimelineAction.UnsaveMessage -> R.string.screen_timeline_item_menu_unsave_message
+    IosTimelineAction.Translate -> R.string.screen_timeline_item_menu_translate
+    IosTimelineAction.ShareMedia -> R.string.screen_timeline_item_menu_share_media
+    IosTimelineAction.SaveMedia -> R.string.screen_timeline_item_menu_save_media
+}
+
+@Composable
+private fun IosTimelineAction.icon() = when (this) {
+    IosTimelineAction.SaveMessage,
+    IosTimelineAction.UnsaveMessage -> CompoundIcons.Save()
+    IosTimelineAction.Translate -> CompoundIcons.Translate()
+    IosTimelineAction.ShareMedia -> CompoundIcons.Share()
+    IosTimelineAction.SaveMedia -> CompoundIcons.Download()
 }
 
 @Suppress("MultipleEmitters") // False positive
