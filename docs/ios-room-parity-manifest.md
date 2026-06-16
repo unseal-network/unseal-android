@@ -53,7 +53,7 @@ Use them when updating tests, handoff notes, commits, and acceptance evidence.
 | Top floating chrome | `RoomScreen.roomTopOverlay`, `TopChromeBackdrop` | Partial | Match iOS floating capsule/header spacing, backdrop, and top safe-area behavior across scroll states. |
 | Bottom composer chrome | `ComposerChromeBackdrop`, `ComposerToolbar` | Not complete | Add iOS-like floating composer backdrop, focused/disabled/reply/edit/voice/skill states. |
 | Timeline presentation | iOS `TimelineView` + stream screenshots | Partial | Finish avatar column, sender grouping, right gutter, date divider, footer, receipt/reaction positioning, self/other direct-room parity. |
-| Selected/active visual states | iOS capsule/pill selected controls in room chrome, tool tabs, skill chips, segmented tabs | Partial | Replace ad-hoc rectangular `background(color)` selected states with shared rounded/capsule selectable components and tokens. |
+| Selected/active visual states | iOS capsule/pill selected controls in room chrome, tool tabs, skill chips, segmented tabs | Partial | Shared `SelectedStatePill` now covers Tool root tabs, Finance tabs, Weather forecast pills, and Composer agent target picker. Continue replacing remaining room menu/tool-card selected states. |
 | AI stream render | `unseal-agent-ios` stream views, iOS `BubbleMessageView` behavior | Partial | Keep SDK-only lifecycle, verify cache-first completed streams, finish loading/cursor/text patch animation parity. |
 | Markdown render | iOS `MarkdownRenderView` / `_MarkdownBody` | Partial | Confirm link taps, code block, quote, table/list spacing, completed markdown cache and streaming animation. |
 | Tool root card | iOS `ToolCallRootCard` | Partial | Confirm single/multi-tool insertion, tab state, fixed internal scroll, no raw JSON fallback. |
@@ -65,7 +65,7 @@ Use them when updating tests, handoff notes, commits, and acceptance evidence.
 | Files/email/drive cards | iOS Gmail/Drive cards | Partial | Ensure all supported payloads transform to meaningful rows; no over-truncation or empty large cards. |
 | GitHub cards | iOS GitHub cards | Partial | Fixture-by-fixture parity for repo/search/issues/PRs/compare/activity/contributors. |
 | Schedule cards | iOS schedule/Moltbook cards | Partial | Confirm create/update/status fields and states with real stream fixtures. |
-| Approval/suspended tools | iOS suspended/approval flow | Missing interaction | Add render model and host callback for approvals; current Android is display-only. |
+| Approval/suspended tools | iOS suspended/approval flow | Render model + display-only card | `SuspendedToolRenderModel` now parses iOS `suspendPayload` variants and Android renders meaningful readonly details. Host approval callback still blocked on iOS `AIAgentProxy.updateMessage` / Android host wire shape. |
 | Mention suggestions | `CompletionSuggestionService`, `ComposerToolbarViewModel` | Partial | Use enriched agent members everywhere, agent badges, `@room` gating, direct agent slash flow. |
 | Skill picker | `ComposerToolbarViewModel` skill catalog flow | Partial | Match room-agent runtime skill catalog, legacy fallback, pinned picker behavior after mention tap/long press. |
 | Attachment menu | `RoomAttachmentPicker` | Partial | Android `RoomMenuRenderModel.attachmentActions` now follows the iOS-supported subset order: game, text formatting, poll, location, files, gallery, camera photo/video. Remaining iOS-only gaps: ping and sketch actions, plus final visual/icon polish. |

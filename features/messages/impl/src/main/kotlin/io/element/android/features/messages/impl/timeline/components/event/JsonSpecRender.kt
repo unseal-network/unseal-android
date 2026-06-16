@@ -25,6 +25,10 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.RadioButtonChecked
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
+import androidx.compose.material.icons.outlined.CheckBox
+import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -69,6 +73,7 @@ internal data class JsonRenderSpec(
 internal data class JsonRenderChild(
     val id: String,
     val state: JSONObject?,
+    val element: JsonRenderElement? = null,
 )
 
 @Composable
@@ -105,15 +110,30 @@ private fun JsonRenderNode(
     state: JSONObject?,
 ) {
     if (depth > MAX_JSON_RENDER_DEPTH) return
-    val element = spec.elements[id] ?: return
+    JsonRenderElementNode(spec = spec, element = spec.elements[id] ?: return, onLinkClick = onLinkClick, depth = depth, state = state)
+}
+
+@Composable
+private fun JsonRenderElementNode(
+    spec: JsonRenderSpec,
+    element: JsonRenderElement,
+    onLinkClick: (Link) -> Unit,
+    depth: Int,
+    state: JSONObject?,
+) {
     if (!element.isVisible(spec, state)) return
     val type = element.type.normalizedJsonType()
     when (type) {
-        "stack", "vstack", "hstack", "group", "section", "scroll", "container" -> JsonRenderStack(spec, element, onLinkClick, depth, state)
+        "stack", "vstack", "hstack", "group", "section", "scroll", "container", "conditional" -> JsonRenderStack(spec, element, onLinkClick, depth, state)
         "card" -> JsonRenderCard(spec, element, onLinkClick, depth, state)
         "text", "paragraph", "span", "label" -> JsonRenderText(state, element)
         "heading", "title", "headline" -> JsonRenderHeading(state, element)
-        "button", "link" -> JsonRenderButton(state, element, onLinkClick)
+        "button", "link", "action" -> JsonRenderButton(state, element, onLinkClick)
+        "input", "textfield", "textarea", "textinput" -> JsonRenderReadOnlyField(state, element)
+        "select", "dropdown", "picker" -> JsonRenderSelect(state, element)
+        "switch", "toggle" -> JsonRenderSwitch(state, element)
+        "checkbox" -> JsonRenderCheckbox(state, element)
+        "radio", "radiogroup" -> JsonRenderRadioGroup(state, element)
         "image", "avatar" -> JsonRenderImage(element)
         "divider", "separator" -> androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
         "badge", "chip" -> JsonRenderBadge(state, element)
@@ -140,14 +160,18 @@ private fun JsonRenderStack(spec: JsonRenderSpec, element: JsonRenderElement, on
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             element.renderChildren(spec, state).forEach { child ->
                 Box(modifier = Modifier.weight(1f, fill = false)) {
-                    JsonRenderNode(spec, child.id, onLinkClick, depth + 1, child.state)
+                    child.element?.let {
+                        JsonRenderElementNode(spec, it, onLinkClick, depth + 1, child.state)
+                    } ?: JsonRenderNode(spec, child.id, onLinkClick, depth + 1, child.state)
                 }
             }
         }
     } else {
         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             element.renderChildren(spec, state).forEach { child ->
-                JsonRenderNode(spec, child.id, onLinkClick, depth + 1, child.state)
+                child.element?.let {
+                    JsonRenderElementNode(spec, it, onLinkClick, depth + 1, child.state)
+                } ?: JsonRenderNode(spec, child.id, onLinkClick, depth + 1, child.state)
             }
         }
     }
@@ -168,7 +192,9 @@ private fun JsonRenderCard(spec: JsonRenderSpec, element: JsonRenderElement, onL
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
             element.renderChildren(spec, state).forEach { child ->
-                JsonRenderNode(spec, child.id, onLinkClick, depth + 1, child.state)
+                child.element?.let {
+                    JsonRenderElementNode(spec, it, onLinkClick, depth + 1, child.state)
+                } ?: JsonRenderNode(spec, child.id, onLinkClick, depth + 1, child.state)
             }
         }
     }
@@ -200,7 +226,7 @@ private fun JsonRenderHeading(state: JSONObject?, element: JsonRenderElement) {
 @Composable
 private fun JsonRenderButton(state: JSONObject?, element: JsonRenderElement, onLinkClick: (Link) -> Unit) {
     val label = element.props.firstString(state, "label", "text", "title").orEmpty()
-    val url = element.props.firstString(state, "url", "href")
+    val url = element.props.firstString(state, "url", "href") ?: element.props.clickUrl(state)
     if (label.isBlank() && url.isNullOrBlank()) return
     Text(
         text = label.ifBlank { url.orEmpty() },
@@ -212,6 +238,131 @@ private fun JsonRenderButton(state: JSONObject?, element: JsonRenderElement, onL
             .clickable(enabled = !url.isNullOrBlank()) { url?.let { onLinkClick(Link(it)) } }
             .padding(horizontal = 12.dp, vertical = 7.dp),
     )
+}
+
+@Composable
+private fun JsonRenderReadOnlyField(state: JSONObject?, element: JsonRenderElement) {
+    val label = element.props.firstString(state, "label", "title", "name")
+    val value = element.props.firstString(state, "value", "text", "placeholder").orEmpty()
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            label?.let {
+                Text(it, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(
+                text = value.ifBlank { " " },
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (value.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurface,
+                maxLines = if (element.type.normalizedJsonType() == "textarea") 4 else 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun JsonRenderSelect(state: JSONObject?, element: JsonRenderElement) {
+    val label = element.props.firstString(state, "label", "title", "name")
+    val selectedValue = element.props.firstString(state, "value", "selected", "selectedValue")
+    val options = element.props.optionLabels(state)
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        label?.let { Text(it, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold) }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            options.take(4).forEach { option ->
+                val selected = selectedValue != null && (option == selectedValue || option.contains(selectedValue, ignoreCase = true))
+                CardChip(
+                    text = option,
+                    color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (options.size > 4) {
+                CardChip(text = "+${options.size - 4}")
+            }
+        }
+    }
+}
+
+@Composable
+private fun JsonRenderSwitch(state: JSONObject?, element: JsonRenderElement) {
+    JsonRenderBooleanRow(
+        label = element.props.firstString(state, "label", "title", "name") ?: "Switch",
+        checked = element.props.boolean(state, "checked") ?: element.props.boolean(state, "value") ?: false,
+        checkedText = "On",
+        uncheckedText = "Off",
+        checkedIcon = Icons.Filled.CheckCircle,
+        uncheckedIcon = Icons.Outlined.RadioButtonUnchecked,
+    )
+}
+
+@Composable
+private fun JsonRenderCheckbox(state: JSONObject?, element: JsonRenderElement) {
+    JsonRenderBooleanRow(
+        label = element.props.firstString(state, "label", "title", "name") ?: "Option",
+        checked = element.props.boolean(state, "checked") ?: element.props.boolean(state, "value") ?: false,
+        checkedText = "Checked",
+        uncheckedText = "Unchecked",
+        checkedIcon = Icons.Outlined.CheckBox,
+        uncheckedIcon = Icons.Outlined.CheckBoxOutlineBlank,
+    )
+}
+
+@Composable
+private fun JsonRenderRadioGroup(state: JSONObject?, element: JsonRenderElement) {
+    val label = element.props.firstString(state, "label", "title", "name")
+    val selectedValue = element.props.firstString(state, "value", "selected", "selectedValue")
+    val options = element.props.optionLabels(state)
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        label?.let { Text(it, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold) }
+        options.take(MAX_JSON_RENDER_ITEMS).forEach { option ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                val selected = selectedValue != null && (option == selectedValue || option.contains(selectedValue, ignoreCase = true))
+                Icon(
+                    imageVector = if (selected) Icons.Outlined.RadioButtonChecked else Icons.Outlined.RadioButtonUnchecked,
+                    contentDescription = null,
+                    tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(option, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
+private fun JsonRenderBooleanRow(
+    label: String,
+    checked: Boolean,
+    checkedText: String,
+    uncheckedText: String,
+    checkedIcon: androidx.compose.ui.graphics.vector.ImageVector,
+    uncheckedIcon: androidx.compose.ui.graphics.vector.ImageVector,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f), RoundedCornerShape(10.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = if (checked) checkedIcon else uncheckedIcon,
+            contentDescription = null,
+            tint = if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp),
+        )
+        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            text = if (checked) checkedText else uncheckedText,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 @Composable
@@ -387,9 +538,9 @@ private fun JsonSpecReadableFallback(payload: String, onLinkClick: (Link) -> Uni
 
 internal fun String.canRenderAsJsonSpec(): Boolean {
     toJsonRenderSpecFromPatchStream()?.let { return true }
-    val json = jsonRenderObjectOrNull()?.let { root ->
-        root.optJSONObject("data") ?: root.optJSONObject("spec") ?: root
-    } ?: return false
+    val rootObject = jsonRenderObjectOrNull() ?: return false
+    if (rootObject.toJsonRenderSpecFromTypedData() != null) return true
+    val json = rootObject.optJSONObject("data") ?: rootObject.optJSONObject("spec") ?: rootObject
     if (json.toJsonRenderSpecFromPatchContainer() != null) return true
     if (json.toJsonRenderSpecFromTypedData() != null) return true
     val rootId = json.optString("root").takeIf { it.isNotBlank() } ?: return false
@@ -398,9 +549,9 @@ internal fun String.canRenderAsJsonSpec(): Boolean {
 
 internal fun String.toJsonRenderSpec(): JsonRenderSpec? {
     toJsonRenderSpecFromPatchStream()?.let { return it }
-    val json = jsonRenderObjectOrNull()?.let { root ->
-        root.optJSONObject("data") ?: root.optJSONObject("spec") ?: root
-    } ?: return null
+    val rootObject = jsonRenderObjectOrNull() ?: return null
+    rootObject.toJsonRenderSpecFromTypedData()?.let { return it }
+    val json = rootObject.optJSONObject("data") ?: rootObject.optJSONObject("spec") ?: rootObject
     json.toJsonRenderSpecFromPatchContainer()?.let { return it }
     json.toJsonRenderSpecFromTypedData()?.let { return it }
     val rootId = json.optString("root").takeIf { it.isNotBlank() } ?: json.optString("id").takeIf { it.isNotBlank() } ?: "root"
@@ -592,6 +743,22 @@ internal fun JsonRenderElement.renderChildren(spec: JsonRenderSpec, state: JSONO
     if (repeatItems.isEmpty()) {
         return children.take(MAX_JSON_RENDER_ITEMS).map { childId -> JsonRenderChild(childId, state) }
     }
+    val template = props.optJSONObject("$" + "template") ?: props.optJSONObject("template")
+    if (template != null) {
+        return repeatItems
+            .take(MAX_JSON_RENDER_ITEMS)
+            .mapIndexed { index, item ->
+                val itemState = when (item) {
+                    is JSONObject -> item
+                    else -> JSONObject().put("value", item)
+                }
+                JsonRenderChild(
+                    id = "${id}_template_$index",
+                    state = itemState,
+                    element = template.toJsonRenderElement("${id}_template_$index"),
+                )
+            }
+    }
     return repeatItems
         .flatMap { item ->
             val itemState = when (item) {
@@ -659,6 +826,30 @@ private fun JSONObject.double(state: JSONObject?, key: String): Double? {
         }
         else -> double(key)
     }
+}
+
+private fun JSONObject.boolean(state: JSONObject?, key: String): Boolean? = opt(key).toJsonRenderBoolean(state)
+
+private fun JSONObject.clickUrl(state: JSONObject?): String? {
+    val on = optJSONObject("on") ?: optJSONObject("actions") ?: return null
+    val click = on.optJSONObject("click") ?: on.optJSONObject("tap") ?: on.optJSONObject("press") ?: on
+    return click.firstString(state, "url", "href", "link")
+}
+
+private fun JSONObject.optionLabels(state: JSONObject?): List<String> {
+    fun Any?.label(): String? {
+        return when (this) {
+            is String -> takeIf { it.isNotBlank() }
+            is Number, is Boolean -> toString()
+            is JSONObject -> firstString(state, "label", "text", "title", "name", "value")
+            else -> null
+        }
+    }
+
+    val raw = opt("options").toJsonRenderArray(state)
+        .ifEmpty { opt("items").toJsonRenderArray(state) }
+        .ifEmpty { optJSONArray("choices").toJsonRenderArray(state) }
+    return raw.mapNotNull { it.label() }
 }
 
 private fun JSONObject.firstObject(key: String): JSONObject? {

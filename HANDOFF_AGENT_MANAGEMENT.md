@@ -429,9 +429,9 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 
 | 能力 | iOS 效果 | Android 现状 | 差距 |
 |---|---|---|---|
-| `data-ui-spec` / `data-json-render` / `data-spec` | `JsonRenderView` → `Renderer` 递归渲染 Spec 树 | 🟡 `JsonSpecRender` 已接入 stream data parts，支持 flat spec + nested fallback | 🟡 第一版覆盖核心组件，未完整覆盖 iOS Shadcn 目录 |
-| 组件目录（Shadcn） | stack/text/heading/button/image/input/select/switch/radio/checkbox/progress/alert/card/divider/spacer/scroll/group + 富卡片 | 🟡 stack/card/text/heading/button/image/divider/badge/progress/alert/file/hotel/product/news | ❌ input/select/switch/radio/checkbox/conditional/repeat/action 等未迁移 |
-| 高级特性 | `$state` 绑定、`visible` 条件、`repeat` 重复、`on.click` 事件、`$template` | 🟡 文本 `$state`、节点 `visible`、基础 `repeat` 局部 item state 已支持 | ❌ `on.click` / `$template` 待迁移，复杂 repeat template 仍需继续对齐 iOS |
+| `data-ui-spec` / `data-json-render` / `data-spec` | `JsonRenderView` → `Renderer` 递归渲染 Spec 树 | 🟡 `JsonSpecRender` 已接入 stream data parts，支持 flat spec + nested fallback + typed `{type,data}` | 🟡 第一版覆盖核心组件，未完整覆盖 iOS Shadcn 目录 |
+| 组件目录（Shadcn） | stack/text/heading/button/image/input/select/switch/radio/checkbox/progress/alert/card/divider/spacer/scroll/group + 富卡片 | 🟡 stack/card/text/heading/button/action/image/divider/badge/progress/alert/file/hotel/product/news + input/select/switch/radio/checkbox/conditional | 🟡 spacer、完整 scroll 行为、复杂自定义组件仍需继续补 |
+| 高级特性 | `$state` 绑定、`visible` 条件、`repeat` 重复、`on.click` 事件、`$template` | 🟡 文本 `$state`、节点 `visible`、基础 `repeat` 局部 item state、`$template`、`on.click` URL 已支持 | 🟡 复杂 repeat template、非 URL 事件仍需继续对齐 iOS |
 | markdown 中 ` ```json/```spec ` 代码块 | iOS `CustomCodeBlockView` 把 spec/json 渲染成 Renderer | ✅ `MarkdownBody` 已按 `canRenderAsJsonSpec()` 分流到 `JsonSpecRender` | 🟡 继续补 renderer 组件能力 |
 
 ### 4.4 菜单页面
@@ -460,8 +460,11 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 ## 5. 待完成 TODO（按优先级）
 
 **P0 — 内容/交互对齐（影响可用性）**
-1. **JsonRender 组件目录补全**（task #14 follow-up）：`data-ui-spec`/`data-json-render`/`data-spec` 已接第一版 `JsonSpecRender`；文本 `$state`、节点 `visible`、基础 `repeat` 局部 item state、markdown `json/spec` code-block 分流已支持；继续补 iOS Shadcn 目录、`on.click/$template` 和复杂 repeat template。
-2. **Suspended/审批卡片交互**：Android 目前 display-only；iOS 卡片会调用 `AgentMessageViewDelegate.updateMessage(eventId, ToUnsealUpdateData(mAgentSuspended: ...))`，但当前 ElementX host `AIAgentProxy.updateMessage` 也是 `not implemented`。不要在 Android 里自造协议；等 iOS host wire shape 落地后按同一接口迁移。
+1. **JsonRender 组件目录补全**（task #14 follow-up）：`data-ui-spec`/`data-json-render`/`data-spec` 已接第一版 `JsonSpecRender`；文本 `$state`、节点 `visible`、基础 `repeat` 局部 item state、markdown `json/spec` code-block 分流已支持。
+   - 2026-06-16：补齐 typed `{type,data}` 入口、input/textfield/textarea/select/dropdown/switch/toggle/checkbox/radio/conditional/action 只读渲染、`on.click` URL、`$template` repeat。验证：`:features:messages:impl:testDebugUnitTest --tests JsonSpecRenderTest` + `:features:messages:impl:compileDebugKotlin` 通过。剩余：spacer、完整 scroll 行为、复杂非 URL 事件与 iOS Shadcn 目录长尾组件。
+2. **Suspended/审批卡片交互**：Android 已有 iOS-aligned `SuspendedToolRenderModel`，会解析 `suspendPayload` 并只读展示 `requestVaultAuthorization` / `chooseRequest` / `deleteSchedule` / `setSandboxMode` / `deleteAgentVaultEntry` / `moltbookRegister` 的关键字段，不再只读顶层 action 文本；但真实批准/拒绝仍未接。
+   - 2026-06-16：`SuspendedToolCard` 改为消费 render model；新增单测覆盖 choose、deleteSchedule、sandbox/vault fallback。验证：`:features:messages:impl:testDebugUnitTest --tests SuspendedToolRenderModelTest` + `:features:messages:impl:compileDebugKotlin` 通过。
+   - 交互仍阻塞：iOS 卡片会调用 `AgentMessageViewDelegate.updateMessage(eventId, ToUnsealUpdateData(mAgentSuspended: ...))`，但当前 ElementX host `AIAgentProxy.updateMessage` 也是 `not implemented`。不要在 Android 里自造协议；等 iOS host wire shape 落地后按同一接口迁移。
 3. **Selected/active 视觉状态统一**：当前 Android 多处 selected state 不是 iOS 的圆角 capsule/pill，而是局部 `background(color)` 或缺少同层 shape，导致 tab/chip/选中块出现直角。需要先抽统一的 rounded selectable/token，再替换 `ToolCallRootCard` tabs、Finance 二级 tabs、Weather forecast pills、Composer skill picker、room topbar/menu chips、tool card 内所有 selected/active/pressed 状态；Compose 里不允许继续散落无 shape 的 selected background。验收：深浅色、所有 tool cards、skill picker、room menu 展开态截图里选中效果都必须是圆角/胶囊，不得出现矩形色块。
    - 2026-06-16：新增共享 `SelectedStatePill`，已接入 Tool root tabs、Finance 二级 tabs、Weather forecast pills、Composer agent target picker；`rg` 确认这些入口不再残留 `background(if (selected...))`。验证：`:features:messages:impl:compileDebugKotlin` 通过；`:app:installGplayDebug` 已完成 APK package，但当前 `adb devices` 为空，安装因 `No connected devices` 阻塞。APK 已生成在 `app/build/outputs/apk/gplay/debug/`。
 4. **真机逐卡核对**：用 §1.4 抓 `AiSdkStreamReducer` 日志，确认每个 cardType 的 payload 经 CardTransforms 后字段命中、内容与 iOS 一致（尤其 GitHub activity 类、composio search 富卡片）。

@@ -76,4 +76,62 @@ class JsonSpecRenderTest {
             .containsExactly("First", "Second")
             .inOrder()
     }
+
+    @Test
+    fun `JsonRenderElement renderChildren repeats template with local item state`() {
+        val spec = """
+            {
+              "root": "root",
+              "state": {
+                "items": [
+                  { "title": "First", "enabled": true },
+                  { "title": "Second", "enabled": false }
+                ]
+              },
+              "elements": {
+                "root": {
+                  "type": "stack",
+                  "props": {
+                    "repeat": { "${"$"}state": "/items" },
+                    "${"$"}template": {
+                      "type": "checkbox",
+                      "props": {
+                        "label": { "${"$"}state": "/title" },
+                        "checked": { "${"$"}state": "/enabled" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+        """.trimIndent().toJsonRenderSpec()!!
+
+        val renderChildren = spec.elements.getValue("root").renderChildren(spec)
+
+        assertThat(renderChildren).hasSize(2)
+        assertThat(renderChildren.map { it.element?.type }).containsExactly("checkbox", "checkbox").inOrder()
+        assertThat(renderChildren.map { it.element?.props?.firstString(it.state, "label") })
+            .containsExactly("First", "Second")
+            .inOrder()
+        assertThat(renderChildren.map { it.element?.isVisible(spec, it.state) })
+            .containsExactly(true, true)
+            .inOrder()
+    }
+
+    @Test
+    fun `canRenderAsJsonSpec accepts form control typed data`() {
+        val payload = """
+            {
+              "type": "select",
+              "data": {
+                "label": "Choose",
+                "options": ["A", "B"],
+                "value": "B"
+              }
+            }
+        """.trimIndent()
+
+        assertThat(payload.canRenderAsJsonSpec()).isTrue()
+        assertThat(payload.toJsonRenderSpec()?.elements?.getValue("root")?.type).isEqualTo("select")
+    }
 }

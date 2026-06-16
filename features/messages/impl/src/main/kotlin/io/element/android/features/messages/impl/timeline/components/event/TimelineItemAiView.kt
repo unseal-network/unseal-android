@@ -873,44 +873,164 @@ private fun ErrorCard(payload: String) {
 
 @Composable
 private fun SuspendedToolCard(payload: String) {
-    val json = payload.jsonObjectOrNull()
-    val action = json?.optString("action")?.takeIf { it.isNotBlank() }
-    val title = when (action) {
-        "chooseRequest" -> json.optString("title").takeIf { it.isNotBlank() } ?: "Choose an option"
-        "requestVaultAuthorization" -> "Authorization required"
-        "moltbookRegister" -> "Moltbook registration"
-        "deleteSchedule" -> "Delete schedule"
-        "setSandboxMode" -> "Sandbox mode"
-        else -> "Action required"
-    }
+    val model = remember(payload) { payload.toSuspendedToolRenderModel() }
     Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surface,
         modifier = Modifier.fillMaxWidth(),
+        tonalElevation = 1.dp,
     ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-            json?.optString("reason")?.takeIf { it.isNotBlank() }?.let {
+        Column(
+            modifier = Modifier
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f), RoundedCornerShape(16.dp))
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(
+                            color = if (model.kind == SuspendedToolKind.DeleteSchedule || model.kind == SuspendedToolKind.DeleteAgentVaultEntry) {
+                                MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
+                            } else {
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                            },
+                            shape = RoundedCornerShape(9.dp),
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = if (model.kind == SuspendedToolKind.DeleteSchedule || model.kind == SuspendedToolKind.DeleteAgentVaultEntry) {
+                            Icons.Filled.PriorityHigh
+                        } else {
+                            Icons.Filled.Check
+                        },
+                        contentDescription = null,
+                        tint = if (model.kind == SuspendedToolKind.DeleteSchedule || model.kind == SuspendedToolKind.DeleteAgentVaultEntry) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
+                        modifier = Modifier.size(17.dp),
+                    )
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = model.title,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    model.subtitle?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                Text(
+                    text = "Suspended",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f), RoundedCornerShape(50))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+            }
+            model.reason?.let {
                 Text(
                     text = it,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            json?.optJSONArray("list")?.let { list ->
-                (0 until list.length()).asSequence()
-                    .mapNotNull { list.optJSONObject(it) }
-                    .take(4)
-                    .forEach { item ->
-                        Text(
-                            text = item.optString("label").takeIf { it.isNotBlank() } ?: item.optString("id"),
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
+            model.details.takeIf { it.isNotEmpty() }?.let { details ->
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    details.take(6).forEach { detail -> SuspendedToolDetailRow(detail) }
+                }
+            }
+            model.choices.takeIf { it.isNotEmpty() }?.let { choices ->
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    choices.take(6).forEach { choice -> SuspendedToolChoiceRow(choice) }
+                }
+            }
+            if (model.details.size > 6 || model.choices.size > 6) {
+                Text(
+                    text = "+${(model.details.size + model.choices.size) - 6} more",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SuspendedToolDetailRow(detail: SuspendedToolDetail) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Text(
+            text = detail.label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(96.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = detail.value,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun SuspendedToolChoiceRow(choice: SuspendedToolChoice) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Box(
+                modifier = Modifier
+                    .padding(top = 4.dp)
+                    .size(7.dp)
+                    .background(MaterialTheme.colorScheme.primary, CircleShape),
+            )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = choice.label,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                choice.description?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }
