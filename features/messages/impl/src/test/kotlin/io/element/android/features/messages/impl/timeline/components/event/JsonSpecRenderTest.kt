@@ -174,6 +174,72 @@ class JsonSpecRenderTest {
     }
 
     @Test
+    fun `toJsonRenderSpec accepts ios flat payload wrapper`() {
+        val payload = """
+            {
+              "type": "flat",
+              "spec": {
+                "root": "root",
+                "elements": {
+                  "root": { "type": "card", "children": ["title"] },
+                  "title": { "type": "heading", "props": { "text": "Flat title" } }
+                }
+              }
+            }
+        """.trimIndent()
+
+        val spec = payload.toJsonRenderSpec()
+
+        assertThat(payload.canRenderAsJsonSpec()).isTrue()
+        assertThat(spec?.root).isEqualTo("root")
+        assertThat(spec?.elements?.getValue("title")?.props?.optString("text")).isEqualTo("Flat title")
+    }
+
+    @Test
+    fun `toJsonRenderSpec flattens ios nested payload wrapper`() {
+        val payload = """
+            {
+              "type": "nested",
+              "spec": {
+                "type": "card",
+                "props": { "title": "Nested card" },
+                "children": [
+                  { "type": "text", "props": { "text": "First child" } },
+                  { "id": "custom", "type": "text", "props": { "text": "Second child" } }
+                ]
+              }
+            }
+        """.trimIndent()
+
+        val spec = payload.toJsonRenderSpec()
+
+        assertThat(payload.canRenderAsJsonSpec()).isTrue()
+        assertThat(spec?.root).isEqualTo("root")
+        assertThat(spec?.elements?.getValue("root")?.children).containsExactly("root_child_0", "custom").inOrder()
+        assertThat(spec?.elements?.getValue("root_child_0")?.props?.optString("text")).isEqualTo("First child")
+        assertThat(spec?.elements?.getValue("custom")?.props?.optString("text")).isEqualTo("Second child")
+    }
+
+    @Test
+    fun `JsonRenderElement keeps top level visibility when props are present`() {
+        val spec = """
+            {
+              "root": "root",
+              "elements": {
+                "root": { "type": "stack", "children": ["hidden"] },
+                "hidden": {
+                  "type": "text",
+                  "visible": false,
+                  "props": { "text": "Hidden" }
+                }
+              }
+            }
+        """.trimIndent().toJsonRenderSpec()!!
+
+        assertThat(spec.elements.getValue("hidden").isVisible(spec)).isFalse()
+    }
+
+    @Test
     fun `clickActionLabel resolves non url action metadata`() {
         val spec = """
             {

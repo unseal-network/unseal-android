@@ -620,8 +620,10 @@ private fun JsonSpecReadableFallback(payload: String, onLinkClick: (Link) -> Uni
 internal fun String.canRenderAsJsonSpec(): Boolean {
     toJsonRenderSpecFromPatchStream()?.let { return true }
     val rootObject = jsonRenderObjectOrNull() ?: return false
+    if (rootObject.toJsonRenderSpecFromSpecPayload() != null) return true
     if (rootObject.toJsonRenderSpecFromTypedData() != null) return true
     val json = rootObject.optJSONObject("data") ?: rootObject.optJSONObject("spec") ?: rootObject
+    if (json.toJsonRenderSpecFromSpecPayload() != null) return true
     if (json.toJsonRenderSpecFromPatchContainer() != null) return true
     if (json.toJsonRenderSpecFromTypedData() != null) return true
     val rootId = json.optString("root").takeIf { it.isNotBlank() } ?: return false
@@ -631,22 +633,13 @@ internal fun String.canRenderAsJsonSpec(): Boolean {
 internal fun String.toJsonRenderSpec(): JsonRenderSpec? {
     toJsonRenderSpecFromPatchStream()?.let { return it }
     val rootObject = jsonRenderObjectOrNull() ?: return null
+    rootObject.toJsonRenderSpecFromSpecPayload()?.let { return it }
     rootObject.toJsonRenderSpecFromTypedData()?.let { return it }
     val json = rootObject.optJSONObject("data") ?: rootObject.optJSONObject("spec") ?: rootObject
+    json.toJsonRenderSpecFromSpecPayload()?.let { return it }
     json.toJsonRenderSpecFromPatchContainer()?.let { return it }
     json.toJsonRenderSpecFromTypedData()?.let { return it }
-    val rootId = json.optString("root").takeIf { it.isNotBlank() } ?: json.optString("id").takeIf { it.isNotBlank() } ?: "root"
-    val elementsObject = json.optJSONObject("elements")
-    return if (elementsObject != null) {
-        val elements = mutableMapOf<String, JsonRenderElement>()
-        elementsObject.keys().forEach { key ->
-            elementsObject.optJSONObject(key)?.toJsonRenderElement(key)?.let { elements[key] = it }
-        }
-        if (elements[rootId] == null) null else JsonRenderSpec(root = rootId, elements = elements, state = json.optJSONObject("state"))
-    } else {
-        val element = json.toJsonRenderElement(rootId)
-        JsonRenderSpec(root = rootId, elements = mapOf(rootId to element), state = json.optJSONObject("state"))
-    }
+    return json.toJsonRenderSpecFromFlatObject()
 }
 
 private fun String.toJsonRenderSpecFromPatchStream(): JsonRenderSpec? {
@@ -680,6 +673,37 @@ private fun JSONObject.toJsonRenderSpecFromTypedData(): JsonRenderSpec? {
     val data = optJSONObject("data") ?: return null
     val element = JsonRenderElement(id = "root", type = type, props = data, children = emptyList())
     return JsonRenderSpec(root = "root", elements = mapOf("root" to element), state = null)
+}
+
+private fun JSONObject.toJsonRenderSpecFromSpecPayload(): JsonRenderSpec? {
+    return when (optString("type").lowercase()) {
+        "flat" -> optJSONObject("spec")?.toJsonRenderSpecFromFlatObject()
+        "nested" -> optJSONObject("spec")?.toJsonRenderSpecFromNestedObject()
+        "patch" -> toSpecPatchOrNull()?.let { listOf(it).toJsonRenderSpec() }
+        else -> null
+    }
+}
+
+private fun JSONObject.toJsonRenderSpecFromFlatObject(): JsonRenderSpec? {
+    val rootId = optString("root").takeIf { it.isNotBlank() } ?: optString("id").takeIf { it.isNotBlank() } ?: "root"
+    val elementsObject = optJSONObject("elements")
+    return if (elementsObject != null) {
+        val elements = mutableMapOf<String, JsonRenderElement>()
+        elementsObject.keys().forEach { key ->
+            elementsObject.optJSONObject(key)?.toJsonRenderElement(key)?.let { elements[key] = it }
+        }
+        if (elements[rootId] == null) null else JsonRenderSpec(root = rootId, elements = elements, state = optJSONObject("state"))
+    } else {
+        val element = toJsonRenderElement(rootId)
+        JsonRenderSpec(root = rootId, elements = mapOf(rootId to element), state = optJSONObject("state"))
+    }
+}
+
+private fun JSONObject.toJsonRenderSpecFromNestedObject(): JsonRenderSpec? {
+    val nestedRoot = optJSONObject("root") ?: this
+    val elements = mutableMapOf<String, JsonRenderElement>()
+    val rootId = nestedRoot.flattenNestedJsonElement(idHint = nestedRoot.optString("id").takeIf { it.isNotBlank() } ?: "root", elements = elements)
+    return JsonRenderSpec(root = rootId, elements = elements, state = optJSONObject("state"))
 }
 
 private data class JsonSpecPatch(
@@ -772,7 +796,7 @@ private fun String.jsonPointerSegments(): List<String> {
 }
 
 private fun JSONObject.toJsonRenderElement(id: String): JsonRenderElement {
-    val props = optJSONObject("props") ?: this
+    val props = mergedJsonRenderProps()
     val children = optJSONArray("children").toStringList()
     return JsonRenderElement(
         id = id,
@@ -780,6 +804,44 @@ private fun JSONObject.toJsonRenderElement(id: String): JsonRenderElement {
         props = props,
         children = children,
     )
+}
+
+private fun JSONObject.flattenNestedJsonElement(
+    idHint: String,
+    elements: MutableMap<String, JsonRenderElement>,
+): String {
+    val id = optString("id").takeIf { it.isNotBlank() } ?: idHint
+    val childIds = mutableListOf<String>()
+    optJSONArray("children")?.let { children ->
+        repeat(children.length()) { index ->
+            when (val child = children.opt(index)) {
+                is String -> child.takeIf { it.isNotBlank() }?.let { childIds += it }
+                is JSONObject -> {
+                    childIds += child.flattenNestedJsonElement(
+                        idHint = "${id}_child_$index",
+                        elements = elements,
+                    )
+                }
+            }
+        }
+    }
+    elements[id] = JsonRenderElement(
+        id = id,
+        type = optString("type").takeIf { it.isNotBlank() } ?: optString("component").takeIf { it.isNotBlank() } ?: "card",
+        props = mergedJsonRenderProps(),
+        children = childIds,
+    )
+    return id
+}
+
+private fun JSONObject.mergedJsonRenderProps(): JSONObject {
+    val merged = optJSONObject("props")?.let { JSONObject(it.toString()) } ?: JSONObject(this.toString())
+    listOf("visible", "on", "actions", "repeat", "watch", "template", "$" + "template").forEach { key ->
+        if (has(key) && !merged.has(key)) {
+            merged.put(key, opt(key))
+        }
+    }
+    return merged
 }
 
 private fun String.normalizedJsonType(): String = lowercase().replace("-", "").replace("_", "")
