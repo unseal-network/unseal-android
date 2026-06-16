@@ -72,6 +72,54 @@ class AgentStreamParityExportTest {
         assertThat(firstEntry.getJSONArray("propsKeys").strings()).contains("_cardType")
     }
 
+    @Test
+    fun `export includes suspended data card summary`() {
+        val content = AiSdkStreamReducer().mapSnapshot(
+            snapshot = StreamSnapshot(
+                schemaVersion = 1,
+                streamId = "moltbook-register",
+                status = StreamStatus.Completed,
+                parts = listOf(
+                    StreamPart.Data(
+                        id = "suspend-moltbook",
+                        type = "data-tool-call-suspended",
+                        state = "done",
+                        data = Json.parseToJsonElement(
+                            """
+                            {
+                              "toolCallId": "moltbook-register-1",
+                              "toolName": "moltbookRegister",
+                              "title": "Connect Moltbook",
+                              "reason": "Enter your Moltbook credentials.",
+                              "suspendPayload": {
+                                "kind": "moltbookRegister",
+                                "agentId": "agent-mail",
+                                "moltyName": "Mail Agent"
+                              }
+                            }
+                            """.trimIndent()
+                        ),
+                    )
+                ),
+                rawEvents = emptyList(),
+                updatedAtMs = 1000L,
+                completedAtMs = 1000L,
+                error = null,
+            ),
+            isEdited = false,
+            sender = "@agent:unseal.ai",
+        )
+
+        val part = AgentStreamParityExport.renderJson(content)
+            .getJSONArray("parts")
+            .getJSONObject(0)
+
+        assertThat(part.getString("type")).isEqualTo("data-tool-call-suspended")
+        assertThat(part.getString("toolName")).isEqualTo("moltbookRegister")
+        assertThat(part.getString("suspendedKind")).isEqualTo("moltbookRegister")
+        assertThat(part.getJSONArray("payloadKeys").strings()).contains("agentId")
+    }
+
     private fun org.json.JSONArray.strings(): List<String> {
         return (0 until length()).map { index -> getString(index) }
     }

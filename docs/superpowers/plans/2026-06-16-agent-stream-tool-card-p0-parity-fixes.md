@@ -40,6 +40,7 @@
 
 - [x] Re-run Android parity report tool.
 - [x] Confirm generated artifacts remain ignored.
+- [x] Extend Android parity export/report to summarize `data-tool-call-suspended` cards, so `moltbookRegister` no longer disappears from reports when `toolRoot` is empty.
 - [ ] Refresh iOS render JSON once Xcode is available, then re-run reports so `weather-current-forecast` and `compose-email-list` move from stale `ios-missing` reports to comparable output.
 - [ ] Summarize which P0 gaps are closed and which require product/design follow-up.
 
@@ -47,4 +48,5 @@
 
 - 2026-06-16: Implemented iOS render-lib parity for `weather` and Gmail message-list cards in `/Users/Ruihan/.config/superpowers/worktrees/unseal-agent-ios/agent-stream-card-parity-harness` commit `2df0e1c`.
 - 2026-06-16: Android report tool still runs, but current parity reports are stale for these two cards because iOS render JSON cannot be regenerated in this environment.
-- 2026-06-16: Remaining known P0 gap is Android `moltbookRegister` interactivity. Android has a read-only render path; migrating iOS's suspended interactive credential flow needs product/design approval before implementation.
+- 2026-06-16: Android parity export/report now includes suspended card summaries. `moltbook-register` reports Android `moltbookRegister` with payload keys `agentId`, `claimUrl`, `kind`, `moltyName`, and `verificationCode`.
+- 2026-06-16: Remaining known P0 gap is Android `moltbookRegister` interactivity. Android has a read-only render path; iOS's full path does device-side Moltbook registration, backend credential storage, agent resume, and message update. Migrating that requires a host callback/API design before implementation; do not add a fake interactive button without the backend/resume wiring.

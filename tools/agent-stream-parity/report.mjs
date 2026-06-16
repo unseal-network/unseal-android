@@ -20,12 +20,19 @@ function entries(render) {
   return Array.isArray(render.toolRoot.entries) ? render.toolRoot.entries : [];
 }
 
+function suspendedParts(render) {
+  if (!render || !Array.isArray(render.parts)) return [];
+  return render.parts.filter((part) => part.type === "data-tool-call-suspended");
+}
+
 function summarizeFixture(fixture) {
   const artifactDir = path.join(root, "artifacts", fixture.id);
   const ios = readJsonIfExists(path.join(artifactDir, "ios-render-completed.json"));
   const android = readJsonIfExists(path.join(artifactDir, "android-render-completed.json"));
   const iosEntries = entries(ios);
   const androidEntries = entries(android);
+  const iosSuspended = suspendedParts(ios);
+  const androidSuspended = suspendedParts(android);
   const lines = [];
   lines.push(`# ${fixture.id}`);
   lines.push("");
@@ -55,21 +62,44 @@ function summarizeFixture(fixture) {
     lines.push(`- Entry ${index + 1} Android: ${androidKeys.join(", ") || "none"}`);
   }
   lines.push("");
+  lines.push("## Suspended Cards");
+  lines.push("");
+  lines.push(`- iOS suspended: ${iosSuspended.length}`);
+  lines.push(`- Android suspended: ${androidSuspended.length}`);
+  const maxSuspended = Math.max(iosSuspended.length, androidSuspended.length);
+  for (let index = 0; index < maxSuspended; index += 1) {
+    const iosPart = iosSuspended[index];
+    const androidPart = androidSuspended[index];
+    lines.push(`- Suspended ${index + 1} iOS: ${suspendedLabel(iosPart)}`);
+    lines.push(`- Suspended ${index + 1} Android: ${suspendedLabel(androidPart)}`);
+  }
+  lines.push("");
   lines.push("## Current Status");
   lines.push("");
-  lines.push(statusFor(fixture, ios, android, iosEntries, androidEntries));
+  lines.push(statusFor(fixture, ios, android, iosEntries, androidEntries, iosSuspended, androidSuspended));
   lines.push("");
   fs.mkdirSync(artifactDir, { recursive: true });
   fs.writeFileSync(path.join(artifactDir, "parity-report.md"), `${lines.join("\n")}\n`);
   return { id: fixture.id, report: path.join(artifactDir, "parity-report.md") };
 }
 
-function statusFor(fixture, ios, android, iosEntries, androidEntries) {
+function suspendedLabel(part) {
+  if (!part) return "none";
+  const keys = Array.isArray(part.payloadKeys) ? part.payloadKeys.join(", ") : "none";
+  return [
+    part.suspendedKind || part.toolName || part.type || "unknown",
+    keys === "none" ? "" : `payloadKeys: ${keys}`,
+  ].filter(Boolean).join(" · ");
+}
+
+function statusFor(fixture, ios, android, iosEntries, androidEntries, iosSuspended, androidSuspended) {
   if (!ios && !android) return "- `blocked`: both clients are missing render JSON.";
   if (!ios) return "- `blocked`: iOS render JSON is missing.";
   if (!android) return "- `blocked`: Android render JSON is missing.";
   if (iosEntries.length === 0 && androidEntries.length > 0) return "- `ios-missing`: Android has tool card entries but iOS does not.";
   if (androidEntries.length === 0 && iosEntries.length > 0) return "- `android-missing`: iOS has tool card entries but Android does not.";
+  if (iosSuspended.length === 0 && androidSuspended.length > 0) return "- `ios-missing`: Android has suspended card parts but iOS does not.";
+  if (androidSuspended.length === 0 && iosSuspended.length > 0) return "- `android-missing`: iOS has suspended card parts but Android does not.";
   const iosTypes = iosEntries.map((entry) => entry.cardType).join("|");
   const androidTypes = androidEntries.map((entry) => entry.cardType).join("|");
   if (iosTypes !== androidTypes) return "- `data-divergent`: card type sequence differs.";

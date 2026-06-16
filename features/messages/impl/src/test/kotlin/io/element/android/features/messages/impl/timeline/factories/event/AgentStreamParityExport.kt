@@ -65,6 +65,7 @@ internal object AgentStreamParityExport {
                 .put("type", part.type)
                 .put("id", part.id)
                 .put("state", part.state)
+                .apply { putSuspendedSummary(part.payload) }
             is AiErrorStreamPart -> JSONObject()
                 .put("type", "error")
                 .put("id", part.id)
@@ -90,5 +91,17 @@ internal object AgentStreamParityExport {
     private fun sortedPropsKeys(props: String): JSONArray {
         val json = runCatching { JSONObject(props) }.getOrNull() ?: return JSONArray()
         return JSONArray(json.keys().asSequence().toList().sorted())
+    }
+
+    private fun JSONObject.putSuspendedSummary(payload: String) {
+        val root = runCatching { JSONObject(payload) }.getOrNull() ?: return
+        put("toolName", root.optString("toolName").takeIf { it.isNotBlank() })
+        put("title", root.optString("title").takeIf { it.isNotBlank() })
+        put("reason", root.optString("reason").takeIf { it.isNotBlank() })
+        val suspendPayload = root.optJSONObject("suspendPayload")
+        val kind = suspendPayload?.optString("kind")?.takeIf { it.isNotBlank() }
+            ?: root.optString("toolName").takeIf { it.isNotBlank() }
+        put("suspendedKind", kind)
+        put("payloadKeys", JSONArray((suspendPayload ?: root).keys().asSequence().toList().sorted()))
     }
 }
