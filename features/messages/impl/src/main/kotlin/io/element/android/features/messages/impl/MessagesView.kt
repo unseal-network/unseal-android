@@ -907,7 +907,7 @@ private fun MessagesViewContent(
     ) {
         AttachmentsBottomSheet(
             state = state.composerState,
-            attachmentActions = state.roomMenu.attachmentActions,
+            attachmentActions = state.roomMenu.attachmentActionEntries,
             onSendLocationClick = onSendLocationClick,
             onCreatePollClick = onCreatePollClick,
         )
