@@ -405,6 +405,7 @@ private fun TimelineItemStandaloneRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = contentStartMargin, end = contentEndMargin)
+                    .timelinePressFeedback(standaloneInteractionSource, RoundedCornerShape(24.dp), shadow = false)
                     .combinedClickable(
                         onClick = {},
                         onLongClick = onLongClick,
