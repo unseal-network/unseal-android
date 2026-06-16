@@ -132,8 +132,11 @@ private fun openLinkAction(url: String?, onLinkClick: () -> Unit): (() -> Unit)?
     }
 }
 
-private fun Modifier.clickableIfLink(action: (() -> Unit)?): Modifier =
-    if (action != null) this.clickable(onClick = action) else this
+private fun Modifier.clickableIfLink(
+    action: (() -> Unit)?,
+    shape: RoundedCornerShape = RoundedCornerShape(8.dp),
+): Modifier =
+    if (action != null) this.clip(shape).clickable(onClick = action) else this
 
 private fun JSONObject.cardDouble(vararg keys: String): Double? {
     keys.forEach { key ->
