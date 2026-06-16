@@ -29,8 +29,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
@@ -506,25 +508,30 @@ private fun VerifiedUserSendFailureView(
         }
     }
 
-    ListItem(
+    Surface(
+        onClick = onClick,
         modifier = modifier
-            .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.ErrorSolid())),
-        trailingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.ChevronRight())),
-        headlineContent = {
-            Text(
-                text = sendFailure.headline(),
-                style = ElementTheme.typography.fontBodySmMedium,
-            )
-        },
-        colors = ListItemDefaults.colors(
-            containerColor = Color.Transparent,
-            leadingIconColor = ElementTheme.colors.iconCriticalPrimary,
-            trailingIconColor = ElementTheme.colors.iconPrimary,
-            headlineColor = ElementTheme.colors.textCriticalPrimary,
-        ),
-    )
+        shape = RoundedCornerShape(14.dp),
+        color = Color.Transparent,
+    ) {
+        ListItem(
+            leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.ErrorSolid())),
+            trailingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.ChevronRight())),
+            headlineContent = {
+                Text(
+                    text = sendFailure.headline(),
+                    style = ElementTheme.typography.fontBodySmMedium,
+                )
+            },
+            colors = ListItemDefaults.colors(
+                containerColor = Color.Transparent,
+                leadingIconColor = ElementTheme.colors.iconCriticalPrimary,
+                trailingIconColor = ElementTheme.colors.iconPrimary,
+                headlineColor = ElementTheme.colors.textCriticalPrimary,
+            ),
+        )
+    }
 }
 
 @Composable
