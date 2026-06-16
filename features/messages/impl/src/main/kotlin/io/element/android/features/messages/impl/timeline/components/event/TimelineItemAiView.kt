@@ -73,6 +73,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.features.messages.impl.components.SelectedStatePill
+import io.element.android.features.messages.impl.components.ShapedClickableSurface
 import io.element.android.features.messages.impl.timeline.model.event.AiCustomStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiDataStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiErrorStreamPart
@@ -369,15 +370,21 @@ private fun ReasoningPart(part: AiReasoningStreamPart) {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = (if (expanded) "▾ " else "▸ ") + if (isStreaming) "思考中" else "思考",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(enabled = !isStreaming) { expanded = !expanded },
-            )
+            ShapedClickableSurface(
+                onClick = { expanded = !expanded },
+                enabled = !isStreaming,
+                shape = RoundedCornerShape(6.dp),
+                modifier = Modifier.fillMaxWidth(),
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ) {
+                Text(
+                    text = (if (expanded) "▾ " else "▸ ") + if (isStreaming) "思考中" else "思考",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 2.dp, vertical = 1.dp),
+                )
+            }
             if (expanded) {
                 Text(
                     text = part.text,
@@ -434,49 +441,51 @@ private fun ToolCallRootCard(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(headerShape)
-                    .clickable(
-                        interactionSource = headerInteractionSource,
-                        indication = ripple(bounded = true),
-                    ) {
-                        userToggled = true
-                        expanded = !expanded
-                    }
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ShapedClickableSurface(
+                onClick = {
+                    userToggled = true
+                    expanded = !expanded
+                },
+                shape = headerShape,
+                modifier = Modifier.fillMaxWidth(),
+                interactionSource = headerInteractionSource,
             ) {
-                ToolProgressIndicator(
-                    total = entries.size,
-                    doneCount = model.doneCount,
-                    errorCount = model.errorCount,
-                    isCalling = model.callingCount > 0,
-                )
-                Text(
-                    text = model.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                if (model.doneCount > 0) {
-                    CountPill(icon = Icons.Filled.Check, count = model.doneCount, color = Color(0xFF2E7D32))
-                }
-                if (model.errorCount > 0) {
-                    CountPill(icon = Icons.Filled.PriorityHigh, count = model.errorCount, color = MaterialTheme.colorScheme.error)
-                }
-                Icon(
-                    imageVector = Icons.Filled.KeyboardArrowDown,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                Row(
                     modifier = Modifier
-                        .size(18.dp)
-                        .rotate(chevronRotation),
-                )
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    ToolProgressIndicator(
+                        total = entries.size,
+                        doneCount = model.doneCount,
+                        errorCount = model.errorCount,
+                        isCalling = model.callingCount > 0,
+                    )
+                    Text(
+                        text = model.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (model.doneCount > 0) {
+                        CountPill(icon = Icons.Filled.Check, count = model.doneCount, color = Color(0xFF2E7D32))
+                    }
+                    if (model.errorCount > 0) {
+                        CountPill(icon = Icons.Filled.PriorityHigh, count = model.errorCount, color = MaterialTheme.colorScheme.error)
+                    }
+                    Icon(
+                        imageVector = Icons.Filled.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                        modifier = Modifier
+                            .size(18.dp)
+                            .rotate(chevronRotation),
+                    )
+                }
             }
             AnimatedVisibility(
                 visible = expanded,
