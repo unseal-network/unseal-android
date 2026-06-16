@@ -20,5 +20,6 @@ sealed interface ConnectorListEvents {
     data class Connect(val toolkit: ChatbotToolkit) : ConnectorListEvents
     data class Manage(val toolkit: ChatbotToolkit) : ConnectorListEvents
     data object ClearError : ConnectorListEvents
+    data object ClearSuccess : ConnectorListEvents
     data object Dismiss : ConnectorListEvents
 }

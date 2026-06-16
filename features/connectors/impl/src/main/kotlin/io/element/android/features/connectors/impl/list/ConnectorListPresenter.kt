@@ -64,6 +64,7 @@ class ConnectorListPresenter(
         var nextCursor by remember { mutableStateOf<String?>(null) }
         var connectingSlug by remember { mutableStateOf<String?>(null) }
         var error by remember { mutableStateOf<String?>(null) }
+        var successMessage by remember { mutableStateOf<String?>(null) }
 
         suspend fun api() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
 
@@ -87,8 +88,12 @@ class ConnectorListPresenter(
                 .onSuccess { categories = it.items }
         }
 
-        fun loadToolkits() = coroutineScope.launch {
+        fun loadToolkits(showConnectionSuccess: Boolean = false) = coroutineScope.launch {
             isLoading = true
+            val previousConnectedSlugs = toolkits.asSequence()
+                .filter { it.connected }
+                .map { it.slug }
+                .toSet()
             api().listToolkits(
                 search = searchParam(),
                 category = categoryParam(),
@@ -96,6 +101,11 @@ class ConnectorListPresenter(
                 limit = PAGE_SIZE,
             )
                 .onSuccess {
+                    if (showConnectionSuccess && toolkits.isNotEmpty()) {
+                        it.items.firstOrNull { toolkit -> toolkit.connected && toolkit.slug !in previousConnectedSlugs }?.let { toolkit ->
+                            successMessage = "${toolkit.name} 已连接"
+                        }
+                    }
                     toolkits = it.items
                     nextCursor = it.nextCursor
                     error = null
@@ -150,7 +160,7 @@ class ConnectorListPresenter(
                 }
                 // Silent refresh (e.g. on resume / after returning from the connect flow):
                 // re-fetch without clearing the existing list so the skeleton is not shown again.
-                ConnectorListEvents.Refresh -> loadToolkits()
+                ConnectorListEvents.Refresh -> loadToolkits(showConnectionSuccess = true)
                 is ConnectorListEvents.SearchChanged -> {
                     // Just update the query; the debounced effect below triggers the actual load.
                     searchQuery = event.query
@@ -164,6 +174,7 @@ class ConnectorListPresenter(
                 is ConnectorListEvents.Connect -> connect(event.toolkit)
                 is ConnectorListEvents.Manage -> navigator.onManageToolkit(event.toolkit.slug, event.toolkit.name)
                 ConnectorListEvents.ClearError -> error = null
+                ConnectorListEvents.ClearSuccess -> successMessage = null
                 ConnectorListEvents.Dismiss -> navigator.onDone()
             }
         }
@@ -188,6 +199,7 @@ class ConnectorListPresenter(
             hasMore = nextCursor != null,
             connectingSlug = connectingSlug,
             error = error,
+            successMessage = successMessage,
             eventSink = ::handleEvent,
         )
     }

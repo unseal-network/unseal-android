@@ -142,6 +142,33 @@ class ConnectorListPresenterTest {
     }
 
     @Test
+    fun `event - refresh shows success when toolkit becomes connected`() = runTest {
+        var calls = 0
+        val service = FakeChatbotApiService().apply {
+            listToolkitsResult = { _, _, _, _ ->
+                calls++
+                Result.success(
+                    ChatbotListToolkitsResponse(
+                        items = listOf(toolkit("gmail", name = "Gmail", connected = calls > 1))
+                    )
+                )
+            }
+        }
+        val presenter = createPresenter(service = service)
+
+        presenter.test {
+            awaitItem().eventSink(ConnectorListEvents.OnAppear)
+            val loaded = awaitStateWhere { !it.isLoading && it.toolkits.isNotEmpty() }
+            assertThat(loaded.successMessage).isNull()
+            loaded.eventSink(ConnectorListEvents.Refresh)
+            val connected = awaitStateWhere { it.successMessage == "Gmail 已连接" }
+            connected.eventSink(ConnectorListEvents.ClearSuccess)
+            assertThat(awaitStateWhere { it.successMessage == null }.successMessage).isNull()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `event - manage navigates with slug and name`() = runTest {
         val service = FakeChatbotApiService().apply {
             listToolkitsResult = { _, _, _, _ ->

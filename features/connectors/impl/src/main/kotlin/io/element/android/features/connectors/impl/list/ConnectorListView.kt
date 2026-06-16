@@ -137,6 +137,9 @@ fun ConnectorListView(
             state.error?.let { error ->
                 ErrorBanner(error = error, onDismiss = { state.eventSink(ConnectorListEvents.ClearError) })
             }
+            state.successMessage?.let { message ->
+                SuccessBanner(message = message, onDismiss = { state.eventSink(ConnectorListEvents.ClearSuccess) })
+            }
             when {
                 state.isLoading && state.toolkits.isEmpty() -> {
                     LazyColumn(
@@ -216,6 +219,40 @@ private fun CategoryFilterRow(
                 selected = selectedCategoryId == category.id,
                 onClick = { onSelect(category.id) },
                 label = { Text(category.name) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun SuccessBanner(message: String, onDismiss: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(8.dp))
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            imageVector = CompoundIcons.CheckCircle(),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            modifier = Modifier.size(18.dp),
+        )
+        Text(
+            modifier = Modifier.weight(1f),
+            text = message,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+        )
+        IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+            Icon(
+                imageVector = CompoundIcons.Close(),
+                contentDescription = "关闭",
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(16.dp),
             )
         }
     }
@@ -397,6 +434,7 @@ internal class ConnectorListStateProvider : PreviewParameterProvider<ConnectorLi
             aConnectorListState(isLoading = true, toolkits = persistentListOf()),
             aConnectorListState(toolkits = persistentListOf()),
             aConnectorListState(error = "Failed to load connectors"),
+            aConnectorListState(successMessage = "Slack 已连接"),
         )
 }
 
@@ -406,6 +444,7 @@ private fun aConnectorListState(
     selectedCategoryId: String = "",
     isLoading: Boolean = false,
     error: String? = null,
+    successMessage: String? = null,
 ) = ConnectorListState(
     toolkits = toolkits,
     categories = categories,
@@ -416,6 +455,7 @@ private fun aConnectorListState(
     hasMore = false,
     connectingSlug = null,
     error = error,
+    successMessage = successMessage,
     eventSink = {},
 )
 

@@ -22,5 +22,6 @@ data class ConnectorListState(
     val hasMore: Boolean,
     val connectingSlug: String?,
     val error: String?,
+    val successMessage: String?,
     val eventSink: (ConnectorListEvents) -> Unit,
 )
