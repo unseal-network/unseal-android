@@ -30,6 +30,70 @@ git -C /Users/Ruihan/go/src/unseal-ios status --short
 
 There are known unrelated Android edits in the working tree. Do not revert them. Each task below commits only the files it creates or modifies.
 
+## iOS Repository Boundary
+
+There are two iOS repositories in this project. Treat them as separate ownership areas throughout this plan.
+
+### Rendering Library: `unseal-agent-ios`
+
+`/Users/Ruihan/go/src/unseal-agent-ios` owns stream parsing and card rendering. Use this repo for reusable iOS rendering changes, fixture replay, render JSON export, component preview hosts, and actual iOS tool card parity fixes.
+
+Reference files:
+- `/Users/Ruihan/go/src/unseal-agent-ios/UnsealAgent/Sources/UnsealAgent/AgentParser.swift`
+- `/Users/Ruihan/go/src/unseal-agent-ios/UnsealUI/Models/UIMessage.swift`
+- `/Users/Ruihan/go/src/unseal-agent-ios/UnsealUI/Models/StreamModel.swift`
+- `/Users/Ruihan/go/src/unseal-agent-ios/UnsealUI/Views/AgentMessageView.swift`
+- `/Users/Ruihan/go/src/unseal-agent-ios/UnsealUI/Views/BubbleMessageView.swift`
+- `/Users/Ruihan/go/src/unseal-agent-ios/UnsealUI/Views/UIParts/ToolParts/ToolCallRootCardAdapter.swift`
+- `/Users/Ruihan/go/src/unseal-agent-ios/ToolCardsIOS/Sources/ToolCardsIOS/CardTransforms.swift`
+- `/Users/Ruihan/go/src/unseal-agent-ios/ToolCardsIOS/Sources/ToolCardsIOS/`
+
+Allowed modification locations:
+- Test/replay/export harness: `/Users/Ruihan/go/src/unseal-agent-ios/UnsealUITests/`
+- Package test target wiring only: `/Users/Ruihan/go/src/unseal-agent-ios/Package.swift`
+- Component preview host: `/Users/Ruihan/go/src/unseal-agent-ios/UnsealUI/Views/Debug/AgentStreamParityPreview.swift`
+- Later card parity fixes only in:
+  - `/Users/Ruihan/go/src/unseal-agent-ios/UnsealUI/Views/UIParts/ToolParts/ToolCallRootCardAdapter.swift`
+  - `/Users/Ruihan/go/src/unseal-agent-ios/ToolCardsIOS/Sources/ToolCardsIOS/CardTransforms.swift`
+  - `/Users/Ruihan/go/src/unseal-agent-ios/ToolCardsIOS/Sources/ToolCardsIOS/<CardGroup>/`
+
+Do not place full-client timeline smoke code in `unseal-agent-ios`.
+
+### Client App: `unseal-ios`
+
+`/Users/Ruihan/go/src/unseal-ios` owns the real ElementX client integration. Use this repo only for full-client smoke/debug entry points that prove the actual timeline path renders the same stream output.
+
+Reference files:
+- `/Users/Ruihan/go/src/unseal-ios/project.yml`
+  - Uses `../unseal-agent-ios` as a local package dependency.
+- `/Users/Ruihan/go/src/unseal-ios/ElementX/SupportingFiles/target.yml`
+  - The `ElementX` target depends on `UnsealAgent` and `UnsealUI`.
+- `/Users/Ruihan/go/src/unseal-ios/ElementX/Sources/Screens/Timeline/View/TimelineItemViews/AIMessage/AIMessageTimelineView.swift`
+  - Imports `UnsealUI` and renders `AgentMessageView(content: content, delegate: aiAgentProxy)`.
+- `/Users/Ruihan/go/src/unseal-ios/ElementX/Sources/Screens/Timeline/View/TimelineItemViews/AIMessage/AIAgentProxy.swift`
+  - Provides the client delegate used by the real timeline view.
+
+Allowed modification locations:
+- Full-client smoke/debug host only: `/Users/Ruihan/go/src/unseal-ios/ElementX/Sources/Screens/Timeline/View/TimelineItemViews/AIMessage/Debug/`
+- Only if absolutely necessary, minimal local wiring in `/Users/Ruihan/go/src/unseal-ios/ElementX/Sources/Screens/Timeline/View/TimelineItemViews/AIMessage/AIMessageTimelineView.swift`
+
+Do not modify localization, generated strings, flow coordinators, settings screens, room details, agent detail screens, networking/services, or unrelated timeline code for this harness.
+
+### iOS Verification Constraint
+
+Do not use standalone `swift test --package-path /Users/Ruihan/go/src/unseal-agent-ios` as the pass/fail signal unless the existing `UnsealMiniApp`/`GCDWebServer` macOS deployment mismatch has been resolved. Preferred verification uses the iOS Xcode project:
+
+```bash
+xcodebuild -project /Users/Ruihan/go/src/unseal-agent-ios/UnsealAgent.xcodeproj \
+  -scheme UnsealAgent \
+  -destination 'generic/platform=iOS' build
+xcodebuild -project /Users/Ruihan/go/src/unseal-agent-ios/UnsealAgent.xcodeproj \
+  -scheme UnsealAgent \
+  -destination 'platform=iOS Simulator,name=iPhone 16' test
+```
+
+If `xcodebuild` is unavailable because the machine has CommandLineTools selected instead of full Xcode, record that as an environment blocker, not a code failure.
+
 ## File Structure
 
 ### Shared Fixture Files
@@ -58,6 +122,8 @@ There are known unrelated Android edits in the working tree. Do not revert them.
 
 ### iOS Harness Files
 
+Rendering library files in `unseal-agent-ios`:
+
 - Modify: `/Users/Ruihan/go/src/unseal-agent-ios/Package.swift`
   - Adds an `UnsealUITests` target.
 - Create: `/Users/Ruihan/go/src/unseal-agent-ios/UnsealUITests/AgentStreamSSEFixture.swift`
@@ -68,6 +134,13 @@ There are known unrelated Android edits in the working tree. Do not revert them.
   - Verifies iOS replay/export for the P0 fixtures.
 - Create: `/Users/Ruihan/go/src/unseal-agent-ios/UnsealUI/Views/Debug/AgentStreamParityPreview.swift`
   - Debug-only SwiftUI host that renders `BubbleMessageView` from a supplied `UIMessage`.
+
+Client smoke files in `unseal-ios`:
+
+- Create: `/Users/Ruihan/go/src/unseal-ios/ElementX/Sources/Screens/Timeline/View/TimelineItemViews/AIMessage/Debug/AgentStreamParityClientSmokeView.swift`
+  - Debug-only full-client host that renders the real `AIMessageTimelineView` or `AgentMessageView` client path from fixture-backed mock content.
+- Optional create, only if needed: `/Users/Ruihan/go/src/unseal-ios/ElementX/Sources/Screens/Timeline/View/TimelineItemViews/AIMessage/Debug/AgentStreamParityClientSmokeFixtures.swift`
+  - Local helper for building fixture-backed client smoke state under the same `AIMessage/Debug/` boundary.
 
 ### Cross-Platform Report Files
 
@@ -83,12 +156,17 @@ Use these commands throughout:
 ```bash
 ./gradlew :libraries:agentstream:testDebugUnitTest
 ./gradlew :features:messages:impl:testDebugUnitTest
-swift test --package-path /Users/Ruihan/go/src/unseal-agent-ios
+xcodebuild -project /Users/Ruihan/go/src/unseal-agent-ios/UnsealAgent.xcodeproj \
+  -scheme UnsealAgent \
+  -destination 'generic/platform=iOS' build
+xcodebuild -project /Users/Ruihan/go/src/unseal-agent-ios/UnsealAgent.xcodeproj \
+  -scheme UnsealAgent \
+  -destination 'platform=iOS Simulator,name=iPhone 16' test
 node /Users/Ruihan/go/src/unseal-android/tools/agent-stream-parity/report.mjs \
   --root /Users/Ruihan/go/src/unseal-android/docs/agent-stream-fixtures
 ```
 
-Expected successful test output contains `BUILD SUCCESSFUL` for Gradle and `Test Suite 'All tests' passed` for Swift.
+Expected successful test output contains `BUILD SUCCESSFUL` for Gradle and `** BUILD SUCCEEDED **` or `** TEST SUCCEEDED **` for Xcode. If full Xcode is not selected, record that blocker and continue with Android/report work that does not depend on Xcode.
 
 ---
 
@@ -658,6 +736,8 @@ git -C /Users/Ruihan/go/src/unseal-android commit -m "test: write android parity
 - Create: `/Users/Ruihan/go/src/unseal-agent-ios/UnsealUITests/AgentStreamParityExport.swift`
 - Create: `/Users/Ruihan/go/src/unseal-agent-ios/UnsealUITests/AgentStreamParityReplayTests.swift`
 
+**Boundary:** Task 5 changes only the rendering library repo, `unseal-agent-ios`. Do not touch `unseal-ios` in this task.
+
 - [ ] **Step 1: Add the iOS test target**
 
 Modify `/Users/Ruihan/go/src/unseal-agent-ios/Package.swift` by adding this target after the `UnsealUI` target:
@@ -850,10 +930,12 @@ final class AgentStreamParityReplayTests: XCTestCase {
 Run:
 
 ```bash
-swift test --package-path /Users/Ruihan/go/src/unseal-agent-ios --filter AgentStreamParityReplayTests
+xcodebuild -project /Users/Ruihan/go/src/unseal-agent-ios/UnsealAgent.xcodeproj \
+  -scheme UnsealAgent \
+  -destination 'platform=iOS Simulator,name=iPhone 16' test
 ```
 
-Expected: `Test Suite 'AgentStreamParityReplayTests' passed`.
+Expected: `** TEST SUCCEEDED **`. Do not use standalone `swift test` as the pass/fail signal while the known `UnsealMiniApp`/`GCDWebServer` macOS deployment mismatch exists. If `xcodebuild` is unavailable because CommandLineTools is selected, record that environment blocker.
 
 - [ ] **Step 6: Confirm generated iOS artifact is ignored by Android repo**
 
@@ -886,6 +968,8 @@ git -C /Users/Ruihan/go/src/unseal-agent-ios commit -m "test: replay agent strea
 **Files:**
 - Create: `/Users/Ruihan/go/src/unseal-android/features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/components/event/AgentStreamParityPreview.kt`
 - Create: `/Users/Ruihan/go/src/unseal-agent-ios/UnsealUI/Views/Debug/AgentStreamParityPreview.swift`
+
+**Boundary:** Task 6 creates component-level hosts only. Android uses the messages module preview host. iOS uses the rendering library preview host in `unseal-agent-ios`. The full client smoke entry point belongs to Task 8 in `unseal-ios`.
 
 - [ ] **Step 1: Add Android Compose preview host**
 
@@ -962,15 +1046,17 @@ cd /Users/Ruihan/go/src/unseal-android
 
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 4: Compile iOS package tests**
+- [ ] **Step 4: Compile iOS rendering library target**
 
 Run:
 
 ```bash
-swift test --package-path /Users/Ruihan/go/src/unseal-agent-ios --filter AgentStreamParityReplayTests
+xcodebuild -project /Users/Ruihan/go/src/unseal-agent-ios/UnsealAgent.xcodeproj \
+  -scheme UnsealAgent \
+  -destination 'generic/platform=iOS' build
 ```
 
-Expected: `Test Suite 'AgentStreamParityReplayTests' passed`.
+Expected: `** BUILD SUCCEEDED **`. If `xcodebuild` is unavailable because CommandLineTools is selected, record that environment blocker.
 
 - [ ] **Step 5: Commit component preview hosts**
 
@@ -1157,6 +1243,10 @@ git -C /Users/Ruihan/go/src/unseal-android commit -m "test: add agent stream par
 **Files:**
 - Modify: `/Users/Ruihan/go/src/unseal-android/features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl/timeline/components/event/AgentStreamParityPreview.kt`
 - Modify: `/Users/Ruihan/go/src/unseal-agent-ios/UnsealUI/Views/Debug/AgentStreamParityPreview.swift`
+- Create: `/Users/Ruihan/go/src/unseal-ios/ElementX/Sources/Screens/Timeline/View/TimelineItemViews/AIMessage/Debug/AgentStreamParityClientSmokeView.swift`
+- Optional create, only if needed: `/Users/Ruihan/go/src/unseal-ios/ElementX/Sources/Screens/Timeline/View/TimelineItemViews/AIMessage/Debug/AgentStreamParityClientSmokeFixtures.swift`
+
+**Boundary:** Android smoke refinements stay in `unseal-android`. iOS component smoke stays in `unseal-agent-ios`. iOS full-client smoke must live in `unseal-ios` under `ElementX/Sources/Screens/Timeline/View/TimelineItemViews/AIMessage/Debug/`. Do not wire this into production navigation or edit unrelated ElementX screens.
 
 - [ ] **Step 1: Extend Android preview host with fixed smoke width**
 
@@ -1204,19 +1294,32 @@ Modify `/Users/Ruihan/go/src/unseal-agent-ios/UnsealUI/Views/Debug/AgentStreamPa
     }
 ```
 
-- [ ] **Step 3: Run compile checks**
+- [ ] **Step 3: Add iOS full-client smoke host**
+
+Create `/Users/Ruihan/go/src/unseal-ios/ElementX/Sources/Screens/Timeline/View/TimelineItemViews/AIMessage/Debug/AgentStreamParityClientSmokeView.swift`.
+
+The file must:
+- Import the same client dependencies used by `AIMessageTimelineView.swift`.
+- Render through the real client AI message path, preferably `AIMessageTimelineView` if the required `AIMessageTimelineItem` mock state can be built locally.
+- Fall back to `AgentMessageView(content:delegate:)` only if constructing the full timeline item requires broad client wiring.
+- Keep all fixture/mock helpers under `AIMessage/Debug/`.
+- Avoid localization, generated string, coordinator, settings, room detail, agent detail, and networking/service changes.
+
+- [ ] **Step 4: Run compile checks**
 
 Run:
 
 ```bash
 cd /Users/Ruihan/go/src/unseal-android
 ./gradlew :features:messages:impl:compileDebugKotlin
-swift test --package-path /Users/Ruihan/go/src/unseal-agent-ios --filter AgentStreamParityReplayTests
+xcodebuild -project /Users/Ruihan/go/src/unseal-agent-ios/UnsealAgent.xcodeproj \
+  -scheme UnsealAgent \
+  -destination 'generic/platform=iOS' build
 ```
 
-Expected: Android prints `BUILD SUCCESSFUL`; Swift prints `Test Suite 'AgentStreamParityReplayTests' passed`.
+Expected: Android prints `BUILD SUCCESSFUL`; Xcode prints `** BUILD SUCCEEDED **`. If `xcodebuild` is unavailable because CommandLineTools is selected, record that environment blocker.
 
-- [ ] **Step 4: Commit smoke host refinements**
+- [ ] **Step 5: Commit smoke host refinements**
 
 ```bash
 git -C /Users/Ruihan/go/src/unseal-android add \
@@ -1226,6 +1329,11 @@ git -C /Users/Ruihan/go/src/unseal-android commit -m "test: stabilize android pa
 git -C /Users/Ruihan/go/src/unseal-agent-ios add \
   UnsealUI/Views/Debug/AgentStreamParityPreview.swift
 git -C /Users/Ruihan/go/src/unseal-agent-ios commit -m "test: stabilize ios parity preview background"
+
+git -C /Users/Ruihan/go/src/unseal-ios add \
+  ElementX/Sources/Screens/Timeline/View/TimelineItemViews/AIMessage/Debug/AgentStreamParityClientSmokeView.swift
+# Also add AgentStreamParityClientSmokeFixtures.swift if that optional helper was created.
+git -C /Users/Ruihan/go/src/unseal-ios commit -m "test: add ios agent stream client smoke host"
 ```
 
 ---
@@ -1253,13 +1361,15 @@ cd /Users/Ruihan/go/src/unseal-android
 
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 3: Run iOS package tests**
+- [ ] **Step 3: Run iOS rendering library tests**
 
 ```bash
-swift test --package-path /Users/Ruihan/go/src/unseal-agent-ios
+xcodebuild -project /Users/Ruihan/go/src/unseal-agent-ios/UnsealAgent.xcodeproj \
+  -scheme UnsealAgent \
+  -destination 'platform=iOS Simulator,name=iPhone 16' test
 ```
 
-Expected: `Test Suite 'All tests' passed`.
+Expected: `** TEST SUCCEEDED **`. If `xcodebuild` is unavailable because CommandLineTools is selected, record that environment blocker. Do not substitute standalone `swift test` as the milestone pass/fail signal unless the known macOS deployment mismatch has been resolved.
 
 - [ ] **Step 4: Generate parity reports**
 
@@ -1293,7 +1403,7 @@ When implementation is complete, summarize:
 Verified:
 - Android SDK tests: passed
 - Android messages tests: passed
-- iOS package tests: passed
+- iOS rendering library Xcode tests: passed, or blocked by local Xcode selection with the exact blocker recorded
 - Parity reports generated for 5 fixtures
 
 Known expected initial differences:

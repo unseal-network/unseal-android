@@ -1,0 +1,6 @@
+{"type":"start","messageId":"msg-moltbook-register"}
+{"type":"text-start","id":"text-1"}
+{"type":"text-delta","id":"text-1","delta":"Moltbook needs authorization before I can continue."}
+{"type":"text-end","id":"text-1"}
+{"type":"data-tool-call-suspended","id":"suspend-moltbook","data":{"toolCallId":"moltbook-register-1","toolName":"moltbookRegister","targetUserId":"@ruihan:unseal.ai","title":"Connect Moltbook","reason":"Enter your Moltbook credentials to register this agent.","suspendPayload":{"kind":"moltbookRegister","agentId":"agent-mail","moltyName":"Mail Agent","claimUrl":"https://moltbook.example/claim/abc","verificationCode":"842193"}}}
+{"type":"finish","finishReason":"stop"}

@@ -1,0 +1,8 @@
+{"type":"start","messageId":"msg-weather-current-forecast"}
+{"type":"text-start","id":"text-1"}
+{"type":"text-delta","id":"text-1","delta":"Here is the current weather and short forecast."}
+{"type":"text-end","id":"text-1"}
+{"type":"tool-input-start","toolCallId":"tool-weather","toolName":"COMPOSIO_SEARCH_WEATHER","title":"COMPOSIO_SEARCH_WEATHER"}
+{"type":"tool-input-available","toolCallId":"tool-weather","toolName":"COMPOSIO_SEARCH_WEATHER","title":"COMPOSIO_SEARCH_WEATHER","input":{"location":"Shanghai, China"}}
+{"type":"tool-output-available","toolCallId":"tool-weather","output":{"successful":true,"data":{"location":"Shanghai, China","weather_result":{"city":"Shanghai","country":"China","temperature":28,"feels_like":31,"humidity":74,"wind_speed":13,"condition":"Cloudy"},"forecast":[{"day":"Today","high":30,"low":24,"condition":"Cloudy"},{"day":"Tomorrow","high":32,"low":25,"condition":"Light rain"},{"day":"Thursday","high":31,"low":24,"condition":"Partly cloudy"}]}}}
+{"type":"finish","finishReason":"stop"}

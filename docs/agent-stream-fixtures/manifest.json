@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "fixtureRoot": "docs/agent-stream-fixtures",
+  "fixtures": [
+    {
+      "id": "compose-email-list",
+      "cardTypes": ["composeEmail"],
+      "source": "fixtures/compose-email-list.sse.jsonl",
+      "priority": "P0",
+      "knownDifference": "Android renders Gmail message lists; iOS currently renders only single-message composeEmail fields.",
+      "expectedInitialStatus": "ios-missing",
+      "migrationDirection": "android-to-ios",
+      "componentScreenshots": true,
+      "fullClientScreenshots": true,
+      "frames": [
+        {"name": "calling", "afterEvent": 5},
+        {"name": "completed", "afterEvent": "end"},
+        {"name": "completed-expanded", "afterEvent": "end", "actions": ["expand-root-card"]}
+      ]
+    },
+    {
+      "id": "weather-current-forecast",
+      "cardTypes": ["weather"],
+      "source": "fixtures/weather-current-forecast.sse.jsonl",
+      "priority": "P0",
+      "knownDifference": "Android has weather registry, transform, and card UI; iOS root card registry and dispatch omit weather.",
+      "expectedInitialStatus": "ios-missing",
+      "migrationDirection": "android-to-ios",
+      "componentScreenshots": true,
+      "fullClientScreenshots": true,
+      "frames": [
+        {"name": "calling", "afterEvent": 5},
+        {"name": "completed", "afterEvent": "end"}
+      ]
+    },
+    {
+      "id": "moltbook-register",
+      "cardTypes": ["moltbookRegister"],
+      "source": "fixtures/moltbook-register.sse.jsonl",
+      "priority": "P0",
+      "knownDifference": "iOS renders an interactive Moltbook registration card; Android renders display-only suspended content.",
+      "expectedInitialStatus": "interaction-divergent",
+      "migrationDirection": "ios-to-android",
+      "componentScreenshots": true,
+      "fullClientScreenshots": true,
+      "frames": [
+        {"name": "completed", "afterEvent": "end"},
+        {"name": "interaction", "afterEvent": "end", "actions": ["focus-first-field"]}
+      ]
+    },
+    {
+      "id": "hotel-booking-gallery",
+      "cardTypes": ["hotelBooking"],
+      "source": "fixtures/hotel-booking-gallery.sse.jsonl",
+      "priority": "P0",
+      "knownDifference": "Android preserves richer hotel image data; iOS visual hierarchy and gallery behavior are stronger.",
+      "expectedInitialStatus": "data-divergent",
+      "migrationDirection": "bidirectional",
+      "componentScreenshots": true,
+      "fullClientScreenshots": true,
+      "frames": [
+        {"name": "calling", "afterEvent": 5},
+        {"name": "completed", "afterEvent": "end"},
+        {"name": "interaction", "afterEvent": "end", "actions": ["open-gallery"]}
+      ]
+    },
+    {
+      "id": "file-attachment-list",
+      "cardTypes": ["fileAttachment"],
+      "source": "fixtures/file-attachment-list.sse.jsonl",
+      "priority": "P0",
+      "knownDifference": "Android has stronger raw file transform; iOS has stronger row visual style.",
+      "expectedInitialStatus": "data-divergent",
+      "migrationDirection": "bidirectional",
+      "componentScreenshots": true,
+      "fullClientScreenshots": true,
+      "frames": [
+        {"name": "calling", "afterEvent": 5},
+        {"name": "completed", "afterEvent": "end"}
+      ]
+    },
+    {
+      "id": "stream-mixed-parts",
+      "cardTypes": ["text", "reasoning", "source-url", "source-document", "file", "data-error-card"],
+      "source": "fixtures/stream-mixed-parts.sse.jsonl",
+      "priority": "P0",
+      "knownDifference": "Validates non-tool stream parts so text, reasoning, sources, files, and data error cards stay visually aligned.",
+      "expectedInitialStatus": "style-divergent",
+      "migrationDirection": "bidirectional",
+      "componentScreenshots": true,
+      "fullClientScreenshots": true,
+      "frames": [
+        {"name": "completed", "afterEvent": "end"}
+      ]
+    }
+  ]
+}

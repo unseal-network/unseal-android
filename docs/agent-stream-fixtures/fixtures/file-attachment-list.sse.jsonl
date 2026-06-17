@@ -1,0 +1,8 @@
+{"type":"start","messageId":"msg-file-attachment-list"}
+{"type":"text-start","id":"text-1"}
+{"type":"text-delta","id":"text-1","delta":"I found the relevant Drive files."}
+{"type":"text-end","id":"text-1"}
+{"type":"tool-input-start","toolCallId":"tool-drive-files","toolName":"GOOGLEDRIVE_FIND_FILE","title":"GOOGLEDRIVE_FIND_FILE"}
+{"type":"tool-input-available","toolCallId":"tool-drive-files","toolName":"GOOGLEDRIVE_FIND_FILE","title":"GOOGLEDRIVE_FIND_FILE","input":{"query":"agent stream parity"}}
+{"type":"tool-output-available","toolCallId":"tool-drive-files","output":{"successful":true,"data":{"files":[{"name":"Agent Stream Parity Plan","mimeType":"application/vnd.google-apps.document","webViewLink":"https://drive.google.com/file/d/doc-1/view","modifiedTime":"2026-06-15T09:30:00Z","size":"18432"},{"name":"Tool Card Screenshots","mimeType":"application/vnd.google-apps.folder","webViewLink":"https://drive.google.com/drive/folders/folder-1","modifiedTime":"2026-06-14T18:15:00Z"},{"name":"Fixture Matrix.csv","mimeType":"text/csv","webViewLink":"https://drive.google.com/file/d/csv-1/view","modifiedTime":"2026-06-13T11:20:00Z","size":"4096"}]}}}
+{"type":"finish","finishReason":"stop"}

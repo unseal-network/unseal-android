@@ -270,17 +270,15 @@ internal object CardTransforms {
     // MARK: - Files / comments / social feeds
 
     private fun fileAttachment(raw: JSONObject): JSONObject {
-        firstObjectList(raw, "files", "items")?.let { return JSONObject().put("files", it) }
+        firstObjectList(raw, "files", "items")?.let { files ->
+            return JSONObject()
+                .put("title", raw.str("title") ?: "Files")
+                .put("files", JSONArray((0 until files.length()).mapNotNull { files.optJSONObject(it)?.normalizedFileAttachment() }))
+        }
         if (!raw.hasAny("name", "filename", "title", "mimeType", "mime_type", "webViewLink", "web_view_link", "url", "id")) return raw
-        val file = JSONObject()
-        (raw.str("name") ?: raw.str("filename") ?: raw.str("title"))?.let { file.put("name", it) }
-        (raw.str("mimeType") ?: raw.str("mime_type"))?.let { file.put("mimeType", it) }
-        raw.str("size")?.let { file.put("size", it) }
-        (raw.str("modifiedAt") ?: raw.str("modified_at") ?: raw.str("modifiedTime") ?: raw.str("modified_time"))?.let { file.put("modifiedAt", it) }
-        (raw.str("owner") ?: raw.objList("owners").firstOrNull()?.str("displayName"))?.let { file.put("owner", it) }
-        raw.opt("shared")?.let { file.put("shared", it) }
-        (raw.str("url") ?: raw.str("webViewLink") ?: raw.str("web_view_link") ?: raw.str("alternateLink"))?.let { file.put("url", it) }
-        return JSONObject().put("files", JSONArray().put(file))
+        return JSONObject()
+            .put("title", raw.str("title") ?: "Files")
+            .put("files", JSONArray().put(raw.normalizedFileAttachment()))
     }
 
     private fun commentThread(raw: JSONObject): JSONObject {
@@ -317,31 +315,78 @@ internal object CardTransforms {
         return out
     }
 
+    private fun JSONObject.normalizedFileAttachment(): JSONObject {
+        val name = str("name") ?: str("filename") ?: str("title") ?: "Attachment"
+        val mimeType = str("mimeType") ?: str("mime_type") ?: str("mediaType") ?: str("type") ?: ""
+        val sizeLabel = str("sizeLabel") ?: str("size") ?: str("fileSize") ?: ""
+        val url = str("url") ?: str("downloadUrl") ?: str("webUrl") ?: str("webViewLink") ?: str("web_view_link") ?: str("alternateLink")
+        val modifiedAt = str("modifiedAt") ?: str("modified_at") ?: str("modifiedTime") ?: str("modified_time")
+        val owner = str("owner") ?: objList("owners").firstOrNull()?.str("displayName")
+        val shared = opt("shared")
+        return JSONObject()
+            .put("name", name)
+            .put("mimeType", mimeType)
+            .put("sizeLabel", sizeLabel)
+            .put("size", sizeLabel)
+            .put("icon", fileIcon(name, mimeType))
+            .apply {
+                url?.let { put("url", it) }
+                modifiedAt?.let { put("modifiedAt", it) }
+                owner?.let { put("owner", it) }
+                shared?.let { put("shared", it) }
+            }
+    }
+
+    private fun fileIcon(name: String, mimeType: String): String {
+        val lowerMime = mimeType.lowercase()
+        val ext = name.substringAfterLast('.', "").lowercase()
+        return when {
+            lowerMime.startsWith("image/") -> "image"
+            lowerMime.contains("pdf") || ext == "pdf" -> "pdf"
+            lowerMime.contains("spreadsheet") || ext in setOf("xls", "xlsx", "csv") -> "spreadsheet"
+            lowerMime.contains("presentation") || ext in setOf("ppt", "pptx") -> "presentation"
+            lowerMime.contains("document") || ext in setOf("doc", "docx") -> "document"
+            else -> "file"
+        }
+    }
+
     // MARK: - Hotels
 
     private fun hotel(raw: JSONObject): JSONObject {
-        val results = raw.obj("results") ?: return raw
+        val source = raw.obj("data") ?: raw
+        val results = source.obj("results") ?: source
+        val checkIn = source.str("checkIn") ?: source.str("check_in") ?: raw.str("checkIn") ?: raw.str("check_in")
+        val checkOut = source.str("checkOut") ?: source.str("check_out") ?: raw.str("checkOut") ?: raw.str("check_out")
+        val items = results.objList("properties")
+            .ifEmpty { results.objList("hotels") }
+            .ifEmpty { source.objList("hotels") }
+            .ifEmpty { raw.objList("hotels") }
+        if (items.isEmpty()) return raw
         val hotels = JSONArray()
-        results.objList("properties").forEach { prop ->
+        val topImages = JSONArray()
+        val topAmenities = JSONArray()
+        items.forEachIndexed { index, prop ->
             val hotel = JSONObject()
             prop.str("name")?.let { hotel.put("name", it) }
-            prop.obj("rate_per_night")?.let { rate ->
-                rate.str("lowest")?.let { hotel.put("price", it) }
-                prop.obj("total_rate")?.str("lowest")?.let { hotel.put("totalPrice", it) }
-            }
+            prop.str("description")?.let { hotel.put("description", it) }
+            val price = prop.obj("rate_per_night")?.str("lowest") ?: prop.str("price") ?: prop.str("priceFormatted")
+            price?.let { hotel.put("price", it) }
+            val total = prop.obj("total_rate")?.str("lowest") ?: prop.str("total") ?: prop.str("totalPrice")
+            total?.let { hotel.put("total", it); hotel.put("totalPrice", it) }
             prop.doubleOrNull("overall_rating")?.let { hotel.put("rating", it) }
+                ?: prop.doubleOrNull("rating")?.let { hotel.put("rating", it) }
             prop.intOrNull("reviews")?.let { hotel.put("reviewCount", it) }
+            prop.intOrNull("reviews")?.let { hotel.put("reviews", it) }
             (prop.intOrNull("extracted_hotel_class") ?: prop.intOrNull("hotel_class"))?.let { hotel.put("stars", it) }
-            prop.str("address")?.let { hotel.put("address", it) }
-                ?: prop.objList("nearby_places").firstOrNull()?.str("name")?.let { hotel.put("address", it) }
-            val images = prop.objList("images")
-            if (images.isNotEmpty()) {
-                hotel.put("imageUrl", images[0].str("thumbnail") ?: images[0].str("original_image") ?: "")
-                val urls = JSONArray()
-                images.forEach { img -> (img.str("original_image") ?: img.str("thumbnail"))?.let { urls.put(it) } }
-                hotel.put("imageUrls", urls)
-            } else {
-                prop.str("thumbnail")?.let { hotel.put("imageUrl", it); hotel.put("imageUrls", JSONArray().put(it)) }
+            val area = prop.str("area") ?: prop.str("address") ?: prop.objList("nearby_places").firstOrNull()?.str("name")
+            area?.let { hotel.put("area", it); hotel.put("address", it) }
+            val imageUrls = prop.imageUrls()
+            if (imageUrls.isNotEmpty()) {
+                hotel.put("thumbnail", prop.str("thumbnail") ?: imageUrls.first())
+                hotel.put("imageUrl", prop.str("thumbnail") ?: imageUrls.first())
+                hotel.put("images", JSONArray(imageUrls))
+                hotel.put("imageUrls", JSONArray(imageUrls))
+                imageUrls.take(6 - topImages.length()).forEach { topImages.put(it) }
             }
             prop.str("link")?.let { hotel.put("url", it) }
             prop.str("name")?.let { name ->
@@ -349,16 +394,27 @@ internal object CardTransforms {
                 val lat = coords?.doubleOrNull("latitude")
                 val lng = coords?.doubleOrNull("longitude")
                 val q = name
-                hotel.put(
-                    "mapsUrl",
-                    if (lat != null && lng != null) "https://www.google.com/maps/search/?api=1&query=$q&center=$lat,$lng"
-                    else "https://www.google.com/maps/search/?api=1&query=$q",
-                )
+                val mapUrl = if (lat != null && lng != null) "https://www.google.com/maps/search/?api=1&query=$q&center=$lat,$lng"
+                else "https://www.google.com/maps/search/?api=1&query=$q"
+                hotel.put("mapUrl", mapUrl)
+                hotel.put("mapsUrl", mapUrl)
             }
-            prop.optJSONArray("amenities")?.let { hotel.put("amenities", it) }
+            prop.optJSONArray("amenities")?.let { amenities ->
+                hotel.put("amenities", amenities)
+                if (index == 0) {
+                    for (i in 0 until amenities.length()) topAmenities.put(amenities.opt(i))
+                }
+            }
             hotels.put(hotel)
         }
-        return JSONObject().put("hotels", hotels)
+        return JSONObject()
+            .put("hotels", hotels)
+            .put("images", topImages)
+            .put("amenities", topAmenities)
+            .apply {
+                checkIn?.let { put("checkIn", it) }
+                checkOut?.let { put("checkOut", it) }
+            }
     }
 
     // MARK: - Finance

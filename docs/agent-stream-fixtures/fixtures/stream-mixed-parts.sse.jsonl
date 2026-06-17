@@ -1,0 +1,12 @@
+{"type":"start","messageId":"msg-stream-mixed-parts"}
+{"type":"text-start","id":"text-1"}
+{"type":"text-delta","id":"text-1","delta":"I checked the supporting context and found one source, one document, and a file attachment."}
+{"type":"text-end","id":"text-1"}
+{"type":"reasoning-start","id":"reasoning-1"}
+{"type":"reasoning-delta","id":"reasoning-1","delta":"Inspect user intent, look up supporting source metadata, then attach the most relevant file reference."}
+{"type":"reasoning-end","id":"reasoning-1"}
+{"type":"source-url","sourceId":"source-url-1","url":"https://docs.unseal.ai/agent-stream","title":"Agent stream rendering notes"}
+{"type":"source-document","sourceId":"source-doc-1","mediaType":"application/pdf","title":"Tool Card Parity Audit","filename":"tool-card-parity-audit.pdf"}
+{"type":"file","id":"file-1","mediaType":"application/pdf","filename":"tool-card-parity-audit.pdf","url":"https://files.unseal.ai/reports/tool-card-parity-audit.pdf"}
+{"type":"data-error-card","id":"mixed-error-card","data":{"code":"partial_result","title":"Partial result","message":"One optional source failed to load, but the main answer can still be rendered.","traceId":"trace-stream-mixed-parts","retryable":true}}
+{"type":"finish","finishReason":"stop"}

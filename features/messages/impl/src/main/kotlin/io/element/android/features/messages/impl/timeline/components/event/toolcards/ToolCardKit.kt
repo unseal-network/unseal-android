@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -120,17 +119,11 @@ internal fun domainOf(url: String): String =
 /** Card container (iOS CollapsibleGlassCard, rendered as a plain M3 surface card). */
 @Composable
 internal fun ToolCardSurface(content: ColumnContent) {
-    Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
+    Column(
         modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            content = content,
-        )
-    }
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        content = content,
+    )
 }
 
 internal typealias ColumnContent = @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit

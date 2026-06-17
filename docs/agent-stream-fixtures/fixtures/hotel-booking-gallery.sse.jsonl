@@ -1,0 +1,8 @@
+{"type":"start","messageId":"msg-hotel-booking-gallery"}
+{"type":"text-start","id":"text-1"}
+{"type":"text-delta","id":"text-1","delta":"I found hotel options with photos near the venue."}
+{"type":"text-end","id":"text-1"}
+{"type":"tool-input-start","toolCallId":"tool-hotels","toolName":"COMPOSIO_SEARCH_HOTELS","title":"COMPOSIO_SEARCH_HOTELS"}
+{"type":"tool-input-available","toolCallId":"tool-hotels","toolName":"COMPOSIO_SEARCH_HOTELS","title":"COMPOSIO_SEARCH_HOTELS","input":{"location":"San Francisco","checkIn":"2026-07-10","checkOut":"2026-07-12"}}
+{"type":"tool-output-available","toolCallId":"tool-hotels","output":{"successful":true,"data":{"results":{"hotels":[{"name":"Harbor Court Hotel","description":"Boutique waterfront hotel near the Ferry Building.","price":"$289","rating":4.5,"reviews":1240,"link":"https://travel.example/hotels/harbor-court","images":[{"url":"https://images.example/hotel/harbor-1.jpg","caption":"Lobby"},{"url":"https://images.example/hotel/harbor-2.jpg","caption":"Bay view room"}],"thumbnail":"https://images.example/hotel/harbor-thumb.jpg","amenities":["Free Wi-Fi","Gym","Restaurant"]},{"name":"Market Street Suites","description":"Apartment-style suites close to transit.","price":"$241","rating":4.2,"reviews":860,"link":"https://travel.example/hotels/market-suites","images":[{"url":"https://images.example/hotel/market-1.jpg","caption":"Suite"},{"url":"https://images.example/hotel/market-2.jpg","caption":"Kitchen"}],"thumbnail":"https://images.example/hotel/market-thumb.jpg","amenities":["Kitchen","Laundry","Workspace"]}]}}}}
+{"type":"finish","finishReason":"stop"}

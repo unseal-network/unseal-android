@@ -14,6 +14,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -49,11 +50,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.material3.Button
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
@@ -61,6 +63,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -69,6 +73,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
@@ -99,7 +105,7 @@ import io.element.android.wysiwyg.compose.EditorStyledText
 import io.element.android.wysiwyg.link.Link
 import org.json.JSONObject
 
-private val ToolCallContentMaxHeight = 300.dp
+private val ToolCallContentMaxHeight = 260.dp
 
 /**
  * Native (degraded) renderer for [TimelineItemAiContent]. Composes the AI stream sub-parts that
@@ -228,26 +234,28 @@ private fun AiStreamPartsView(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         visibleParts.forEachIndexed { index, part ->
-            when (part) {
-                is AiToolStreamPart -> {
-                    if (index == firstToolPartIndex) {
-                        val rootModel = toolCallRoot ?: return@forEachIndexed
-                        ToolCallRootCard(
-                            model = rootModel,
-                            isStreaming = isStreaming,
-                            onLinkClick = onLinkClick,
-                            onLinkLongClick = onLinkLongClick,
-                        )
+            key(part.id) {
+                when (part) {
+                    is AiToolStreamPart -> {
+                        val rootModel = toolCallRoot
+                        if (index == firstToolPartIndex && rootModel != null) {
+                            ToolCallRootCard(
+                                model = rootModel,
+                                isStreaming = isStreaming,
+                                onLinkClick = onLinkClick,
+                                onLinkLongClick = onLinkLongClick,
+                            )
+                        }
+                        // Other tool parts are represented by the single root card above.
                     }
-                    // Other tool parts are represented by the single root card above.
+                    is AiTextStreamPart -> TextPart(part, onLinkClick, onLinkLongClick)
+                    is AiReasoningStreamPart -> ReasoningPart(part)
+                    is AiSourceStreamPart -> SourcePart(part, onLinkClick, onLinkLongClick)
+                    is AiFileStreamPart -> FilePart(part, onLinkClick, onLinkLongClick)
+                    is AiErrorStreamPart -> ErrorPart(part)
+                    is AiDataStreamPart -> DataPart(part, onLinkClick, onLinkLongClick, toolCardInserted)
+                    is AiCustomStreamPart -> Unit
                 }
-                is AiTextStreamPart -> TextPart(part, onLinkClick, onLinkLongClick)
-                is AiReasoningStreamPart -> ReasoningPart(part)
-                is AiSourceStreamPart -> SourcePart(part, onLinkClick, onLinkLongClick)
-                is AiFileStreamPart -> FilePart(part, onLinkClick, onLinkLongClick)
-                is AiErrorStreamPart -> ErrorPart(part)
-                is AiDataStreamPart -> DataPart(part, onLinkClick, onLinkLongClick, toolCardInserted)
-                is AiCustomStreamPart -> Unit
             }
         }
         if (isStreaming && !lastPartIsStreamingText) {
@@ -312,10 +320,13 @@ private fun AiLoadingIndicator() {
 /** Shown when a stream reaches a terminal status but produced no renderable content. */
 @Composable
 private fun AiUnavailableCard() {
+    val rootShape = RoundedCornerShape(12.dp)
     Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier = Modifier.fillMaxWidth(),
+        shape = rootShape,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.76f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f), rootShape),
     ) {
         Row(
             modifier = Modifier.padding(14.dp),
@@ -364,10 +375,13 @@ private fun ReasoningPart(part: AiReasoningStreamPart) {
     if (part.text.isBlank()) return
     val isStreaming = part.state == "streaming"
     var expanded by remember(part.id) { mutableStateOf(isStreaming) }
+    val shape = RoundedCornerShape(8.dp)
     Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier = Modifier.fillMaxWidth(),
+        shape = shape,
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.24f), shape),
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             ShapedClickableSurface(
@@ -435,10 +449,13 @@ private fun ToolCallRootCard(
     }
     val headerInteractionSource = remember { MutableInteractionSource() }
 
+    val rootShape = RoundedCornerShape(12.dp)
     Surface(
-        shape = cardShape,
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier = Modifier.fillMaxWidth(),
+        shape = rootShape,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.76f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f), rootShape),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
             ShapedClickableSurface(
@@ -575,7 +592,7 @@ private fun ToolEntryContentViewport(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(max = ToolCallContentMaxHeight)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
         Column(
             modifier = Modifier
@@ -873,23 +890,47 @@ private fun DataPart(
 @Composable
 private fun ErrorCard(payload: String) {
     val json = payload.jsonObjectOrNull()
+    val title = json?.optString("title")?.takeIf { it.isNotBlank() } ?: "Something went wrong"
+    val message = json?.optString("message")?.takeIf { it.isNotBlank() } ?: payload.errorTextFromJson().orEmpty()
+    ErrorBanner(title = title, message = message)
+}
+
+@Composable
+private fun ErrorBanner(title: String? = null, message: String) {
+    val shape = RoundedCornerShape(8.dp)
     Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.errorContainer,
-        modifier = Modifier.fillMaxWidth(),
+        shape = shape,
+        color = MaterialTheme.colorScheme.error.copy(alpha = 0.08f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.24f), shape),
     ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = json?.optString("title")?.takeIf { it.isNotBlank() } ?: "Something went wrong",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onErrorContainer,
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.ErrorOutline,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(18.dp),
             )
-            Text(
-                text = json?.optString("message")?.takeIf { it.isNotBlank() } ?: payload.errorTextFromJson().orEmpty(),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onErrorContainer,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.weight(1f)) {
+                title?.takeIf { it.isNotBlank() }?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                Text(
+                    text = message.ifBlank { "Stream error" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -982,6 +1023,12 @@ private fun SuspendedToolCard(payload: String) {
                     choices.take(6).forEach { choice -> SuspendedToolChoiceRow(choice) }
                 }
             }
+            model.fields.takeIf { it.isNotEmpty() }?.let { fields ->
+                SuspendedToolFieldEditor(
+                    fields = fields,
+                    submitLabel = model.submitLabel ?: "Continue",
+                )
+            }
             if (model.details.size > 6 || model.choices.size > 6) {
                 Text(
                     text = "+${(model.details.size + model.choices.size) - 6} more",
@@ -989,6 +1036,36 @@ private fun SuspendedToolCard(payload: String) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun SuspendedToolFieldEditor(
+    fields: List<SuspendedToolField>,
+    submitLabel: String,
+) {
+    val fieldValues = remember(fields) {
+        mutableStateMapOf<String, String>().apply {
+            fields.forEach { field -> put(field.id, field.value) }
+        }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        fields.take(4).forEach { field ->
+            OutlinedTextField(
+                value = fieldValues[field.id].orEmpty(),
+                onValueChange = { value -> fieldValues[field.id] = value },
+                label = { Text(field.label) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        Button(
+            onClick = {},
+            enabled = false,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(submitLabel)
         }
     }
 }
@@ -1066,29 +1143,42 @@ private fun ToolProgressIndicator(
     errorCount: Int,
     isCalling: Boolean,
 ) {
-    // Thin progress ring + check/error glyph, mirroring iOS ToolProgressRing (no big filled disc).
+    val doneFraction = if (total > 0) doneCount.toFloat() / total.toFloat() else 0f
+    val errorFraction = if (total > 0) errorCount.toFloat() / total.toFloat() else 0f
+    val allFinished = total > 0 && doneCount + errorCount >= total && !isCalling
+    val trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.16f)
+    val doneColor = Color(0xFF2FDB72)
+    val errorColor = Color(0xFFFF4D4F)
     Box(modifier = Modifier.size(20.dp), contentAlignment = Alignment.Center) {
-        if (isCalling) {
-            CircularProgressIndicator(
-                strokeWidth = 1.5.dp,
-                modifier = Modifier.size(20.dp),
-                color = MaterialTheme.colorScheme.primary,
-            )
-        } else {
-            val ringColor = if (errorCount > 0) MaterialTheme.colorScheme.error else Color(0xFF2E7D32)
-            Box(
-                modifier = Modifier
-                    .size(20.dp)
-                    .border(1.5.dp, ringColor, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = if (errorCount > 0) Icons.Filled.PriorityHigh else Icons.Filled.Check,
-                    contentDescription = null,
-                    tint = ringColor,
-                    modifier = Modifier.size(12.dp),
+        Canvas(modifier = Modifier.size(20.dp)) {
+            val stroke = Stroke(width = 1.5.dp.toPx(), cap = StrokeCap.Round)
+            drawCircle(color = trackColor, style = stroke)
+            if (doneFraction > 0f) {
+                drawArc(
+                    color = doneColor,
+                    startAngle = -90f,
+                    sweepAngle = doneFraction * 360f,
+                    useCenter = false,
+                    style = stroke,
                 )
             }
+            if (errorFraction > 0f) {
+                drawArc(
+                    color = errorColor,
+                    startAngle = -90f + doneFraction * 360f,
+                    sweepAngle = errorFraction * 360f,
+                    useCenter = false,
+                    style = stroke,
+                )
+            }
+        }
+        if (allFinished) {
+            Icon(
+                imageVector = if (errorCount > 0) Icons.Filled.PriorityHigh else Icons.Filled.Check,
+                contentDescription = null,
+                tint = if (errorCount > 0) errorColor else doneColor,
+                modifier = Modifier.size(10.dp),
+            )
         }
     }
 }
@@ -1124,21 +1214,17 @@ private fun SourcePart(
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = if (part.sourceType == "document") "Document" else "Source",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(text = part.filename ?: part.title, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-            part.url?.takeIf { it.isNotBlank() }?.let {
-                LinkifiedAiText(
-                    text = it,
-                    onLinkClick = onLinkClick,
-                    onLinkLongClick = onLinkLongClick,
-                )
-            }
+    InlineInfoRow(
+        label = if (part.sourceType == "document") "Document" else "Source",
+        title = part.filename ?: part.title,
+        accent = MaterialTheme.colorScheme.primary,
+    ) {
+        part.url?.takeIf { it.isNotBlank() }?.let {
+            LinkifiedAiText(
+                text = it,
+                onLinkClick = onLinkClick,
+                onLinkLongClick = onLinkLongClick,
+            )
         }
     }
 }
@@ -1149,41 +1235,93 @@ private fun FilePart(
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
 ) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier = Modifier.fillMaxWidth(),
+    InlineInfoRow(
+        label = "File",
+        title = listOfNotNull(part.filename, part.mediaType).joinToString(" · ").ifBlank { "File · ${part.state}" },
+        accent = MaterialTheme.colorScheme.secondary,
     ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = listOfNotNull(part.filename, part.mediaType).joinToString(" · ").ifBlank { "File · ${part.state}" },
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
+        part.url?.takeIf { it.isNotBlank() }?.let {
+            LinkifiedAiText(
+                text = it,
+                onLinkClick = onLinkClick,
+                onLinkLongClick = onLinkLongClick,
             )
-            part.url?.takeIf { it.isNotBlank() }?.let {
-                LinkifiedAiText(
-                    text = it,
-                    onLinkClick = onLinkClick,
-                    onLinkLongClick = onLinkLongClick,
-                )
-            }
         }
     }
 }
 
 @Composable
 private fun ErrorPart(part: AiErrorStreamPart) {
+    ErrorBanner(message = part.errorText.ifBlank { "Stream error" })
+}
+
+@Composable
+private fun InlineInfoRow(
+    label: String,
+    title: String,
+    accent: Color,
+    supportingContent: @Composable () -> Unit,
+) {
+    val shape = RoundedCornerShape(8.dp)
     Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.errorContainer,
-        modifier = Modifier.fillMaxWidth(),
+        shape = shape,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.58f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.52f), shape),
     ) {
-        Text(
-            text = part.errorText.ifBlank { "Stream error" },
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onErrorContainer,
-            modifier = Modifier.padding(12.dp),
-        )
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(22.dp)
+                    .background(accent, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = label.take(1),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                supportingContent()
+            }
+        }
+    }
+}
+
+@Composable
+private fun InlineLoadingDots() {
+    val transition = rememberInfiniteTransition(label = "inline-loading")
+    Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+        repeat(3) { index ->
+            val alpha by transition.animateFloat(
+                initialValue = 0.25f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 600, delayMillis = index * 120),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+                label = "inline-loading-dot-$index",
+            )
+            Box(
+                modifier = Modifier
+                    .size(4.dp)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = alpha), CircleShape),
+            )
+        }
     }
 }
 
@@ -1282,14 +1420,53 @@ private fun ToolCallCard(toolCall: AiToolCall) {
 
 @Composable
 private fun SourcesSection(sources: List<AiSource>) {
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        HorizontalDivider()
-        Text(text = "Sources", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-        sources.forEachIndexed { index, source ->
-            Column {
-                Text(text = "${index + 1}. ${source.title}", style = MaterialTheme.typography.bodyMedium)
-                source.url?.let {
-                    Text(text = it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+    var expanded by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(8.dp)
+    Surface(
+        shape = shape,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.58f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.52f), shape),
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Sources (${sources.size})",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(
+                    imageVector = Icons.Filled.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                    modifier = Modifier
+                        .size(18.dp)
+                        .rotate(if (expanded) 0f else -90f),
+                )
+            }
+            if (expanded) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    sources.forEachIndexed { index, source ->
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(text = "${index + 1}. ${source.title}", style = MaterialTheme.typography.bodyMedium)
+                            source.url?.let {
+                                Text(text = it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
                 }
             }
         }
