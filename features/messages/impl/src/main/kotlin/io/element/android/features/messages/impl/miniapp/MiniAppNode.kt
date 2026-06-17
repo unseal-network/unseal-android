@@ -11,15 +11,10 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -30,13 +25,12 @@ import com.bumble.appyx.core.node.Node
 import com.bumble.appyx.core.plugin.Plugin
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
-import io.element.android.libraries.di.annotations.ApplicationContext
 import io.element.android.annotations.ContributesNode
-import io.element.android.compound.theme.ElementTheme
 import io.element.android.libraries.architecture.NodeInputs
 import io.element.android.libraries.architecture.inputs
 import io.element.android.libraries.chatbot.api.ChatbotBaseUrlResolver
 import io.element.android.libraries.di.RoomScope
+import io.element.android.libraries.di.annotations.ApplicationContext
 import io.element.android.libraries.gameapi.api.AppBundleInfo
 import io.element.android.libraries.gameapi.impl.DefaultGameApiService
 import io.element.android.libraries.matrix.api.MatrixClient
@@ -47,6 +41,9 @@ import io.element.android.libraries.miniapp.api.MiniAppConfig
 import io.element.android.libraries.miniapp.api.MiniAppHostBridge
 import io.element.android.libraries.miniapp.api.MiniAppToken
 import io.element.android.libraries.miniapp.api.MiniAppUser
+import androidx.compose.foundation.layout.fillMaxSize
+import io.element.android.libraries.miniapp.impl.MiniAppLoadingOverlay
+import io.element.android.libraries.miniapp.impl.MiniAppLoadingState
 import io.element.android.libraries.miniapp.impl.MiniAppView
 import okhttp3.OkHttpClient
 import timber.log.Timber
@@ -234,15 +231,12 @@ class MiniAppNode @AssistedInject constructor(
         }
 
         if (config == null) {
-            // Phase 1 spinner — covers the full screen while pkg.app.check.update is in-flight.
-            Box(
-                modifier = modifier
-                    .fillMaxSize()
-                    .background(ElementTheme.colors.bgCanvasDefault),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator(color = ElementTheme.colors.iconAccentPrimary)
-            }
+            // Phase 1 — covers the full screen while pkg.app.check.update is in-flight.
+            MiniAppLoadingOverlay(
+                state = MiniAppLoadingState.Loading,
+                onClose = { navigateUp() },
+                modifier = modifier,
+            )
             return
         }
 
@@ -251,6 +245,7 @@ class MiniAppNode @AssistedInject constructor(
             config = config!!,
             hostBridge = hostBridge,
             okHttpClient = okHttpClient(),
+            onClose = { navigateUp() },
             modifier = modifier.fillMaxSize(),
         )
     }
@@ -325,6 +320,7 @@ class MiniAppNode @AssistedInject constructor(
                         token = token,
                         user = selfUser,
                         appBundleData = info.toBundleDataMap(),
+                        bundleVersion = info.version,
                     )
                 }
             }

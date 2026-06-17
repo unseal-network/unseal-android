@@ -50,4 +50,11 @@ data class MiniAppConfig(
      * Null when the mini-app was opened without a valid appId.
      */
     val appBundleData: Map<String, Any>? = null,
+
+    /**
+     * Server-reported bundle version (e.g. "1.0.5"), populated for [LoadMode.Local] only.
+     * Used by [MiniAppBundleManager] to skip re-download when the cached version matches.
+     * Mirrors iOS `ControllerManager.compareVersion` / `updateLocalVersion`.
+     */
+    val bundleVersion: String? = null,
 )
