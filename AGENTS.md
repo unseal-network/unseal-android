@@ -263,51 +263,17 @@ More context and the current handoff are in `HANDOFF_AGENT_MANAGEMENT.md`.
 
 ---
 
-## Unseal Feature Migration Status
+## Unseal Android Handoff
 
-Use the iOS project as the source of truth for behavior. For each remaining Android migration task, first locate the iOS View, ViewModel, Service, Model, and navigation implementation, then migrate the smallest complete Android behavior.
+Use `HANDOFF_AGENT_MANAGEMENT.md` as the single current handoff for Unseal-specific Android work. Older one-off specs and migration plans were intentionally removed because they had stale branch names, stale worktree paths, and contradictory guidance.
 
-Do not start a long planning flow for routine migration work. Read the relevant existing spec only to confirm scope and acceptance checks, then implement and verify.
+Stable stream-render assets remain in the repo:
 
-### Completed Or Implemented Specs
+- Fixture manifest: `docs/agent-stream-fixtures/manifest.json`
+- Fixture replay tool: `tools/agent-stream-parity/README.md`
+- Android stream wrapper: `libraries/agentstream`
 
-| Feature | Spec |
-| :--- | :--- |
-| Matrix Rust SDK artifact integration | `docs/superpowers/specs/2026-06-08-matrix-rust-sdk-artifact-integration-design.md` |
-| Matrix Rust SDK 26.06.5 Maven artifact adoption | `docs/superpowers/plans/2026-06-09-rust-sdk-26-06-5-build.md` |
-| Matrix Rust SDK 26.06.5 test fixture adaptation | `docs/superpowers/plans/2026-06-09-rust-sdk-26-06-5-matrix-test-fixtures.md` |
-| Session verification | `docs/superpowers/specs/2026-06-08-session-verification-design.md` |
-| Secure backup recovery | `docs/superpowers/specs/2026-06-08-secure-backup-recovery-design.md` |
-| Encrypted room key recovery | `docs/superpowers/specs/2026-06-09-encrypted-room-key-recovery-design.md` |
-| Agent room key recovery | `docs/superpowers/specs/2026-06-09-agent-room-key-recovery-design.md` |
-| Chatbot API service | `docs/superpowers/specs/2026-06-08-chatbot-api-service-design.md` |
-| Agent management | `docs/superpowers/specs/2026-06-08-agent-management-design.md` |
-| Skills marketplace | `docs/superpowers/specs/2026-06-08-skills-marketplace-design.md` |
-| Agent skills management | `docs/superpowers/specs/2026-06-09-agent-skills-management-design.md` |
-| Room schedules | `docs/superpowers/specs/2026-06-09-room-schedules-design.md` |
-| Webhook triggers feature module | `docs/superpowers/specs/2026-06-09-webhook-triggers-design.md` |
-| Credits dashboard | `docs/superpowers/specs/2026-06-09-credits-dashboard-design.md` |
-
-### Remaining Migration Work
-
-| Feature | Status | Next action |
-| :--- | :--- | :--- |
-| Webhook trigger host entry points | Spec exists; settings and room-details entry points still need completion. | Implement from `docs/superpowers/specs/2026-06-09-webhook-triggers-host-entrypoints-design.md`, using iOS Webhook and Room Details/Settings behavior as the reference. |
-| Connectors | Listed in the migration index; no standalone Android spec or implementation yet. | Find iOS connector list/detail/connect/disconnect/settings implementation, then create the Android feature and settings entry point. |
-| Game picker | Listed in the migration index; no standalone Android spec or implementation yet. | Migrate the room game picker and room event flow only. Do not implement MiniApp runtime in this task. |
-| AI message rich renderer | Component-library dependent; no standalone Android spec or implementation yet. | Find iOS AI timeline rendering, tool/thinking/source blocks, and decide whether Android can ship a degraded native renderer first. |
-| Vault management | Component-library dependent; no standalone Android spec or implementation yet. | Find iOS Vault behavior and identify any UnsealUI/UnsealAgent dependency before implementation. |
-| Local agent runtime | Component-library dependent; no standalone Android spec or implementation yet. | Find iOS local agent runtime, persistence, keychain bridge, stream persistence, and failure recovery behavior before implementation. |
-| MiniApp runtime | Component-library dependent; no standalone Android spec or implementation yet. | Find iOS MiniApp runtime/WebView bridge implementation. Keep separate from the game picker task. |
-| Voice library | Pending dependency classification; no standalone Android spec or implementation yet. | Find iOS Voice Library behavior and classify as native list/detail/manage or component-library dependent recording/playback/generation work. |
-
-The migration index is `docs/superpowers/specs/2026-06-08-unseal-android-feature-migration-index-design.md`.
-
-## Agent Stream SDK For Android AI Rendering
-
-Android AI stream rendering must consume `libraries/agentstream` through `AgentStreamClient`.
-
-Required flow:
+Android AI stream rendering must still consume `libraries/agentstream` through `AgentStreamClient`:
 
 1. Matrix timeline event exposes `streamId`.
 2. Room/timeline binding calls `AgentStreamClient.getStream(StreamRequest(...))`.
@@ -316,11 +282,3 @@ Required flow:
 5. Compose renders `TimelineItemAiContent` only.
 
 Do not fetch SSE, parse full stream JSON, or write stream store from Compose or messages UI code.
-
-Useful commands:
-
-```bash
-./gradlew :libraries:agentstream:testDebugUnitTest
-./gradlew :features:messages:impl:testDebugUnitTest
-./gradlew :features:messages:impl:compileDebugKotlin
-```
