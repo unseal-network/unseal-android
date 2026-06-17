@@ -27,6 +27,14 @@ class FakeRoomGameApiServiceProvider(
 class FakeGameApiService : GameApiService {
     var fetchAppListResult: Result<List<GameInfo>> = Result.success(emptyList())
     var fetchMyPlayingResult: Result<List<PlayingRoom>> = Result.success(emptyList())
+    var fetchAppListCalls: List<Pair<Int, Int>> = emptyList()
+        private set
+    var fetchMyPlayingCalls: List<Pair<Int, Int>> = emptyList()
+        private set
+    var createGameRoomCalls: List<Pair<Int, String>> = emptyList()
+        private set
+    var sendGameInviteMessageCalls: List<SendGameInviteMessageCall> = emptyList()
+        private set
     var fetchAppBundleResult: (Int) -> Result<AppBundleInfo> = { appId ->
         Result.success(
             AppBundleInfo(
@@ -49,18 +57,37 @@ class FakeGameApiService : GameApiService {
     }
     var sendGameInviteMessageResult: Result<Unit> = Result.success(Unit)
 
-    override suspend fun fetchAppList(page: Int, size: Int): Result<List<GameInfo>> = fetchAppListResult
+    override suspend fun fetchAppList(page: Int, size: Int): Result<List<GameInfo>> {
+        fetchAppListCalls += page to size
+        return fetchAppListResult
+    }
 
-    override suspend fun fetchMyPlaying(page: Int, limit: Int): Result<List<PlayingRoom>> = fetchMyPlayingResult
+    override suspend fun fetchMyPlaying(page: Int, limit: Int): Result<List<PlayingRoom>> {
+        fetchMyPlayingCalls += page to limit
+        return fetchMyPlayingResult
+    }
 
     override suspend fun fetchAppBundle(appId: Int): Result<AppBundleInfo> = fetchAppBundleResult(appId)
 
-    override suspend fun createGameRoom(gameId: Int, meetRoomId: String): Result<CreateGameRoomResult> = createGameRoomResult(gameId, meetRoomId)
+    override suspend fun createGameRoom(gameId: Int, meetRoomId: String): Result<CreateGameRoomResult> {
+        createGameRoomCalls += gameId to meetRoomId
+        return createGameRoomResult(gameId, meetRoomId)
+    }
 
     override suspend fun sendGameInviteMessage(
         roomId: String,
         gameInfo: GameInfo,
         gameRoomId: String,
         creatorUserId: String,
-    ): Result<Unit> = sendGameInviteMessageResult
+    ): Result<Unit> {
+        sendGameInviteMessageCalls += SendGameInviteMessageCall(roomId, gameInfo, gameRoomId, creatorUserId)
+        return sendGameInviteMessageResult
+    }
 }
+
+data class SendGameInviteMessageCall(
+    val roomId: String,
+    val gameInfo: GameInfo,
+    val gameRoomId: String,
+    val creatorUserId: String,
+)

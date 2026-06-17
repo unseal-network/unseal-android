@@ -53,6 +53,7 @@ class GamePickerPresenter(
         var shouldDismiss by remember { mutableStateOf(false) }
 
         var gameApiHandle by remember { mutableStateOf<RoomGameApiServiceHandle?>(null) }
+        var loadedGameApiHandle by remember { mutableStateOf<RoomGameApiServiceHandle?>(null) }
         LaunchedEffect(Unit) {
             gameApiServiceProvider.create()
                 .onSuccess { gameApiHandle = it }
@@ -68,6 +69,8 @@ class GamePickerPresenter(
         // On failure, fall through to empty lists so the UI exits the loading state.
         LaunchedEffect(gameApiHandle) {
             val service = gameApiHandle?.service ?: return@LaunchedEffect
+            if (loadedGameApiHandle === gameApiHandle) return@LaunchedEffect
+            loadedGameApiHandle = gameApiHandle
 
             launch {
                 service.fetchAppList()
