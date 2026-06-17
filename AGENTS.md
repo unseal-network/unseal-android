@@ -267,6 +267,10 @@ More context and the current handoff are in `HANDOFF_AGENT_MANAGEMENT.md`.
 
 Use `HANDOFF_AGENT_MANAGEMENT.md` as the single current handoff for Unseal-specific Android work. Older one-off specs and migration plans were intentionally removed because they had stale branch names, stale worktree paths, and contradictory guidance.
 
+Project skill:
+
+- `.agents/skills/android-device-debugging/SKILL.md`: use for real-device connection, `scrcpy` mirroring, APK install, simulated UI operations, logs, frame stats, CPU, memory, and resource monitoring.
+
 Stable stream-render assets remain in the repo:
 
 - Fixture manifest: `docs/agent-stream-fixtures/manifest.json`

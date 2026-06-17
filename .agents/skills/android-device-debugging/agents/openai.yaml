@@ -1,0 +1,3 @@
+display_name: Android Device Debugging
+short_description: Connect, mirror, install, operate, and profile the Unseal Android app on a real device.
+default_prompt: Use this skill to install the latest Unseal Android APK on a connected phone, mirror the screen, perform the requested UI flow, and collect logs plus frame/resource metrics.
