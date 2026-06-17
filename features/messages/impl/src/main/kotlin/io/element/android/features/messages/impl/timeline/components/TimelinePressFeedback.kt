@@ -53,5 +53,7 @@ internal fun Modifier.timelinePressFeedback(
         .graphicsLayer {
             scaleX = scale
             scaleY = scale
+            this.shape = shape
+            clip = true
         }
 }
