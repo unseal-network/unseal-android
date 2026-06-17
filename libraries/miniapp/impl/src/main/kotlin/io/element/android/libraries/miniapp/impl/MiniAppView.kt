@@ -12,16 +12,8 @@ import android.content.Context
 import android.webkit.WebSettings
 import android.webkit.WebView
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -30,12 +22,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
-import io.element.android.compound.theme.ElementTheme
 import io.element.android.libraries.miniapp.api.MiniAppConfig
 import io.element.android.libraries.miniapp.api.MiniAppHostBridge
 import kotlinx.coroutines.CoroutineScope
@@ -106,6 +96,7 @@ fun MiniAppView(
     config: MiniAppConfig,
     hostBridge: MiniAppHostBridge?,
     okHttpClient: OkHttpClient,
+    onClose: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -139,12 +130,14 @@ fun MiniAppView(
     // Runs only when zipUrl is set; cancelled automatically when config changes
     // or this Composable leaves the composition.
     LaunchedEffect(config.appId, config.zipUrl) {
+        Timber.d("MiniApp: LaunchedEffect appId=${config.appId} zipUrl=${config.zipUrl} url=${config.url}")
         val zipUrl = config.zipUrl?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
 
         val bundleManager = MiniAppBundleManager(context, okHttpClient)
         bundleManager.prepareBundle(
             appId = config.appId,
             zipUrl = zipUrl,
+            serverVersion = config.bundleVersion ?: "",
             onProgress = { progress ->
                 bundleState = BundleState.Downloading(progress)
             },
@@ -198,8 +191,19 @@ fun MiniAppView(
 
         // Loading / error overlay — drawn on top of the WebView.
         when (val state = bundleState) {
-            is BundleState.Downloading -> BundleLoadingOverlay(progress = state.progress)
-            is BundleState.Error -> BundleErrorOverlay(message = state.message)
+            is BundleState.Downloading -> MiniAppLoadingOverlay(
+                state = MiniAppLoadingState.Loading,
+                onClose = onClose,
+            )
+            is BundleState.Error -> MiniAppLoadingOverlay(
+                state = MiniAppLoadingState.Error(
+                    message = state.message,
+                    onRetry = {
+                        bundleState = BundleState.Downloading(0f)
+                    },
+                ),
+                onClose = onClose,
+            )
             is BundleState.Ready -> { /* WebView visible — no overlay */ }
         }
     }
@@ -239,61 +243,6 @@ private fun MiniAppWebViewContainer(
         },
         update = { /* config is baked into client/bridge at factory time */ },
     )
-}
-
-// ── Overlay composables ───────────────────────────────────────────────────────
-
-/**
- * Full-screen overlay shown while a ZIP bundle is downloading.
- * Mirrors iOS's activity indicator that appears before `loadLocal()` is called.
- */
-@Composable
-private fun BundleLoadingOverlay(progress: Float) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(ElementTheme.colors.bgCanvasDefault),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(horizontal = 48.dp),
-        ) {
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier.width(200.dp),
-                color = ElementTheme.colors.iconAccentPrimary,
-                trackColor = ElementTheme.colors.bgSubtleSecondary,
-            )
-            Spacer(Modifier.height(12.dp))
-            Text(
-                text = "${(progress * 100).toInt()}%",
-                style = ElementTheme.typography.fontBodySmRegular,
-                color = ElementTheme.colors.textSecondary,
-            )
-        }
-    }
-}
-
-/**
- * Full-screen overlay shown when ZIP download or extraction has failed.
- */
-@Composable
-private fun BundleErrorOverlay(message: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(ElementTheme.colors.bgCanvasDefault),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = message,
-            style = ElementTheme.typography.fontBodyMdRegular,
-            color = ElementTheme.colors.textCriticalPrimary,
-            modifier = Modifier.padding(24.dp),
-        )
-    }
 }
 
 // ── WebView factory ───────────────────────────────────────────────────────────

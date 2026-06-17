@@ -8,6 +8,7 @@
 package io.element.android.libraries.miniapp.impl
 
 import android.content.Context
+import android.content.Context.MODE_PRIVATE
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Call
@@ -71,31 +72,39 @@ internal class MiniAppBundleManager(
     /**
      * Prepare the local bundle for [appId].
      *
-     * 1. If the extracted bundle already exists on disk — returns `index.html` immediately.
-     * 2. Otherwise — downloads the ZIP from [zipUrl], extracts it, then returns `index.html`.
+     * 1. If the extracted bundle exists on disk AND [serverVersion] matches the stored local
+     *    version — returns `index.html` immediately (cache hit, mirrors iOS no-op path).
+     * 2. If the bundle exists but [serverVersion] is newer — clears the cache and re-downloads.
+     * 3. If no bundle exists — downloads the ZIP from [zipUrl], extracts it, saves version.
      *
-     * All IO runs on [Dispatchers.IO]. Progress callbacks arrive on [Dispatchers.IO] as well;
-     * callers must switch to the main thread before updating UI state.
+     * Mirrors iOS `ControllerManager.download()`: `compareVersion` guards the download,
+     * `updateLocalVersion` is called after successful extraction.
      *
-     * @param appId       Numeric app ID; determines the local cache directory.
-     * @param zipUrl      HTTP/HTTPS URL of the ZIP bundle to download.
-     * @param onProgress  Called with values in `[0.0, 1.0]` during download.
-     *                    0.0 = starting, 1.0 = done (also called when using cache).
-     * @return            [Result.success] with the local `index.html` [File], or
-     *                    [Result.failure] with the underlying [Exception].
+     * @param appId          Numeric app ID; determines the local cache directory.
+     * @param zipUrl         HTTP/HTTPS URL of the ZIP bundle to download.
+     * @param serverVersion  Version string from the server (e.g. "1.0.5"). Empty = always use cache.
+     * @param onProgress     Called with values in `[0.0, 1.0]` during download.
+     * @return               [Result.success] with the local `index.html` [File], or
+     *                       [Result.failure] with the underlying [Exception].
      */
     suspend fun prepareBundle(
         appId: Long,
         zipUrl: String,
+        serverVersion: String = "",
         onProgress: (Float) -> Unit = {},
     ): Result<File> = withContext(Dispatchers.IO) {
         val destDir = localDir(appId)
         val indexFile = File(destDir, "index.html")
 
         if (indexFile.exists()) {
-            Timber.d("MiniApp: cache hit for appId=$appId at ${indexFile.absolutePath}")
-            onProgress(1f)
-            return@withContext Result.success(indexFile)
+            val localVersion = getLocalVersion(appId)
+            if (!needsUpdate(localVersion, serverVersion)) {
+                Timber.d("MiniApp: cache hit appId=$appId version=$localVersion (server=$serverVersion)")
+                onProgress(1f)
+                return@withContext Result.success(indexFile)
+            }
+            Timber.d("MiniApp: version update appId=$appId local=$localVersion → server=$serverVersion — clearing cache")
+            destDir.deleteRecursively()
         }
 
         Timber.d("MiniApp: no cache for appId=$appId — downloading ZIP from $zipUrl")
@@ -110,20 +119,14 @@ internal class MiniAppBundleManager(
             Timber.d("MiniApp: extracting ZIP to ${destDir.absolutePath}")
             extractZip(zipFile, destDir)
             zipFile.delete()
-            if (indexFile.exists()) {
-                Timber.d("MiniApp: bundle ready → ${indexFile.absolutePath}")
+            val resolved = if (indexFile.exists()) indexFile else findIndexHtml(destDir)
+            if (resolved != null) {
+                if (serverVersion.isNotEmpty()) saveLocalVersion(appId, serverVersion)
+                Timber.d("MiniApp: bundle ready → ${resolved.absolutePath} version=$serverVersion")
                 onProgress(1f)
-                Result.success(indexFile)
+                Result.success(resolved)
             } else {
-                // ZIP extracted successfully but no index.html found — try common sub-directories
-                val found = findIndexHtml(destDir)
-                if (found != null) {
-                    Timber.d("MiniApp: found index.html at ${found.absolutePath}")
-                    onProgress(1f)
-                    Result.success(found)
-                } else {
-                    Result.failure(IOException("index.html not found after extracting ZIP for appId=$appId"))
-                }
+                Result.failure(IOException("index.html not found after extracting ZIP for appId=$appId"))
             }
         } catch (e: Exception) {
             zipFile.delete()
@@ -145,6 +148,38 @@ internal class MiniAppBundleManager(
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
+
+    /**
+     * Returns true if [serverVersion] is strictly newer than [localVersion].
+     * Mirrors iOS `ControllerManager.compareVersion(nowVersion:newVersion:)`.
+     * Empty [localVersion] always returns true (no local cache → must download).
+     * Empty [serverVersion] always returns false (server has no version info → keep cache).
+     */
+    private fun needsUpdate(localVersion: String, serverVersion: String): Boolean {
+        if (localVersion.isEmpty()) return true
+        if (serverVersion.isEmpty()) return false
+        val local = localVersion.split(".").map { it.toIntOrNull() ?: 0 }
+        val server = serverVersion.split(".").map { it.toIntOrNull() ?: 0 }
+        val len = maxOf(local.size, server.size)
+        for (i in 0 until len) {
+            val l = local.getOrElse(i) { 0 }
+            val s = server.getOrElse(i) { 0 }
+            if (s > l) return true
+            if (s < l) return false
+        }
+        return false
+    }
+
+    private fun getLocalVersion(appId: Long): String =
+        context.getSharedPreferences("miniapp_versions", MODE_PRIVATE)
+            .getString("version_$appId", "") ?: ""
+
+    private fun saveLocalVersion(appId: Long, version: String) {
+        context.getSharedPreferences("miniapp_versions", MODE_PRIVATE)
+            .edit()
+            .putString("version_$appId", version)
+            .apply()
+    }
 
     /** Persistent extracted-bundle directory: `<filesDir>/miniapp/app_<appId>/` */
     private fun localDir(appId: Long): File =

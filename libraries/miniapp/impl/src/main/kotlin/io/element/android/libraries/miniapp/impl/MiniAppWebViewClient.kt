@@ -34,6 +34,7 @@ internal class MiniAppWebViewClient(
 
     override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
         super.onPageStarted(view, url, favicon)
+        Timber.d("MiniApp: onPageStarted url=$url")
         onPageStarted()
         // Inject startup globals (platform, token, user, device, shim) into the
         // new page's JS context before the page's own scripts run.

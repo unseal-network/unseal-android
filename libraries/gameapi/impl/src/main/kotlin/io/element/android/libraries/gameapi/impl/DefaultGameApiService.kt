@@ -27,6 +27,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import timber.log.Timber
 import java.util.UUID
 
 /**
@@ -43,6 +44,12 @@ class DefaultGameApiService(
 ) : GameApiService {
 
     private val json = Json { ignoreUnknownKeys = true }
+
+    /**
+     * Matches iOS `API.FileDirectory.pkg = "af7ed9da/"` — the platform namespace used
+     * in the S3 key path `assets/pkgs/{PKG_DIR}{md5}/{md5}.zip`.
+     */
+    private val pkgDirectory = "af7ed9da"
 
     /** Host without scheme, used in the APP-U header: e.g. "matrix.example.com". */
     private val homeserverHost: String = homeserverUrl
@@ -173,6 +180,7 @@ class DefaultGameApiService(
             .get()
             .build()
         val responseBody = executeRequest(request)
+        Timber.d("MiniApp fetchAppBundle raw: $responseBody")
         val root = json.parseToJsonElement(responseBody).jsonObject
         val code = root["code"]?.jsonPrimitive?.int
         if (code != 0) error("fetchAppBundle failed: code=$code body=$responseBody")
@@ -182,28 +190,32 @@ class DefaultGameApiService(
         val version = data["version"]?.jsonPrimitive?.content ?: ""
         val rawLoadMode = data["load_mode"]?.jsonPrimitive?.content
             ?: data["loadMode"]?.jsonPrimitive?.content
-            ?: "local"
-        val loadMode = if (rawLoadMode == "remote") AppBundleInfo.LoadMode.Remote
-                       else AppBundleInfo.LoadMode.Local
+            ?: "1"
+        // Server returns integers: 1=local (iOS LoadMode.local), 2=remote (iOS LoadMode.remote)
+        // Also handle string values "local"/"remote" for forward compatibility.
+        val loadMode = when (rawLoadMode) {
+            "2", "remote" -> AppBundleInfo.LoadMode.Remote
+            else -> AppBundleInfo.LoadMode.Local
+        }
         val remoteUrl = data["remote_url"]?.jsonPrimitive?.content
             ?: data["remoteUrl"]?.jsonPrimitive?.content
 
-        // Construct the ZIP download URL from update_host + update_url.
-        // Fall back to a standalone download_url / bundle_url field if present.
-        val zipUrl = run {
-            val direct = data["download_url"]?.jsonPrimitive?.content
-                ?: data["bundle_url"]?.jsonPrimitive?.content
-            if (!direct.isNullOrBlank()) return@run direct
+        // Construct the ZIP download URL via homeserver sign proxy.
+        //
+        // iOS mirrors: md5(appId+version) → key → sign endpoint → presigned S3 URL.
+        // Homeserver proxies the sign endpoint at /app-mgr/upload/sign.
+        // OkHttp follows the 302 redirect to the actual S3 URL automatically.
+        val name = data["name"]?.jsonPrimitive?.content ?: "app"
+        val hash = md5("$appId$version")
+        val key = "assets/pkgs/$pkgDirectory/$hash/$hash.zip"
+        val encodedKey = java.net.URLEncoder.encode(key, "UTF-8")
+        val encodedFilename = java.net.URLEncoder.encode("$name-$version.zip", "UTF-8")
+        val zipUrl = if (loadMode == AppBundleInfo.LoadMode.Local)
+            "$homeserverUrl/app-mgr/upload/sign?key=$encodedKey&filename=$encodedFilename"
+        else
+            null
 
-            val host = (data["update_host"]?.jsonPrimitive?.content
-                ?: data["updateHost"]?.jsonPrimitive?.content)
-                ?.trimEnd('/') ?: return@run null
-            val path = (data["update_url"]?.jsonPrimitive?.content
-                ?: data["updateUrl"]?.jsonPrimitive?.content) ?: return@run null
-            if (path.startsWith("http://") || path.startsWith("https://")) path
-            else "$host/${path.trimStart('/')}"
-        }
-
+        Timber.d("MiniApp fetchAppBundle parsed: appId=$appId version=$version loadMode=$loadMode remoteUrl=$remoteUrl zipUrl=$zipUrl")
         AppBundleInfo(
             appId = appId,
             version = version,
@@ -287,6 +299,12 @@ class DefaultGameApiService(
             return "$homeserverUrl/app-mgr/upload/sign?key=$key"
         }
         return raw
+    }
+
+    /** MD5 hex string, matches iOS `String.toMd5` extension used in ControllerManager. */
+    private fun md5(input: String): String {
+        val bytes = java.security.MessageDigest.getInstance("MD5").digest(input.toByteArray())
+        return bytes.joinToString("") { "%02x".format(it) }
     }
 
     /** Fetch a single game's info by ID. Matches iOS GameAppService.fetchAppInfo. */
