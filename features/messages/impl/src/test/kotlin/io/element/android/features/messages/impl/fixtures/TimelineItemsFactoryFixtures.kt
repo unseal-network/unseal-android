@@ -101,6 +101,7 @@ internal fun aTimelineItemContentFactory(
 
 internal fun TestScope.aTimelineItemsFactory(
     config: TimelineItemsFactoryConfig,
+    aiStreamHandleStore: AiStreamHandleStore = AiStreamHandleStore(NoopAgentStreamClient, NoopStreamStorageProvider),
 ): TimelineItemsFactory {
     val matrixClient = FakeMatrixClient()
     return TimelineItemsFactory(
@@ -108,7 +109,10 @@ internal fun TestScope.aTimelineItemsFactory(
         eventItemFactoryCreator = object : TimelineItemEventFactory.Creator {
             override fun create(config: TimelineItemsFactoryConfig): TimelineItemEventFactory {
                 return TimelineItemEventFactory(
-                    contentFactory = aTimelineItemContentFactory(matrixClient = matrixClient),
+                    contentFactory = aTimelineItemContentFactory(
+                        matrixClient = matrixClient,
+                        aiStreamHandleStore = aiStreamHandleStore,
+                    ),
                     matrixClient = matrixClient,
                     dateFormatter = FakeDateFormatter(),
                     permalinkParser = FakePermalinkParser(),

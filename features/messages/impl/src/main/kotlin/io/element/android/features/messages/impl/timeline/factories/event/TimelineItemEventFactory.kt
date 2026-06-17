@@ -22,6 +22,7 @@ import io.element.android.features.messages.impl.timeline.model.TimelineItemReac
 import io.element.android.features.messages.impl.timeline.model.TimelineItemReadReceipts
 import io.element.android.features.messages.impl.timeline.model.TimelineItemThreadInfo
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEventContent
 import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryStatus
 import io.element.android.features.messages.impl.utils.messagesummary.MessageSummaryFormatter
@@ -149,9 +150,16 @@ class TimelineItemEventFactory(
         roomMembers: List<RoomMember>,
         roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
     ): TimelineItem.Event {
+        val updatedContent = when (timelineItem.content) {
+            // The update path is used for cached items whose Matrix event did not change.
+            // Keep stream/tool/markdown content stable here; otherwise room-member/read-receipt
+            // refreshes can re-parse stream snapshots for every cached AI item.
+            is TimelineItemEncryptedContent -> contentFactory.create(receivedMatrixTimelineItem.event, roomKeyRecoveryStatuses)
+                .withTimelineContext(roomId = config.roomId, eventId = receivedMatrixTimelineItem.eventId?.value)
+            else -> timelineItem.content
+        }
         return timelineItem.copy(
-            content = contentFactory.create(receivedMatrixTimelineItem.event, roomKeyRecoveryStatuses)
-                .withTimelineContext(roomId = config.roomId, eventId = receivedMatrixTimelineItem.eventId?.value),
+            content = updatedContent,
             readReceiptState = receivedMatrixTimelineItem.computeReadReceiptState(roomMembers)
         )
     }
