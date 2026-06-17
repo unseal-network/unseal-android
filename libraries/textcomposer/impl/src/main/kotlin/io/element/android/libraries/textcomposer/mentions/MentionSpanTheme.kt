@@ -104,8 +104,8 @@ class MentionSpanTheme(val currentUserId: UserId) {
                 leftPadding to rightPadding
             }
         }
-        userMentionAvatarSizePx.value = remember(density) { with(density) { 18.dp.roundToPx() } }
-        userMentionAvatarGapPx.value = remember(density) { with(density) { 4.dp.roundToPx() } }
+        userMentionAvatarSizePx.value = remember(density) { with(density) { 12.dp.roundToPx() } }
+        userMentionAvatarGapPx.value = remember(density) { with(density) { 3.dp.roundToPx() } }
         defaultAvatarBitmaps = remember(context.resources) {
             (1..26).associateWith { index ->
                 BitmapFactory.decodeResource(context.resources, defaultUserAvatarResource(index))

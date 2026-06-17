@@ -66,7 +66,7 @@ class TimelinePresentationReducerTest {
     }
 
     @Test
-    fun `reduce renders own direct-room text with the same standalone leading layout`() {
+    fun `reduce renders own direct-room plain-text message as outgoing without avatar reservation`() {
         val model = TimelinePresentationReducer.reduce(
             content = aTimelineItemTextContent(),
             isMine = true,
@@ -74,17 +74,17 @@ class TimelinePresentationReducerTest {
             isDirectRoom = true,
         )
 
-        assertThat(model.alignment).isEqualTo(TimelineItemAlignment.Start)
+        assertThat(model.alignment).isEqualTo(TimelineItemAlignment.End)
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
         assertThat(model.contentKind).isEqualTo(TimelineContentKind.PlainText)
         assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.ShowWhenEdited)
         assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Disabled)
-        assertThat(model.showSenderInformation).isTrue()
-        assertThat(model.reserveAvatarColumn).isTrue()
+        assertThat(model.showSenderInformation).isFalse()
+        assertThat(model.reserveAvatarColumn).isFalse()
     }
 
     @Test
-    fun `reduce renders own non-direct-room text with the same standalone leading layout`() {
+    fun `reduce renders own non-direct-room plain-text message as outgoing with sender info`() {
         val model = TimelinePresentationReducer.reduce(
             content = aTimelineItemTextContent(),
             isMine = true,
@@ -92,7 +92,7 @@ class TimelinePresentationReducerTest {
             isDirectRoom = false,
         )
 
-        assertThat(model.alignment).isEqualTo(TimelineItemAlignment.Start)
+        assertThat(model.alignment).isEqualTo(TimelineItemAlignment.End)
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
         assertThat(model.contentKind).isEqualTo(TimelineContentKind.PlainText)
         assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.ShowWhenEdited)

@@ -8,6 +8,7 @@
 
 package io.element.android.libraries.designsystem.components.avatar.internal
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
@@ -19,8 +20,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import coil3.compose.AsyncImagePainter
-import coil3.compose.SubcomposeAsyncImage
-import coil3.compose.SubcomposeAsyncImageContent
+import coil3.compose.rememberAsyncImagePainter
 import io.element.android.libraries.designsystem.components.avatar.AvatarData
 import timber.log.Timber
 
@@ -34,39 +34,45 @@ internal fun ImageAvatar(
     placeholderType: AvatarPlaceholderType = AvatarPlaceholderType.User,
 ) {
     val size = forcedAvatarSize ?: avatarData.size.dp
-    SubcomposeAsyncImage(
+    val painter = rememberAsyncImagePainter(
         model = avatarData,
-        contentDescription = contentDescription,
         contentScale = ContentScale.Crop,
-        modifier = modifier
-            .size(size)
-            .clip(avatarShape)
-    ) {
-        val collectedState by painter.state.collectAsState()
-        when (val state = collectedState) {
-            is AsyncImagePainter.State.Success -> SubcomposeAsyncImageContent()
-            is AsyncImagePainter.State.Error -> {
-                SideEffect {
-                    Timber.e(
-                        state.result.throwable,
-                        "Error loading avatar $state\n${state.result}"
-                    )
-                }
-                DefaultAvatar(
-                    avatarData = avatarData,
-                    avatarShape = avatarShape,
-                    forcedAvatarSize = forcedAvatarSize,
-                    contentDescription = contentDescription,
-                    placeholderType = placeholderType,
+    )
+    val collectedState by painter.state.collectAsState()
+    when (val state = collectedState) {
+        is AsyncImagePainter.State.Success -> {
+            Image(
+                painter = painter,
+                contentDescription = contentDescription,
+                contentScale = ContentScale.Crop,
+                modifier = modifier
+                    .size(size)
+                    .clip(avatarShape),
+            )
+        }
+        is AsyncImagePainter.State.Error -> {
+            SideEffect {
+                Timber.e(
+                    state.result.throwable,
+                    "Error loading avatar $state\n${state.result}"
                 )
             }
-            else -> DefaultAvatar(
+            DefaultAvatar(
                 avatarData = avatarData,
                 avatarShape = avatarShape,
                 forcedAvatarSize = forcedAvatarSize,
+                modifier = modifier,
                 contentDescription = contentDescription,
                 placeholderType = placeholderType,
             )
         }
+        else -> DefaultAvatar(
+            avatarData = avatarData,
+            avatarShape = avatarShape,
+            forcedAvatarSize = forcedAvatarSize,
+            modifier = modifier,
+            contentDescription = contentDescription,
+            placeholderType = placeholderType,
+        )
     }
 }

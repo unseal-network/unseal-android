@@ -55,13 +55,13 @@ internal fun BoxScope.FloatingDateBadgeOverlay(
 
     // Store the formatted date so we recompute it lazily and can keep it around even if we need to dispose the badge because the timeline items changed
     var formattedDate: String? by remember { mutableStateOf(null) }
-    // Update the date only when the visible item index changes. Reading layoutInfo from
-    // derivedStateOf ties this overlay to every scroll pixel; index-granular updates are enough.
+    // Update the date only when the first visible item index changes. Avoid reading
+    // layoutInfo.visibleItemsInfo here; that participates in the scroll hot path.
     LaunchedEffect(lazyListState) {
-        snapshotFlow { lazyListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+        snapshotFlow { lazyListState.firstVisibleItemIndex }
             .distinctUntilChanged()
             .collect { visibleIndex ->
-                var index = visibleIndex ?: return@collect
+                var index = visibleIndex
                 while (index >= 0) {
                     val item = when (val item = updatedTimelineItems.getOrNull(index)) {
                         is TimelineItem.Event -> item

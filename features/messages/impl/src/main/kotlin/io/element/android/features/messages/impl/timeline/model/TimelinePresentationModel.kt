@@ -115,12 +115,14 @@ object TimelinePresentationReducer {
             contentKind == TimelineContentKind.PlainText ||
             contentKind == TimelineContentKind.RoomKeyRecovery ||
             contentKind == TimelineContentKind.Redacted
-        val alignment = if (usesPlainTimelineStyle) {
-            TimelineItemAlignment.Start
-        } else if (isMine) {
-            TimelineItemAlignment.End
-        } else {
-            TimelineItemAlignment.Start
+        // AiStream and RoomKeyRecovery are always rendered on the incoming (left) side regardless of
+        // ownership. PlainText and Redacted follow the normal isMine alignment.
+        val alwaysIncoming = contentKind == TimelineContentKind.AiStream ||
+            contentKind == TimelineContentKind.RoomKeyRecovery
+        val alignment = when {
+            alwaysIncoming -> TimelineItemAlignment.Start
+            isMine -> TimelineItemAlignment.End
+            else -> TimelineItemAlignment.Start
         }
         // Plain-style content and full-bleed media both render without a bubble (no card/notch);
         // media keeps its normal alignment though (only plain style forces Start).
@@ -131,8 +133,8 @@ object TimelinePresentationReducer {
         }
         val editedPolicy = editedPolicy(content)
         val replySwipePolicy = replySwipePolicy(contentKind)
-        val showSenderInformation = groupPosition.isNew() && (!isDirectRoom || usesPlainTimelineStyle || !isMine)
-        val reserveAvatarColumn = !isDirectRoom || usesPlainTimelineStyle || !isMine
+        val showSenderInformation = groupPosition.isNew() && (!isDirectRoom || alwaysIncoming || !isMine)
+        val reserveAvatarColumn = !isDirectRoom || alwaysIncoming || !isMine
         val avatarPolicy = when {
             showSenderInformation -> TimelineAvatarPolicy.Show
             reserveAvatarColumn -> TimelineAvatarPolicy.ReserveSpace

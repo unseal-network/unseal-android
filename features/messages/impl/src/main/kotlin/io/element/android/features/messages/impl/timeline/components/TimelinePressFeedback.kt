@@ -48,12 +48,14 @@ internal fun Modifier.timelinePressFeedback(
         label = "timeline-press-elevation",
     )
 
+    // Skip expensive layer modifiers entirely when at rest so passive scrolling doesn't
+    // pay a per-item graphicsLayer / shadow allocation on every visible row.
     return this
-        .then(if (shadow) Modifier.shadow(elevation = elevation, shape = shape, clip = false) else Modifier)
-        .graphicsLayer {
+        .then(if (shadow && elevation > 0.dp) Modifier.shadow(elevation = elevation, shape = shape, clip = false) else Modifier)
+        .then(if (scale != 1f) Modifier.graphicsLayer {
             scaleX = scale
             scaleY = scale
             this.shape = shape
-            clip = true
-        }
+            clip = true // only reached while scale > 1f (press active or animating back)
+        } else Modifier)
 }

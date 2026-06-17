@@ -15,21 +15,35 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 
 @Composable
-fun OnVisibleRangeChangeEffect(lazyListState: LazyListState, onChange: (IntRange) -> Unit) {
+fun OnVisibleRangeChangeEffect(
+    lazyListState: LazyListState,
+    notifyWhileScrolling: Boolean = true,
+    onChange: (IntRange) -> Unit,
+) {
     val onChangeUpdated by rememberUpdatedState(onChange)
     LaunchedEffect(lazyListState) {
-        snapshotFlow { lazyListState.layoutInfo.visibleItemsInfo }
-            .map { visibleItemsInfo ->
-                val firstItemIndex = visibleItemsInfo.firstOrNull()?.index ?: 0
-                val size = visibleItemsInfo.size
-                firstItemIndex until firstItemIndex + size
-            }
+        val visibleRangeFlow = if (notifyWhileScrolling) {
+            snapshotFlow { lazyListState.visibleRange() }
+        } else {
+            snapshotFlow { lazyListState.isScrollInProgress }
+                .distinctUntilChanged()
+                .filter { isScrollInProgress -> !isScrollInProgress }
+                .map { lazyListState.visibleRange() }
+        }
+
+        visibleRangeFlow
             .distinctUntilChanged()
-            .collectLatest { visibleRange ->
-                onChangeUpdated(visibleRange)
-            }
+            .collectLatest { visibleRange -> onChangeUpdated(visibleRange) }
     }
+}
+
+private fun LazyListState.visibleRange(): IntRange {
+    val visibleItemsInfo = layoutInfo.visibleItemsInfo
+    val firstItemIndex = visibleItemsInfo.firstOrNull()?.index ?: 0
+    val size = visibleItemsInfo.size
+    return firstItemIndex until firstItemIndex + size
 }

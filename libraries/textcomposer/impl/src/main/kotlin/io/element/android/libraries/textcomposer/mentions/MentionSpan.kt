@@ -107,7 +107,7 @@ class MentionSpan(
         // Measure the full text width without truncation
         measuredTextWidth = textPaint.measureText(displayText, 0, displayText.length).roundToInt()
         return if (type is MentionType.User) {
-            avatarSize + avatarGap + measuredTextWidth
+            resolvedAvatarSize(paint) + avatarGap + measuredTextWidth
         } else {
             measuredTextWidth + startPadding + endPadding
         }
@@ -166,7 +166,7 @@ class MentionSpan(
         availableWidth: Float,
     ) {
         val lineHeight = bottom - top
-        val resolvedAvatarSize = avatarSize.takeIf { it > 0 } ?: lineHeight
+        val resolvedAvatarSize = resolvedAvatarSize(paint, lineHeight)
         val avatarTop = top + (lineHeight - resolvedAvatarSize) / 2f
         val avatarRect = RectF(x, avatarTop, x + resolvedAvatarSize, avatarTop + resolvedAvatarSize)
         avatarBitmap?.let { bitmap ->
@@ -194,6 +194,13 @@ class MentionSpan(
             displayText
         }
         canvas.drawText(textToDraw, 0, textToDraw.length, textX, y.toFloat(), textPaint)
+    }
+
+    private fun resolvedAvatarSize(paint: Paint, lineHeight: Int? = null): Int {
+        val fontMetrics = paint.fontMetricsInt
+        val fontHeight = (fontMetrics.descent - fontMetrics.ascent).coerceAtLeast(1)
+        val maxInlineSize = ((lineHeight ?: fontHeight) * 0.58f).roundToInt().coerceAtLeast(1)
+        return (avatarSize.takeIf { it > 0 } ?: maxInlineSize).coerceAtMost(maxInlineSize)
     }
 }
 

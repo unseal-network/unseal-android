@@ -80,11 +80,10 @@ import io.element.android.libraries.ui.strings.CommonStrings
 import io.element.android.libraries.ui.utils.a11y.isTalkbackActive
 import io.element.android.wysiwyg.link.Link
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.transform
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -150,9 +149,7 @@ fun TimelineView(
     // Animate alpha when timeline is first displayed, to avoid flashes or glitching when viewing rooms
     AnimatedVisibility(visible = true, enter = fadeIn()) {
         Box(modifier) {
-            val renderReadReceiptsWhileIdle by remember {
-                derivedStateOf { state.renderReadReceipts && !lazyListState.isScrollInProgress }
-            }
+            val renderReadReceipts = state.renderReadReceipts
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -160,7 +157,13 @@ fun TimelineView(
                     .testTag(TestTags.timeline),
                 state = lazyListState,
                 reverseLayout = useReverseLayout,
-                contentPadding = PaddingValues(top = 64.dp, bottom = 8.dp),
+                // reverseLayout = true means visual bottom → top in memory.
+                // top padding = space below the newest message (in front of the composer overlay).
+                // bottom padding = space above the oldest visible message (below the top-bar overlay).
+                // Both values mirror the backdrop scrim heights declared in MessagesView:
+                // Keep enough scrollable overscan for the floating composer/top bar without
+                // leaving a large empty gutter after the newest message.
+                contentPadding = PaddingValues(top = 88.dp, bottom = 132.dp),
             ) {
                 items(
                     items = state.timelineItems,
@@ -172,7 +175,7 @@ fun TimelineView(
                         timelineMode = state.timelineMode,
                         timelineRoomInfo = state.timelineRoomInfo,
                         timelineProtectionState = timelineProtectionState,
-                        renderReadReceipts = renderReadReceiptsWhileIdle,
+                        renderReadReceipts = renderReadReceipts,
                         isLastOutgoingMessage = state.isLastOutgoingMessage(timelineItem.identifier()),
                         focusedEventId = state.focusedEventId,
                         displayThreadSummaries = state.displayThreadSummaries,
@@ -247,55 +250,32 @@ private fun TimelinePrefetchingHelper(
     val latestPrefetch by rememberUpdatedState(prefetch)
 
     LaunchedEffect(Unit) {
-        // Keep the observed viewport payload tiny; reading the whole layoutInfo object on every
-        // scroll frame makes the prefetch helper participate too much in the hot path.
-        val viewportFlow = snapshotFlow {
-            val layoutInfo = lazyListState.layoutInfo
-            TimelineViewportInfo(
-                firstVisibleItemIndex = lazyListState.firstVisibleItemIndex,
-                visibleItemCount = layoutInfo.visibleItemsInfo.size,
-                totalItemCount = layoutInfo.totalItemsCount,
-            )
-        }.distinctUntilChanged()
-        val isScrollingFlow = snapshotFlow { lazyListState.isScrollInProgress }
-            // This value changes too frequently, so we debounce it to avoid unnecessary prefetching. It's the equivalent of a conditional 'throttleLatest'
-            .conflate()
-            .transform { isScrolling ->
-                emit(isScrolling)
-                if (isScrolling) delay(100.milliseconds)
-            }
-
-        val isCloseToStartOfLoadedTimelineFlow = viewportFlow.transform { viewport ->
-            emit(viewport.firstVisibleItemIndex + viewport.visibleItemCount >= viewport.totalItemCount - 40)
-        }
-
-        // If we have no timeline items, we need to back paginate to load some messages. This usually happens on all timelines except for live ones.
-        // This automatic pagination was previously done by the SDK, and we received a `Reset` update, but now we need to do it ourselves.
-        val isEmptyTimelineFlow = viewportFlow.transform { viewport ->
-            emit(viewport.totalItemCount == 0)
-        }
-
-        combine(
-            isCloseToStartOfLoadedTimelineFlow.distinctUntilChanged(),
-            isScrollingFlow.distinctUntilChanged(),
-            isEmptyTimelineFlow,
-        ) { needsPrefetch, isScrolling, isEmptyAndNeedsBackPagination ->
-            isEmptyAndNeedsBackPagination || needsPrefetch && isScrolling
-        }
+        snapshotFlow { lazyListState.layoutInfo.totalItemsCount }
             .distinctUntilChanged()
-            .collectLatest { needsPrefetch ->
-                if (needsPrefetch) {
+            .filter { it == 0 }
+            .collectLatest {
+                latestPrefetch()
+            }
+    }
+
+    LaunchedEffect(Unit) {
+        snapshotFlow { lazyListState.isScrollInProgress }
+            .conflate()
+            .distinctUntilChanged()
+            .filter { isScrolling -> !isScrolling }
+            .collectLatest {
+                // Reading layoutInfo on every scroll frame is expensive. Pagination can wait until
+                // the gesture/fling settles; then we inspect the viewport once.
+                val layoutInfo = lazyListState.layoutInfo
+                val firstVisibleItemIndex = lazyListState.firstVisibleItemIndex
+                val visibleItemCount = layoutInfo.visibleItemsInfo.size
+                val totalItemCount = layoutInfo.totalItemsCount
+                if (firstVisibleItemIndex + visibleItemCount >= totalItemCount - 40) {
                     latestPrefetch()
                 }
             }
     }
 }
-
-private data class TimelineViewportInfo(
-    val firstVisibleItemIndex: Int,
-    val visibleItemCount: Int,
-    val totalItemCount: Int,
-)
 
 @Composable
 private fun BoxScope.TimelineScrollHelper(
@@ -370,7 +350,7 @@ private fun BoxScope.TimelineScrollHelper(
     LaunchedEffect(isScrollFinished, hasAnyEvent) {
         if (isScrollFinished && hasAnyEvent) {
             val settledIndex = lazyListState.firstVisibleItemIndex
-            delay(120.milliseconds)
+            delay(300.milliseconds)
             if (!lazyListState.isScrollInProgress && lazyListState.firstVisibleItemIndex == settledIndex && lastReportedScrollFinishIndex != settledIndex) {
                 lastReportedScrollFinishIndex = settledIndex
                 // Notify the parent composable about the first visible item index after the fling settles.

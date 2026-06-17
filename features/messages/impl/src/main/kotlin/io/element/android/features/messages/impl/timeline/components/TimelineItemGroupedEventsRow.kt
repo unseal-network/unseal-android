@@ -23,8 +23,6 @@ import io.element.android.features.messages.impl.timeline.aTimelineRoomInfo
 import io.element.android.features.messages.impl.timeline.components.event.TimelineItemEventContentView
 import io.element.android.features.messages.impl.timeline.components.group.GroupHeaderView
 import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
-import io.element.android.features.messages.impl.timeline.components.receipt.ReadReceiptViewState
-import io.element.android.features.messages.impl.timeline.components.receipt.TimelineItemReadReceiptView
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.timeline.protection.TimelineProtectionEvent
 import io.element.android.features.messages.impl.timeline.protection.TimelineProtectionState
@@ -193,16 +191,6 @@ private fun TimelineItemGroupedEventsRowContent(
                     )
                 }
             }
-        } else if (timelineItem.aggregatedReadReceipts.isNotEmpty()) {
-            TimelineItemReadReceiptView(
-                state = ReadReceiptViewState(
-                    sendState = null,
-                    isLastOutgoingMessage = false,
-                    receipts = timelineItem.aggregatedReadReceipts,
-                ),
-                renderReadReceipts = renderReadReceipts,
-                onReadReceiptsClick = onExpandGroupClick
-            )
         }
     }
 }

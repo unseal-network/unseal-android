@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.res.pluralStringResource
@@ -148,9 +149,11 @@ val SENDER_AVATAR_BORDER_WIDTH = 3.dp
 
 private val BUBBLE_INCOMING_OFFSET = 16.dp
 private val TIMELINE_ROW_HORIZONTAL_PADDING = 16.dp
-private val AI_SENDER_DETAILS_SPACING = 4.dp
-private val AI_INCOMING_CONTENT_START = TIMELINE_ROW_HORIZONTAL_PADDING + AvatarSize.TimelineSender.dp + AI_SENDER_DETAILS_SPACING
 private val AI_INCOMING_CONTENT_END = 16.dp
+
+// Content axis for incoming messages: aligns message content under the sender label.
+// Matches MessageSenderInformation layout: horizontal padding + avatar width + avatar→name gap.
+private val TIMELINE_INCOMING_CONTENT_START = TIMELINE_ROW_HORIZONTAL_PADDING + AvatarSize.TimelineSender.dp + 10.dp
 
 @Composable
 fun TimelineItemEventRow(
@@ -358,7 +361,7 @@ fun TimelineItemEventRow(
                 isLastOutgoingMessage = isLastOutgoingMessage,
                 receipts = event.readReceiptState.receipts,
             ),
-            renderReadReceipts = renderReadReceipts && event.content !is TimelineItemAiContent,
+            renderReadReceipts = renderReadReceipts && event.isMine && event.content !is TimelineItemAiContent,
             onReadReceiptsClick = { onReadReceiptClick(event) },
             modifier = Modifier.padding(top = 4.dp)
         )
@@ -375,15 +378,19 @@ private fun TimelineItemStandaloneRow(
     eventSink: (TimelineEvent.TimelineItemEvent) -> Unit,
     eventContentView: @Composable (Modifier, (ContentAvoidingLayoutData) -> Unit) -> Unit,
 ) {
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+    val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+    Box(modifier = Modifier.fillMaxWidth()) {
         val contentStartMargin = when {
-            timelineRoomInfo.isDm || maxWidth < 360.dp -> TIMELINE_ROW_HORIZONTAL_PADDING + AvatarSize.TimelineSender.dp
-            maxWidth < 430.dp -> AI_INCOMING_CONTENT_START + 4.dp
-            else -> AI_INCOMING_CONTENT_START + 16.dp
+            // Own messages that expose sender information must align their content under the sender
+            // name, not under the avatar. Only use the narrower margin for continuation messages
+            // (no sender info shown) so they can fill more horizontal space.
+            event.isMine && !presentation.showSenderInformation -> TIMELINE_ROW_HORIZONTAL_PADDING
+            screenWidth < 360.dp -> TIMELINE_INCOMING_CONTENT_START - 8.dp
+            else -> TIMELINE_INCOMING_CONTENT_START
         }
         val contentEndMargin = when {
-            maxWidth < 390.dp -> 32.dp
-            maxWidth < 600.dp -> 48.dp
+            screenWidth < 390.dp -> 32.dp
+            screenWidth < 600.dp -> 48.dp
             else -> 72.dp
         }
         Column(
@@ -396,7 +403,10 @@ private fun TimelineItemStandaloneRow(
                     event.senderProfile,
                     event.senderAvatar,
                     onUserDataClick,
-                    Modifier.padding(horizontal = TIMELINE_ROW_HORIZONTAL_PADDING),
+                    Modifier.padding(
+                        start = TIMELINE_ROW_HORIZONTAL_PADDING,
+                        end = contentEndMargin,
+                    ),
                 )
             }
 
@@ -560,7 +570,8 @@ private fun TimelineItemEventRowContent(
         start.linkTo(parent.start)
     }
 
-    BoxWithConstraints(
+    val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+    Box(
         modifier = modifier
             .wrapContentHeight()
             .fillMaxWidth(),
@@ -586,12 +597,12 @@ private fun TimelineItemEventRowContent(
             )
         }
         val standaloneContentStartMargin = when {
-            maxWidth < 360.dp -> TIMELINE_ROW_HORIZONTAL_PADDING + 28.dp
-            else -> AI_INCOMING_CONTENT_START
+            screenWidth < 360.dp -> TIMELINE_INCOMING_CONTENT_START - 8.dp
+            else -> TIMELINE_INCOMING_CONTENT_START
         }
         val standaloneContentEndMargin = when {
-            maxWidth < 390.dp -> 32.dp
-            maxWidth < 600.dp -> 48.dp
+            screenWidth < 390.dp -> 32.dp
+            screenWidth < 600.dp -> 48.dp
             else -> 64.dp
         }
 
@@ -619,6 +630,8 @@ private fun TimelineItemEventRowContent(
                         top.linkTo(parent.top)
                         // Required for correct RTL layout
                         start.linkTo(parent.start)
+                        end.linkTo(parent.end)
+                        width = Dimension.fillToConstraints
                     }
                     .padding(horizontal = 16.dp)
                     .zIndex(1f),
@@ -657,7 +670,7 @@ private fun TimelineItemEventRowContent(
                 }
             }
         if (presentation.isStandalone) {
-            BoxWithConstraints(
+            Box(
                 modifier = messageModifier,
                 contentAlignment = if (presentation.alignment == TimelineItemAlignment.End) Alignment.CenterEnd else Alignment.CenterStart,
             ) {
@@ -757,11 +770,8 @@ private fun MessageSenderInformation(
     val avatarColors = AvatarColorsProvider.provide(senderAvatar.id)
     Row(
         modifier = modifier
-            // Add external clickable modifier with no indicator so the touch target is larger than just the display name
-            .clickable(onClick = onClick, enabled = true, interactionSource = remember { MutableInteractionSource() }, indication = null)
-            .clearAndSetSemantics {
-                hideFromAccessibility()
-            }
+            .fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Avatar(
             modifier = Modifier
@@ -771,8 +781,10 @@ private fun MessageSenderInformation(
             avatarData = senderAvatar,
             avatarType = AvatarType.User,
         )
+        Spacer(modifier = Modifier.width(10.dp))
         SenderName(
             modifier = Modifier
+                .weight(1f, fill = false)
                 .testTag(TestTags.timelineItemSenderName)
                 .clip(RoundedCornerShape(6.dp))
                 .clickable(onClick = onClick)

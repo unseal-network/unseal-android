@@ -99,7 +99,7 @@ fun TimelineItemStateEventRow(
                 isLastOutgoingMessage = isLastOutgoingMessage,
                 receipts = event.readReceiptState.receipts,
             ),
-            renderReadReceipts = renderReadReceipts,
+            renderReadReceipts = renderReadReceipts && event.isMine,
             onReadReceiptsClick = { onReadReceiptsClick(event) },
         )
     }

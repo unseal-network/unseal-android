@@ -224,7 +224,10 @@ private fun RoomsViewList(
     modifier: Modifier = Modifier,
 ) {
     var openedSwipeRoomId by remember { mutableStateOf<String?>(null) }
-    OnVisibleRangeChangeEffect(lazyListState) { visibleRange ->
+    OnVisibleRangeChangeEffect(
+        lazyListState = lazyListState,
+        notifyWhileScrolling = false,
+    ) { visibleRange ->
         eventSink(RoomListEvent.UpdateVisibleRange(visibleRange))
     }
     LazyColumn(

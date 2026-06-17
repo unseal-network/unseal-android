@@ -8,10 +8,10 @@
 package io.element.android.features.messages.impl.timeline.components.event.toolcards
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -21,6 +21,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,7 +30,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import coil3.compose.SubcomposeAsyncImage
+import coil3.compose.AsyncImagePainter
+import coil3.compose.rememberAsyncImagePainter
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.META_TOOL_NAMES
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.TOOL_CARD_REGISTRY
 import org.json.JSONArray
@@ -164,22 +167,35 @@ internal fun <T> DividedList(items: List<T>, row: @Composable (T) -> Unit) {
 
 @Composable
 internal fun CardRemoteImage(url: String?, modifier: Modifier = Modifier, corner: Int = 6) {
+    val shape = RoundedCornerShape(corner.dp)
+    val placeholderColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
     if (url.isNullOrBlank()) {
         Box(
             modifier = modifier
-                .clip(RoundedCornerShape(corner.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
+                .clip(shape)
+                .background(placeholderColor),
         )
         return
     }
-    SubcomposeAsyncImage(
+    val painter = rememberAsyncImagePainter(
         model = url,
-        contentDescription = null,
         contentScale = ContentScale.Crop,
-        modifier = modifier.clip(RoundedCornerShape(corner.dp)),
-        loading = { Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))) },
-        error = { Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))) },
     )
+    val state by painter.state.collectAsState()
+    if (state is AsyncImagePainter.State.Success) {
+        Image(
+            painter = painter,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = modifier.clip(shape),
+        )
+    } else {
+        Box(
+            modifier = modifier
+                .clip(shape)
+                .background(placeholderColor),
+        )
+    }
 }
 
 @Composable

@@ -32,12 +32,10 @@ import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import io.element.android.appconfig.TimelineConfig
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.messages.impl.timeline.model.ReadReceiptData
 import io.element.android.libraries.designsystem.components.avatar.Avatar
-import io.element.android.libraries.designsystem.components.avatar.AvatarSize
 import io.element.android.libraries.designsystem.components.avatar.AvatarType
 import io.element.android.libraries.designsystem.components.avatar.getBestName
 import io.element.android.libraries.designsystem.preview.ElementPreview
@@ -50,6 +48,9 @@ import io.element.android.libraries.ui.strings.CommonPlurals
 import io.element.android.libraries.ui.strings.CommonStrings
 import kotlinx.collections.immutable.ImmutableList
 
+private val ReadReceiptAvatarSize = 10.dp
+private const val MaxInlineReadReceipts = 2
+
 @Composable
 fun TimelineItemReadReceiptView(
     state: ReadReceiptViewState,
@@ -58,26 +59,21 @@ fun TimelineItemReadReceiptView(
     modifier: Modifier = Modifier,
 ) {
     if (state.receipts.isNotEmpty()) {
+        if (!renderReadReceipts) return
         ReadReceiptsRow(
-            modifier = if (renderReadReceipts) {
-                modifier.clearAndSetSemantics {
-                    hideFromAccessibility()
-                }
-            } else {
-                modifier
+            modifier = modifier.clearAndSetSemantics {
+                hideFromAccessibility()
             }
         ) {
-            if (renderReadReceipts) {
-                ReadReceiptsAvatars(
-                    receipts = state.receipts,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable {
-                            onReadReceiptsClick()
-                        }
-                        .padding(2.dp)
-                )
-            }
+            ReadReceiptsAvatars(
+                receipts = state.receipts,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable {
+                        onReadReceiptsClick()
+                    }
+                    .padding(1.dp)
+            )
         }
     } else {
         when (state.sendState) {
@@ -119,8 +115,8 @@ private fun ReadReceiptsRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(AvatarSize.TimelineReadReceipt.dp + 8.dp)
-            .padding(horizontal = 18.dp),
+            .height(ReadReceiptAvatarSize + 4.dp)
+            .padding(horizontal = 28.dp),
         horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -138,7 +134,7 @@ private fun ReadReceiptsAvatars(
     receipts: ImmutableList<ReadReceiptData>,
     modifier: Modifier = Modifier
 ) {
-    val avatarSize = AvatarSize.TimelineReadReceipt.dp
+    val avatarSize = ReadReceiptAvatarSize
     val avatarStrokeSize = 1.dp
     val avatarStrokeColor = ElementTheme.colors.bgCanvasDefault
     val receiptDescription = computeReceiptDescription(receipts)
@@ -155,12 +151,12 @@ private fun ReadReceiptsAvatars(
             contentAlignment = Alignment.CenterEnd,
         ) {
             receipts
-                .take(TimelineConfig.MAX_READ_RECEIPT_TO_DISPLAY)
+                .take(MaxInlineReadReceipts)
                 .reversed()
                 .forEachIndexed { index, readReceiptData ->
                     Box(
                         modifier = Modifier
-                            .padding(end = (12.dp + avatarStrokeSize * 2) * index)
+                            .padding(end = (8.dp + avatarStrokeSize * 2) * index)
                             .size(size = avatarSize + avatarStrokeSize * 2)
                             .clip(CircleShape)
                             .background(avatarStrokeColor)
@@ -170,13 +166,14 @@ private fun ReadReceiptsAvatars(
                         Avatar(
                             avatarData = readReceiptData.avatarData,
                             avatarType = AvatarType.User,
+                            forcedAvatarSize = ReadReceiptAvatarSize,
                         )
                     }
                 }
         }
-        if (receipts.size > TimelineConfig.MAX_READ_RECEIPT_TO_DISPLAY) {
+        if (receipts.size > MaxInlineReadReceipts) {
             Text(
-                text = "+" + (receipts.size - TimelineConfig.MAX_READ_RECEIPT_TO_DISPLAY),
+                text = "+" + (receipts.size - MaxInlineReadReceipts),
                 style = ElementTheme.typography.fontBodyXsRegular,
                 color = ElementTheme.colors.textSecondary,
             )
