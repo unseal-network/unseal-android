@@ -76,6 +76,7 @@ fun ExpandableBottomSheetLayout(
     modifier: Modifier = Modifier,
     sheetShape: Shape = RectangleShape,
     backgroundColor: Color = Color.Transparent,
+    overlayBottomSheet: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     var minBottomContentHeightPx by remember { mutableIntStateOf(0) }
@@ -182,7 +183,11 @@ fun ExpandableBottomSheetLayout(
                 )
             )
 
-            var remainingHeight = constraints.maxHeight - currentBottomContentHeightPx
+            var remainingHeight = if (overlayBottomSheet) {
+                constraints.maxHeight
+            } else {
+                constraints.maxHeight - currentBottomContentHeightPx
+            }
             if (remainingHeight < 0) {
                 Timber.e("Remaining height is negative: $remainingHeight, resetting to 0")
                 remainingHeight = 0

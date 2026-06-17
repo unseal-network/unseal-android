@@ -428,6 +428,7 @@ fun MessagesView(
         } else {
             RectangleShape
         },
+        overlayBottomSheet = state.timelineState.timelineMode !is Timeline.Mode.Thread,
         maxBottomSheetContentHeight = maxComposerHeightPx.toDp(),
     )
 
