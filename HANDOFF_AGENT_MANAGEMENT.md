@@ -480,6 +480,9 @@ features/messages/impl/src/main/kotlin/io/element/android/features/messages/impl
 4. **Timeline 滚动收尾与恢复密钥卡片**：`TimelineScrollHelper` 的 `OnScrollFinished` 现在等待 fling settle 后再按 index 去重 emit，避免手势结束瞬间重复触发 read receipt / timeline 状态更新；`TimelineItemRoomKeyRecoveryView` 改成 standalone surface card，沿用 reducer 的 `TimelineContentKind.RoomKeyRecovery -> Standalone`，不再呈现为普通消息气泡。验证：`:features:messages:impl:testDebugUnitTest --tests TimelineItemRoomKeyRecoveryDisplayTest --tests TimelinePresentationReducerTest --tests JsonSpecRenderTest` + `:features:messages:impl:compileDebugKotlin` 通过。
 5. **真机逐卡核对**：用 §1.4 抓 `AiSdkStreamReducer` 日志，确认每个 cardType 的 payload 经 CardTransforms 后字段命中、内容与 iOS 一致（尤其 GitHub activity 类、composio search 富卡片）。
 
+**P0/P1 boundary update**
+- 2026-06-17：Game Picker presenter 已锁定 homeserver provider 数据流、app list/my-playing 加载、create-room 后必须等 `sendGameInviteMessage` 成功再 dismiss、发送失败保留 sheet + error、进入已有 playing room 时传递 matched remoteUrl + meetId；同一 `RoomGameApiServiceHandle` 不再重复拉取 app list/my-playing，避免 picker 打开时重复请求。验证：`:features:messages:impl:testDebugUnitTest --tests 'io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerPresenterTest'` 通过。剩余：分页、预览 UI、room menu entry 与真机截图验证。
+
 **P1 — 菜单打磨对齐**
 6. Credits 布局/图标/按钮继续对齐 iOS；Topup Stripe PaymentSheet bridge 已接官方 SDK 并完成 presenter 流程，Settings 余额刷新链路和 AI hub render model 已有 presenter/view/model 单测与真机入口截图验证。2026-06-17 已重跑 `CreditsPresenterTest` / `CreditsViewTest` / `CreditFormattersTest` / `TopupPresenterTest` 并通过；剩余是视觉/图标/按钮样式和真机截图 polish。
 7. Connectors 真实图标 + OAuth URL + 数据交互 + OAuth 返回后连接成功反馈已验证；剩余 iOS 撒花动效/最终视觉 polish 与设备截图。
