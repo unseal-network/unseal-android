@@ -437,12 +437,6 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
                 }
             }
         }
-        if (galleryUrls.size > 1) {
-            HotelImageStrip(
-                urls = galleryUrls,
-                onClick = { showGallery = true },
-            )
-        }
     }
     if (showGallery) {
         HotelImageDialog(

@@ -99,7 +99,7 @@ import io.element.android.wysiwyg.compose.EditorStyledText
 import io.element.android.wysiwyg.link.Link
 import org.json.JSONObject
 
-private val ToolCallContentMaxHeight = 360.dp
+private val ToolCallContentMaxHeight = 300.dp
 
 /**
  * Native (degraded) renderer for [TimelineItemAiContent]. Composes the AI stream sub-parts that
