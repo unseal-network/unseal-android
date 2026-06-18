@@ -8,19 +8,12 @@
 package io.element.android.features.skills.impl.shared
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
@@ -28,6 +21,7 @@ import io.element.android.libraries.designsystem.components.avatar.Avatar
 import io.element.android.libraries.designsystem.components.avatar.AvatarData
 import io.element.android.libraries.designsystem.components.avatar.AvatarSize
 import io.element.android.libraries.designsystem.components.avatar.AvatarType
+import io.element.android.libraries.designsystem.components.management.ManagementListRow
 
 @Composable
 fun SkillListRow(
@@ -36,22 +30,14 @@ fun SkillListRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val rowShape = RoundedCornerShape(16.dp)
-    Surface(
-        onClick = onClick,
+    ManagementListRow(
         modifier = modifier
-            .fillMaxWidth()
             .padding(vertical = 4.dp),
-        shape = rowShape,
-        color = MaterialTheme.colorScheme.surface,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.Top,
-        ) {
+        title = skill.name,
+        description = skill.description,
+        meta = skill.createdDateLabel()?.let { "创建时间：$it" },
+        onClick = onClick,
+        leadingContent = {
             Avatar(
                 avatarData = AvatarData(
                     id = skill.id,
@@ -62,45 +48,13 @@ fun SkillListRow(
                 avatarType = AvatarType.Room(),
                 forcedAvatarSize = 48.dp,
             )
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    Text(
-                        modifier = Modifier.weight(1f),
-                        text = skill.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (showVisibility) {
-                        skill.visibility?.let { SkillVisibilityBadge(it) }
-                    }
-                }
-                skill.description?.takeIf { it.isNotBlank() }?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                skill.createdDateLabel()?.let {
-                    Text(
-                        text = "创建时间：$it",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+        },
+        titleTrailingContent = {
+            if (showVisibility) {
+                skill.visibility?.let { SkillVisibilityBadge(it) }
             }
-        }
-    }
+        },
+    )
 }
 
 @Composable

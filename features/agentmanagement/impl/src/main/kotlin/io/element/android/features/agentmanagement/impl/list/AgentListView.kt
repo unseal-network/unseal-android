@@ -18,22 +18,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -57,6 +53,7 @@ import io.element.android.libraries.designsystem.components.avatar.Avatar
 import io.element.android.libraries.designsystem.components.avatar.AvatarData
 import io.element.android.libraries.designsystem.components.avatar.AvatarSize
 import io.element.android.libraries.designsystem.components.avatar.AvatarType
+import io.element.android.libraries.designsystem.components.management.ManagementListRow
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import kotlinx.collections.immutable.persistentListOf
@@ -111,16 +108,15 @@ fun AgentListView(
                 singleLine = true,
                 shape = RoundedCornerShape(28.dp),
             )
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
+            LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 96.dp),
             ) {
                 when {
-                    renderModel.isLoading && renderModel.items.isEmpty() -> items(count = 6) { AgentSkeletonCard() }
-                    renderModel.items.isEmpty() -> fullSpanItem {
+                    renderModel.isLoading && renderModel.items.isEmpty() -> items(count = 6) {
+                        AgentSkeletonRow(modifier = Modifier.padding(horizontal = 16.dp))
+                    }
+                    renderModel.items.isEmpty() -> item {
                         Text(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
                             text = renderModel.emptyLabel,
@@ -130,10 +126,12 @@ fun AgentListView(
                         )
                     }
                     else -> items(items = renderModel.items, key = { it.botName }) { agent ->
-                        AgentGridCard(
+                        AgentListRow(
+                            modifier = Modifier.padding(horizontal = 16.dp),
                             agent = agent,
                             onClick = { state.eventSink(AgentListEvents.SelectAgent(agent.botName)) },
                         )
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                     }
                 }
             }
@@ -141,22 +139,20 @@ fun AgentListView(
     }
 }
 
-private fun androidx.compose.foundation.lazy.grid.LazyGridScope.fullSpanItem(content: @Composable () -> Unit) {
-    item(span = { GridItemSpan(maxLineSpan) }) { content() }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AgentGridCard(agent: AgentListItemRenderModel, onClick: () -> Unit) {
-    ElevatedCard(
+private fun AgentListRow(
+    agent: AgentListItemRenderModel,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    ManagementListRow(
+        modifier = modifier.padding(vertical = 4.dp),
+        title = agent.title,
+        subtitle = agent.visibilityLabel,
+        description = agent.description,
+        meta = agent.relativeTimeLabel,
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp),
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
+        leadingContent = {
             Avatar(
                 avatarData = AvatarData(
                     id = agent.botName,
@@ -167,14 +163,8 @@ private fun AgentGridCard(agent: AgentListItemRenderModel, onClick: () -> Unit) 
                 avatarType = AvatarType.Room(),
                 forcedAvatarSize = 56.dp,
             )
-            Text(
-                text = agent.title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-            )
+        },
+        titleTrailingContent = {
             agent.providerModelLabel?.let { tag ->
                 Text(
                     modifier = Modifier
@@ -187,46 +177,15 @@ private fun AgentGridCard(agent: AgentListItemRenderModel, onClick: () -> Unit) 
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            agent.description?.let { desc ->
-                Text(
-                    text = desc,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                )
-            }
-            Spacer(modifier = Modifier.weight(1f))
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = if (agent.isPublic) CompoundIcons.Public() else CompoundIcons.Lock(),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(14.dp),
-                )
-                Spacer(modifier = Modifier.size(4.dp))
-                Text(
-                    text = agent.visibilityLabel,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                agent.relativeTimeLabel?.let { timeLabel ->
-                    Text(
-                        text = timeLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                    )
-                }
-            }
-        }
-    }
+        },
+        trailingContent = {
+            Icon(CompoundIcons.ChevronRight(), null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+        },
+    )
 }
 
 @Composable
-private fun AgentSkeletonCard() {
+private fun AgentSkeletonRow(modifier: Modifier = Modifier) {
     val transition = rememberInfiniteTransition(label = "skeleton")
     val alpha by transition.animateFloat(
         initialValue = 0.4f,
@@ -234,15 +193,18 @@ private fun AgentSkeletonCard() {
         animationSpec = infiniteRepeatable(animation = tween(900), repeatMode = RepeatMode.Reverse),
         label = "skeleton-alpha",
     )
-    ElevatedCard(modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp).alpha(alpha)) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Box(modifier = Modifier.size(56.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape))
-            Box(modifier = Modifier.size(width = 90.dp, height = 14.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp)))
-            Box(modifier = Modifier.size(width = 60.dp, height = 10.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp)))
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 14.dp)
+            .alpha(alpha),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(modifier = Modifier.size(56.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape))
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box(modifier = Modifier.size(width = 140.dp, height = 16.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp)))
+            Box(modifier = Modifier.size(width = 220.dp, height = 12.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp)))
         }
     }
 }

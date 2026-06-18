@@ -8,6 +8,10 @@
 
 package io.element.android.features.preferences.impl.root
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,13 +22,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -32,15 +38,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.preferences.impl.R
-import io.element.android.features.preferences.impl.user.UserPreferences
 import io.element.android.libraries.architecture.coverage.ExcludeFromCoverage
+import io.element.android.libraries.designsystem.components.avatar.Avatar
 import io.element.android.libraries.designsystem.components.avatar.AvatarSize
+import io.element.android.libraries.designsystem.components.avatar.AvatarType
 import io.element.android.libraries.designsystem.components.list.ListItemContent
 import io.element.android.libraries.designsystem.components.preferences.PreferencePage
 import io.element.android.libraries.designsystem.preview.ElementPreviewDark
@@ -63,6 +71,9 @@ import io.element.android.libraries.designsystem.utils.snackbar.rememberSnackbar
 import io.element.android.libraries.matrix.api.core.DeviceId
 import io.element.android.libraries.matrix.api.user.MatrixUser
 import io.element.android.libraries.matrix.ui.components.MatrixUserRow
+import io.element.android.libraries.matrix.ui.model.getAvatarData
+import io.element.android.libraries.matrix.ui.model.getBestName
+import io.element.android.libraries.qrcode.QrCodeImage
 import io.element.android.libraries.ui.strings.CommonStrings
 
 @Composable
@@ -97,6 +108,7 @@ fun PreferencesRootView(
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = rememberSnackbarHostState(snackbarMessage = state.snackbarMessage)
+    var isQrCodeDialogVisible by remember { mutableStateOf(false) }
 
     // Include pref from other modules
     PreferencePage(
@@ -127,6 +139,7 @@ fun PreferencesRootView(
                 SettingsUserHeader(
                     matrixUser = state.myUser,
                     onClick = { onOpenUserProfile(state.myUser) },
+                    onQrCodeClick = { isQrCodeDialogVisible = true },
                 )
                 if (state.isMultiAccountEnabled) {
                     MultiAccountSection(
@@ -222,6 +235,12 @@ fun PreferencesRootView(
             )
         }
     }
+    if (isQrCodeDialogVisible) {
+        UserQrCodeDialog(
+            matrixUser = state.myUser,
+            onDismiss = { isQrCodeDialogVisible = false },
+        )
+    }
 }
 
 @Composable
@@ -315,12 +334,14 @@ private fun SettingsSectionHeader(
 
 /**
  * Profile header (mirrors iOS): avatar + display name + matrix id, with trailing "copy id" and
- * "QR code" icon buttons. Tapping the row (or the QR button) opens the full user profile.
+ * "QR code" icon buttons. Tapping the row opens the full user profile; tapping the QR button shows
+ * this account's QR code.
  */
 @Composable
 private fun SettingsUserHeader(
     matrixUser: MatrixUser,
     onClick: () -> Unit,
+    onQrCodeClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -328,13 +349,34 @@ private fun SettingsUserHeader(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(end = 8.dp),
+            .padding(start = 16.dp, end = 8.dp, top = 13.dp, bottom = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        UserPreferences(
-            modifier = Modifier.weight(1f),
-            matrixUser = matrixUser,
+        Avatar(
+            avatarData = matrixUser.getAvatarData(size = AvatarSize.UserPreference),
+            avatarType = AvatarType.User,
+            contentDescription = matrixUser.getBestName(),
         )
+        Spacer(modifier = Modifier.width(13.dp))
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = matrixUser.getBestName(),
+                style = ElementTheme.typography.fontBodyLgMedium,
+                color = ElementTheme.colors.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = matrixUser.userId.value,
+                style = ElementTheme.typography.fontBodyMdRegular,
+                color = ElementTheme.colors.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
         IconButton(
             onClick = {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -349,7 +391,7 @@ private fun SettingsUserHeader(
                 tint = ElementTheme.colors.iconSecondary,
             )
         }
-        IconButton(onClick = onClick) {
+        IconButton(onClick = onQrCodeClick) {
             Icon(
                 imageVector = CompoundIcons.QrCode(),
                 contentDescription = stringResource(id = CommonStrings.a11y_qr_code),
@@ -357,6 +399,58 @@ private fun SettingsUserHeader(
             )
         }
     }
+}
+
+@Composable
+private fun UserQrCodeDialog(
+    matrixUser: MatrixUser,
+    onDismiss: () -> Unit,
+) {
+    val qrCodeData = remember(matrixUser.userId) {
+        "https://matrix.to/#/${Uri.encode(matrixUser.userId.value)}"
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = stringResource(id = CommonStrings.a11y_qr_code),
+                style = ElementTheme.typography.fontHeadingSmMedium,
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Surface(
+                    color = ElementTheme.colors.bgCanvasDefault,
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    QrCodeImage(
+                        data = qrCodeData,
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .size(220.dp),
+                    )
+                }
+                Text(
+                    text = matrixUser.userId.value,
+                    style = ElementTheme.typography.fontBodyMdRegular,
+                    color = ElementTheme.colors.textSecondary,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                text = stringResource(id = CommonStrings.action_close),
+                onClick = onDismiss,
+            )
+        },
+    )
 }
 
 /**

@@ -5,16 +5,15 @@
  * Please see LICENSE files in the repository root for full details.
  */
 
-@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@file:OptIn(ExperimentalMaterial3Api::class)
 
 package io.element.android.features.skills.impl.agentskills
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -40,6 +39,7 @@ import io.element.android.libraries.designsystem.components.avatar.Avatar
 import io.element.android.libraries.designsystem.components.avatar.AvatarData
 import io.element.android.libraries.designsystem.components.avatar.AvatarSize
 import io.element.android.libraries.designsystem.components.avatar.AvatarType
+import io.element.android.libraries.designsystem.components.management.ManagementListRow
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import kotlinx.collections.immutable.persistentListOf
@@ -49,15 +49,13 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 
@@ -111,23 +109,10 @@ fun AgentSkillsView(
             contentPadding = PaddingValues(bottom = 24.dp),
         ) {
             item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    FilterChip(
-                        selected = state.selectedTab == AgentSkillsTab.Mine,
-                        onClick = { state.eventSink(AgentSkillsEvents.SelectTab(AgentSkillsTab.Mine)) },
-                        label = { Text("我的") },
-                    )
-                    FilterChip(
-                        selected = state.selectedTab == AgentSkillsTab.Public,
-                        onClick = { state.eventSink(AgentSkillsEvents.SelectTab(AgentSkillsTab.Public)) },
-                        label = { Text("公开") },
-                    )
-                }
+                AgentSkillsTabPicker(
+                    selectedTab = state.selectedTab,
+                    onSelect = { state.eventSink(AgentSkillsEvents.SelectTab(it)) },
+                )
             }
             item {
                 OutlinedTextField(
@@ -185,11 +170,12 @@ private fun androidx.compose.foundation.lazy.LazyListScope.mineSkills(state: Age
         skills.isEmpty() -> item { EmptyRow("暂无技能") }
         else -> items(items = skills, key = { "mine-${it.id}" }) { skill ->
             SelectableSkillRow(
+                modifier = Modifier.padding(horizontal = 16.dp),
                 skill = skill,
                 selected = skill.id in state.selectedSkillIds,
                 onToggle = { state.eventSink(AgentSkillsEvents.ToggleSkill(skill)) },
             )
-            HorizontalDivider(modifier = Modifier.padding(start = 72.dp))
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
         }
     }
 }
@@ -211,11 +197,12 @@ private fun androidx.compose.foundation.lazy.LazyListScope.publicSkills(state: A
         else -> {
             items(items = state.publicSkills, key = { "public-${it.id}" }) { skill ->
                 SelectableSkillRow(
+                    modifier = Modifier.padding(horizontal = 16.dp),
                     skill = skill,
                     selected = skill.id in state.selectedSkillIds,
                     onToggle = { state.eventSink(AgentSkillsEvents.ToggleSkill(skill)) },
                 )
-                HorizontalDivider(modifier = Modifier.padding(start = 72.dp))
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             }
             if (state.publicHasMore) {
                 item {
@@ -241,24 +228,56 @@ private fun androidx.compose.foundation.lazy.LazyListScope.publicSkills(state: A
 }
 
 @Composable
+private fun AgentSkillsTabPicker(
+    selectedTab: AgentSkillsTab,
+    onSelect: (AgentSkillsTab) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(percent = 50))
+            .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        listOf(AgentSkillsTab.Mine to "我的", AgentSkillsTab.Public to "公开").forEach { (tab, label) ->
+            val selected = selectedTab == tab
+            Surface(
+                modifier = Modifier.weight(1f),
+                onClick = { onSelect(tab) },
+                shape = RoundedCornerShape(percent = 50),
+                color = if (selected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+            ) {
+                Text(
+                    modifier = Modifier.padding(vertical = 7.dp),
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun SelectableSkillRow(
+    modifier: Modifier = Modifier,
     skill: ChatbotUserSkill,
     selected: Boolean,
     onToggle: () -> Unit,
 ) {
-    ListItem(
-        modifier = Modifier.clickable(onClick = onToggle),
-        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
+    ManagementListRow(
+        modifier = modifier.padding(vertical = 4.dp),
+        title = skill.name,
+        description = skill.description,
+        onClick = onToggle,
         leadingContent = {
             Avatar(
                 avatarData = AvatarData(skill.id, skill.name, null, AvatarSize.RoomListItem),
                 avatarType = AvatarType.Room(),
-                forcedAvatarSize = 40.dp,
+                forcedAvatarSize = 48.dp,
             )
-        },
-        headlineContent = { Text(skill.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        supportingContent = skill.description?.takeIf { it.isNotBlank() }?.let {
-            { Text(it, maxLines = 2, overflow = TextOverflow.Ellipsis) }
         },
         trailingContent = {
             Checkbox(checked = selected, onCheckedChange = { onToggle() })

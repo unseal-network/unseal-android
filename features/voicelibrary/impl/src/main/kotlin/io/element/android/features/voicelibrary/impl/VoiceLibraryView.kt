@@ -79,6 +79,7 @@ import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotProviderVoice
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceProfile
 import io.element.android.libraries.designsystem.components.media.WaveformPlaybackView
+import io.element.android.libraries.designsystem.components.management.ManagementListRow
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import kotlinx.collections.immutable.ImmutableList
@@ -313,40 +314,31 @@ private fun MyVoices(state: VoiceLibraryState) {
 
 @Composable
 private fun CreateVoiceRow(state: VoiceLibraryState) {
-    Surface(
+    ManagementListRow(
         modifier = Modifier
-            .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        shape = RoundedCornerShape(16.dp),
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = CompoundIcons.MicOn(),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSecondaryContainer,
-            )
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = "创建语音克隆",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
-                Text(
-                    text = "录制一段样本并上传到语音库",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.78f),
+        title = "创建语音克隆",
+        description = "录制一段样本并上传到语音库",
+        leadingContent = {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = CompoundIcons.MicOn(),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
             }
+        },
+        trailingContent = {
             FilledTonalButton(onClick = { state.eventSink(VoiceLibraryEvents.ShowCreateVoice) }) {
                 Text("录制")
             }
-        }
-    }
+        },
+    )
 }
 
 @Composable
@@ -653,60 +645,36 @@ private fun RecordingWaveformPreview(
 @Composable
 private fun ProfileRow(state: VoiceLibraryState, profile: ChatbotVoiceProfile) {
     val isBusy = state.busyId == profile.id
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        VoiceThumbnail(seed = profile.id)
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Text(
-                text = profile.displayName,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = "${profile.sourceType.replace('_', ' ')} · ${profile.provider}".trim().trimStart('·', ' '),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            profile.description?.takeIf { it.isNotBlank() }?.let { desc ->
-                Text(
-                    text = desc,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        PreviewControl(state = state, item = VoiceLibraryPreviewItem.fromProfile(profile))
-        if (state.deleteConfirmationProfileId == profile.id) {
-            Column(horizontalAlignment = Alignment.End) {
-                TextButton(onClick = { state.eventSink(VoiceLibraryEvents.ConfirmDelete) }) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
-                }
-                TextButton(onClick = { state.eventSink(VoiceLibraryEvents.CancelDelete) }) {
-                    Text("取消")
+    ManagementListRow(
+        modifier = Modifier.padding(vertical = 4.dp),
+        title = profile.displayName,
+        subtitle = "${profile.sourceType.replace('_', ' ')} · ${profile.provider}".trim().trimStart('·', ' '),
+        description = profile.description,
+        leadingContent = {
+            VoiceThumbnail(seed = profile.id)
+        },
+        trailingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                PreviewControl(state = state, item = VoiceLibraryPreviewItem.fromProfile(profile))
+                if (state.deleteConfirmationProfileId == profile.id) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        TextButton(onClick = { state.eventSink(VoiceLibraryEvents.ConfirmDelete) }) {
+                            Text("删除", color = MaterialTheme.colorScheme.error)
+                        }
+                        TextButton(onClick = { state.eventSink(VoiceLibraryEvents.CancelDelete) }) {
+                            Text("取消")
+                        }
+                    }
+                } else {
+                    ProfileOverflowMenu(
+                        enabled = !isBusy,
+                        onShare = { state.eventSink(VoiceLibraryEvents.ShareVoice(profile.id)) },
+                        onDelete = { state.eventSink(VoiceLibraryEvents.RequestDelete(profile.id)) },
+                    )
                 }
             }
-        } else {
-            ProfileOverflowMenu(
-                enabled = !isBusy,
-                onShare = { state.eventSink(VoiceLibraryEvents.ShareVoice(profile.id)) },
-                onDelete = { state.eventSink(VoiceLibraryEvents.RequestDelete(profile.id)) },
-            )
-        }
-    }
+        },
+    )
 }
 
 @Composable
@@ -769,62 +737,37 @@ private fun PublicVoices(state: VoiceLibraryState) {
 private fun CatalogRow(state: VoiceLibraryState, voice: ChatbotProviderVoice) {
     val isSaved = state.profiles.any { it.provider == voice.provider && it.providerVoiceId == voice.providerVoiceId }
     val isBusy = state.busyId == voice.providerVoiceId
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        VoiceThumbnail(seed = voice.providerVoiceId)
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    modifier = Modifier.weight(1f, fill = false),
-                    text = voice.displayName,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (isSaved) {
-                    SavedBadge()
+    ManagementListRow(
+        modifier = Modifier.padding(vertical = 4.dp),
+        title = voice.displayName,
+        subtitle = voice.provider,
+        description = voice.description,
+        leadingContent = {
+            VoiceThumbnail(seed = voice.providerVoiceId)
+        },
+        titleTrailingContent = {
+            if (isSaved) {
+                SavedBadge()
+            }
+        },
+        trailingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                PreviewControl(state = state, item = VoiceLibraryPreviewItem.fromProviderVoice(voice))
+                FilledTonalButton(
+                    enabled = !isSaved && !isBusy,
+                    onClick = { state.eventSink(VoiceLibraryEvents.SaveVoice(voice)) },
+                ) {
+                    Text(
+                        when {
+                            isSaved -> "已保存"
+                            isBusy -> "保存中…"
+                            else -> "保存"
+                        }
+                    )
                 }
             }
-            Text(
-                text = voice.provider,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            voice.description?.takeIf { it.isNotBlank() }?.let { desc ->
-                Text(
-                    text = desc,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        PreviewControl(state = state, item = VoiceLibraryPreviewItem.fromProviderVoice(voice))
-        FilledTonalButton(
-            enabled = !isSaved && !isBusy,
-            onClick = { state.eventSink(VoiceLibraryEvents.SaveVoice(voice)) },
-        ) {
-            Text(
-                when {
-                    isSaved -> "已保存"
-                    isBusy -> "保存中…"
-                    else -> "保存"
-                }
-            )
-        }
-    }
+        },
+    )
 }
 
 /**
