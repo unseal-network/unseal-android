@@ -106,6 +106,7 @@ import io.element.android.libraries.preferences.test.InMemorySessionPreferencesS
 import io.element.android.libraries.push.test.notifications.conversations.FakeNotificationConversationService
 import io.element.android.libraries.slashcommands.api.SlashCommand
 import io.element.android.libraries.slashcommands.api.SlashCommandService
+import io.element.android.libraries.slashcommands.api.SlashCommandSuggestion
 import io.element.android.libraries.slashcommands.test.FakeSlashCommandService
 import io.element.android.libraries.textcomposer.mentions.MentionSpanProvider
 import io.element.android.libraries.textcomposer.mentions.MentionSpanTheme
@@ -1356,6 +1357,96 @@ class MessageComposerPresenterTest {
         }
     }
 
+    @Test
+    fun `present - plain InsertSuggestion for agent mention opens skill picker and loads catalog`() = runTest {
+        val agentUserId = UserId("@mail-agent:server.org")
+        val roomUnsealContextStore = FakeRoomUnsealContextStore(
+            initialContext = AsyncData.Success(roomUnsealContextWithAgent(agentUserId))
+        )
+        val roomUnsealDataClient = FakeRoomUnsealDataClient().apply {
+            roomAgentSkillsResult = { _, _, _ ->
+                Result.success(listOf(RoomAgentSkillDescriptor(id = "skill-mail", name = "mail", description = null, runtimeVisible = true)))
+            }
+        }
+        val presenter = createPresenter(
+            isRichTextEditorEnabled = false,
+            roomUnsealContextStore = roomUnsealContextStore,
+            roomUnsealDataClient = roomUnsealDataClient,
+        )
+
+        presenter.test {
+            val initialState = awaitFirstItem()
+            initialState.textEditorState.setMarkdown("Ask @mail")
+            (initialState.textEditorState as TextEditorState.Markdown).state.currentSuggestion = Suggestion(4, 9, SuggestionType.Mention, "mail")
+            initialState.eventSink(
+                MessageComposerEvent.InsertSuggestion(
+                    ResolvedSuggestion.Member(
+                        aRoomMember(userId = agentUserId, displayName = "Mail Agent")
+                    )
+                )
+            )
+
+            var state = awaitItem()
+            repeat(8) {
+                if (state.agentSkillState.isPresented && state.agentSkillState.candidates.isNotEmpty()) return@repeat
+                state = awaitItem()
+            }
+
+            assertThat(state.agentSkillState.isPresented).isTrue()
+            assertThat(state.agentSkillState.targets.map { it.mxid }).containsExactly(agentUserId.value)
+            assertThat(state.agentSkillState.candidates.single().skillName).isEqualTo("mail")
+            assertThat(roomUnsealDataClient.roomAgentSkillRequests.map { it.agentId }).contains(agentUserId.value)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - direct room slash opens skill picker instead of slash suggestions`() = runTest {
+        val agentUserId = UserId("@mail-agent:server.org")
+        val room = FakeJoinedRoom(
+            baseRoom = FakeBaseRoom(initialRoomInfo = aRoomInfo(isDm = true)),
+            typingNoticeResult = { Result.success(Unit) },
+        )
+        val roomUnsealContextStore = FakeRoomUnsealContextStore(
+            initialContext = AsyncData.Success(roomUnsealContextWithAgent(agentUserId))
+        )
+        val roomUnsealDataClient = FakeRoomUnsealDataClient().apply {
+            roomAgentSkillsResult = { _, _, _ ->
+                Result.success(listOf(RoomAgentSkillDescriptor(id = "skill-mail", name = "mail", description = null, runtimeVisible = true)))
+            }
+        }
+        val presenter = createPresenter(
+            room = room,
+            isRichTextEditorEnabled = false,
+            roomUnsealContextStore = roomUnsealContextStore,
+            roomUnsealDataClient = roomUnsealDataClient,
+            slashCommandService = FakeSlashCommandService(
+                getSuggestionsResult = { _, _ ->
+                    listOf(SlashCommandSuggestion(command = "/join", parameters = null, description = "Join room"))
+                },
+            ),
+        )
+
+        presenter.test {
+            val initialState = awaitFirstItem()
+            initialState.textEditorState.setMarkdown("/")
+            (initialState.textEditorState as TextEditorState.Markdown).state.currentSuggestion = Suggestion(0, 1, SuggestionType.Command, "")
+            initialState.eventSink(MessageComposerEvent.SuggestionReceived(Suggestion(0, 1, SuggestionType.Command, "")))
+
+            var state = awaitItem()
+            repeat(8) {
+                if (state.agentSkillState.isPresented && state.agentSkillState.candidates.isNotEmpty()) return@repeat
+                state = awaitItem()
+            }
+
+            assertThat(state.suggestions).isEmpty()
+            assertThat(state.agentSkillState.isPresented).isTrue()
+            assertThat(state.agentSkillState.targets.map { it.mxid }).containsExactly(agentUserId.value)
+            assertThat(state.agentSkillState.candidates.single().skillName).isEqualTo("mail")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun `present - send messages with intentional mentions`() = runTest {
@@ -1855,6 +1946,32 @@ class MessageComposerPresenterTest {
     private suspend fun <T> ReceiveTurbine<T>.awaitFirstItem(): T {
         skipItems(1)
         return awaitItem()
+    }
+
+    private fun roomUnsealContextWithAgent(agentUserId: UserId): RoomUnsealContext {
+        return RoomUnsealContext.from(
+            roomId = A_ROOM_ID,
+            members = listOf(
+                aRoomMember(userId = A_USER_ID, displayName = "Me"),
+                aRoomMember(userId = agentUserId, displayName = "Mail Agent"),
+            ),
+            snapshot = RoomUnsealDataSnapshot(
+                allAgents = RoomUnsealResource.success(
+                    listOf(
+                        AgentAccountDescriptor(
+                            botName = "mail-agent",
+                            localpart = "mail-agent",
+                            serverName = "server.org",
+                            matrixUserId = agentUserId.value,
+                            displayName = "Mail Agent",
+                            avatarUrl = null,
+                            isDeviceAgent = false,
+                            boundDeviceId = null,
+                        )
+                    )
+                )
+            ),
+        )
     }
 }
 

@@ -272,6 +272,36 @@ class MessageComposerPresenter(
         var activeAgentSkillMxid by remember { mutableStateOf<String?>(null) }
         var agentSkillCatalogError by remember { mutableStateOf<String?>(null) }
         var isAgentSkillCatalogLoading by remember { mutableStateOf(false) }
+        fun clearComposerSuggestions() {
+            suggestionSearchTrigger.value = null
+            suggestions.clear()
+            suggestionRenderModels.clear()
+        }
+        fun presentAgentSkillPickerForAgent(agent: ComposerAgentDescriptor) {
+            pinnedAgentSkillTarget = agent
+            activeAgentSkillMxid = agent.mxid
+            isAgentSkillPickerPresented = true
+            clearComposerSuggestions()
+        }
+        fun presentDirectAgentSkillPicker() {
+            val target = effectiveBaseAgentSkillState.targets.firstOrNull()
+            if (target == null) {
+                localCoroutineScope.launch {
+                    roomUnsealContextStore.refresh(RoomUnsealRefreshReason.ComposerMentionStarted)
+                }
+                clearComposerSuggestions()
+                return
+            }
+            activeAgentSkillMxid = target.mxid
+            isAgentSkillPickerPresented = true
+            clearComposerSuggestions()
+        }
+        fun isDirectSkillSlashSuggestion(suggestion: Suggestion?): Boolean {
+            return roomInfo.isDm &&
+                suggestion?.type == SuggestionType.Command &&
+                suggestion.start == 0 &&
+                suggestion.text.isEmpty()
+        }
         LaunchedEffect(roomUnsealContextState, effectiveBaseAgentSkillState.targets, roomInfo.isDm, room.sessionId) {
             val context = roomUnsealContextState.dataOrNull()
             if (context == null || effectiveBaseAgentSkillState.targets.isEmpty()) {
@@ -335,6 +365,7 @@ class MessageComposerPresenter(
             if (roomInfo.isDm && composerTextSnapshot.trim() == "/" && effectiveBaseAgentSkillState.targets.isNotEmpty()) {
                 activeAgentSkillMxid = effectiveBaseAgentSkillState.targets.first().mxid
                 isAgentSkillPickerPresented = true
+                clearComposerSuggestions()
             } else if (ComposerAgentSkillReducer.hasUnresolvedTargets(effectiveBaseAgentSkillState.targets, selectedAgentSkills)) {
                 isAgentSkillPickerPresented = true
             } else if (effectiveBaseAgentSkillState.targets.isEmpty() && selectedAgentSkills.isEmpty()) {
@@ -474,7 +505,11 @@ class MessageComposerPresenter(
                     }
                 }
                 is MessageComposerEvent.SuggestionReceived -> {
-                    suggestionSearchTrigger.value = event.suggestion
+                    if (isDirectSkillSlashSuggestion(event.suggestion)) {
+                        presentDirectAgentSkillPicker()
+                    } else {
+                        suggestionSearchTrigger.value = event.suggestion
+                    }
                 }
                 is MessageComposerEvent.InsertSuggestion -> {
                     localCoroutineScope.launch {
@@ -486,11 +521,7 @@ class MessageComposerPresenter(
                                 is ResolvedSuggestion.Member -> {
                                     roomUnsealContextState.dataOrNull()
                                         ?.let { context -> ComposerAgentSkillReducer.agentDescriptorForUser(context, suggestion.roomMember.userId.value) }
-                                        ?.let { agent ->
-                                            pinnedAgentSkillTarget = agent
-                                            activeAgentSkillMxid = agent.mxid
-                                            isAgentSkillPickerPresented = true
-                                        }
+                                        ?.let(::presentAgentSkillPickerForAgent)
                                     val text = suggestion.roomMember.displayName ?: suggestion.roomMember.userId.value
                                     val link = permalinkBuilder.permalinkForUser(suggestion.roomMember.userId).getOrNull() ?: return@launch
                                     richTextEditorState.insertMentionAtSuggestion(text = text, link = link)
@@ -504,21 +535,19 @@ class MessageComposerPresenter(
                                     richTextEditorState.replaceSuggestion(suggestion.command.command)
                                 }
                             }
-                        } else if (markdownTextEditorState.currentSuggestion != null) {
+                        } else {
                             if (event.resolvedSuggestion is ResolvedSuggestion.Member) {
                                 roomUnsealContextState.dataOrNull()
                                     ?.let { context -> ComposerAgentSkillReducer.agentDescriptorForUser(context, event.resolvedSuggestion.roomMember.userId.value) }
-                                    ?.let { agent ->
-                                        pinnedAgentSkillTarget = agent
-                                        activeAgentSkillMxid = agent.mxid
-                                        isAgentSkillPickerPresented = true
-                                    }
+                                    ?.let(::presentAgentSkillPickerForAgent)
                             }
-                            markdownTextEditorState.insertSuggestion(
-                                resolvedSuggestion = event.resolvedSuggestion,
-                                mentionSpanProvider = mentionSpanProvider,
-                            )
-                            suggestionSearchTrigger.value = null
+                            if (markdownTextEditorState.currentSuggestion != null) {
+                                markdownTextEditorState.insertSuggestion(
+                                    resolvedSuggestion = event.resolvedSuggestion,
+                                    mentionSpanProvider = mentionSpanProvider,
+                                )
+                                suggestionSearchTrigger.value = null
+                            }
                         }
                     }
                 }
@@ -540,6 +569,7 @@ class MessageComposerPresenter(
                     isAgentSkillPickerPresented = !isAgentSkillPickerPresented
                     if (isAgentSkillPickerPresented && activeAgentSkillMxid == null) {
                         activeAgentSkillMxid = effectiveBaseAgentSkillState.targets.firstOrNull()?.mxid
+                        clearComposerSuggestions()
                     } else if (!isAgentSkillPickerPresented) {
                         pinnedAgentSkillTarget = null
                     }
@@ -547,6 +577,7 @@ class MessageComposerPresenter(
                 is MessageComposerEvent.SelectAgentSkillTarget -> {
                     activeAgentSkillMxid = event.agentMxid
                     isAgentSkillPickerPresented = true
+                    clearComposerSuggestions()
                 }
                 is MessageComposerEvent.SelectAgentSkill -> {
                     if (!event.candidate.runtimeVisible) return
