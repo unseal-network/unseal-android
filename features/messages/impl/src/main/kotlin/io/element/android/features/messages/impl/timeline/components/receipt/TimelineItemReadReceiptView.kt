@@ -59,21 +59,26 @@ fun TimelineItemReadReceiptView(
     modifier: Modifier = Modifier,
 ) {
     if (state.receipts.isNotEmpty()) {
-        if (!renderReadReceipts) return
         ReadReceiptsRow(
-            modifier = modifier.clearAndSetSemantics {
-                hideFromAccessibility()
+            modifier = if (renderReadReceipts) {
+                modifier.clearAndSetSemantics {
+                    hideFromAccessibility()
+                }
+            } else {
+                modifier
             }
         ) {
-            ReadReceiptsAvatars(
-                receipts = state.receipts,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .clickable {
-                        onReadReceiptsClick()
-                    }
-                    .padding(1.dp)
-            )
+            if (renderReadReceipts) {
+                ReadReceiptsAvatars(
+                    receipts = state.receipts,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickable {
+                            onReadReceiptsClick()
+                        }
+                        .padding(1.dp)
+                )
+            }
         }
     } else {
         when (state.sendState) {
@@ -200,6 +205,50 @@ private fun computeReceiptDescription(receipts: ImmutableList<ReadReceiptData>):
             receipts[0].avatarData.getBestName(),
             receipts.size - 1
         )
+    }
+}
+
+/**
+ * Compact receipt indicator rendered inline next to the message timestamp.
+ * Only renders when there is something to show (receipts, sending, or last-sent check).
+ */
+@Composable
+internal fun InlineReadReceiptView(
+    state: ReadReceiptViewState,
+    renderReadReceipts: Boolean,
+    onReadReceiptsClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    when {
+        // Read-by avatars are gated on the privacy setting; the send-state indicator below is not,
+        // so an own message always shows at least its sending/sent status (mirrors TimelineItemReadReceiptView).
+        renderReadReceipts && state.receipts.isNotEmpty() -> {
+            ReadReceiptsAvatars(
+                receipts = state.receipts,
+                modifier = modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable { onReadReceiptsClick() }
+                    .padding(1.dp)
+            )
+        }
+        state.sendState is LocalEventSendState.Sending -> {
+            Icon(
+                modifier = modifier.size(ReadReceiptAvatarSize),
+                imageVector = CompoundIcons.Circle(),
+                contentDescription = null,
+                tint = ElementTheme.colors.iconSecondary,
+            )
+        }
+        state.sendState == null || state.sendState is LocalEventSendState.Sent -> {
+            if (state.isLastOutgoingMessage) {
+                Icon(
+                    modifier = modifier.size(ReadReceiptAvatarSize),
+                    imageVector = CompoundIcons.CheckCircle(),
+                    contentDescription = null,
+                    tint = ElementTheme.colors.iconSecondary,
+                )
+            }
+        }
     }
 }
 

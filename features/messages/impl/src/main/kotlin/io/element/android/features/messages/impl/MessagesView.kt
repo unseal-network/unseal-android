@@ -67,7 +67,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
+
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.onSizeChanged
@@ -84,6 +84,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
@@ -198,6 +199,10 @@ fun MessagesView(
 
     var maxComposerHeightPx by remember { mutableIntStateOf(120) }
 
+    val density = LocalDensity.current
+    var composerHeightDp by remember { mutableStateOf(80.dp) }
+    var topBarHeightDp by remember { mutableStateOf(52.dp) }
+
     // This is needed because the composer is inside an AndroidView that can't be affected by the FocusManager in Compose
     val localView = LocalView.current
 
@@ -306,23 +311,21 @@ fun MessagesView(
                             forceJumpToBottomVisibility = forceJumpToBottomVisibility,
                             onViewAllPinnedMessagesClick = onViewAllPinnedMessagesClick,
                             knockRequestsBannerView = knockRequestsBannerView,
+                            // Let the newest message peek ~32dp behind the composer's transparent top
+                            // (the not-encrypted badge / padding region, which is Compose) for a light
+                            // floating feel — without overlapping the composer's EditText AndroidView,
+                            // which is what made full-height scrolling janky.
+                            composerBottomInset = maxOf(0.dp, composerHeightDp - 32.dp),
+                            topChromeInset = topBarHeightDp + 8.dp,
                         )
 
                         if (state.timelineState.timelineMode !is Timeline.Mode.Thread) {
-                            TopChromeBackdrop(
+                            MessagesViewTopBar(
                                 modifier = Modifier
                                     .align(Alignment.TopStart)
-                                    .fillMaxWidth()
-                                    .height(152.dp),
-                            )
-                            BottomChromeBackdrop(
-                                modifier = Modifier
-                                    .align(Alignment.BottomStart)
-                                    .fillMaxWidth()
-                                    .height(112.dp),
-                            )
-                            MessagesViewTopBar(
-                                modifier = Modifier.align(Alignment.TopStart),
+                                    .onSizeChanged { size ->
+                                        topBarHeightDp = with(density) { size.height.toDp() }
+                                    },
                                 roomName = state.roomName,
                                 roomAvatar = state.roomAvatar,
                                 isTombstoned = state.isTombstoned,
@@ -351,6 +354,7 @@ fun MessagesView(
                                 }
                             )
                         }
+
 
                         SuggestionsPickerView(
                             modifier = Modifier
@@ -392,6 +396,7 @@ fun MessagesView(
                 onRoomSuccessorClick = { roomId ->
                     state.timelineState.eventSink(TimelineEvent.NavigateToPredecessorOrSuccessorRoom(roomId = roomId))
                 },
+                onHeightChanged = { composerHeightDp = it },
             )
         },
         sheetDragHandle = @Composable { toggleAction ->
@@ -897,6 +902,8 @@ private fun MessagesViewContent(
     onViewAllPinnedMessagesClick: () -> Unit,
     forceJumpToBottomVisibility: Boolean,
     onSwipeToReply: (TimelineItem.Event) -> Unit,
+    composerBottomInset: Dp = 88.dp,
+    topChromeInset: Dp = 132.dp,
     modifier: Modifier = Modifier,
     knockRequestsBannerView: @Composable () -> Unit,
 ) {
@@ -952,6 +959,8 @@ private fun MessagesViewContent(
                 forceJumpToBottomVisibility = forceJumpToBottomVisibility,
                 nestedScrollConnection = scrollBehavior.nestedScrollConnection,
                 floatingDateTopOffset = pinnedBannerHeightDp,
+                composerBottomInset = composerBottomInset,
+                topChromeInset = topChromeInset,
             )
 
             if (state.timelineState.timelineMode !is Timeline.Mode.Thread) {
@@ -992,8 +1001,9 @@ private fun MessagesViewComposerBottomSheetContents(
     state: MessagesState,
     onRoomSuccessorClick: (RoomId) -> Unit,
     onLinkClick: (String, Boolean) -> Unit,
+    onHeightChanged: (Dp) -> Unit,
 ) {
-    RoomComposerChrome {
+    RoomComposerChrome(onHeightChanged = onHeightChanged) {
         when {
             state.successorRoom != null -> {
                 SuccessorRoomBanner(roomSuccessor = state.successorRoom, onRoomSuccessorClick = onRoomSuccessorClick)
@@ -1046,64 +1056,18 @@ private fun MessagesViewComposerBottomSheetContents(
 
 @Composable
 private fun RoomComposerChrome(
+    onHeightChanged: (Dp) -> Unit = {},
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val canvas = ElementTheme.colors.bgCanvasDefault
+    val density = LocalDensity.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color.Transparent,
-                        canvas.copy(alpha = 0.12f),
-                        canvas.copy(alpha = 0.28f),
-                    )
-                )
-            )
+            .onSizeChanged { size ->
+                onHeightChanged(with(density) { size.height.toDp() })
+            }
             .padding(top = 8.dp, start = 12.dp, end = 12.dp, bottom = 10.dp),
         content = content,
-    )
-}
-
-@Composable
-private fun TopChromeBackdrop(
-    modifier: Modifier = Modifier,
-) {
-    val canvas = ElementTheme.colors.bgCanvasDefault
-    Box(
-        modifier = modifier
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        canvas,
-                        canvas.copy(alpha = 0.98f),
-                        canvas.copy(alpha = 0.82f),
-                        canvas.copy(alpha = 0.36f),
-                        Color.Transparent,
-                    )
-                )
-            )
-    )
-}
-
-@Composable
-private fun BottomChromeBackdrop(
-    modifier: Modifier = Modifier,
-) {
-    val canvas = ElementTheme.colors.bgCanvasDefault
-    Box(
-        modifier = modifier
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color.Transparent,
-                        canvas.copy(alpha = 0.16f),
-                        canvas.copy(alpha = 0.48f),
-                        canvas.copy(alpha = 0.78f),
-                    )
-                )
-            )
     )
 }
 

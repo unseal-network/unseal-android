@@ -105,6 +105,8 @@ fun TimelineView(
     forceJumpToBottomVisibility: Boolean = false,
     nestedScrollConnection: NestedScrollConnection = rememberNestedScrollInteropConnection(),
     floatingDateTopOffset: Dp = 0.dp,
+    composerBottomInset: Dp = 88.dp,
+    topChromeInset: Dp = 132.dp,
 ) {
     fun clearFocusRequestState() {
         state.eventSink(TimelineEvent.ClearFocusRequestState)
@@ -149,21 +151,26 @@ fun TimelineView(
     // Animate alpha when timeline is first displayed, to avoid flashes or glitching when viewing rooms
     AnimatedVisibility(visible = true, enter = fadeIn()) {
         Box(modifier) {
-            val renderReadReceipts = state.renderReadReceipts
+            val renderReadReceiptsWhileIdle = state.renderReadReceipts
             LazyColumn(
+                // Two-layer floating chrome. The top bar is a Compose overlay, so we let the timeline
+                // extend to the physical top and scroll *under* it (content visible behind the header)
+                // via contentPadding.top — Compose-over-AndroidView compositing is cheap.
+                // The composer is an AndroidView (EditText); letting timeline message TextViews scroll
+                // behind it forces expensive AndroidView-over-AndroidView view-hierarchy invalidation
+                // every frame (measured p99 36ms -> 200ms). So we clip the list just above the composer
+                // with an outer bottom padding — the composer still floats, content rests right at its edge.
                 modifier = Modifier
                     .fillMaxSize()
+                    .padding(bottom = composerBottomInset)
                     .nestedScroll(nestedScrollConnection)
                     .testTag(TestTags.timeline),
                 state = lazyListState,
                 reverseLayout = useReverseLayout,
-                // reverseLayout = true means visual bottom → top in memory.
-                // top padding = space below the newest message (in front of the composer overlay).
-                // bottom padding = space above the oldest visible message (below the top-bar overlay).
-                // Both values mirror the backdrop scrim heights declared in MessagesView:
-                // Keep enough scrollable overscan for the floating composer/top bar without
-                // leaving a large empty gutter after the newest message.
-                contentPadding = PaddingValues(top = 88.dp, bottom = 132.dp),
+                contentPadding = PaddingValues(
+                    top = topChromeInset + 8.dp,
+                    bottom = 8.dp,
+                ),
             ) {
                 items(
                     items = state.timelineItems,
@@ -175,7 +182,7 @@ fun TimelineView(
                         timelineMode = state.timelineMode,
                         timelineRoomInfo = state.timelineRoomInfo,
                         timelineProtectionState = timelineProtectionState,
-                        renderReadReceipts = renderReadReceipts,
+                        renderReadReceipts = renderReadReceiptsWhileIdle,
                         isLastOutgoingMessage = state.isLastOutgoingMessage(timelineItem.identifier()),
                         focusedEventId = state.focusedEventId,
                         displayThreadSummaries = state.displayThreadSummaries,
@@ -212,6 +219,7 @@ fun TimelineView(
                 newEventState = state.newEventState,
                 isLive = state.isLive,
                 focusRequestState = state.focusRequestState,
+                composerBottomInset = composerBottomInset,
                 onScrollFinishAt = ::onScrollFinishAt,
                 onJumpToLive = ::onJumpToLive,
                 onFocusEventRender = ::onFocusEventRender,
@@ -222,7 +230,7 @@ fun TimelineView(
                     lazyListState = lazyListState,
                     timelineItems = state.timelineItems,
                     isLive = state.isLive,
-                    topOffset = floatingDateTopOffset,
+                    topOffset = topChromeInset + floatingDateTopOffset,
                 )
             }
         }
@@ -285,6 +293,7 @@ private fun BoxScope.TimelineScrollHelper(
     isLive: Boolean,
     forceJumpToBottomVisibility: Boolean,
     focusRequestState: FocusRequestState,
+    composerBottomInset: Dp,
     onScrollFinishAt: (Int) -> Unit,
     onJumpToLive: () -> Unit,
     onFocusEventRender: () -> Unit,
@@ -364,7 +373,7 @@ private fun BoxScope.TimelineScrollHelper(
         isVisible = !canAutoScroll || forceJumpToBottomVisibility || !isLive,
         modifier = Modifier
             .align(Alignment.BottomEnd)
-            .padding(end = 24.dp, bottom = 12.dp),
+            .padding(end = 24.dp, bottom = composerBottomInset + 12.dp),
         onClick = { jumpToBottom() },
     )
 }

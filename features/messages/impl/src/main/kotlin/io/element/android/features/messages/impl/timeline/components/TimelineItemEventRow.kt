@@ -68,6 +68,7 @@ import io.element.android.features.messages.impl.timeline.components.event.Timel
 import io.element.android.features.messages.impl.timeline.components.event.LocalTimelineTextLayoutMeasurementEnabled
 import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayout
 import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
+import io.element.android.features.messages.impl.timeline.components.receipt.InlineReadReceiptView
 import io.element.android.features.messages.impl.timeline.components.receipt.ReadReceiptViewState
 import io.element.android.features.messages.impl.timeline.components.receipt.TimelineItemReadReceiptView
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
@@ -294,6 +295,9 @@ fun TimelineItemEventRow(
                             onReactionClick = { emoji -> onReactionClick(emoji, event) },
                             onReactionLongClick = { emoji -> onReactionLongClick(emoji, event) },
                             onMoreReactionsClick = { onMoreReactionsClick(event) },
+                            renderReadReceipts = renderReadReceipts,
+                            isLastOutgoingMessage = isLastOutgoingMessage,
+                            onReadReceiptsClick = { onReadReceiptClick(event) },
                             modifier = Modifier
                                 .absoluteOffset { IntOffset(x = offset.roundToInt(), y = 0) }
                                 .draggable(
@@ -328,6 +332,9 @@ fun TimelineItemEventRow(
                     onReactionClick = { emoji -> onReactionClick(emoji, event) },
                     onReactionLongClick = { emoji -> onReactionLongClick(emoji, event) },
                     onMoreReactionsClick = { onMoreReactionsClick(event) },
+                    renderReadReceipts = renderReadReceipts,
+                    isLastOutgoingMessage = isLastOutgoingMessage,
+                    onReadReceiptsClick = { onReadReceiptClick(event) },
                     eventSink = eventSink,
                     eventContentView = eventContentView,
                 )
@@ -355,16 +362,21 @@ fun TimelineItemEventRow(
         }
 
         // Read receipts / Send state
-        TimelineItemReadReceiptView(
-            state = ReadReceiptViewState(
-                sendState = event.localSendState,
-                isLastOutgoingMessage = isLastOutgoingMessage,
-                receipts = event.readReceiptState.receipts,
-            ),
-            renderReadReceipts = renderReadReceipts && event.isMine && event.content !is TimelineItemAiContent,
-            onReadReceiptsClick = { onReadReceiptClick(event) },
-            modifier = Modifier.padding(top = 4.dp)
-        )
+        // For text/poll messages from self, receipt is shown inline with the timestamp inside the bubble.
+        val receiptShownInline = event.isMine &&
+            (event.content is TimelineItemTextBasedContent || event.content is TimelineItemPollContent)
+        if (!receiptShownInline) {
+            TimelineItemReadReceiptView(
+                state = ReadReceiptViewState(
+                    sendState = event.localSendState,
+                    isLastOutgoingMessage = isLastOutgoingMessage,
+                    receipts = event.readReceiptState.receipts,
+                ),
+                renderReadReceipts = renderReadReceipts && event.isMine && event.content !is TimelineItemAiContent,
+                onReadReceiptsClick = { onReadReceiptClick(event) },
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
     }
 }
 
@@ -381,10 +393,7 @@ private fun TimelineItemStandaloneRow(
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     Box(modifier = Modifier.fillMaxWidth()) {
         val contentStartMargin = when {
-            // Own messages that expose sender information must align their content under the sender
-            // name, not under the avatar. Only use the narrower margin for continuation messages
-            // (no sender info shown) so they can fill more horizontal space.
-            event.isMine && !presentation.showSenderInformation -> TIMELINE_ROW_HORIZONTAL_PADDING
+            !presentation.reserveAvatarColumn -> TIMELINE_ROW_HORIZONTAL_PADDING
             screenWidth < 360.dp -> TIMELINE_INCOMING_CONTENT_START - 8.dp
             else -> TIMELINE_INCOMING_CONTENT_START
         }
@@ -561,6 +570,9 @@ private fun TimelineItemEventRowContent(
     onReactionLongClick: (emoji: String) -> Unit,
     onMoreReactionsClick: (event: TimelineItem.Event) -> Unit,
     eventSink: (TimelineEvent.TimelineItemEvent) -> Unit,
+    renderReadReceipts: Boolean,
+    isLastOutgoingMessage: Boolean,
+    onReadReceiptsClick: () -> Unit,
     modifier: Modifier = Modifier,
     eventContentView: @Composable (Modifier, (ContentAvoidingLayoutData) -> Unit) -> Unit,
 ) {
@@ -684,6 +696,9 @@ private fun TimelineItemEventRowContent(
                         onMessageLongClick = onLongClick,
                         inReplyToClick = inReplyToClick,
                         eventSink = eventSink,
+                        renderReadReceipts = renderReadReceipts,
+                        isLastOutgoingMessage = isLastOutgoingMessage,
+                        onReadReceiptsClick = onReadReceiptsClick,
                         eventContentView = eventContentView,
                     )
                 }
@@ -703,6 +718,9 @@ private fun TimelineItemEventRowContent(
                     onMessageLongClick = onLongClick,
                     inReplyToClick = inReplyToClick,
                     eventSink = eventSink,
+                    renderReadReceipts = renderReadReceipts,
+                    isLastOutgoingMessage = isLastOutgoingMessage,
+                    onReadReceiptsClick = onReadReceiptsClick,
                     eventContentView = eventContentView,
                 )
             }
@@ -739,7 +757,7 @@ private fun TimelineItemEventRowContent(
                 onMoreReactionsClick = { onMoreReactionsClick(event) },
                 modifier = Modifier
                     .constrainAs(reactions) {
-                        top.linkTo(message.bottom, margin = (-4).dp)
+                        top.linkTo(message.bottom, margin = (-8).dp)
                         linkStartOrEnd(event)
                     }
                     .zIndex(1f)
@@ -805,6 +823,9 @@ private fun MessageEventBubbleContent(
     onMessageLongClick: () -> Unit,
     inReplyToClick: () -> Unit,
     eventSink: (TimelineEvent.TimelineItemEvent) -> Unit,
+    renderReadReceipts: Boolean,
+    isLastOutgoingMessage: Boolean,
+    onReadReceiptsClick: () -> Unit,
     @SuppressLint("ModifierParameter")
     // need to rename this modifier to prevent linter false positives
     @Suppress("ModifierNaming")
@@ -885,13 +906,28 @@ private fun MessageEventBubbleContent(
             TimestampPosition.Below ->
                 Column(modifier) {
                     content {}
-                    TimelineEventTimestampView(
-                        event = event,
-                        eventSink = eventSink,
-                        modifier = Modifier
-                            .align(Alignment.End)
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
+                    Row(
+                        modifier = Modifier.align(Alignment.End),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (event.isMine && event.content !is TimelineItemAiContent) {
+                            InlineReadReceiptView(
+                                state = ReadReceiptViewState(
+                                    sendState = event.localSendState,
+                                    isLastOutgoingMessage = isLastOutgoingMessage,
+                                    receipts = event.readReceiptState.receipts,
+                                ),
+                                renderReadReceipts = renderReadReceipts,
+                                onReadReceiptsClick = onReadReceiptsClick,
+                                modifier = Modifier.padding(start = 8.dp),
+                            )
+                        }
+                        TimelineEventTimestampView(
+                            event = event,
+                            eventSink = eventSink,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
                 }
             TimestampPosition.Hidden -> Box(modifier) { content {} }
         }
