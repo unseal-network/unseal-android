@@ -37,7 +37,7 @@ dependencies {
     implementation(projects.features.roomschedules.api)
     implementation(projects.features.webhooks.api)
     implementation(projects.libraries.androidutils)
-    implementation(projects.libraries.agentstream)
+    implementation(libs.agent.stream.android)
     implementation(libs.markdown.renderer.m3)
     implementation(libs.markdown.renderer.coil3)
     implementation(projects.libraries.core)

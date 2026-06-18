@@ -28,6 +28,20 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/unseal-network/unseal-android")
+            credentials {
+                username = providers.environmentVariable("GITHUB_ACTOR").orElse("jelf-work").get()
+                password = providers.environmentVariable("GITHUB_TOKEN")
+                    .orElse(providers.environmentVariable("GH_TOKEN"))
+                    .orElse(providers.environmentVariable("PRIVATE_REGISTRY_TOKEN"))
+                    .getOrElse("")
+            }
+            content {
+                includeGroup("network.unseal")
+            }
+        }
+        maven {
             url = uri("https://repo1.maven.org/maven2/")
         }
         flatDir {
