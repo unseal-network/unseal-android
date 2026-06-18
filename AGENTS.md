@@ -196,7 +196,7 @@ We wrap the `matrix-rust-sdk` to isolate the UI from the underlying SDK.
 AI SDK stream parsing and `parts` state updates are shared through the Rust stream SDK:
 
 - SDK repo: `git@pagepeek:unseal-network/agent-stream-sdk.git`
-- Current Android SDK release: `v0.1.0-rc.1`
+- Current Android SDK release: `network.unseal:agent-stream-android:0.1.0-rc.2`
 - Android wrapper module: `libraries/agentstream`
 - Native library name loaded by Android: `libunseal_agent_stream.so`
 - JNI Kotlin entrypoint: `libraries/agentstream/src/main/kotlin/io/element/android/libraries/agentstream/jni/UnsealAgentStreamNative.kt`
@@ -204,7 +204,7 @@ AI SDK stream parsing and `parts` state updates are shared through the Rust stre
   - `libraries/agentstream/src/main/jniLibs/arm64-v8a/libunseal_agent_stream.so`
   - `libraries/agentstream/src/main/jniLibs/armeabi-v7a/libunseal_agent_stream.so`
   - `libraries/agentstream/src/main/jniLibs/x86_64/libunseal_agent_stream.so`
-- `v0.1.0-rc.1` native hashes:
+- `0.1.0-rc.2` native hashes:
   - `arm64-v8a`: `bc561f34ac93274348215a66e7fad912525a8f472799c0f56379ce265ea0f0d2`
   - `armeabi-v7a`: `0d7b14848938ea44a121b16c00f1fc95afde4d44dcd30439351b4f54e29d140d`
   - `x86_64`: `6cc5a7c0da1ee83ad3e6c831f032ca65c1fbd9afed9924579ebe771fe9d60fb2`
@@ -225,7 +225,7 @@ cargo install cargo-ndk
 
 git clone git@pagepeek:unseal-network/agent-stream-sdk.git /tmp/agent-stream-sdk
 cd /tmp/agent-stream-sdk
-git checkout v0.1.0-rc.1
+git checkout v0.1.0-rc.2
 
 export PATH="$HOME/.cargo/bin:$PATH"
 ANDROID_NDK_HOME="$ANDROID_NDK_HOME" \

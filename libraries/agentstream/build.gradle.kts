@@ -9,14 +9,56 @@ import extension.testCommonDependencies
 
 plugins {
     id("io.element.android-library")
+    id("maven-publish")
 }
+
+group = "network.unseal"
+version = "0.1.0-rc.2"
 
 android {
     namespace = "io.element.android.libraries.agentstream"
+
+    compileOptions {
+        isCoreLibraryDesugaringEnabled = false
+    }
+
+    publishing {
+        singleVariant("release") {
+            withSourcesJar()
+        }
+    }
 }
 
 dependencies {
     implementation(libs.serialization.json)
 
     testCommonDependencies(libs, true)
+}
+
+publishing {
+    publications {
+        register<MavenPublication>("agentstreamRelease") {
+            groupId = "network.unseal"
+            artifactId = "agent-stream-android"
+            version = "0.1.0-rc.2"
+
+            afterEvaluate {
+                from(components["release"])
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/unseal-network/unseal-android")
+            credentials {
+                username = providers.environmentVariable("GITHUB_ACTOR").orElse("jelf-work").get()
+                password = providers.environmentVariable("GITHUB_TOKEN")
+                    .orElse(providers.environmentVariable("GH_TOKEN"))
+                    .orElse(providers.environmentVariable("PRIVATE_REGISTRY_TOKEN"))
+                    .getOrElse("")
+            }
+        }
+    }
 }
