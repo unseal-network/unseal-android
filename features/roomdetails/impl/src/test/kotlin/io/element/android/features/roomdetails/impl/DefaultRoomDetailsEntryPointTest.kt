@@ -108,6 +108,8 @@ class DefaultRoomDetailsEntryPointTest {
             .isEqualTo(RoomDetailsFlowNode.NavTarget.RoomDetails)
         assertThat(RoomDetailsEntryPoint.InitialTarget.RoomMemberDetails(A_USER_ID).toNavTarget())
             .isEqualTo(RoomDetailsFlowNode.NavTarget.RoomMemberDetails(A_USER_ID))
+        assertThat(RoomDetailsEntryPoint.InitialTarget.AgentProfile("agent", showRoomDetailsOnBack = true).toNavTarget())
+            .isEqualTo(RoomDetailsFlowNode.NavTarget.AgentProfile("agent", showRoomDetailsOnBack = true))
         assertThat(RoomDetailsEntryPoint.InitialTarget.RoomNotificationSettings.toNavTarget())
             .isEqualTo(RoomDetailsFlowNode.NavTarget.RoomNotificationSettings(showUserDefinedSettingStyle = true))
     }
@@ -251,6 +253,50 @@ class DefaultRoomDetailsEntryPointTest {
 
         node.backstack.push(RoomDetailsFlowNode.NavTarget.AgentProfile("agent"))
         node.resolve(RoomDetailsFlowNode.NavTarget.AgentProfile("agent"), BuildContext.root(null))
+        capturedCallback?.onDone()
+
+        assertThat(doneCount).isEqualTo(0)
+        assertThat(node.backstack.activeElement).isEqualTo(RoomDetailsFlowNode.NavTarget.RoomDetails)
+    }
+
+    @Test
+    fun `test initial agent profile done opens room details when requested`() {
+        var doneCount = 0
+        var capturedCallback: AgentManagementEntryPoint.Callback? = null
+        val node = RoomDetailsFlowNode(
+            buildContext = BuildContext.root(null),
+            plugins = listOf(
+                RoomDetailsEntryPoint.Params(
+                    initialElement = RoomDetailsEntryPoint.InitialTarget.AgentProfile(
+                        botName = "agent",
+                        showRoomDetailsOnBack = true,
+                    ),
+                ),
+                roomDetailsCallback(onDone = { doneCount++ }),
+            ),
+            pollHistoryEntryPoint = FakePollHistoryEntryPoint(),
+            elementCallEntryPoint = FakeElementCallEntryPoint(),
+            room = FakeJoinedRoom(),
+            analyticsService = FakeAnalyticsService(),
+            messagesEntryPoint = FakeMessagesEntryPoint(),
+            knockRequestsListEntryPoint = FakeKnockRequestsListEntryPoint(),
+            mediaViewerEntryPoint = FakeMediaViewerEntryPoint(),
+            mediaGalleryEntryPoint = FakeMediaGalleryEntryPoint(),
+            outgoingVerificationEntryPoint = FakeOutgoingVerificationEntryPoint(),
+            reportRoomEntryPoint = FakeReportRoomEntryPoint(),
+            changeRoomMemberRolesEntryPoint = FakeChangeRoomMemberRolesEntryPoint(),
+            rolesAndPermissionsEntryPoint = FakeRolesAndPermissionsEntryPoint(),
+            securityAndPrivacyEntryPoint = FakeSecurityAndPrivacyEntryPoint(),
+            roomDetailsEditEntryPoint = FakeRoomDetailsEditEntryPoint(),
+            webhookTriggersEntryPoint = FakeWebhookTriggersEntryPoint(),
+            agentManagementEntryPoint = FakeAgentManagementEntryPoint { parentNode, _, _, callback ->
+                capturedCallback = callback
+                parentNode
+            },
+            roomAgentProfileRouter = FakeRoomAgentProfileRouter(),
+        )
+
+        node.resolve(RoomDetailsFlowNode.NavTarget.AgentProfile("agent", showRoomDetailsOnBack = true), BuildContext.root(null))
         capturedCallback?.onDone()
 
         assertThat(doneCount).isEqualTo(0)

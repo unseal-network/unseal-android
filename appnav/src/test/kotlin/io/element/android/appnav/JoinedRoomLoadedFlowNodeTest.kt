@@ -105,6 +105,7 @@ class JoinedRoomLoadedFlowNodeTest {
 
     private class FakeRoomDetailsEntryPoint : RoomDetailsEntryPoint {
         var nodeId: String? = null
+        var parameters: RoomDetailsEntryPoint.Params? = null
         var callback: RoomDetailsEntryPoint.Callback? = null
 
         override fun createNode(
@@ -113,6 +114,7 @@ class JoinedRoomLoadedFlowNodeTest {
             params: RoomDetailsEntryPoint.Params,
             callback: RoomDetailsEntryPoint.Callback,
         ) = node(buildContext) {}.also {
+            parameters = params
             this.callback = callback
             nodeId = it.id
         }
@@ -264,6 +266,27 @@ class JoinedRoomLoadedFlowNodeTest {
         fakeRoomDetailsEntryPoint.callback?.onDone()
 
         assertThat(roomFlowNode.backstack.activeElement).isEqualTo(JoinedRoomLoadedFlowNode.NavTarget.Messages())
+    }
+
+    @Test
+    fun `given room title opens an agent profile then the profile returns to room details`() = runTest {
+        val room = FakeJoinedRoom(baseRoom = FakeBaseRoom(updateMembersResult = {}))
+        val fakeMessagesEntryPoint = FakeMessagesEntryPoint()
+        val fakeRoomDetailsEntryPoint = FakeRoomDetailsEntryPoint()
+        val inputs = JoinedRoomLoadedFlowNode.Inputs(room, RoomNavigationTarget.Root())
+        val roomFlowNode = createJoinedRoomLoadedFlowNode(
+            plugins = listOf(inputs, FakeJoinedRoomLoadedFlowNodeCallback()),
+            messagesEntryPoint = fakeMessagesEntryPoint,
+            roomDetailsEntryPoint = fakeRoomDetailsEntryPoint,
+            roomAgentProfileRouter = FakeRoomAgentProfileRouter(directRoomAgentBotNameResult = "agent"),
+        )
+        roomFlowNode.parentNodeTestHelper()
+
+        fakeMessagesEntryPoint.callback?.navigateToRoomDetails()
+        runCurrent()
+
+        assertThat(fakeRoomDetailsEntryPoint.parameters?.initialElement)
+            .isEqualTo(RoomDetailsEntryPoint.InitialTarget.AgentProfile(botName = "agent", showRoomDetailsOnBack = true))
     }
 
     @Test

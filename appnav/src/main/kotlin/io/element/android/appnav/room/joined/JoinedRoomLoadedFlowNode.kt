@@ -205,7 +205,13 @@ class JoinedRoomLoadedFlowNode(
                 createRoomDetailsNode(buildContext, RoomDetailsEntryPoint.InitialTarget.RoomMemberDetails(navTarget.userId))
             }
             is NavTarget.AgentProfile -> {
-                createRoomDetailsNode(buildContext, RoomDetailsEntryPoint.InitialTarget.AgentProfile(navTarget.botName))
+                createRoomDetailsNode(
+                    buildContext,
+                    RoomDetailsEntryPoint.InitialTarget.AgentProfile(
+                        botName = navTarget.botName,
+                        showRoomDetailsOnBack = navTarget.showRoomDetailsOnBack,
+                    )
+                )
             }
             NavTarget.RoomNotificationSettings -> {
                 createRoomDetailsNode(buildContext, RoomDetailsEntryPoint.InitialTarget.RoomNotificationSettings)
@@ -290,7 +296,7 @@ class JoinedRoomLoadedFlowNode(
                 // DM with an agent: open the agent profile first; otherwise the normal room details.
                 lifecycleScope.launch {
                     val botName = roomAgentProfileRouter.directRoomAgentBotName(inputs.room.roomId)
-                    backstack.push(if (botName != null) NavTarget.AgentProfile(botName) else NavTarget.RoomDetails)
+                    backstack.push(if (botName != null) NavTarget.AgentProfile(botName, showRoomDetailsOnBack = true) else NavTarget.RoomDetails)
                 }
             }
 
@@ -358,7 +364,10 @@ class JoinedRoomLoadedFlowNode(
         data class RoomMemberDetails(val userId: UserId) : NavTarget
 
         @Parcelize
-        data class AgentProfile(val botName: String) : NavTarget
+        data class AgentProfile(
+            val botName: String,
+            val showRoomDetailsOnBack: Boolean = false,
+        ) : NavTarget
 
         @Parcelize
         data class ForwardEvent(val eventId: EventId, val fromPinnedEvents: Boolean) : NavTarget

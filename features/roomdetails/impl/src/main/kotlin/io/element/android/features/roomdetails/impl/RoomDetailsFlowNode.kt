@@ -21,6 +21,7 @@ import com.bumble.appyx.core.plugin.Plugin
 import com.bumble.appyx.navmodel.backstack.BackStack
 import com.bumble.appyx.navmodel.backstack.operation.pop
 import com.bumble.appyx.navmodel.backstack.operation.push
+import com.bumble.appyx.navmodel.backstack.operation.replace
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
 import im.vector.app.features.analytics.plan.Interaction
@@ -130,7 +131,11 @@ class RoomDetailsFlowNode(
         data class RoomMemberDetails(val roomMemberId: UserId) : NavTarget
 
         @Parcelize
-        data class AgentProfile(val botName: String, val matrixUserId: String? = null) : NavTarget
+        data class AgentProfile(
+            val botName: String,
+            val matrixUserId: String? = null,
+            val showRoomDetailsOnBack: Boolean = false,
+        ) : NavTarget
 
         @Parcelize
         data class AvatarPreview(val name: String, val avatarUrl: String) : NavTarget
@@ -364,6 +369,8 @@ class RoomDetailsFlowNode(
                         override fun onDone() {
                             if (backstack.canPop()) {
                                 backstack.pop()
+                            } else if (navTarget.showRoomDetailsOnBack) {
+                                backstack.replace(NavTarget.RoomDetails)
                             } else {
                                 callback.onDone()
                             }
