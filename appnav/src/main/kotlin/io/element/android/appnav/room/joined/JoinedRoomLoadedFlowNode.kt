@@ -36,6 +36,7 @@ import io.element.android.features.space.api.SpaceEntryPoint
 import io.element.android.libraries.architecture.BackstackView
 import io.element.android.libraries.architecture.BaseFlowNode
 import io.element.android.libraries.architecture.NodeInputs
+import io.element.android.libraries.architecture.appyx.canPop
 import io.element.android.libraries.architecture.callback
 import io.element.android.libraries.architecture.inputs
 import io.element.android.libraries.architecture.waitForChildAttached
@@ -150,7 +151,11 @@ class JoinedRoomLoadedFlowNode(
     private fun createRoomDetailsNode(buildContext: BuildContext, initialTarget: RoomDetailsEntryPoint.InitialTarget): Node {
         val callback = object : RoomDetailsEntryPoint.Callback {
             override fun onDone() {
-                callback.onDone()
+                if (backstack.canPop()) {
+                    backstack.pop()
+                } else {
+                    callback.onDone()
+                }
             }
 
             override fun navigateToGlobalNotificationSettings() {

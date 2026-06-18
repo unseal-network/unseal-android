@@ -14,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.coroutineScope
+import androidx.lifecycle.lifecycleScope
 import com.bumble.appyx.core.modality.BuildContext
 import com.bumble.appyx.core.node.Node
 import com.bumble.appyx.core.plugin.Plugin
@@ -25,14 +26,11 @@ import dev.zacsweers.metro.AssistedInject
 import im.vector.app.features.analytics.plan.Interaction
 import io.element.android.annotations.ContributesNode
 import io.element.android.appconfig.LearnMoreConfig
+import io.element.android.features.agentmanagement.api.AgentManagementEntryPoint
 import io.element.android.features.call.api.CallData
 import io.element.android.features.call.api.ElementCallEntryPoint
 import io.element.android.features.knockrequests.api.list.KnockRequestsListEntryPoint
-import androidx.lifecycle.lifecycleScope
-import io.element.android.features.agentmanagement.api.AgentManagementEntryPoint
 import io.element.android.features.messages.api.MessagesEntryPoint
-import io.element.android.libraries.chatbot.api.RoomAgentProfileRouter
-import kotlinx.coroutines.launch
 import io.element.android.features.poll.api.history.PollHistoryEntryPoint
 import io.element.android.features.reportroom.api.ReportRoomEntryPoint
 import io.element.android.features.rolesandpermissions.api.ChangeRoomMemberRolesEntryPoint
@@ -55,6 +53,7 @@ import io.element.android.libraries.architecture.callback
 import io.element.android.libraries.architecture.createNode
 import io.element.android.libraries.architecture.overlay.operation.hide
 import io.element.android.libraries.architecture.overlay.operation.show
+import io.element.android.libraries.chatbot.api.RoomAgentProfileRouter
 import io.element.android.libraries.designsystem.utils.OpenUrlInTabView
 import io.element.android.libraries.di.RoomScope
 import io.element.android.libraries.matrix.api.core.EventId
@@ -363,7 +362,11 @@ class RoomDetailsFlowNode(
                     ),
                     callback = object : AgentManagementEntryPoint.Callback {
                         override fun onDone() {
-                            callback.onDone()
+                            if (backstack.canPop()) {
+                                backstack.pop()
+                            } else {
+                                callback.onDone()
+                            }
                         }
 
                         override fun onOpenRoom(roomIdOrAlias: RoomIdOrAlias) {

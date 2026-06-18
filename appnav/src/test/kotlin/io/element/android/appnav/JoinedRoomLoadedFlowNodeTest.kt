@@ -32,6 +32,9 @@ import io.element.android.features.roomdetails.api.RoomDetailsEntryPoint
 import io.element.android.features.roomschedules.api.RoomSchedulesEntryPoint
 import io.element.android.features.space.api.SpaceEntryPoint
 import io.element.android.libraries.architecture.childNode
+import io.element.android.libraries.chatbot.api.RoomAgentProfileRouter
+import io.element.android.libraries.matrix.api.core.RoomId
+import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.room.JoinedRoom
 import io.element.android.libraries.matrix.api.timeline.TimelineProvider
 import io.element.android.libraries.matrix.test.A_SESSION_ID
@@ -137,6 +140,7 @@ class JoinedRoomLoadedFlowNodeTest {
         roomSchedulesEntryPoint: RoomSchedulesEntryPoint = FakeRoomSchedulesEntryPoint(),
         activeRoomsHolder: ActiveRoomsHolder = FakeActiveRoomsHolder(),
         matrixClient: FakeMatrixClient = FakeMatrixClient(),
+        roomAgentProfileRouter: RoomAgentProfileRouter = FakeRoomAgentProfileRouter(),
     ) = JoinedRoomLoadedFlowNode(
         buildContext = BuildContext.root(savedStateMap = null),
         plugins = plugins,
@@ -149,9 +153,23 @@ class JoinedRoomLoadedFlowNodeTest {
         sessionCoroutineScope = backgroundScope,
         roomGraphFactory = FakeRoomGraphFactory(),
         matrixClient = matrixClient,
+        roomAgentProfileRouter = roomAgentProfileRouter,
         activeRoomsHolder = activeRoomsHolder,
         analyticsService = FakeAnalyticsService(),
     )
+
+    private class FakeRoomAgentProfileRouter(
+        private val agentBotNameForResult: String? = null,
+        private val directRoomAgentBotNameResult: String? = null,
+    ) : RoomAgentProfileRouter {
+        override suspend fun agentBotNameFor(roomId: RoomId, userId: UserId): String? {
+            return agentBotNameForResult
+        }
+
+        override suspend fun directRoomAgentBotName(roomId: RoomId): String? {
+            return directRoomAgentBotNameResult
+        }
+    }
 
     private class FakeRoomSchedulesEntryPoint : RoomSchedulesEntryPoint {
         var callback: RoomSchedulesEntryPoint.Callback? = null
@@ -226,6 +244,26 @@ class JoinedRoomLoadedFlowNodeTest {
         roomFlowNodeTestHelper.assertChildHasLifecycle(JoinedRoomLoadedFlowNode.NavTarget.RoomDetails, Lifecycle.State.CREATED)
         val roomDetailsNode = roomFlowNode.childNode(JoinedRoomLoadedFlowNode.NavTarget.RoomDetails)!!
         assertThat(roomDetailsNode.id).isEqualTo(fakeRoomDetailsEntryPoint.nodeId)
+    }
+
+    @Test
+    fun `given room details is open when it is done then it returns to messages`() = runTest {
+        val room = FakeJoinedRoom(baseRoom = FakeBaseRoom(updateMembersResult = {}))
+        val fakeMessagesEntryPoint = FakeMessagesEntryPoint()
+        val fakeRoomDetailsEntryPoint = FakeRoomDetailsEntryPoint()
+        val inputs = JoinedRoomLoadedFlowNode.Inputs(room, RoomNavigationTarget.Root())
+        val roomFlowNode = createJoinedRoomLoadedFlowNode(
+            plugins = listOf(inputs, FakeJoinedRoomLoadedFlowNodeCallback()),
+            messagesEntryPoint = fakeMessagesEntryPoint,
+            roomDetailsEntryPoint = fakeRoomDetailsEntryPoint,
+        )
+        val roomFlowNodeTestHelper = roomFlowNode.parentNodeTestHelper()
+
+        fakeMessagesEntryPoint.callback?.navigateToRoomDetails()
+        roomFlowNodeTestHelper.assertChildHasLifecycle(JoinedRoomLoadedFlowNode.NavTarget.RoomDetails, Lifecycle.State.CREATED)
+        fakeRoomDetailsEntryPoint.callback?.onDone()
+
+        assertThat(roomFlowNode.backstack.activeElement).isEqualTo(JoinedRoomLoadedFlowNode.NavTarget.Messages())
     }
 
     @Test
