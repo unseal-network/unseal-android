@@ -577,9 +577,9 @@ private val SettingsAiAssistantEntry.titleRes: Int
 @Composable
 private fun SettingsAiAssistantEntry.icon(): ImageVector {
     return when (this) {
-        SettingsAiAssistantEntry.AgentManagement -> CompoundIcons.Admin()
-        SettingsAiAssistantEntry.VoiceLibrary -> CompoundIcons.Extensions()
-        SettingsAiAssistantEntry.SkillsManagement -> CompoundIcons.Extensions()
+        SettingsAiAssistantEntry.AgentManagement -> CompoundIcons.Labs()
+        SettingsAiAssistantEntry.VoiceLibrary -> CompoundIcons.MicOn()
+        SettingsAiAssistantEntry.SkillsManagement -> CompoundIcons.ListBulleted()
         SettingsAiAssistantEntry.VaultManagement -> CompoundIcons.Lock()
         SettingsAiAssistantEntry.Connectors -> CompoundIcons.Link()
         SettingsAiAssistantEntry.WebhookTriggers -> CompoundIcons.Notifications()

@@ -29,13 +29,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -49,9 +51,11 @@ import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.skills.impl.shared.SkillIconTile
 import io.element.android.features.skills.impl.shared.SkillListRow
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
+import io.element.android.libraries.designsystem.components.management.ManagementListRow
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import kotlinx.collections.immutable.persistentListOf
@@ -76,11 +80,6 @@ fun SkillsHomeView(
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "返回")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { state.eventSink(SkillsHomeEvents.CreateSkill) }) {
-                        Icon(imageVector = CompoundIcons.Plus(), contentDescription = "创建技能")
                     }
                 },
             )
@@ -121,6 +120,7 @@ fun SkillsHomeView(
                 }
 
                 if (state.selectedTab == SkillsHomeTab.Mine) {
+                    item { CreateSkillRow(state) }
                     mineContent(state)
                 } else {
                     marketplaceContent(state)
@@ -146,7 +146,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.mineContent(state: Sk
                     showVisibility = true,
                     onClick = { state.eventSink(SkillsHomeEvents.SelectSkill(skill.id)) },
                 )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             }
         }
     }
@@ -178,7 +177,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.marketplaceContent(st
                     showVisibility = false,
                     onClick = { state.eventSink(SkillsHomeEvents.SelectMarketplaceSkill(skill.id)) },
                 )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             }
             if (state.marketplaceHasMore) {
                 item {
@@ -206,35 +204,37 @@ private fun androidx.compose.foundation.lazy.LazyListScope.marketplaceContent(st
 }
 
 @Composable
+private fun CreateSkillRow(state: SkillsHomeState) {
+    ManagementListRow(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        title = "创建技能",
+        description = "创建可复用的 Agent 能力并加入技能库",
+        leadingContent = { SkillIconTile() },
+        trailingContent = {
+            FilledTonalButton(onClick = { state.eventSink(SkillsHomeEvents.CreateSkill) }) {
+                Text("创建")
+            }
+        },
+    )
+}
+
+@Composable
 private fun SkillsTabPicker(
     selectedTab: SkillsHomeTab,
     onSelect: (SkillsHomeTab) -> Unit,
 ) {
-    Row(
+    SingleChoiceSegmentedButtonRow(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(percent = 50))
-            .padding(3.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
-        SkillsHomeTab.entries.forEach { tab ->
-            val selected = tab == selectedTab
-            Surface(
-                modifier = Modifier
-                    .weight(1f),
+        SkillsHomeTab.entries.forEachIndexed { index, tab ->
+            SegmentedButton(
+                selected = tab == selectedTab,
                 onClick = { onSelect(tab) },
-                shape = RoundedCornerShape(percent = 50),
-                color = if (selected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-            ) {
-                Text(
-                    modifier = Modifier.padding(vertical = 7.dp),
-                    text = if (tab == SkillsHomeTab.Mine) "我的" else "市场",
-                    style = MaterialTheme.typography.labelLarge,
-                    textAlign = TextAlign.Center,
-                )
-            }
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = SkillsHomeTab.entries.size),
+                label = { Text(if (tab == SkillsHomeTab.Mine) "我的" else "公开") },
+            )
         }
     }
 }

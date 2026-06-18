@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -68,7 +67,6 @@ fun SkillsManagementHubView(
                 icon = CompoundIcons.Labs(),
                 onClick = onOpenAgentManagement,
             )
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             HubRow(
                 title = "技能管理",
                 subtitle = "维护技能库与公开市场",
@@ -87,7 +85,7 @@ private fun HubRow(
     onClick: () -> Unit,
 ) {
     ManagementListRow(
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         title = title,
         subtitle = subtitle,
         onClick = onClick,

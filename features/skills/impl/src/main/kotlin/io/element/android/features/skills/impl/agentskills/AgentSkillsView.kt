@@ -9,13 +9,11 @@
 
 package io.element.android.features.skills.impl.agentskills
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -23,6 +21,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -33,31 +45,15 @@ import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.skills.impl.shared.SkillIconTile
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
-import io.element.android.libraries.designsystem.components.avatar.Avatar
-import io.element.android.libraries.designsystem.components.avatar.AvatarData
-import io.element.android.libraries.designsystem.components.avatar.AvatarSize
-import io.element.android.libraries.designsystem.components.avatar.AvatarType
 import io.element.android.libraries.designsystem.components.management.ManagementListRow
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableList
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 
 @Composable
 fun AgentSkillsView(
@@ -175,7 +171,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.mineSkills(state: Age
                 selected = skill.id in state.selectedSkillIds,
                 onToggle = { state.eventSink(AgentSkillsEvents.ToggleSkill(skill)) },
             )
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
         }
     }
 }
@@ -202,7 +197,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.publicSkills(state: A
                     selected = skill.id in state.selectedSkillIds,
                     onToggle = { state.eventSink(AgentSkillsEvents.ToggleSkill(skill)) },
                 )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
             }
             if (state.publicHasMore) {
                 item {
@@ -232,30 +226,19 @@ private fun AgentSkillsTabPicker(
     selectedTab: AgentSkillsTab,
     onSelect: (AgentSkillsTab) -> Unit,
 ) {
-    Row(
+    val tabs = listOf(AgentSkillsTab.Mine to "我的", AgentSkillsTab.Public to "公开")
+    SingleChoiceSegmentedButtonRow(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(percent = 50))
-            .padding(3.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
-        listOf(AgentSkillsTab.Mine to "我的", AgentSkillsTab.Public to "公开").forEach { (tab, label) ->
-            val selected = selectedTab == tab
-            Surface(
-                modifier = Modifier.weight(1f),
+        tabs.forEachIndexed { index, (tab, label) ->
+            SegmentedButton(
+                selected = selectedTab == tab,
                 onClick = { onSelect(tab) },
-                shape = RoundedCornerShape(percent = 50),
-                color = if (selected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-            ) {
-                Text(
-                    modifier = Modifier.padding(vertical = 7.dp),
-                    text = label,
-                    style = MaterialTheme.typography.labelLarge,
-                    textAlign = TextAlign.Center,
-                )
-            }
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = tabs.size),
+                label = { Text(label) },
+            )
         }
     }
 }
@@ -273,11 +256,7 @@ private fun SelectableSkillRow(
         description = skill.description,
         onClick = onToggle,
         leadingContent = {
-            Avatar(
-                avatarData = AvatarData(skill.id, skill.name, null, AvatarSize.RoomListItem),
-                avatarType = AvatarType.Room(),
-                forcedAvatarSize = 48.dp,
-            )
+            SkillIconTile()
         },
         trailingContent = {
             Checkbox(checked = selected, onCheckedChange = { onToggle() })

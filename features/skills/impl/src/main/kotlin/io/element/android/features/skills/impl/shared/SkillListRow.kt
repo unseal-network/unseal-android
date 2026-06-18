@@ -8,19 +8,21 @@
 package io.element.android.features.skills.impl.shared
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
-import io.element.android.libraries.designsystem.components.avatar.Avatar
-import io.element.android.libraries.designsystem.components.avatar.AvatarData
-import io.element.android.libraries.designsystem.components.avatar.AvatarSize
-import io.element.android.libraries.designsystem.components.avatar.AvatarType
 import io.element.android.libraries.designsystem.components.management.ManagementListRow
 
 @Composable
@@ -38,23 +40,39 @@ fun SkillListRow(
         meta = skill.createdDateLabel()?.let { "创建时间：$it" },
         onClick = onClick,
         leadingContent = {
-            Avatar(
-                avatarData = AvatarData(
-                    id = skill.id,
-                    name = skill.name,
-                    url = null,
-                    size = AvatarSize.RoomListItem,
-                ),
-                avatarType = AvatarType.Room(),
-                forcedAvatarSize = 48.dp,
-            )
+            SkillIconTile()
         },
         titleTrailingContent = {
             if (showVisibility) {
                 skill.visibility?.let { SkillVisibilityBadge(it) }
             }
         },
+        trailingContent = {
+            Icon(
+                imageVector = CompoundIcons.ChevronRight(),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
+            )
+        },
     )
+}
+
+@Composable
+fun SkillIconTile(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(48.dp)
+            .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(12.dp)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = CompoundIcons.ListBulleted(),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+            modifier = Modifier.size(24.dp),
+        )
+    }
 }
 
 @Composable
@@ -71,5 +89,7 @@ fun SkillVisibilityBadge(visibility: ChatbotSkillVisibility) {
         text = visibility.displayName(),
         style = MaterialTheme.typography.labelSmall,
         color = fg,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
     )
 }
