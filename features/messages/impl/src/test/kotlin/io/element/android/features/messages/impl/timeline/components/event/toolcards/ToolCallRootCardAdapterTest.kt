@@ -120,4 +120,53 @@ class ToolCallRootCardAdapterTest {
         assertThat(entry.props).contains(""""_cardType":"composeEmail"""")
         assertThat(entry.props).contains("User denied Gmail access")
     }
+
+    @Test
+    fun `completed root model defaults collapsed`() {
+        val entry = ToolCallRootCardAdapter.toolCallEntries(
+            listOf(
+                AiToolStreamPart(
+                    id = "hotel-1",
+                    state = "output-available",
+                    toolName = "COMPOSIO_SEARCH_HOTELS",
+                    title = null,
+                    input = null,
+                    rawInput = null,
+                    output = """{"hotels":[{"name":"Felton","price":"$50"}]}""",
+                    errorText = null,
+                )
+            )
+        ).single()
+
+        val model = ToolCallRootCardAdapter.rootModel(listOf(entry))
+
+        assertThat(model).isNotNull()
+        assertThat(model!!.allFinished).isTrue()
+        assertThat(model.expandedByDefault).isFalse()
+    }
+
+    @Test
+    fun `calling root model defaults expanded`() {
+        val entry = ToolCallRootCardAdapter.toolCallEntries(
+            listOf(
+                AiToolStreamPart(
+                    id = "hotel-1",
+                    state = "input-available",
+                    toolName = "COMPOSIO_SEARCH_HOTELS",
+                    title = null,
+                    input = """{"q":"Chengdu"}""",
+                    rawInput = null,
+                    output = null,
+                    errorText = null,
+                )
+            )
+        ).single()
+
+        val model = ToolCallRootCardAdapter.rootModel(listOf(entry))
+
+        assertThat(model).isNotNull()
+        assertThat(model!!.allFinished).isFalse()
+        assertThat(model.expandedByDefault).isTrue()
+        assertThat(model.title).isEqualTo("Hotels")
+    }
 }
