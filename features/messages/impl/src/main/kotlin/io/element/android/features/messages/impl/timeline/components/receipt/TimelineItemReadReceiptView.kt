@@ -59,26 +59,21 @@ fun TimelineItemReadReceiptView(
     modifier: Modifier = Modifier,
 ) {
     if (state.receipts.isNotEmpty()) {
+        if (!renderReadReceipts) return
         ReadReceiptsRow(
-            modifier = if (renderReadReceipts) {
-                modifier.clearAndSetSemantics {
-                    hideFromAccessibility()
-                }
-            } else {
-                modifier
+            modifier = modifier.clearAndSetSemantics {
+                hideFromAccessibility()
             }
         ) {
-            if (renderReadReceipts) {
-                ReadReceiptsAvatars(
-                    receipts = state.receipts,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable {
-                            onReadReceiptsClick()
-                        }
-                        .padding(1.dp)
-                )
-            }
+            ReadReceiptsAvatars(
+                receipts = state.receipts,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable {
+                        onReadReceiptsClick()
+                    }
+                    .padding(1.dp)
+            )
         }
     } else {
         when (state.sendState) {
@@ -235,7 +230,7 @@ internal fun InlineReadReceiptView(
             Icon(
                 modifier = modifier.size(ReadReceiptAvatarSize),
                 imageVector = CompoundIcons.Circle(),
-                contentDescription = null,
+                contentDescription = stringResource(id = CommonStrings.common_sending),
                 tint = ElementTheme.colors.iconSecondary,
             )
         }
@@ -244,7 +239,7 @@ internal fun InlineReadReceiptView(
                 Icon(
                     modifier = modifier.size(ReadReceiptAvatarSize),
                     imageVector = CompoundIcons.CheckCircle(),
-                    contentDescription = null,
+                    contentDescription = stringResource(id = CommonStrings.common_sent),
                     tint = ElementTheme.colors.iconSecondary,
                 )
             }
@@ -258,6 +253,18 @@ internal fun TimelineItemReadReceiptViewPreview(
     @PreviewParameter(ReadReceiptViewStateProvider::class) state: ReadReceiptViewState,
 ) = ElementPreview {
     TimelineItemReadReceiptView(
+        state = state,
+        renderReadReceipts = true,
+        onReadReceiptsClick = {},
+    )
+}
+
+@PreviewsDayNight
+@Composable
+internal fun InlineReadReceiptViewPreview(
+    @PreviewParameter(ReadReceiptViewStateProvider::class) state: ReadReceiptViewState,
+) = ElementPreview {
+    InlineReadReceiptView(
         state = state,
         renderReadReceipts = true,
         onReadReceiptsClick = {},

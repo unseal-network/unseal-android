@@ -80,7 +80,6 @@ import io.element.android.libraries.ui.strings.CommonStrings
 import io.element.android.libraries.ui.utils.a11y.isTalkbackActive
 import io.element.android.wysiwyg.link.Link
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.collectLatest
@@ -151,7 +150,7 @@ fun TimelineView(
     // Animate alpha when timeline is first displayed, to avoid flashes or glitching when viewing rooms
     AnimatedVisibility(visible = true, enter = fadeIn()) {
         Box(modifier) {
-            val renderReadReceiptsWhileIdle = state.renderReadReceipts
+            val renderReadReceipts = state.renderReadReceipts
             LazyColumn(
                 // Two-layer floating chrome. The top bar is a Compose overlay, so we let the timeline
                 // extend to the physical top and scroll *under* it (content visible behind the header)
@@ -182,7 +181,7 @@ fun TimelineView(
                         timelineMode = state.timelineMode,
                         timelineRoomInfo = state.timelineRoomInfo,
                         timelineProtectionState = timelineProtectionState,
-                        renderReadReceipts = renderReadReceiptsWhileIdle,
+                        renderReadReceipts = renderReadReceipts,
                         isLastOutgoingMessage = state.isLastOutgoingMessage(timelineItem.identifier()),
                         focusedEventId = state.focusedEventId,
                         displayThreadSummaries = state.displayThreadSummaries,
@@ -266,24 +265,38 @@ private fun TimelinePrefetchingHelper(
             }
     }
 
+    // Preload older history *while* the user is still scrolling up, well before they reach the top.
+    // This loads the next page ahead of the viewport so its (heavy) items compose gradually as they
+    // scroll into view, instead of arriving as a single batch when the fling settles at the top —
+    // which is what produced the load-more jank spike. The derivedStateOf only emits when the
+    // near-top boolean flips, so the actual paginate call fires once per approach, not per frame.
+    val isNearOldestLoaded by remember {
+        derivedStateOf {
+            val layoutInfo = lazyListState.layoutInfo
+            val totalItemCount = layoutInfo.totalItemsCount
+            if (totalItemCount == 0) {
+                false
+            } else {
+                val lastVisibleIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                lastVisibleIndex >= totalItemCount - PREFETCH_AHEAD_ITEMS
+            }
+        }
+    }
     LaunchedEffect(Unit) {
-        snapshotFlow { lazyListState.isScrollInProgress }
-            .conflate()
+        snapshotFlow { isNearOldestLoaded }
             .distinctUntilChanged()
-            .filter { isScrolling -> !isScrolling }
+            .filter { it }
             .collectLatest {
-                // Reading layoutInfo on every scroll frame is expensive. Pagination can wait until
-                // the gesture/fling settles; then we inspect the viewport once.
-                val layoutInfo = lazyListState.layoutInfo
-                val firstVisibleItemIndex = lazyListState.firstVisibleItemIndex
-                val visibleItemCount = layoutInfo.visibleItemsInfo.size
-                val totalItemCount = layoutInfo.totalItemsCount
-                if (firstVisibleItemIndex + visibleItemCount >= totalItemCount - 40) {
-                    latestPrefetch()
-                }
+                latestPrefetch()
             }
     }
 }
+
+/**
+ * How many items ahead of the oldest loaded message to start back-pagination. Larger = earlier
+ * preload (smoother), at the cost of keeping more history in memory.
+ */
+private const val PREFETCH_AHEAD_ITEMS = 60
 
 @Composable
 private fun BoxScope.TimelineScrollHelper(

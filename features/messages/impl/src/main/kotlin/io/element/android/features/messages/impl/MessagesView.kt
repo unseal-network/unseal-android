@@ -67,7 +67,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
-
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.onSizeChanged
@@ -311,12 +311,22 @@ fun MessagesView(
                             forceJumpToBottomVisibility = forceJumpToBottomVisibility,
                             onViewAllPinnedMessagesClick = onViewAllPinnedMessagesClick,
                             knockRequestsBannerView = knockRequestsBannerView,
-                            // Let the newest message peek ~32dp behind the composer's transparent top
-                            // (the not-encrypted badge / padding region, which is Compose) for a light
-                            // floating feel — without overlapping the composer's EditText AndroidView,
-                            // which is what made full-height scrolling janky.
-                            composerBottomInset = maxOf(0.dp, composerHeightDp - 32.dp),
+                            // Reserve the composer height minus the fade zone, so the newest message
+                            // extends into the composer's transparent top zone (never behind the opaque
+                            // input pill) where the gradient below fades it out.
+                            composerBottomInset = maxOf(0.dp, composerHeightDp - ComposerFadeZone),
                             topChromeInset = topBarHeightDp + 8.dp,
+                        )
+
+                        // Gradient-transparent backdrop: the last message fades from fully visible to the
+                        // solid canvas colour within the composer's top fade zone. Pure Compose gradient
+                        // over the timeline — no AndroidView overlap, no scroll cost.
+                        ComposerChromeBackdrop(
+                            composerHeight = composerHeightDp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(composerHeightDp)
+                                .align(Alignment.BottomCenter)
                         )
 
                         if (state.timelineState.timelineMode !is Timeline.Mode.Thread) {
@@ -354,7 +364,6 @@ fun MessagesView(
                                 }
                             )
                         }
-
 
                         SuggestionsPickerView(
                             modifier = Modifier
@@ -1066,9 +1075,46 @@ private fun RoomComposerChrome(
             .onSizeChanged { size ->
                 onHeightChanged(with(density) { size.height.toDp() })
             }
-            .padding(top = 8.dp, start = 12.dp, end = 12.dp, bottom = 10.dp),
-        content = content,
-    )
+            .padding(start = 12.dp, end = 12.dp, bottom = 10.dp),
+    ) {
+        // Transparent top zone the timeline overlaps into; the gradient fades the last message out
+        // here, above the opaque input pill, so it reads as a soft "渐变透明" edge without the pill
+        // ever covering content.
+        Spacer(Modifier.height(ComposerFadeZone))
+        content()
+    }
+}
+
+private val ComposerFadeZone = 36.dp
+
+// Vertical gradient that fades timeline content from fully visible (top) to the solid canvas colour
+// (bottom) as it reaches the composer, giving a soft "渐变透明" transition instead of a hard edge.
+// Pure Compose gradient — drawn over the timeline, never causing AndroidView-over-AndroidView cost.
+@Composable
+private fun ComposerChromeBackdrop(
+    composerHeight: Dp,
+    modifier: Modifier = Modifier,
+) {
+    val bgColor = ElementTheme.colors.bgCanvasDefault
+    // The gradient backdrop is composerHeight tall; the timeline overlaps only the top ComposerFadeZone
+    // of it. Place the "fully opaque" stop at exactly that fraction so the fade finishes right where the
+    // input pill begins — regardless of composer height (single line, multi-line, reply preview, etc.).
+    val fadeFraction = if (composerHeight > 0.dp) {
+        (ComposerFadeZone / composerHeight).coerceIn(0.05f, 0.95f)
+    } else {
+        0.3f
+    }
+    val brush = remember(bgColor, fadeFraction) {
+        Brush.verticalGradient(
+            colorStops = arrayOf(
+                0.0f to bgColor.copy(alpha = 0f),
+                fadeFraction * 0.6f to bgColor.copy(alpha = 0.8f),
+                fadeFraction to bgColor,
+                1.0f to bgColor,
+            )
+        )
+    }
+    Box(modifier = modifier.background(brush))
 }
 
 @Composable

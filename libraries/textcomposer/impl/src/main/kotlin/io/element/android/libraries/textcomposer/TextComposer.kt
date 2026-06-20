@@ -68,7 +68,6 @@ import io.element.android.libraries.designsystem.theme.components.HorizontalDivi
 import io.element.android.libraries.designsystem.theme.components.Icon
 import io.element.android.libraries.designsystem.theme.components.IconButton
 import io.element.android.libraries.designsystem.theme.components.IconColorButton
-import io.element.android.libraries.designsystem.theme.components.Text
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.timeline.item.event.EventOrTransactionId
@@ -383,7 +382,6 @@ fun TextComposer(
         val endButtonParams = rememberEndButtonParamsFormatting()
         TextFormattingLayout(
             modifier = layoutModifier,
-            isRoomEncrypted = state.isRoomEncrypted,
             textInput = textInput,
             dismissTextFormattingButton = {
                 IconColorButton(
@@ -400,7 +398,6 @@ fun TextComposer(
         StandardLayout(
             composerMode = composerMode,
             voiceMessageState = voiceMessageState,
-            isRoomEncrypted = state.isRoomEncrypted,
             modifier = layoutModifier,
             textInput = textInput,
             endButtonParams = endButtonParams,
@@ -451,7 +448,6 @@ private data class EndButtonParams(
 private fun StandardLayout(
     composerMode: MessageComposerMode,
     voiceMessageState: VoiceMessageState,
-    isRoomEncrypted: Boolean?,
     textInput: @Composable () -> Unit,
     voiceRecording: @Composable () -> Unit,
     endButtonParams: EndButtonParams,
@@ -552,7 +548,6 @@ private fun StandardLayout(
 
 @Composable
 private fun TextFormattingLayout(
-    isRoomEncrypted: Boolean?,
     textInput: @Composable () -> Unit,
     dismissTextFormattingButton: @Composable () -> Unit,
     textFormatting: @Composable () -> Unit,
@@ -611,8 +606,7 @@ private fun TextInputBox(
     modifier: Modifier = Modifier,
     textInput: @Composable () -> Unit,
 ) {
-    // Slightly translucent so the input pill reads as a light, floating element rather than a solid bar.
-    val bgColor = ElementTheme.colors.bgSubtleSecondary.copy(alpha = 0.85f)
+    val bgColor = ElementTheme.colors.bgSubtleSecondary
     val borderColor = ElementTheme.colors.borderDisabled
     val roundedCorners = textInputRoundedCornerShape(composerMode = composerMode)
 

@@ -263,8 +263,11 @@ fun TimelineItemEventRow(
                 event = event,
                 timelineRoomInfo = timelineRoomInfo,
                 presentation = presentation,
+                renderReadReceipts = renderReadReceipts,
+                isLastOutgoingMessage = isLastOutgoingMessage,
                 onLongClick = onLongClick,
                 onUserDataClick = ::onUserDataClick,
+                onReadReceiptsClick = { onReadReceiptClick(event) },
                 eventSink = eventSink,
                 eventContentView = eventContentView,
             )
@@ -385,8 +388,11 @@ private fun TimelineItemStandaloneRow(
     event: TimelineItem.Event,
     timelineRoomInfo: TimelineRoomInfo,
     presentation: TimelinePresentationModel,
+    renderReadReceipts: Boolean,
+    isLastOutgoingMessage: Boolean,
     onLongClick: () -> Unit,
     onUserDataClick: () -> Unit,
+    onReadReceiptsClick: () -> Unit,
     eventSink: (TimelineEvent.TimelineItemEvent) -> Unit,
     eventContentView: @Composable (Modifier, (ContentAvoidingLayoutData) -> Unit) -> Unit,
 ) {
@@ -443,13 +449,33 @@ private fun TimelineItemStandaloneRow(
                         eventContentView(Modifier.fillMaxWidth()) {}
                     }
                     if (event.content !is TimelineItemAiContent) {
-                        TimelineEventTimestampView(
-                            event = event,
-                            eventSink = eventSink,
+                        Row(
                             modifier = Modifier
                                 .align(Alignment.End)
                                 .padding(top = 4.dp),
-                        )
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            // Self text messages render the receipt/send-state inline here (matching
+                            // receiptShownInline, which suppresses the below-bubble TimelineItemReadReceiptView
+                            // for these). Standalone fast path is text-only for self; non-text self content
+                            // is not standalone or falls back to the shared receipt view.
+                            if (event.isMine && event.content is TimelineItemTextBasedContent) {
+                                InlineReadReceiptView(
+                                    state = ReadReceiptViewState(
+                                        sendState = event.localSendState,
+                                        isLastOutgoingMessage = isLastOutgoingMessage,
+                                        receipts = event.readReceiptState.receipts,
+                                    ),
+                                    renderReadReceipts = renderReadReceipts,
+                                    onReadReceiptsClick = onReadReceiptsClick,
+                                    modifier = Modifier.padding(end = 8.dp),
+                                )
+                            }
+                            TimelineEventTimestampView(
+                                event = event,
+                                eventSink = eventSink,
+                            )
+                        }
                     }
                 }
             }
