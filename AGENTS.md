@@ -196,18 +196,13 @@ We wrap the `matrix-rust-sdk` to isolate the UI from the underlying SDK.
 AI SDK stream parsing and `parts` state updates are shared through the Rust stream SDK:
 
 - SDK repo: `git@pagepeek:unseal-network/agent-stream-sdk.git`
+- Android dependency publishing repo: `git@pagepeek:unseal-network/agent-stream-components-kotlin.git`
+- GitHub Packages Maven repo: `https://maven.pkg.github.com/unseal-network/agent-stream-components-kotlin`
 - Current Android SDK release: `network.unseal:agent-stream-android:0.1.0-rc.2`
 - Android wrapper module: `libraries/agentstream`
 - Native library name loaded by Android: `libunseal_agent_stream.so`
 - JNI Kotlin entrypoint: `libraries/agentstream/src/main/kotlin/io/element/android/libraries/agentstream/jni/UnsealAgentStreamNative.kt`
-- Native `.so` destination:
-  - `libraries/agentstream/src/main/jniLibs/arm64-v8a/libunseal_agent_stream.so`
-  - `libraries/agentstream/src/main/jniLibs/armeabi-v7a/libunseal_agent_stream.so`
-  - `libraries/agentstream/src/main/jniLibs/x86_64/libunseal_agent_stream.so`
-- `0.1.0-rc.2` native hashes:
-  - `arm64-v8a`: `bc561f34ac93274348215a66e7fad912525a8f472799c0f56379ce265ea0f0d2`
-  - `armeabi-v7a`: `0d7b14848938ea44a121b16c00f1fc95afde4d44dcd30439351b4f54e29d140d`
-  - `x86_64`: `6cc5a7c0da1ee83ad3e6c831f032ca65c1fbd9afed9924579ebe771fe9d60fb2`
+- Do not commit stream SDK `.so` files into `libraries/agentstream/src/main/jniLibs`. The final Android client must resolve `network.unseal:agent-stream-android` from GitHub Packages.
 
 The ownership split is important:
 
@@ -215,45 +210,15 @@ The ownership split is important:
 - Android `libraries/agentstream` owns platform lifecycle: `AgentStreamClient.getStream`, memory cache, SQLite storage provider, HTTP provider injection, task runner injection, JNI session lifecycle, listener fan-out, and final snapshot persistence.
 - Timeline UI owns rendering only. UI should render `UI = f(snapshot.parts)` and should not open SSE, run a reducer, or keep a separate stream cache.
 
-Build the Rust stream SDK for Android:
+Build and publish the Rust stream SDK for Android from the dependency publishing repo:
 
 ```bash
-export ANDROID_HOME=/usr/local/share/android-commandlinetools
-export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.2.13676358"
-rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
-cargo install cargo-ndk
-
-git clone git@pagepeek:unseal-network/agent-stream-sdk.git /tmp/agent-stream-sdk
-cd /tmp/agent-stream-sdk
-git checkout v0.1.0-rc.2
-
-export PATH="$HOME/.cargo/bin:$PATH"
-ANDROID_NDK_HOME="$ANDROID_NDK_HOME" \
-cargo ndk \
-  --target aarch64-linux-android \
-  --target armv7-linux-androideabi \
-  --target x86_64-linux-android \
-  --platform 26 \
-  -- build --release -p unseal-agent-stream
-```
-
-Copy the generated `.so` files into this Android repo:
-
-```bash
-ANDROID_REPO=/path/to/unseal-android
-SDK_REPO=/tmp/agent-stream-sdk
-
-mkdir -p \
-  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/arm64-v8a" \
-  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/armeabi-v7a" \
-  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/x86_64"
-
-cp "$SDK_REPO/target/aarch64-linux-android/release/libunseal_agent_stream.so" \
-  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/arm64-v8a/libunseal_agent_stream.so"
-cp "$SDK_REPO/target/armv7-linux-androideabi/release/libunseal_agent_stream.so" \
-  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/armeabi-v7a/libunseal_agent_stream.so"
-cp "$SDK_REPO/target/x86_64-linux-android/release/libunseal_agent_stream.so" \
-  "$ANDROID_REPO/libraries/agentstream/src/main/jniLibs/x86_64/libunseal_agent_stream.so"
+cd /path/to/agent-stream-components-kotlin
+export GITHUB_ACTOR=<github-user>
+export GITHUB_TOKEN=<classic-token-with-write-packages>
+export AGENT_STREAM_SDK_REPO=git@pagepeek:unseal-network/agent-stream-sdk.git
+export AGENT_STREAM_SDK_REF=<agent-stream-sdk-ref>
+./scripts/publish-release.sh <version>
 ```
 
 Verify after updating the SDK binary:
