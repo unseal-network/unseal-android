@@ -47,6 +47,20 @@ class ToHtmlDocumentTest {
     }
 
     @Test
+    fun `toHtmlDocument - preserves HTML table structure`() {
+        val body = FormattedBody(
+            format = MessageFormat.HTML,
+            body = "<table><thead><tr><th>Time</th><th>Speaker</th></tr></thead><tbody><tr><td>15:21:26</td><td>user</td></tr></tbody></table>"
+        )
+
+        val document = body.toHtmlDocument(permalinkParser = FakePermalinkParser())
+
+        assertThat(document?.select("table")).hasSize(1)
+        assertThat(document?.select("th")?.map { it.text() }).containsExactly("Time", "Speaker").inOrder()
+        assertThat(document?.select("td")?.map { it.text() }).containsExactly("15:21:26", "user").inOrder()
+    }
+
+    @Test
     fun `toHtmlDocument - returns a Document with a prefix if provided`() {
         val body = FormattedBody(
             format = MessageFormat.HTML,
