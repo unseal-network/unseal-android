@@ -13,7 +13,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,6 +35,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,11 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -103,6 +99,10 @@ fun PostLoginWelcomeView(
     var selectedTheme by rememberSaveable { mutableStateOf(initialTheme) }
     var subscribeChangelog by rememberSaveable { mutableStateOf(false) }
     var subscribeMarketing by rememberSaveable { mutableStateOf(false) }
+    // The logo stroke-on animation plays once for the whole welcome flow; later steps show it
+    // already drawn. Each step's scaffold captures this value when it first composes.
+    var logoPlayed by rememberSaveable { mutableStateOf(false) }
+    val onLogoConsumed = { logoPlayed = true }
 
     Column(
         modifier = modifier
@@ -126,13 +126,18 @@ fun PostLoginWelcomeView(
             label = "post-login-welcome-step",
         ) { step ->
             when (step) {
-                PostLoginWelcomeStep.Welcome -> WelcomeStep()
+                PostLoginWelcomeStep.Welcome -> WelcomeStep(
+                    logoPlayed = logoPlayed,
+                    onLogoConsumed = onLogoConsumed,
+                )
                 PostLoginWelcomeStep.Theme -> ThemeStep(
                     selectedTheme = selectedTheme,
                     onSelectTheme = { theme ->
                         selectedTheme = theme
                         onThemeSelected(theme)
                     },
+                    logoPlayed = logoPlayed,
+                    onLogoConsumed = onLogoConsumed,
                 )
                 PostLoginWelcomeStep.Updates -> UpdatesStep(
                     changelogEnabled = subscribeChangelog,
@@ -140,6 +145,8 @@ fun PostLoginWelcomeView(
                     onToggleChangelog = { subscribeChangelog = !subscribeChangelog },
                     onToggleMarketing = { subscribeMarketing = !subscribeMarketing },
                     onFollowX = onFollowX,
+                    logoPlayed = logoPlayed,
+                    onLogoConsumed = onLogoConsumed,
                 )
             }
         }
@@ -194,18 +201,23 @@ fun PostLoginWelcomeView(
 }
 
 @Composable
-private fun WelcomeStep() {
+private fun WelcomeStep(
+    logoPlayed: Boolean,
+    onLogoConsumed: () -> Unit,
+) {
     StepScrollScaffold(
         title = "Welcome to Unseal",
         primarySubtitle = "Chat with humans, agents, and multi-agent rooms.",
         secondarySubtitle = "Your private rooms, AI tools, and device workflows stay in one workspace.",
+        logoPlayed = logoPlayed,
+        onLogoConsumed = onLogoConsumed,
     ) {
         FeatureHighlightsGrid(
             highlights = listOf(
-                FeatureHighlight("human", "human"),
-                FeatureHighlight("human", "agent"),
-                FeatureHighlight("agent", "agent"),
-                FeatureHighlight("group", "multi-agent"),
+                FeatureHighlight("Human", "Human"),
+                FeatureHighlight("Human", "Agent"),
+                FeatureHighlight("Agent", "Agent"),
+                FeatureHighlight("Group", "Multi-agent"),
             ),
         )
     }
@@ -215,10 +227,14 @@ private fun WelcomeStep() {
 private fun ThemeStep(
     selectedTheme: PostLoginWelcomeTheme,
     onSelectTheme: (PostLoginWelcomeTheme) -> Unit,
+    logoPlayed: Boolean,
+    onLogoConsumed: () -> Unit,
 ) {
     StepScrollScaffold(
         title = "Choose your space",
         secondarySubtitle = "Unseal follows your system theme by default. The room chrome, stream cards, and composer keep the same visual language across devices.",
+        logoPlayed = logoPlayed,
+        onLogoConsumed = onLogoConsumed,
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -241,10 +257,14 @@ private fun UpdatesStep(
     onToggleChangelog: () -> Unit,
     onToggleMarketing: () -> Unit,
     onFollowX: () -> Unit,
+    logoPlayed: Boolean,
+    onLogoConsumed: () -> Unit,
 ) {
     StepScrollScaffold(
         title = "Stay close to the work",
         secondarySubtitle = "Choose what you want to hear about. You can manage notifications, agents, schedules, and webhooks later from settings.",
+        logoPlayed = logoPlayed,
+        onLogoConsumed = onLogoConsumed,
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -280,10 +300,18 @@ private fun UpdatesStep(
 @Composable
 private fun StepScrollScaffold(
     title: String,
-    primarySubtitle: String? = null,
     secondarySubtitle: String,
+    logoPlayed: Boolean,
+    onLogoConsumed: () -> Unit,
+    primarySubtitle: String? = null,
     content: @Composable () -> Unit,
 ) {
+    // Capture the play-once decision when this step first composes, so flipping the shared flag
+    // mid-animation cannot interrupt the in-flight stroke-on draw.
+    val animateLogo = rememberSaveable { !logoPlayed }
+    if (animateLogo) {
+        LaunchedEffect(Unit) { onLogoConsumed() }
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -291,10 +319,11 @@ private fun StepScrollScaffold(
             .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        UnsealMark(
+        UnsealLogoMark(
             modifier = Modifier
-                .padding(top = 96.dp, bottom = 56.dp)
-                .size(192.dp),
+                .padding(top = 88.dp, bottom = 48.dp)
+                .size(132.dp),
+            animated = animateLogo,
         )
 
         Text(
@@ -373,9 +402,9 @@ private fun FeatureCard(
             maxLines = 1,
         )
         Text(
-            text = " <-> ",
+            text = " ↔ ",
             style = ElementTheme.typography.fontBodyMdRegular,
-            color = ElementTheme.colors.textPrimary,
+            color = ElementTheme.colors.textSecondary,
             maxLines = 1,
         )
         Text(
@@ -659,42 +688,6 @@ private fun StepIndicator(currentStep: PostLoginWelcomeStep) {
                     .size(width = width, height = 8.dp)
             )
         }
-    }
-}
-
-@Composable
-private fun UnsealMark(modifier: Modifier = Modifier) {
-    val strokeColor = ElementTheme.colors.textPrimary
-    Canvas(modifier = modifier) {
-        val stroke = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
-        drawArc(
-            color = strokeColor,
-            startAngle = 210f,
-            sweepAngle = 300f,
-            useCenter = false,
-            topLeft = Offset(size.width * 0.08f, size.height * 0.08f),
-            size = Size(size.width * 0.84f, size.height * 0.84f),
-            style = stroke,
-        )
-        drawLine(
-            color = strokeColor,
-            start = Offset(size.width * 0.36f, size.height * 0.68f),
-            end = Offset(size.width * 0.68f, size.height * 0.28f),
-            strokeWidth = 4.dp.toPx(),
-            cap = StrokeCap.Round,
-        )
-        drawRoundRect(
-            color = strokeColor,
-            topLeft = Offset(size.width * 0.30f, size.height * 0.32f),
-            size = Size(size.width * 0.18f, size.height * 0.26f),
-            style = stroke,
-        )
-        drawRoundRect(
-            color = strokeColor,
-            topLeft = Offset(size.width * 0.58f, size.height * 0.50f),
-            size = Size(size.width * 0.18f, size.height * 0.26f),
-            style = stroke,
-        )
     }
 }
 
