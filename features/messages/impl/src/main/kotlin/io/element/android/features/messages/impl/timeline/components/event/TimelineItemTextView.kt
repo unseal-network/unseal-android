@@ -17,6 +17,7 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.contentDescription
@@ -49,6 +50,30 @@ fun TimelineItemTextView(
     modifier: Modifier = Modifier,
     onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit = {},
 ) {
+    val htmlTables = remember(content.htmlDocument) {
+        content.htmlDocument?.extractHtmlTables().orEmpty()
+    }
+    if (htmlTables.isNotEmpty()) {
+        Box(
+            modifier
+                .fillMaxWidth()
+                .onSizeChanged { size ->
+                    onContentLayoutChange(
+                        ContentAvoidingLayoutData(
+                            contentWidth = size.width,
+                            contentHeight = size.height,
+                            nonOverlappingContentWidth = size.width,
+                            nonOverlappingContentHeight = size.height,
+                        )
+                    )
+                }
+                .semantics { contentDescription = content.plainText }
+        ) {
+            HtmlTableBody(tables = htmlTables)
+        }
+        return
+    }
+
     if (content.shouldRenderBodyAsMarkdown()) {
         Box(
             modifier
@@ -114,7 +139,7 @@ internal fun getTextWithResolvedMentions(content: TimelineItemTextBasedContent):
 }
 
 internal fun TimelineItemTextBasedContent.shouldRenderBodyAsMarkdown(): Boolean {
-    return body.hasMarkdownSyntax()
+    return htmlBody.isNullOrBlank() && body.hasMarkdownSyntax()
 }
 
 internal fun String.hasMarkdownSyntax(): Boolean {

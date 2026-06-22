@@ -23,6 +23,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextBasedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextContent
+import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemImageContent
 import io.element.android.features.messages.impl.utils.FakeMentionSpanFormatter
 import io.element.android.libraries.matrix.api.core.toRoomIdOrAlias
 import io.element.android.libraries.matrix.test.A_ROOM_ID
@@ -133,14 +134,14 @@ class TimelineTextViewTest {
     }
 
     @Test
-    fun `shouldRenderBodyAsMarkdown - markdown body wins over generated html`() {
+    fun `shouldRenderBodyAsMarkdown - html body uses html renderer even when body contains markdown table`() {
         val content = aTextContentWithFormattedBody(
-            body = "**bold**\n\n- item",
-            formattedBody = SpannedString("bold\nitem"),
-            htmlBody = "<strong>bold</strong><ul><li>item</li></ul>",
+            body = "| Name | Value |\n| --- | --- |\n| A | B |",
+            formattedBody = SpannedString("Name Value A B"),
+            htmlBody = "<table><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody><tr><td>A</td><td>B</td></tr></tbody></table>",
         )
 
-        assertThat(content.shouldRenderBodyAsMarkdown()).isTrue()
+        assertThat(content.shouldRenderBodyAsMarkdown()).isFalse()
     }
 
     @Test
@@ -152,6 +153,54 @@ class TimelineTextViewTest {
         )
 
         assertThat(content.shouldRenderBodyAsMarkdown()).isFalse()
+    }
+
+    @Test
+    fun `shouldRenderBodyAsMarkdown - markdown body without html uses markdown renderer`() {
+        val content = aTextContentWithFormattedBody(
+            body = "**bold**\n\n- item",
+            formattedBody = SpannedString("**bold**\n\n- item"),
+        )
+
+        assertThat(content.shouldRenderBodyAsMarkdown()).isTrue()
+    }
+
+    @Test
+    fun `shouldRenderCaptionAsMarkdown - formatted caption uses html renderer even when caption contains markdown table`() {
+        val content = aTimelineItemImageContent(
+            caption = "| Name | Value |\n| --- | --- |\n| A | B |",
+        ).copy(formattedCaption = SpannedString("Name Value A B"))
+
+        assertThat(content.shouldRenderCaptionAsMarkdown(isInspectionMode = false)).isFalse()
+    }
+
+    @Test
+    fun `shouldRenderCaptionAsMarkdown - markdown caption without formatted caption uses markdown renderer`() {
+        val content = aTimelineItemImageContent(
+            caption = "**bold**\n\n- item",
+        )
+
+        assertThat(content.shouldRenderCaptionAsMarkdown(isInspectionMode = false)).isTrue()
+    }
+
+    @Test
+    fun `extractHtmlTables - preserves table rows and header cells`() {
+        val document = org.jsoup.Jsoup.parse(
+            """
+            <table>
+              <thead><tr><th>Time</th><th>Speaker</th></tr></thead>
+              <tbody><tr><td>15:21:26</td><td>user</td></tr></tbody>
+            </table>
+            """.trimIndent()
+        )
+
+        val table = document.extractHtmlTables().single()
+
+        assertThat(table.rows).hasSize(2)
+        assertThat(table.rows[0].cells.map { it.text }).containsExactly("Time", "Speaker").inOrder()
+        assertThat(table.rows[0].cells.all { it.isHeader }).isTrue()
+        assertThat(table.rows[1].cells.map { it.text }).containsExactly("15:21:26", "user").inOrder()
+        assertThat(table.rows[1].cells.any { it.isHeader }).isFalse()
     }
 
     private suspend fun AndroidComposeUiTest<ComponentActivity>.getText(

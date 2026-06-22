@@ -118,7 +118,7 @@ fun TimelineItemImageView(
             val captionModifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 4.dp) // This is (12.dp - 8.dp) contentPadding from CommonLayout
-            if (!LocalInspectionMode.current && caption.hasMarkdownSyntax()) {
+            if (content.shouldRenderCaptionAsMarkdown(isInspectionMode = LocalInspectionMode.current)) {
                 MarkdownBody(
                     text = caption,
                     renderMode = MarkdownRenderMode.Stable,
@@ -158,6 +158,10 @@ fun TimelineItemImageView(
             }
         }
     }
+}
+
+internal fun TimelineItemImageContent.shouldRenderCaptionAsMarkdown(isInspectionMode: Boolean): Boolean {
+    return !isInspectionMode && formattedCaption == null && caption.orEmpty().hasMarkdownSyntax()
 }
 
 @PreviewsDayNight
