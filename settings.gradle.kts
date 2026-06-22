@@ -29,11 +29,14 @@ dependencyResolutionManagement {
         mavenCentral()
         maven {
             name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/unseal-network/unseal-android")
+            url = uri("https://maven.pkg.github.com/unseal-network/agent-stream-components-kotlin")
             credentials {
-                username = providers.environmentVariable("GITHUB_ACTOR").orElse("jelf-work").get()
+                username = providers.environmentVariable("GITHUB_ACTOR")
+                    .orElse(providers.environmentVariable("GITHUB_USERNAME"))
+                    .getOrElse("")
                 password = providers.environmentVariable("GITHUB_TOKEN")
                     .orElse(providers.environmentVariable("GH_TOKEN"))
+                    .orElse(providers.environmentVariable("PACKAGES_TOKEN"))
                     .orElse(providers.environmentVariable("PRIVATE_REGISTRY_TOKEN"))
                     .getOrElse("")
             }
