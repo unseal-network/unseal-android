@@ -7,6 +7,16 @@
 
 package io.element.android.features.messages.impl.timeline.components.event
 
+import android.util.TypedValue
+import android.widget.TextView
+import android.text.Spannable
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.BackgroundColorSpan
+import android.text.style.ForegroundColorSpan
+import android.text.style.TypefaceSpan
+import android.text.style.UnderlineSpan
+import android.text.style.URLSpan
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -33,15 +43,20 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.UriHandler
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
@@ -60,7 +75,16 @@ import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownColor
 import com.mikepenz.markdown.m3.markdownTypography
 import com.mikepenz.markdown.model.State
+import io.element.android.compound.theme.ElementTheme
 import io.element.android.wysiwyg.link.Link
+import androidx.compose.ui.viewinterop.AndroidView
+import io.noties.markwon.AbstractMarkwonPlugin
+import io.noties.markwon.Markwon
+import io.noties.markwon.MarkwonConfiguration
+import io.noties.markwon.ext.strikethrough.StrikethroughPlugin
+import io.noties.markwon.ext.tables.TablePlugin
+import io.noties.markwon.linkify.LinkifyPlugin
+import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 
 /**
  * Renders an AI message body as Markdown, mirroring the iOS base rendering logic
@@ -69,86 +93,359 @@ import io.element.android.wysiwyg.link.Link
  * logic is kept consistent: same heading hierarchy, link/inline-code/code-block treatment, and
  * — crucially — the same caching strategy.
  *
- * Caching (mirrors iOS `MarkdownViewCache`):
- *  - **Stable** text (not streaming): the parsed result is cached by full text in a process-level
- *    LRU and reused on every timeline-cell rebuild / scroll-back / room re-entry, so it is parsed
- *    exactly once.
- *  - **Streaming** text: parsed fresh on each update (the text mutates every chunk, so a parse can't
- *    be reused); the 500ms patch coalescing upstream bounds how often this happens.
+ * Rendering modes are intentionally separate:
+ *  - [MarkdownRenderMode.Stable] is for fixed timeline content. It performs a full render only
+ *    when the text actually changes, so normal Compose recomposition does not reset the TextView.
+ *  - [MarkdownRenderMode.Streaming] is for AI output in flight. It can update as chunks arrive,
+ *    but still skips duplicate safe-text updates to avoid visible whole-block flashing.
  */
 @Composable
 internal fun MarkdownBody(
     text: String,
-    isStreaming: Boolean,
+    renderMode: MarkdownRenderMode,
     onLinkClick: (Link) -> Unit,
+    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    fillMaxWidth: Boolean = true,
 ) {
     if (text.isBlank()) return
-
-    val uriHandler = remember(onLinkClick) {
-        object : UriHandler {
-            override fun openUri(uri: String) = onLinkClick(Link(uri))
-        }
+    extractPrimaryJsonSpecFence(text)?.let { fence ->
+        AiCodeOrJsonSpecBlock(
+            code = fence.code,
+            language = fence.language,
+            onLinkClick = onLinkClick,
+            modifier = modifier.then(if (fillMaxWidth) Modifier.fillMaxWidth() else Modifier),
+        )
+        return
     }
-    val colors = aiMarkdownColors()
-    val typography = aiMarkdownTypography()
-    val components = remember(onLinkClick) {
-        markdownComponents(
-            codeBlock = { model ->
-                MarkdownCodeBlock(model.content, model.node, model.typography.code) { code, language, _ ->
-                    AiCodeOrJsonSpecBlock(code = code, language = language, onLinkClick = onLinkClick)
+    MarkwonMarkdownBody(
+        text = text,
+        renderMode = renderMode,
+        onLinkClick = onLinkClick,
+        onLongClick = onLongClick,
+        modifier = modifier,
+        fillMaxWidth = fillMaxWidth,
+    )
+}
+
+internal enum class MarkdownRenderMode {
+    Stable,
+    Streaming,
+}
+
+@Composable
+private fun MarkwonMarkdownBody(
+    text: String,
+    renderMode: MarkdownRenderMode,
+    onLinkClick: (Link) -> Unit,
+    onLongClick: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    fillMaxWidth: Boolean = true,
+) {
+    val context = LocalContext.current
+    val currentOnLinkClick = rememberUpdatedState(onLinkClick)
+    val textColor = ElementTheme.colors.textPrimary
+    val linkColor = MaterialTheme.colorScheme.primary
+    val textSizeSp = MaterialTheme.typography.bodyMedium.fontSize.value.takeIf { it > 0f } ?: 16f
+    val markwon = remember(context) {
+        Markwon.builder(context)
+            .usePlugin(StrikethroughPlugin.create())
+            .usePlugin(TablePlugin.create(context))
+            .usePlugin(LinkifyPlugin.create())
+            .usePlugin(object : AbstractMarkwonPlugin() {
+                override fun configureConfiguration(builder: MarkwonConfiguration.Builder) {
+                    builder.linkResolver { _, link ->
+                        currentOnLinkClick.value(Link(link))
+                    }
                 }
-            },
-            codeFence = { model ->
-                MarkdownCodeFence(model.content, model.node, model.typography.code) { code, language, _ ->
-                    AiCodeOrJsonSpecBlock(code = code, language = language, onLinkClick = onLinkClick)
-                }
-            },
+            })
+            .build()
+    }
+    val renderedText = when (renderMode) {
+        MarkdownRenderMode.Stable -> text
+        MarkdownRenderMode.Streaming -> text.streamingMarkdownSafeText()
+    }.mobileFriendlyMarkdownTables()
+    val textColorArgb = textColor.toArgb()
+    val linkColorArgb = linkColor.toArgb()
+    val codeBackgroundArgb = ElementTheme.colors.bgSubtleSecondary.toArgb()
+    AndroidView(
+        modifier = modifier
+            .then(if (fillMaxWidth) Modifier.fillMaxWidth() else Modifier)
+            .collapseSemanticsForLongMarkdown(text),
+        factory = { viewContext ->
+            TextView(viewContext).apply {
+                includeFontPadding = false
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, textSizeSp)
+                setTextColor(textColorArgb)
+                setLinkTextColor(linkColorArgb)
+                setLineSpacing(0f, 1.08f)
+                configureMarkdownTextViewSelection(this, onLongClick)
+            }
+        },
+        update = { textView ->
+            val previousState = textView.tag as? RenderedMarkdownState
+            if (previousState?.textSizeSp != textSizeSp) {
+                textView.setTextSize(TypedValue.COMPLEX_UNIT_SP, textSizeSp)
+            }
+            if (previousState?.textColorArgb != textColorArgb) {
+                textView.setTextColor(textColorArgb)
+            }
+            if (previousState?.linkColorArgb != linkColorArgb) {
+                textView.setLinkTextColor(linkColorArgb)
+            }
+            if (
+                previousState?.markdownText != renderedText ||
+                previousState.renderMode != renderMode ||
+                previousState.textColorArgb != textColorArgb ||
+                previousState.linkColorArgb != linkColorArgb ||
+                previousState.codeBackgroundArgb != codeBackgroundArgb
+            ) {
+                markwon.setMarkdown(textView, renderedText)
+            }
+            applyMarkdownThemeSpans(
+                textView = textView,
+                textColorArgb = textColorArgb,
+                linkColorArgb = linkColorArgb,
+                codeBackgroundArgb = codeBackgroundArgb,
+            )
+            textView.tag = RenderedMarkdownState(
+                markdownText = renderedText,
+                renderMode = renderMode,
+                textColorArgb = textColorArgb,
+                linkColorArgb = linkColorArgb,
+                textSizeSp = textSizeSp,
+                codeBackgroundArgb = codeBackgroundArgb,
+            )
+        },
+    )
+}
+
+internal fun configureMarkdownTextViewSelection(textView: TextView, onLongClick: (() -> Unit)? = null) {
+    textView.setTextIsSelectable(true)
+    textView.setOnLongClickListener(
+        onLongClick?.let {
+            android.view.View.OnLongClickListener {
+                onLongClick()
+                false
+            }
+        }
+    )
+}
+
+private data class RenderedMarkdownState(
+    val markdownText: String,
+    val renderMode: MarkdownRenderMode,
+    val textColorArgb: Int,
+    val linkColorArgb: Int,
+    val textSizeSp: Float,
+    val codeBackgroundArgb: Int,
+)
+
+internal fun applyMarkdownThemeSpans(
+    textView: TextView,
+    textColorArgb: Int,
+    linkColorArgb: Int,
+    codeBackgroundArgb: Int,
+) {
+    textView.setTextColor(textColorArgb)
+    textView.setLinkTextColor(linkColorArgb)
+
+    var needsTextViewUpdate = false
+    val spannable = when (val text = textView.text) {
+        is Spannable -> text
+        is Spanned -> SpannableString(text).also {
+            needsTextViewUpdate = true
+        }
+        else -> return
+    }
+
+    spannable.getSpans(0, spannable.length, ForegroundColorSpan::class.java).forEach { span ->
+        spannable.removeSpan(span)
+    }
+    if (spannable.isNotEmpty()) {
+        spannable.setSpan(
+            ForegroundColorSpan(textColorArgb),
+            0,
+            spannable.length,
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
         )
     }
-
-    CompositionLocalProvider(LocalUriHandler provides uriHandler) {
-        val cached = if (isStreaming) null else MarkdownParseCache.get(text)
-        if (cached != null) {
-            // Stable + cache hit: render the already-parsed tree, zero re-parse.
-            Markdown(
-                state = cached,
-                colors = colors,
-                typography = typography,
-                imageTransformer = Coil3ImageTransformerImpl,
-                components = components,
-                modifier = modifier,
-            )
-        } else {
-            Markdown(
-                content = text,
-                colors = colors,
-                typography = typography,
-                imageTransformer = Coil3ImageTransformerImpl,
-                components = components,
-                modifier = modifier,
-                success = { state, comps, mod ->
-                    // Cache the parsed tree once the (stable) message has finished parsing.
-                    SideEffect { if (!isStreaming) MarkdownParseCache.put(text, state) }
-                    MarkdownSuccess(state = state, components = comps, modifier = mod)
-                },
+    spannable.getSpans(0, spannable.length, URLSpan::class.java).forEach { span ->
+        val start = spannable.getSpanStart(span)
+        val end = spannable.getSpanEnd(span)
+        if (start >= 0 && end > start) {
+            spannable.setSpan(
+                ForegroundColorSpan(linkColorArgb),
+                start,
+                end,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
             )
         }
+    }
+    spannable.getSpans(0, spannable.length, UnderlineSpan::class.java).forEach { span ->
+        val start = spannable.getSpanStart(span)
+        val end = spannable.getSpanEnd(span)
+        if (start >= 0 && end > start && !spannable.hasUrlSpan(start, end)) {
+            spannable.setSpan(
+                ForegroundColorSpan(linkColorArgb),
+                start,
+                end,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+            )
+        }
+    }
+
+    spannable.getSpans(0, spannable.length, BackgroundColorSpan::class.java).forEach { span ->
+        val start = spannable.getSpanStart(span)
+        val end = spannable.getSpanEnd(span)
+        val flags = spannable.getSpanFlags(span)
+        spannable.removeSpan(span)
+        spannable.setSpan(BackgroundColorSpan(codeBackgroundArgb), start, end, flags)
+    }
+
+    spannable.getSpans(0, spannable.length, TypefaceSpan::class.java).forEach { span ->
+        val family = span.family
+        if (family == "monospace" || family == FontFamily.Monospace.toString()) {
+            val start = spannable.getSpanStart(span)
+            val end = spannable.getSpanEnd(span)
+            if (start >= 0 && end > start && !spannable.hasBackgroundSpan(start, end)) {
+                spannable.setSpan(BackgroundColorSpan(codeBackgroundArgb), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        }
+    }
+
+    if (needsTextViewUpdate) {
+        textView.setText(spannable, TextView.BufferType.SPANNABLE)
+    }
+}
+
+private fun Spannable.hasUrlSpan(start: Int, end: Int): Boolean =
+    getSpans(start.coerceAtLeast(0), end.coerceAtLeast(start), URLSpan::class.java).isNotEmpty()
+
+private fun Spannable.hasBackgroundSpan(start: Int, end: Int): Boolean =
+    getSpans(start.coerceAtLeast(0), end.coerceAtLeast(start), BackgroundColorSpan::class.java).isNotEmpty()
+
+private fun String.streamingMarkdownSafeText(): String {
+    var safeEnd = length
+    safeEnd = minOf(safeEnd, unclosedFenceStart())
+    safeEnd = minOf(safeEnd, unclosedInlineMarkerStart("`"))
+    safeEnd = minOf(safeEnd, unclosedInlineMarkerStart("**"))
+    safeEnd = minOf(safeEnd, unclosedInlineMarkerStart("__"))
+    safeEnd = minOf(safeEnd, unclosedLinkStart())
+    return take(safeEnd.coerceIn(0, length))
+}
+
+internal fun String.streamingMarkdownSafeTextForTest(): String = streamingMarkdownSafeText()
+
+internal fun String.mobileFriendlyMarkdownTablesForTest(): String = mobileFriendlyMarkdownTables()
+
+private fun String.mobileFriendlyMarkdownTables(): String {
+    val lines = lineSequence().toList()
+    if (lines.none { it.contains('|') }) return this
+    val out = mutableListOf<String>()
+    var index = 0
+    var inFence = false
+    while (index < lines.size) {
+        val line = lines[index]
+        val trimmed = line.trim()
+        if (trimmed.startsWith("```") || trimmed.startsWith("~~~")) {
+            inFence = !inFence
+            out += line
+            index += 1
+            continue
+        }
+        if (!inFence && index + 1 < lines.size && isMarkdownTableSeparator(lines[index + 1])) {
+            val headers = parseMarkdownTableRow(line)
+            if (headers.size >= 2) {
+                val rows = mutableListOf<List<String>>()
+                var rowIndex = index + 2
+                while (rowIndex < lines.size) {
+                    val row = parseMarkdownTableRow(lines[rowIndex])
+                    if (row.size < 2) break
+                    rows += row
+                    rowIndex += 1
+                }
+                if (rows.isNotEmpty()) {
+                    if (out.lastOrNull()?.isNotBlank() == true) out += ""
+                    rows.forEachIndexed { itemIndex, row ->
+                        if (rows.size > 1) {
+                            out += "**Item ${itemIndex + 1}**"
+                        }
+                        headers.zip(row).forEach { (header, value) ->
+                            if (value.isNotBlank()) {
+                                out += "- **${header.ifBlank { "Field" }}:** $value"
+                            }
+                        }
+                        if (itemIndex < rows.lastIndex) out += ""
+                    }
+                    index = rowIndex
+                    continue
+                }
+            }
+        }
+        out += line
+        index += 1
+    }
+    return out.joinToString("\n")
+}
+
+private fun parseMarkdownTableRow(line: String): List<String> {
+    val trimmed = line.trim()
+    if (!trimmed.contains('|')) return emptyList()
+    val body = trimmed.removePrefix("|").removeSuffix("|")
+    return body.split('|').map { it.trim() }
+}
+
+private fun isMarkdownTableSeparator(line: String): Boolean {
+    val cells = parseMarkdownTableRow(line)
+    return cells.size >= 2 && cells.all { cell ->
+        cell.matches(Regex(":?-{3,}:?"))
+    }
+}
+
+private fun String.unclosedFenceStart(): Int {
+    val matches = Regex("```").findAll(this).map { it.range.first }.toList()
+    return if (matches.size % 2 == 1) matches.last() else length
+}
+
+private fun String.unclosedInlineMarkerStart(marker: String): Int {
+    val matches = Regex(Regex.escape(marker)).findAll(this).map { it.range.first }.toList()
+    return if (matches.size % 2 == 1) matches.last() else length
+}
+
+private fun String.unclosedLinkStart(): Int {
+    val open = lastIndexOf('[')
+    if (open < 0) return length
+    val close = indexOf(']', startIndex = open + 1)
+    if (close < 0) return open
+    val parenOpen = indexOf('(', startIndex = close + 1)
+    if (parenOpen < 0) return length
+    val parenClose = indexOf(')', startIndex = parenOpen + 1)
+    return if (parenClose < 0) open else length
+}
+
+private const val COLLAPSED_MARKDOWN_SEMANTICS_THRESHOLD = 500
+
+private fun Modifier.collapseSemanticsForLongMarkdown(markdownText: String): Modifier {
+    if (markdownText.length < COLLAPSED_MARKDOWN_SEMANTICS_THRESHOLD) return this
+    return clearAndSetSemantics {
+        text = AnnotatedString(markdownText)
     }
 }
 
 /** Process-level LRU of parsed Markdown trees keyed by full source text. Mirrors iOS `MarkdownViewCache` (FIFO, 200). */
 private object MarkdownParseCache {
+    private const val KEY_PREFIX = "gfm:v1:"
     private const val LIMIT = 200
     private val lock = Any()
     private val store = object : LinkedHashMap<String, State.Success>(LIMIT, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, State.Success>): Boolean = size > LIMIT
     }
 
-    fun get(text: String): State.Success? = synchronized(lock) { store[text] }
+    fun get(text: String): State.Success? = synchronized(lock) { store[KEY_PREFIX + text] }
 
     fun put(text: String, state: State.Success) {
-        synchronized(lock) { store[text] = state }
+        synchronized(lock) { store[KEY_PREFIX + text] = state }
     }
 }
 
@@ -211,9 +508,15 @@ internal enum class MarkdownCodeBlockRenderMode {
 }
 
 internal fun markdownCodeBlockRenderMode(language: String?, code: String): MarkdownCodeBlockRenderMode {
-    return when (language?.lowercase()) {
+    val normalizedLanguage = language?.lowercase()
+    return when (normalizedLanguage) {
         "spec" -> MarkdownCodeBlockRenderMode.JsonSpec
-        "json", "jsonl" -> if (code.canRenderAsJsonSpec()) {
+        "json", "jsonl" -> if (code.canRenderAsJsonSpec() || code.looksLikeReadableJsonSpecPayload()) {
+            MarkdownCodeBlockRenderMode.JsonSpec
+        } else {
+            MarkdownCodeBlockRenderMode.Code
+        }
+        null, "" -> if (code.looksLikeReadableJsonSpecPayload()) {
             MarkdownCodeBlockRenderMode.JsonSpec
         } else {
             MarkdownCodeBlockRenderMode.Code
@@ -221,6 +524,44 @@ internal fun markdownCodeBlockRenderMode(language: String?, code: String): Markd
         else -> MarkdownCodeBlockRenderMode.Code
     }
 }
+
+private data class MarkdownCodeFence(val language: String?, val code: String)
+
+private fun extractPrimaryJsonSpecFence(markdown: String): MarkdownCodeFence? {
+    val lines = markdown.trim().lines()
+    if (lines.size < 3) return null
+    val first = lines.first().trim()
+    val last = lines.last().trim()
+    if (!first.startsWith("```") || last != "```") return null
+    val language = first.removePrefix("```").trim().takeIf { it.isNotBlank() }
+    val code = lines.drop(1).dropLast(1).joinToString("\n").trim()
+    if (code.isBlank()) return null
+    return if (markdownCodeBlockRenderMode(language = language, code = code) == MarkdownCodeBlockRenderMode.JsonSpec) {
+        MarkdownCodeFence(language = language, code = code)
+    } else {
+        null
+    }
+}
+
+private fun String.looksLikeReadableJsonSpecPayload(): Boolean {
+    val trimmed = trim()
+    if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return false
+    val json = runCatching { org.json.JSONTokener(trimmed).nextValue() }.getOrNull()
+    return when (json) {
+        is org.json.JSONObject -> json.has("component") ||
+            json.has("_cardType") ||
+            json.has("cards") ||
+            json.has("sections") ||
+            json.has("props")
+        is org.json.JSONArray -> json.length() > 0 && (0 until json.length()).any { index ->
+            val item = json.optJSONObject(index)
+            item != null && (item.has("component") || item.has("_cardType") || item.has("op") || item.has("path"))
+        }
+        else -> false
+    }
+}
+
+internal fun extractPrimaryJsonSpecFenceForTest(markdown: String): String? = extractPrimaryJsonSpecFence(markdown)?.code
 
 @Composable
 private fun AiCodeBlock(

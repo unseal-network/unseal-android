@@ -206,14 +206,16 @@ private fun DeploymentRow(dep: JSONObject) {
     val ref = dep.cardString("ref")
     val login = dep.optJSONObject("creator")?.cardString("login")
     val isProd = dep.cardBool("productionEnvironment") ?: false
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        StatusDot(if (isProd) StatusSuccess else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                RowTitle(env)
-                ref?.let { MonoTag(it) }
+    ToolCardRowSurface {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            StatusDot(if (isProd) StatusSuccess else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    RowTitle(env)
+                    ref?.let { MonoTag(it) }
+                }
+                login?.let { Subtle(it) }
             }
-            login?.let { Subtle(it) }
         }
     }
 }
@@ -358,30 +360,32 @@ private fun CommentRow(comment: JSONObject) {
     val createdAt = comment.cardString("createdAt")
     val association = comment.cardString("association")
     val reactions = comment.cardObjects("reactions")
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (!avatarUrl.isNullOrBlank()) {
-            CardRemoteImage(url = avatarUrl, modifier = Modifier.size(28.dp).clip(CircleShape), corner = 14)
-        } else {
-            Box(modifier = Modifier.size(28.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-                Text(author.take(1).uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    ToolCardRowSurface {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (!avatarUrl.isNullOrBlank()) {
+                CardRemoteImage(url = avatarUrl, modifier = Modifier.size(28.dp).clip(CircleShape), corner = 14)
+            } else {
+                Box(modifier = Modifier.size(28.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surface), contentAlignment = Alignment.Center) {
+                    Text(author.take(1).uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
-        }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(author, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
-                if (!association.isNullOrBlank()) MonoTag(association)
-                Spacer(Modifier.weight(1f))
-                createdAt?.let { Subtle(it) }
-            }
-            if (body.isNotEmpty()) {
-                Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 4, overflow = TextOverflow.Ellipsis)
-            }
-            if (reactions.isNotEmpty()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    reactions.forEach { r ->
-                        val emoji = r.cardString("emoji") ?: ""
-                        val count = r.cardInt("count") ?: 0
-                        if (emoji.isNotEmpty()) CardChip(text = "$emoji $count")
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(author, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                    if (!association.isNullOrBlank()) MonoTag(association)
+                    Spacer(Modifier.weight(1f))
+                    createdAt?.let { Subtle(it) }
+                }
+                if (body.isNotEmpty()) {
+                    Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 4, overflow = TextOverflow.Ellipsis)
+                }
+                if (reactions.isNotEmpty()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        reactions.forEach { r ->
+                            val emoji = r.cardString("emoji") ?: ""
+                            val count = r.cardInt("count") ?: 0
+                            if (emoji.isNotEmpty()) CardChip(text = "$emoji $count")
+                        }
                     }
                 }
             }
@@ -394,9 +398,8 @@ private fun CommentRow(comment: JSONObject) {
 @Composable
 private fun LinkableRow(url: String?, onLinkClick: () -> Unit, content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
     val uriHandler = LocalUriHandler.current
-    Row(
+    ToolCardRowSurface(
         modifier = Modifier
-            .fillMaxWidth()
             .then(
                 if (url != null) {
                     Modifier.clickable {
@@ -406,12 +409,14 @@ private fun LinkableRow(url: String?, onLinkClick: () -> Unit, content: @Composa
                 } else {
                     Modifier
                 }
-            )
-            .padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        content = content,
-    )
+            ),
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            content = content,
+        )
+    }
 }
 
 @Composable

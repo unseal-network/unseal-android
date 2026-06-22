@@ -32,6 +32,27 @@ class TimelineItemAiViewLogicTest {
         assertThat(aiContent(body = "thinking", streamId = null).shouldRenderBodyFallback()).isTrue()
     }
 
+    @Test
+    fun `duplicate tool card payload text is detected without hiding summaries`() {
+        val jsonPayload = """
+            {
+              "cards": [
+                { "hotel_name": "Upper House Chengdu", "rating": 4.8 }
+              ],
+              "component": "HotelBookingCard"
+            }
+        """.trimIndent()
+        val fencedPayload = """
+            ```json
+            $jsonPayload
+            ```
+        """.trimIndent()
+
+        assertThat(jsonPayload.looksLikeDuplicateToolCardPayload()).isTrue()
+        assertThat(fencedPayload.looksLikeDuplicateToolCardPayload()).isTrue()
+        assertThat("Here are the current market quotes for Apple and NVIDIA.".looksLikeDuplicateToolCardPayload()).isFalse()
+    }
+
     private fun aiContent(body: String, streamId: String?): TimelineItemAiContent {
         return TimelineItemAiContent(
             body = body,

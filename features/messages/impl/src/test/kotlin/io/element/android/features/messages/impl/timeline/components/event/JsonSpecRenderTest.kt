@@ -136,6 +136,29 @@ class JsonSpecRenderTest {
     }
 
     @Test
+    fun `typed hotel data preserves agent hotel field aliases`() {
+        val payload = """
+            {
+              "type": "hotelBookingCard",
+              "data": {
+                "hotel_name": "Upper House Chengdu",
+                "image_url": "https://example.com/hotel.jpg",
+                "price": "${"$"}498/night",
+                "rating": 4.8
+              }
+            }
+        """.trimIndent()
+
+        val spec = payload.toJsonRenderSpec()
+        val root = spec?.elements?.getValue("root")
+
+        assertThat(payload.canRenderAsJsonSpec()).isTrue()
+        assertThat(root?.type).isEqualTo("hotelBookingCard")
+        assertThat(root?.props?.optString("hotel_name")).isEqualTo("Upper House Chengdu")
+        assertThat(root?.props?.optString("image_url")).isEqualTo("https://example.com/hotel.jpg")
+    }
+
+    @Test
     fun `canRenderAsJsonSpec accepts spacer typed data`() {
         val payload = """
             {

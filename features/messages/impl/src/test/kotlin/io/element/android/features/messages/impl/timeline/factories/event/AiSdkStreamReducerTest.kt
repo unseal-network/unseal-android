@@ -167,6 +167,70 @@ class AiSdkStreamReducerTest {
     }
 
     @Test
+    fun `unknown pending tool does not create a tool root card`() {
+        val snapshot = snapshot(
+            streamId = "stream-unknown-tool",
+            status = StreamStatus.Streaming,
+            parts = listOf(
+                StreamPart.Tool(
+                    id = "tool-unknown",
+                    toolState = "input-available",
+                    toolName = "UNREGISTERED_TOOL",
+                    input = Json.parseToJsonElement("""{"q":"Chengdu"}"""),
+                )
+            ),
+        )
+
+        val result = reducer.mapRenderModel(snapshot)
+
+        assertThat(result.visibleParts.map { it.id }).containsExactly("tool-unknown")
+        assertThat(result.toolCardEntries).isEmpty()
+        assertThat(result.toolCallRoot).isNull()
+        assertThat(result.cursorMode).isEqualTo(AiStreamCursorMode.TrailingCursor)
+    }
+
+    @Test
+    fun `registered pending tool creates named calling root card`() {
+        val snapshot = snapshot(
+            streamId = "stream-hotels",
+            status = StreamStatus.Streaming,
+            parts = listOf(
+                StreamPart.Tool(
+                    id = "hotel-tool",
+                    toolState = "input-available",
+                    toolName = "COMPOSIO_SEARCH_HOTELS",
+                    input = Json.parseToJsonElement("""{"location":"Chengdu"}"""),
+                )
+            ),
+        )
+
+        val result = reducer.mapRenderModel(snapshot)
+
+        assertThat(result.toolCardEntries).hasSize(1)
+        assertThat(result.toolCardEntries.single().name).isEqualTo("Hotels")
+        assertThat(result.toolCardEntries.single().state).isEqualTo("calling")
+        assertThat(result.toolCallRoot).isNotNull()
+        assertThat(result.toolCallRoot?.title).isEqualTo("Hotels")
+        assertThat(result.toolCallRoot?.expandedByDefault).isTrue()
+    }
+
+    @Test
+    fun `empty streaming snapshot uses loading cursor mode without tool root`() {
+        val snapshot = snapshot(
+            streamId = "stream-empty",
+            status = StreamStatus.Streaming,
+            parts = emptyList(),
+        )
+
+        val result = reducer.mapRenderModel(snapshot)
+
+        assertThat(result.cursorMode).isEqualTo(AiStreamCursorMode.Loading)
+        assertThat(result.toolCallRoot).isNull()
+        assertThat(result.visibleParts).isEmpty()
+        assertThat(result.markdownBlocks).isEmpty()
+    }
+
+    @Test
     fun `reducer consumes sdk-normalized completed part states`() {
         val snapshot = snapshot(
             status = StreamStatus.Completed,
@@ -311,10 +375,119 @@ class AiSdkStreamReducerTest {
         assertThat(result.toolCallRoot?.selectedIndex).isEqualTo(0)
         assertThat(result.toolCallRoot?.doneCount).isEqualTo(1)
         assertThat(result.toolCallRoot?.callingCount).isEqualTo(0)
-        assertThat(result.toolCallRoot?.expandedByDefault).isTrue()
+        assertThat(result.toolCallRoot?.expandedByDefault).isFalse()
         assertThat(result.firstToolPartIndex).isEqualTo(1)
         assertThat(result.passthroughParts.map { it.id }).containsExactly("text-before", "text-after").inOrder()
         assertThat(result.lastPartIsStreamingText).isTrue()
+    }
+
+    @Test
+    fun `multi execute renderUI tool input exports inferred card entry`() {
+        val snapshot = snapshot(
+            status = StreamStatus.Completed,
+            parts = listOf(
+                StreamPart.Tool(
+                    id = "render-images",
+                    toolState = "output-available",
+                    toolName = "COMPOSIO_MULTI_EXECUTE_TOOL",
+                    input = Json.parseToJsonElement(
+                        """
+                        {
+                          "tools": [
+                            {
+                              "tool_slug": "renderUI",
+                              "arguments": {
+                                "spec": {
+                                  "type": "CarouselCard",
+                                  "components": [
+                                    {
+                                      "type": "CarouselCard",
+                                      "props": {
+                                        "images": [
+                                          {
+                                            "alt": "Wanda Reign Chengdu",
+                                            "url": "https://example.com/chengdu-room.jpg"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          ]
+                        }
+                        """.trimIndent(),
+                    ),
+                    output = Json.parseToJsonElement("""{"successful":true,"data":{"results":[]}}"""),
+                ),
+            ),
+        )
+
+        val result = reducer.mapSnapshot(snapshot, isEdited = false, sender = null)
+        val entry = result.toolCardEntries.single()
+        val props = JSONObject(entry.props)
+
+        assertThat(entry.name).isEqualTo("Images")
+        assertThat(entry.cardType).isEqualTo("imageGrid")
+        assertThat(result.toolCallRoot?.title).isEqualTo("Images")
+        assertThat(props.getString("_cardType")).isEqualTo("imageGrid")
+        assertThat(props.getJSONArray("images").getJSONObject(0).getString("original")).isEqualTo("https://example.com/chengdu-room.jpg")
+    }
+
+    @Test
+    fun `multi execute renderUI place list input exports place card entry`() {
+        val snapshot = snapshot(
+            status = StreamStatus.Completed,
+            parts = listOf(
+                StreamPart.Tool(
+                    id = "render-places",
+                    toolState = "output-available",
+                    toolName = "COMPOSIO_MULTI_EXECUTE_TOOL",
+                    input = Json.parseToJsonElement(
+                        """
+                        {
+                          "tools": [
+                            {
+                              "tool_slug": "renderUI",
+                              "arguments": {
+                                "spec": {
+                                  "type": "CarouselCard",
+                                  "components": [
+                                    {
+                                      "type": "PlaceListCard",
+                                      "props": {
+                                        "places": [
+                                          {
+                                            "name": "Café del Volcán",
+                                            "rating": 4.6,
+                                            "address": "80 Yongkang Rd, Shanghai"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          ]
+                        }
+                        """.trimIndent(),
+                    ),
+                    output = Json.parseToJsonElement("""{"successful":true,"data":{"results":[]}}"""),
+                ),
+            ),
+        )
+
+        val result = reducer.mapSnapshot(snapshot, isEdited = false, sender = null)
+        val entry = result.toolCardEntries.single()
+        val props = JSONObject(entry.props)
+
+        assertThat(entry.name).isEqualTo("Places")
+        assertThat(entry.cardType).isEqualTo("placeList")
+        assertThat(result.toolCallRoot?.title).isEqualTo("Places")
+        assertThat(props.getString("_cardType")).isEqualTo("placeList")
+        assertThat(props.getJSONArray("places").getJSONObject(0).getString("name")).isEqualTo("Café del Volcán")
     }
 
     @Test

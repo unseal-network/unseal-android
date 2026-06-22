@@ -34,6 +34,7 @@ dependencies {
 
     testCommonDependencies(libs)
     testImplementation(libs.network.mockwebserver)
+    testImplementation(projects.libraries.chatbot.test)
     testImplementation(projects.libraries.matrix.test)
     testImplementation(projects.libraries.sessionStorage.test)
 }

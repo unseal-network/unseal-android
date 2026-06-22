@@ -158,9 +158,13 @@ class TimelineItemEventFactory(
                 .withTimelineContext(roomId = config.roomId, eventId = receivedMatrixTimelineItem.eventId?.value)
             else -> timelineItem.content
         }
+        val updatedReadReceiptState = receivedMatrixTimelineItem.computeReadReceiptState(roomMembers)
+        if (updatedContent == timelineItem.content && updatedReadReceiptState == timelineItem.readReceiptState) {
+            return timelineItem
+        }
         return timelineItem.copy(
             content = updatedContent,
-            readReceiptState = receivedMatrixTimelineItem.computeReadReceiptState(roomMembers)
+            readReceiptState = updatedReadReceiptState
         )
     }
 

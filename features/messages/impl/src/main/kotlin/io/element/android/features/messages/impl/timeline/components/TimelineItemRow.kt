@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.isTraversalGroup
@@ -225,22 +226,26 @@ private fun Modifier.focusedEvent(
     val highlightedLineColor = ElementTheme.colors.borderAccentSubtle
     val gradientColors = gradientSubtleColors()
     val verticalOffset = focusedEventOffset.toPx()
-    val verticalRatio = 0.7f
     return drawWithCache {
         val brush = Brush.verticalGradient(
-            colors = gradientColors,
-            endY = size.height * verticalRatio,
+            colors = listOf(
+                gradientColors.first().copy(alpha = 0.16f),
+                Color.Transparent,
+            ),
+            startY = verticalOffset,
+            endY = verticalOffset + 72.dp.toPx(),
         )
         onDrawBehind {
             drawRect(
                 brush,
                 topLeft = Offset(0f, verticalOffset),
-                size = Size(size.width, size.height * verticalRatio)
+                size = Size(size.width, 72.dp.toPx())
             )
             drawLine(
                 highlightedLineColor,
                 start = Offset(0f, verticalOffset),
-                end = Offset(size.width, verticalOffset)
+                end = Offset(0f, size.height),
+                strokeWidth = 2.dp.toPx(),
             )
         }
     }.padding(top = 4.dp)

@@ -16,6 +16,7 @@ import io.element.android.features.messages.impl.timeline.factories.event.Timeli
 import io.element.android.features.messages.impl.timeline.factories.virtual.TimelineItemVirtualFactory
 import io.element.android.features.messages.impl.timeline.groups.TimelineItemGrouper
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContent
 import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryStatus
 import io.element.android.libraries.androidutils.diff.DiffCacheUpdater
 import io.element.android.libraries.androidutils.diff.MutableListDiffCache
@@ -33,7 +34,7 @@ import kotlinx.coroutines.withContext
 
 @AssistedInject
 class TimelineItemsFactory(
-    @Assisted config: TimelineItemsFactoryConfig,
+    @Assisted private val config: TimelineItemsFactoryConfig,
     eventItemFactoryCreator: TimelineItemEventFactory.Creator,
     private val dispatchers: CoroutineDispatchers,
     private val virtualItemFactory: TimelineItemVirtualFactory,
@@ -86,7 +87,7 @@ class TimelineItemsFactory(
                     newTimelineItemStates.add(timelineItemState)
                 }
             } else {
-                val updatedItem = if (cacheItem is TimelineItem.Event && roomMembers.isNotEmpty()) {
+                val updatedItem = if (cacheItem is TimelineItem.Event && shouldUpdateCachedEvent(cacheItem, timelineItems[index], roomMembers)) {
                     eventItemFactory.update(
                         timelineItem = cacheItem,
                         receivedMatrixTimelineItem = timelineItems[index] as MatrixTimelineItem.Event,
@@ -117,5 +118,17 @@ class TimelineItemsFactory(
             }
         diffCache[index] = timelineItem
         return timelineItem
+    }
+
+    private fun shouldUpdateCachedEvent(
+        cachedItem: TimelineItem.Event,
+        matrixTimelineItem: MatrixTimelineItem,
+        roomMembers: List<RoomMember>,
+    ): Boolean {
+        if (matrixTimelineItem !is MatrixTimelineItem.Event) return false
+        if (cachedItem.content is TimelineItemEncryptedContent) return true
+        return config.computeReadReceipts &&
+            roomMembers.isNotEmpty() &&
+            matrixTimelineItem.event.receipts.isNotEmpty()
     }
 }

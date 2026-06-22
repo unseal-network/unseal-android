@@ -21,8 +21,11 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 
-private const val PressedScale = 1.05f
+private const val PressedScale = 1.012f
+private val PressedElevation = 8.dp
+private const val PressedZIndex = 12f
 
 @Composable
 internal fun Modifier.timelinePressFeedback(
@@ -40,7 +43,7 @@ internal fun Modifier.timelinePressFeedback(
         label = "timeline-press-scale",
     )
     val elevation by animateDpAsState(
-        targetValue = if (isPressed) 12.dp else 0.dp,
+        targetValue = if (isPressed) PressedElevation else 0.dp,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMediumLow,
@@ -51,11 +54,12 @@ internal fun Modifier.timelinePressFeedback(
     // Skip expensive layer modifiers entirely when at rest so passive scrolling doesn't
     // pay a per-item graphicsLayer / shadow allocation on every visible row.
     return this
+        .then(if (isPressed) Modifier.zIndex(PressedZIndex) else Modifier)
         .then(if (shadow && elevation > 0.dp) Modifier.shadow(elevation = elevation, shape = shape, clip = false) else Modifier)
         .then(if (scale != 1f) Modifier.graphicsLayer {
             scaleX = scale
             scaleY = scale
             this.shape = shape
-            clip = true // only reached while scale > 1f (press active or animating back)
+            clip = false
         } else Modifier)
 }

@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import org.json.JSONObject
+import java.util.Locale
 
 /**
  * Native Material 3 renderers for the Linear and Twitter (social) tool cards, ported
@@ -128,6 +129,41 @@ private val LinearYellow = Color(0xFFE6B800)
 
 private data class LinearStatusStyle(val icon: ImageVector, val label: String, val color: Color)
 
+private fun normalizeLinearStatus(status: String?): String {
+    val normalized = status.orEmpty()
+        .trim()
+        .lowercase(Locale.US)
+        .replace("-", "_")
+        .replace(" ", "_")
+    return when (normalized) {
+        "backlog" -> "backlog"
+        "in_progress", "inprogress", "started", "active" -> "in_progress"
+        "done", "completed", "complete", "closed", "resolved" -> "done"
+        "cancelled", "canceled" -> "cancelled"
+        "todo", "to_do", "open" -> "todo"
+        else -> "todo"
+    }
+}
+
+private fun linearStatusLabel(status: String): String = when (status) {
+    "backlog" -> "Backlog"
+    "in_progress" -> "In Progress"
+    "done" -> "Done"
+    "cancelled" -> "Cancelled"
+    else -> "Todo"
+}
+
+private fun normalizeLinearPriority(priority: String?): String {
+    val normalized = priority.orEmpty().trim().lowercase(Locale.US)
+    return when (normalized) {
+        "1", "urgent", "critical" -> "urgent"
+        "2", "high" -> "high"
+        "3", "medium", "normal" -> "medium"
+        "4", "low" -> "low"
+        else -> "none"
+    }
+}
+
 private fun linearStatusStyle(status: String): LinearStatusStyle = when (status) {
     "backlog" -> LinearStatusStyle(Icons.Outlined.Circle, "Backlog", LinearGray)
     "in_progress" -> LinearStatusStyle(Icons.Outlined.RadioButtonUnchecked, "In Progress", LinearYellow)
@@ -192,9 +228,9 @@ private fun LinearIssueCardView(data: JSONObject, onLinkClick: () -> Unit) {
 
     val description = data.cardString("description")
     val url = data.cardString("url")
-    val status = data.cardString("status") ?: "todo"
-    val statusLabel = data.cardString("statusLabel")
-    val priority = data.cardString("priority") ?: "none"
+    val status = normalizeLinearStatus(data.cardString("status", "state"))
+    val statusLabel = data.cardString("statusLabel", "stateLabel") ?: linearStatusLabel(status)
+    val priority = normalizeLinearPriority(data.cardString("priority", "priorityLabel"))
     val assignee = data.opt("assignee") as? JSONObject
     val team = data.cardString("team")
     val project = data.cardString("project")
@@ -216,7 +252,7 @@ private fun LinearIssueCardView(data: JSONObject, onLinkClick: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                 Icon(statusStyle.icon, contentDescription = null, tint = statusStyle.color, modifier = Modifier.size(12.dp))
                 Text(
-                    text = statusLabel ?: statusStyle.label,
+                    text = statusLabel,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = statusStyle.color,
@@ -356,63 +392,58 @@ private fun LinearIssuesListCardView(data: JSONObject, onLinkClick: () -> Unit) 
 private fun LinearIssueRow(item: JSONObject, open: (String?) -> Unit) {
     val identifier = item.cardString("identifier", "id") ?: ""
     val title = item.cardString("title", "name") ?: "Untitled"
-    val status = item.cardString("status") ?: "todo"
-    val priority = item.cardString("priority") ?: "none"
+    val status = normalizeLinearStatus(item.cardString("status", "state"))
+    val priority = normalizeLinearPriority(item.cardString("priority", "priorityLabel"))
     val url = item.cardString("url")
     val dueDate = item.cardString("dueDate")
     val assignee = item.opt("assignee") as? JSONObject
     val statusStyle = linearStatusStyle(status)
     val priorityStyle = linearPriorityStyle(priority)
 
-    Row(
+    ToolCardRowSurface(
         modifier = Modifier
-            .fillMaxWidth()
             .then(if (url != null) Modifier.clickable { open(url) } else Modifier)
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        // Priority indicator
-        Text(
-            text = priorityStyle.text,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace,
-            color = priorityStyle.color,
-            modifier = Modifier.width(18.dp),
-        )
-        // Status icon
-        Icon(statusStyle.icon, contentDescription = null, tint = statusStyle.color, modifier = Modifier.size(16.dp))
-        // Identifier
-        if (identifier.isNotBlank()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             Text(
-                text = identifier,
+                text = priorityStyle.text,
                 style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
                 fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
+                color = priorityStyle.color,
+                modifier = Modifier.width(18.dp),
             )
-        }
-        // Title
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        // Due date
-        if (!dueDate.isNullOrBlank()) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                Icon(Icons.Outlined.AccessTime, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(10.dp))
-                LtMetaText(dueDate)
+            Icon(statusStyle.icon, contentDescription = null, tint = statusStyle.color, modifier = Modifier.size(16.dp))
+            if (identifier.isNotBlank()) {
+                Text(
+                    text = identifier,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
             }
-        }
-        // Assignee avatar
-        if (assignee != null) {
-            val name = assignee.cardString("name") ?: "?"
-            LtAvatar(name = name, avatarUrl = assignee.cardString("avatarUrl"), size = 20)
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (!dueDate.isNullOrBlank()) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Icon(Icons.Outlined.AccessTime, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(10.dp))
+                    LtMetaText(dueDate)
+                }
+            }
+            if (assignee != null) {
+                val name = assignee.cardString("name") ?: "?"
+                LtAvatar(name = name, avatarUrl = assignee.cardString("avatarUrl"), size = 20)
+            }
         }
     }
 }
@@ -464,11 +495,9 @@ private fun PostRow(post: JSONObject) {
     val verified = post.cardBool("verified") ?: false
     val stats = engagementStats(post)
 
-    Column(
+    ToolCardRowSurface(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .fillMaxWidth(),
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             LtAvatar(name = author, avatarUrl = avatarUrl, size = 36)

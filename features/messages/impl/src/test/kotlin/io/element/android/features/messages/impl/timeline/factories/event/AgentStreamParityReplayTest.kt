@@ -50,19 +50,14 @@ class AgentStreamParityReplayTest {
     }
 
     @Test
-    fun `all remaining parity fixtures expose a root card or stream parts`() {
-        val expected = mapOf(
-            "compose-email-list" to "composeEmail",
-            "weather-current-forecast" to "weather",
-            "hotel-booking-gallery" to "hotelBooking",
-            "file-attachment-list" to "fileAttachment",
-        )
-
-        expected.forEach { (fixtureId, cardType) ->
+    fun `parity fixtures expose every registered root card entry`() {
+        expectedRootCardTypes.forEach { (fixtureId, cardTypes) ->
             val exported = AgentStreamParityExport.renderJson(replayFixture(fixtureId))
             val entries = exported.getJSONObject("toolRoot").getJSONArray("entries")
-            assertThat(entries.length()).isAtLeast(1)
-            assertThat(entries.getJSONObject(0).getString("cardType")).isEqualTo(cardType)
+            val exportedTypes = (0 until entries.length()).map {
+                entries.getJSONObject(it).getString("cardType")
+            }
+            assertThat(exportedTypes).containsAtLeastElementsIn(cardTypes)
         }
 
         val mixed = AgentStreamParityExport.renderJson(replayFixture("stream-mixed-parts"))
@@ -324,7 +319,59 @@ class AgentStreamParityReplayTest {
             "moltbook-register",
             "hotel-booking-gallery",
             "file-attachment-list",
+            "composio-search-cards",
+            "github-primary-cards",
+            "github-activity-cards",
+            "linear-twitter-schedule-cards",
+            "meta-subagent-cards",
             "stream-mixed-parts",
+        )
+
+        val expectedRootCardTypes = mapOf(
+            "compose-email-list" to listOf("composeEmail"),
+            "weather-current-forecast" to listOf("weather"),
+            "hotel-booking-gallery" to listOf("hotelBooking"),
+            "file-attachment-list" to listOf("fileAttachment"),
+            "composio-search-cards" to listOf(
+                "flightAlert",
+                "headlineList",
+                "imageGrid",
+                "productList",
+                "finance",
+                "eventList",
+                "placeList",
+                "urlContent",
+            ),
+            "github-primary-cards" to listOf(
+                "githubIssue",
+                "githubIssuesList",
+                "repoList",
+                "release",
+            ),
+            "github-activity-cards" to listOf(
+                "orgsList",
+                "contributors",
+                "checkRuns",
+                "commitComparison",
+                "deployments",
+                "notifications",
+                "secretAlerts",
+                "workflows",
+                "commentThread",
+            ),
+            "linear-twitter-schedule-cards" to listOf(
+                "linearIssue",
+                "linearIssuesList",
+                "socialPostFeed",
+                "createSchedule",
+                "updateSchedule",
+                "updateScheduleStatus",
+            ),
+            "meta-subagent-cards" to listOf(
+                "weather",
+                "githubIssuesList",
+                "createSchedule",
+            ),
         )
 
         fun repoRoot(): File {

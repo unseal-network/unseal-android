@@ -168,7 +168,10 @@ fun TimelineView(
                 reverseLayout = useReverseLayout,
                 contentPadding = PaddingValues(
                     top = topChromeInset + 8.dp,
-                    bottom = 8.dp,
+                    // At rest this is the breathing room between the last message and the composer
+                    // input field — the outer composerBottomInset already clips the list to the
+                    // composer's top edge, so this padding is exactly the visible bottom gap.
+                    bottom = 24.dp,
                 ),
             ) {
                 items(

@@ -8,12 +8,14 @@
 package io.element.android.features.messages.impl.timeline.components.event
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -53,6 +55,10 @@ import io.element.android.features.messages.impl.components.ShapedClickableSurfa
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.CardChip
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.CardRemoteImage
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.DividedList
+import io.element.android.features.messages.impl.timeline.components.event.toolcards.cardObjects
+import io.element.android.features.messages.impl.timeline.components.event.toolcards.cardString
+import io.element.android.features.messages.impl.timeline.components.event.toolcards.cardStrings
+import io.element.android.features.messages.impl.timeline.components.event.toolcards.compactToolCardMetaDate
 import io.element.android.wysiwyg.link.Link
 import org.json.JSONArray
 import org.json.JSONObject
@@ -151,7 +157,7 @@ private fun JsonRenderElementNode(
         "file", "fileattachment", "fileattachmentcard" -> JsonRenderFile(element, onLinkClick)
         "hotel", "hotelcard", "hotelbookingcard" -> JsonRenderHotel(element, onLinkClick)
         "product", "productcard", "shoppingitem", "universalproductcard" -> JsonRenderProduct(element, onLinkClick)
-        "news", "headline", "headlineitem", "headlinecard", "urlcontent" -> JsonRenderNews(element, onLinkClick)
+        "news", "headline", "headlineitem", "headlinecard", "urlcontent" -> JsonRenderNews(state, element, onLinkClick)
         else -> {
             if (element.children.isNotEmpty()) {
                 JsonRenderStack(spec, element, onLinkClick, depth, state)
@@ -235,7 +241,7 @@ private fun JsonRenderCard(spec: JsonRenderSpec, element: JsonRenderElement, onL
 
 @Composable
 private fun JsonRenderText(state: JSONObject?, element: JsonRenderElement) {
-    val text = element.props.firstString(state, "text", "content", "value", "label", "title").orEmpty()
+    val text = element.props.firstString(state, "text", "content", "value", "label", "title").orEmpty().compactJsonMetaText()
     if (text.isBlank()) return
     Text(
         text = text,
@@ -246,7 +252,7 @@ private fun JsonRenderText(state: JSONObject?, element: JsonRenderElement) {
 
 @Composable
 private fun JsonRenderHeading(state: JSONObject?, element: JsonRenderElement) {
-    val text = element.props.firstString(state, "text", "content", "title", "label").orEmpty()
+    val text = element.props.firstString(state, "text", "content", "title", "label").orEmpty().compactJsonMetaText()
     if (text.isBlank()) return
     Text(
         text = text,
@@ -510,34 +516,113 @@ private fun JsonRenderFile(element: JsonRenderElement, onLinkClick: (Link) -> Un
 
 @Composable
 private fun JsonRenderHotel(element: JsonRenderElement, onLinkClick: (Link) -> Unit) {
-    val title = element.props.firstString("name", "title").orEmpty()
-    val subtitle = element.props.firstString("location", "address", "subtitle")
-    val image = element.props.firstString("imageUrl", "image", "thumbnail") ?: element.props.firstObject("images")?.firstString("thumbnail", "url", "original_image")
-    val rating = element.props.firstString("rating", "score", "overall_rating")
-    val price = element.props.firstString("price", "rate", "totalPrice") ?: element.props.firstObject("rate_per_night")?.firstString("lowest")
-    val url = element.props.firstString("url", "link", "mapsUrl")
-    Row(
+    val items = element.props.cardObjects("hotels", "cards")
+    if (items.isNotEmpty()) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.36f),
+            border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.26f)),
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
+            ) {
+                DividedList(items.take(MAX_JSON_RENDER_ITEMS)) { item ->
+                    JsonRenderHotelRow(props = item, onLinkClick = onLinkClick)
+                }
+            }
+        }
+        return
+    }
+    JsonRenderHotelRow(props = element.props, onLinkClick = onLinkClick)
+}
+
+@Composable
+private fun JsonRenderHotelRow(props: JSONObject, onLinkClick: (Link) -> Unit) {
+    val title = props.cardString("name", "hotel_name", "hotelName", "title").orEmpty()
+    val subtitle = props.cardString("location", "address", "area", "subtitle")
+    val image = props.cardString("imageUrl", "image_url", "image", "thumbnail") ?: props.firstObject("images")?.firstString("thumbnail", "url", "original_image")
+    val rating = props.cardString("rating", "score", "overall_rating")
+    val stars = props.cardString("stars", "hotelClass", "hotel_class")
+    val price = props.cardString("price", "rate", "totalPrice") ?: props.firstObject("rate_per_night")?.firstString("lowest")
+    val url = props.cardString("url", "link", "mapsUrl")
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clickableJsonUrl(url = url, shape = RoundedCornerShape(12.dp), onLinkClick = onLinkClick)
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.Top,
+            .padding(vertical = 9.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
-        CardRemoteImage(url = image, modifier = Modifier.size(68.dp), corner = 10)
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text(title.ifBlank { "Hotel" }, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                rating?.let {
-                    CardChip(text = it, color = JsonAccentGreen, contentColor = Color.White)
+        val tags = buildList {
+            rating?.let { add(it) }
+            stars?.let { add("$it star") }
+            addAll(props.cardStrings("amenities").take(4))
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            JsonHotelImageTile(url = image, title = title)
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(
+                    text = title.ifBlank { "Hotel" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                subtitle?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
-                element.props.stringArray("amenities").take(2).forEach { CardChip(text = it) }
+                if (tags.isNotEmpty()) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        tags.forEachIndexed { index, tag ->
+                            if (index == 0 && tag == rating) {
+                                CardChip(text = tag, color = JsonAccentGreen, contentColor = Color.White)
+                            } else {
+                                CardChip(text = tag)
+                            }
+                        }
+                    }
+                }
+            }
+            price?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = JsonAccentGreen,
+                    modifier = Modifier.widthIn(max = 124.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
-        price?.let {
-            Text(it, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = JsonAccentGreen, modifier = Modifier.widthIn(max = 96.dp), maxLines = 1)
-        }
+    }
+}
+
+@Composable
+private fun JsonHotelImageTile(url: String?, title: String) {
+    Box(contentAlignment = Alignment.Center) {
+        CardRemoteImage(url = url, modifier = Modifier.size(56.dp), corner = 10)
+        Text(
+            text = title.firstOrNull()?.uppercase().orEmpty().ifBlank { "H" },
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
+        )
     }
 }
 
@@ -573,11 +658,12 @@ private fun JsonRenderProduct(element: JsonRenderElement, onLinkClick: (Link) ->
 }
 
 @Composable
-private fun JsonRenderNews(element: JsonRenderElement, onLinkClick: (Link) -> Unit) {
-    val title = element.props.firstString("title", "headline").orEmpty()
-    val snippet = element.props.firstString("snippet", "description", "summary")
-    val source = element.props.firstString("source", "domain", "publisher")
-    val url = element.props.firstString("url", "link", "href")
+private fun JsonRenderNews(state: JSONObject?, element: JsonRenderElement, onLinkClick: (Link) -> Unit) {
+    val title = element.props.firstString(state, "title", "headline").orEmpty()
+    val snippet = element.props.firstString(state, "snippet", "description", "summary")?.compactJsonMetaText()
+    val source = element.props.firstString(state, "source", "domain", "publisher")
+    val date = element.props.firstString(state, "date", "publishedAt", "published_at", "meta")?.compactToolCardMetaDate()
+    val url = element.props.firstString(state, "url", "link", "href")
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -587,8 +673,16 @@ private fun JsonRenderNews(element: JsonRenderElement, onLinkClick: (Link) -> Un
     ) {
         Text(title.ifBlank { "News" }, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
         snippet?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+        date?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         source?.let { Text(it, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = JsonAccentGreen, maxLines = 1, overflow = TextOverflow.Ellipsis) }
     }
+}
+
+private fun String.compactJsonMetaText(): String {
+    val compact = replace(Regex("\\s+"), " ").trim()
+    if (!Regex("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}").containsMatchIn(compact)) return compact
+    if (compact.length > 40) return compact
+    return compact.compactToolCardMetaDate()
 }
 
 @Composable

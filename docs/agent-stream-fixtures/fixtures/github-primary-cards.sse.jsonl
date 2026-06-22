@@ -1,0 +1,14 @@
+{"type":"start","messageId":"msg-github-primary-cards"}
+{"type":"tool-input-start","toolCallId":"tool-gh-issue","toolName":"GITHUB_GET_AN_ISSUE","title":"GITHUB_GET_AN_ISSUE"}
+{"type":"tool-input-available","toolCallId":"tool-gh-issue","toolName":"GITHUB_GET_AN_ISSUE","title":"GITHUB_GET_AN_ISSUE","input":{"owner":"unseal","repo":"mobile","issue_number":128}}
+{"type":"tool-output-available","toolCallId":"tool-gh-issue","output":{"successful":true,"data":{"number":128,"title":"Android tool card parity","state":"open","html_url":"https://github.com/unseal/mobile/issues/128","labels":[{"name":"android"},{"name":"ui"}],"user":{"login":"rayson","avatar_url":"https://example.com/avatar.png"}}}}
+{"type":"tool-input-start","toolCallId":"tool-gh-issues","toolName":"GITHUB_LIST_REPOSITORY_ISSUES","title":"GITHUB_LIST_REPOSITORY_ISSUES"}
+{"type":"tool-input-available","toolCallId":"tool-gh-issues","toolName":"GITHUB_LIST_REPOSITORY_ISSUES","title":"GITHUB_LIST_REPOSITORY_ISSUES","input":{"owner":"unseal","repo":"mobile","state":"open"}}
+{"type":"tool-output-available","toolCallId":"tool-gh-issues","output":{"successful":true,"data":{"issues":[{"number":128,"title":"Android tool card parity","state":"open","html_url":"https://github.com/unseal/mobile/issues/128","labels":[{"name":"ui"}]},{"number":129,"title":"Markdown streaming flicker","state":"open","html_url":"https://github.com/unseal/mobile/issues/129","labels":[{"name":"performance"}]}]}}}
+{"type":"tool-input-start","toolCallId":"tool-gh-repos","toolName":"GITHUB_SEARCH_REPOSITORIES","title":"GITHUB_SEARCH_REPOSITORIES"}
+{"type":"tool-input-available","toolCallId":"tool-gh-repos","toolName":"GITHUB_SEARCH_REPOSITORIES","title":"GITHUB_SEARCH_REPOSITORIES","input":{"q":"android markdown streaming renderer"}}
+{"type":"tool-output-available","toolCallId":"tool-gh-repos","output":{"successful":true,"data":{"repositories":[{"full_name":"unseal/unseal-android","description":"Android client","stargazers_count":42,"forks_count":7,"language":"Kotlin","html_url":"https://github.com/unseal/unseal-android"}]}}}
+{"type":"tool-input-start","toolCallId":"tool-gh-release","toolName":"GITHUB_CREATE_A_RELEASE","title":"GITHUB_CREATE_A_RELEASE"}
+{"type":"tool-input-available","toolCallId":"tool-gh-release","toolName":"GITHUB_CREATE_A_RELEASE","title":"GITHUB_CREATE_A_RELEASE","input":{"tag_name":"v1.2.0","name":"Tool Card Parity"}}
+{"type":"tool-output-available","toolCallId":"tool-gh-release","output":{"successful":true,"data":{"tag_name":"v1.2.0","name":"Tool Card Parity","body":"- Align Android and iOS cards\\n- Add fixtures","draft":false,"prerelease":false,"html_url":"https://github.com/unseal/unseal-android/releases/tag/v1.2.0"}}}
+{"type":"finish","finishReason":"stop"}

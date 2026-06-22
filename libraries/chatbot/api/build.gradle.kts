@@ -15,6 +15,7 @@ android {
 }
 
 dependencies {
+    implementation(libs.coroutines.core)
     implementation(libs.serialization.json)
     implementation(projects.libraries.matrix.api)
 }

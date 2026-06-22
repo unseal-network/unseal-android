@@ -10,6 +10,7 @@ package io.element.android.libraries.chatbot.impl
 import com.google.common.truth.Truth.assertThat
 import io.element.android.libraries.chatbot.api.ChatbotApiError
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
+import io.element.android.libraries.chatbot.api.model.approvals.ChatbotApprovalStatus
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotCreateScheduleRequest
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotUploadVoiceProfileRequest
@@ -156,6 +157,21 @@ class DefaultChatbotApiServiceTest {
     }
 
     @Test
+    fun `approval endpoints - use chatbot approval routes and encode approval id`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody(approvalJson(status = "pending")))
+        server.enqueue(MockResponse().setResponseCode(200).setBody(approvalJson(status = "approved")))
+        server.enqueue(MockResponse().setResponseCode(200).setBody(approvalJson(status = "rejected")))
+
+        assertThat(service.getApproval("appr/test").getOrThrow().status).isEqualTo(ChatbotApprovalStatus.Pending)
+        assertThat(service.approveApproval("appr/test").getOrThrow().status).isEqualTo(ChatbotApprovalStatus.Approved)
+        assertThat(service.rejectApproval("appr/test").getOrThrow().status).isEqualTo(ChatbotApprovalStatus.Rejected)
+
+        assertThat(server.takeRequest().path).isEqualTo("/chatbot/v1/approvals/appr%2Ftest")
+        assertThat(server.takeRequest().path).isEqualTo("/chatbot/v1/approvals/appr%2Ftest/approve")
+        assertThat(server.takeRequest().path).isEqualTo("/chatbot/v1/approvals/appr%2Ftest/reject")
+    }
+
+    @Test
     fun `vault endpoints - use chatbot vault route and key path segment`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"items":[{"id":"id-1","key":"API_KEY"}]}"""))
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"item":{"id":"id-1","key":"API_KEY"},"value":"secret"}"""))
@@ -255,3 +271,19 @@ class DefaultChatbotApiServiceTest {
             timezone = "UTC",
         )
 }
+
+private fun approvalJson(status: String): String =
+    """
+    {
+      "approval_id": "appr/test",
+      "action": "agent.join_room",
+      "status": "$status",
+      "requester_user_id": "@alice:example.org",
+      "created_at": 1780560400000,
+      "updated_at": 1780560400000,
+      "resolved_at": null,
+      "agent_id": "@agent:example.org",
+      "agent_name": "Agent",
+      "room_id": "!room:example.org"
+    }
+    """.trimIndent()

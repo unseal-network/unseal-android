@@ -49,8 +49,8 @@ data class TimelineItemImageContent(
             MediaRequestData(
                 source = thumbnailSource ?: mediaSource,
                 kind = MediaRequestData.Kind.Thumbnail(
-                    width = thumbnailWidth?.toLong() ?: MAX_THUMBNAIL_WIDTH,
-                    height = thumbnailHeight?.toLong() ?: MAX_THUMBNAIL_HEIGHT
+                    width = thumbnailWidth?.coerceAtMost(MAX_THUMBNAIL_WIDTH.toInt())?.toLong() ?: MAX_THUMBNAIL_WIDTH,
+                    height = thumbnailHeight?.coerceAtMost(MAX_THUMBNAIL_HEIGHT.toInt())?.toLong() ?: MAX_THUMBNAIL_HEIGHT
                 ),
             )
         }

@@ -232,6 +232,97 @@ class ToolCardDispatcherTest {
     }
 
     @Test
+    fun `web search payload reads pagemap thumbnail for headline cards`() {
+        val payload = JSONObject(
+            """
+            {
+              "results": {
+                "organic_results": [
+                  {
+                    "title": "ZATO: Netflix Announces New Mystery Drama",
+                    "source": "theeurotvplace.com",
+                    "link": "https://example.com/zato",
+                    "pagemap": {
+                      "cse_thumbnail": [
+                        { "src": "https://example.com/zato-thumb.jpg" }
+                      ],
+                      "cse_image": [
+                        { "src": "https://example.com/zato-large.jpg" }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        val transformed = CardTransforms.transform(payload, "headlineList")
+        val headline = transformed.cardObjects("headlines").single()
+
+        assertThat(headline.cardString("imageUrl")).isEqualTo("https://example.com/zato-thumb.jpg")
+    }
+
+    @Test
+    fun `web search iso dates are compacted for headline cards`() {
+        val payload = JSONObject(
+            """
+            {
+              "results": {
+                "organic_results": [
+                  {
+                    "title": "Google I/O 2026 Sunsets Views UI For Jetpack Compose Push",
+                    "source": "Talk Android",
+                    "date": "2026-06-08T15:17:22.000Z",
+                    "link": "https://talkandroid.com/story"
+                  }
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        val transformed = CardTransforms.transform(payload, "headlineList")
+        val headline = transformed.cardObjects("headlines").single()
+
+        assertThat(transformed.hasCardContentFor("headlineList")).isTrue()
+        assertThat(headline.cardString("publishedAt")).isEqualTo("2026-06-08")
+    }
+
+    @Test
+    fun `image search payload accepts alternate image fields and title fallback`() {
+        val payload = JSONObject(
+            """
+            {
+              "results": {
+                "images_results": [
+                  {
+                    "title": "Chengdu skyline at night",
+                    "image": "https://example.com/chengdu.jpg",
+                    "link": "https://example.com/story",
+                    "source": "Example Photos"
+                  },
+                  {
+                    "title": "Chengdu skyline source only",
+                    "source": "Example Photos"
+                  }
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        val transformed = CardTransforms.transform(payload, "imageGrid")
+        val images = transformed.cardObjects("images")
+
+        assertThat(transformed.hasCardContentFor("imageGrid")).isTrue()
+        assertThat(images).hasSize(2)
+        assertThat(images.first().cardString("thumbnail")).isEqualTo("https://example.com/chengdu.jpg")
+        assertThat(images.first().cardString("original")).isEqualTo("https://example.com/story")
+        assertThat(images[1].cardString("title")).isEqualTo("Chengdu skyline source only")
+    }
+
+    @Test
     fun `shopping payload preserves thumbnail price rating reviews and merchant`() {
         val payload = JSONObject(
             """
@@ -267,6 +358,30 @@ class ToolCardDispatcherTest {
     }
 
     @Test
+    fun `shopping payload accepts alternate image fields`() {
+        val payload = JSONObject(
+            """
+            {
+              "results": {
+                "shopping_results": [
+                  {
+                    "title": "Framework Laptop",
+                    "thumbnailUrl": "https://example.com/framework-thumb.png",
+                    "price": "$1,499"
+                  }
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        val transformed = CardTransforms.transform(payload, "productList")
+        val product = transformed.cardObjects("products").single()
+
+        assertThat(product.cardString("thumbnail")).isEqualTo("https://example.com/framework-thumb.png")
+    }
+
+    @Test
     fun `events payload preserves title date venue address url and image`() {
         val payload = JSONObject(
             """
@@ -297,6 +412,29 @@ class ToolCardDispatcherTest {
         assertThat(event.cardString("address")).isEqualTo("Shanghai, Xuhui")
         assertThat(event.cardString("thumbnail")).isEqualTo("https://example.com/event.png")
         assertThat(event.cardString("url")).isEqualTo("https://example.com/events/ai-builders")
+    }
+
+    @Test
+    fun `events payload accepts alternate image fields`() {
+        val payload = JSONObject(
+            """
+            {
+              "results": {
+                "events_results": [
+                  {
+                    "title": "AI Conference Shanghai",
+                    "imageUrl": "https://example.com/event-image.jpg"
+                  }
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        val transformed = CardTransforms.transform(payload, "eventList")
+        val event = transformed.cardObjects("events").single()
+
+        assertThat(event.cardString("thumbnail")).isEqualTo("https://example.com/event-image.jpg")
     }
 
     @Test
@@ -385,6 +523,84 @@ class ToolCardDispatcherTest {
         assertThat(transformed.optJSONArray("amenities")?.length()).isEqualTo(3)
         assertThat(hotel.cardString("mapUrl")).contains("google.com/maps")
         assertThat(hotel.cardString("mapsUrl")).contains("google.com/maps")
+    }
+
+    @Test
+    fun `hotel payload keeps each hotel gallery scoped to that hotel`() {
+        val payload = JSONObject(
+            """
+            {
+              "results": {
+                "properties": [
+                  {
+                    "name": "Felton Gloria Grand Hotel",
+                    "images": [
+                      { "thumbnail": "https://example.com/felton-thumb.jpg", "original_image": "https://example.com/felton-1.jpg" },
+                      { "thumbnail": "https://example.com/felton-thumb-2.jpg", "original_image": "https://example.com/felton-2.jpg" }
+                    ]
+                  },
+                  {
+                    "name": "Buddha Zen Hotel",
+                    "images": [
+                      { "thumbnail": "https://example.com/buddha-thumb.jpg", "original_image": "https://example.com/buddha-1.jpg" },
+                      { "thumbnail": "https://example.com/buddha-thumb-2.jpg", "original_image": "https://example.com/buddha-2.jpg" },
+                      { "thumbnail": "https://example.com/buddha-thumb-3.jpg", "original_image": "https://example.com/buddha-3.jpg" }
+                    ]
+                  }
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        val transformed = CardTransforms.transform(payload, "hotelBooking")
+        val hotels = transformed.cardObjects("hotels")
+        val firstImages = hotels[0].optJSONArray("imageUrls")
+        val secondImages = hotels[1].optJSONArray("imageUrls")
+
+        assertThat(hotels).hasSize(2)
+        assertThat(hotels[0].cardString("thumbnail")).isEqualTo("https://example.com/felton-thumb.jpg")
+        assertThat(firstImages?.length()).isEqualTo(2)
+        assertThat(firstImages?.getString(0)).isEqualTo("https://example.com/felton-thumb.jpg")
+        assertThat(firstImages?.toString()).doesNotContain("buddha")
+        assertThat(hotels[1].cardString("thumbnail")).isEqualTo("https://example.com/buddha-thumb.jpg")
+        assertThat(secondImages?.length()).isEqualTo(3)
+        assertThat(secondImages?.getString(0)).isEqualTo("https://example.com/buddha-thumb.jpg")
+        assertThat(secondImages?.toString()).doesNotContain("felton")
+    }
+
+    @Test
+    fun `hotel payload reads serp ads results`() {
+        val payload = JSONObject(
+            """
+            {
+              "results": {
+                "ads": [
+                  {
+                    "name": "Hilton Chengdu Chenghua",
+                    "price": "$90",
+                    "overall_rating": 4.5,
+                    "hotel_class": 5,
+                    "amenities": ["Breakfast ($)", "Wi-Fi"],
+                    "images": [
+                      { "thumbnail": "https://example.com/hilton.jpg" }
+                    ]
+                  }
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        val transformed = CardTransforms.transform(payload, "hotelBooking")
+        val hotel = transformed.cardObjects("hotels").single()
+
+        assertThat(transformed.hasCardContentFor("hotelBooking")).isTrue()
+        assertThat(hotel.cardString("name")).isEqualTo("Hilton Chengdu Chenghua")
+        assertThat(hotel.cardString("price")).isEqualTo("$90")
+        assertThat(hotel.optDouble("rating")).isEqualTo(4.5)
+        assertThat(hotel.cardString("thumbnail")).isEqualTo("https://example.com/hilton.jpg")
+        assertThat(hotel.optJSONArray("amenities")?.length()).isEqualTo(2)
     }
 
     @Test

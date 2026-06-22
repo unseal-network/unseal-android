@@ -54,6 +54,8 @@ internal val IGNORED_TOOL_NAMES = setOf("COMPOSIO_SEARCH_TOOLS")
 
 internal val META_TOOL_NAMES = setOf("COMPOSIO_MULTI_EXECUTE_TOOL")
 
+internal val RENDER_UI_TOOL_NAMES = setOf("renderUI")
+
 internal val KNOWN_LIST_KEYS = listOf("items", "results", "data", "files", "issues", "repositories", "messages", "posts", "events")
 
 internal val TOOL_CARD_REGISTRY_WITH_DISPLAY = mapOf(
@@ -115,6 +117,7 @@ internal val String.isRegisteredToolName: Boolean
         val name = removePrefix("tool-")
         return TOOL_CARD_REGISTRY_WITH_DISPLAY.containsKey(name) ||
             META_TOOL_NAMES.contains(name) ||
+            RENDER_UI_TOOL_NAMES.contains(name) ||
             IGNORED_TOOL_NAMES.contains(name) ||
             name.startsWith("agent-")
     }

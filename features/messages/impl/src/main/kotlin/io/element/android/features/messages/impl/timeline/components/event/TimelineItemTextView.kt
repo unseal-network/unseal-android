@@ -11,12 +11,14 @@ package io.element.android.features.messages.impl.timeline.components.event
 import android.text.SpannedString
 import androidx.annotation.VisibleForTesting
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
@@ -43,9 +45,37 @@ fun TimelineItemTextView(
     content: TimelineItemTextBasedContent,
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
+    onLongClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
     onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit = {},
 ) {
+    if (content.shouldRenderPlainBodyAsMarkdown()) {
+        Box(
+            modifier
+                .fillMaxWidth()
+                .onSizeChanged { size ->
+                    onContentLayoutChange(
+                        ContentAvoidingLayoutData(
+                            contentWidth = size.width,
+                            contentHeight = size.height,
+                            nonOverlappingContentWidth = size.width,
+                            nonOverlappingContentHeight = size.height,
+                        )
+                    )
+                }
+                .semantics { contentDescription = content.plainText }
+        ) {
+            MarkdownBody(
+                text = content.body,
+                renderMode = MarkdownRenderMode.Stable,
+                onLinkClick = onLinkClick,
+                onLongClick = onLongClick,
+                modifier = Modifier,
+            )
+        }
+        return
+    }
+
     val emojiOnly = content.formattedBody.toString() == content.body &&
         content.body.replace(" ", "").containsOnlyEmojis()
     val textStyle = when {
@@ -83,6 +113,31 @@ internal fun getTextWithResolvedMentions(content: TimelineItemTextBasedContent):
     return SpannedString.valueOf(bodyWithResolvedMentions)
 }
 
+private fun TimelineItemTextBasedContent.shouldRenderPlainBodyAsMarkdown(): Boolean {
+    // HTML wins: when the event has a non-empty formatted (HTML) body it already carries the
+    // rendered formatting and mention spans (rendered via EditorStyledText below), so we render
+    // that. Only when the HTML body is empty do we fall back to the raw Markdown body — and then
+    // only if it actually contains Markdown syntax, which is exactly what users expect to render.
+    return htmlBody.isNullOrBlank() && body.hasMarkdownSyntax()
+}
+
+private fun String.hasMarkdownSyntax(): Boolean {
+    return MARKDOWN_SYNTAX_PATTERNS.any { it.containsMatchIn(this) }
+}
+
+private val MARKDOWN_SYNTAX_PATTERNS = listOf(
+    Regex("""(?m)^#{1,6}\s+\S"""),
+    Regex("""(?m)^\s{0,3}([-*+]|\d+\.)\s+\S"""),
+    Regex("""(?m)^\s{0,3}>\s+\S"""),
+    Regex("""```"""),
+    Regex("""`[^`\n]+`"""),
+    Regex("""\*\*[^*\n]+\*\*|__[^_\n]+__"""),
+    Regex("""(?<!\*)\*[^*\n]+\*(?!\*)"""),
+    Regex("""\[[^]\n]+]\([^) \n]+(?:\s+"[^"]*")?\)"""),
+    Regex("""!\[[^]\n]*]\([^) \n]+\)"""),
+    Regex("""(?m)^\|.+\|\s*$"""),
+)
+
 @PreviewsDayNight
 @Composable
 internal fun TimelineItemTextViewPreview(
@@ -92,6 +147,7 @@ internal fun TimelineItemTextViewPreview(
         content = content,
         onLinkClick = {},
         onLinkLongClick = {},
+        onLongClick = {},
     )
 }
 
@@ -105,6 +161,7 @@ internal fun TimelineItemTextViewWithLinkifiedUrlPreview() = ElementPreview {
         content = content,
         onLinkClick = {},
         onLinkLongClick = {},
+        onLongClick = {},
     )
 }
 
@@ -118,5 +175,6 @@ internal fun TimelineItemTextViewWithLinkifiedUrlAndNestedParenthesisPreview() =
         content = content,
         onLinkClick = {},
         onLinkLongClick = {},
+        onLongClick = {},
     )
 }

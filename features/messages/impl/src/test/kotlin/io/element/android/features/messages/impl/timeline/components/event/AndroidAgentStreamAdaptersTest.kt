@@ -83,7 +83,7 @@ class AndroidAgentStreamAdaptersTest {
             snapshot(
                 streamId = "",
                 status = StreamStatus.Completed,
-                parts = listOf(StreamPart.Text("part-1", "Hello", TextPartState.Complete)),
+                parts = listOf(StreamPart.Text("part-1", "Hello", TextPartState.Done)),
             )
         )
 
@@ -95,14 +95,14 @@ class AndroidAgentStreamAdaptersTest {
         createProvider().save(
             snapshot(
                 status = StreamStatus.Completed,
-                parts = listOf(StreamPart.Text("part-1", "Hello", TextPartState.Complete)),
+                parts = listOf(StreamPart.Text("part-1", "Hello", TextPartState.Done)),
             )
         )
 
         val loaded = createProvider().load("stream-1")
 
         assertThat(loaded?.status).isEqualTo(StreamStatus.Completed)
-        assertThat(loaded?.parts).containsExactly(StreamPart.Text("part-1", "Hello", TextPartState.Complete))
+        assertThat(loaded?.parts).containsExactly(StreamPart.Text("part-1", "Hello", TextPartState.Done))
     }
 
     @Test
@@ -111,7 +111,7 @@ class AndroidAgentStreamAdaptersTest {
         provider.save(
             snapshot(
                 status = StreamStatus.Completed,
-                parts = listOf(StreamPart.Text("part-1", "Hello", TextPartState.Complete)),
+                parts = listOf(StreamPart.Text("part-1", "Hello", TextPartState.Done)),
             )
         )
 
@@ -125,7 +125,7 @@ class AndroidAgentStreamAdaptersTest {
         val provider = createProvider()
         val completed = snapshot(
             status = StreamStatus.Completed,
-            parts = listOf(StreamPart.Text("part-1", "Hello", TextPartState.Complete)),
+            parts = listOf(StreamPart.Text("part-1", "Hello", TextPartState.Done)),
         )
         provider.save(completed)
 
@@ -150,7 +150,7 @@ class AndroidAgentStreamAdaptersTest {
         )
         val completed = snapshot(
             status = StreamStatus.Completed,
-            parts = listOf(StreamPart.Text("part-1", "Hello", TextPartState.Complete)),
+            parts = listOf(StreamPart.Text("part-1", "Hello", TextPartState.Done)),
         )
         provider.save(failed)
 
@@ -174,6 +174,33 @@ class AndroidAgentStreamAdaptersTest {
 
         assertThat(provider.load("stream-1")).isNull()
         assertThat(rawRowCount()).isEqualTo(0)
+    }
+
+    @Test
+    fun `oversized row returns null and is deleted`() = runTest {
+        val provider = createProvider()
+        assertThat(provider.load("stream-1")).isNull()
+        insertOversizedRow()
+
+        assertThat(provider.load("stream-1")).isNull()
+        assertThat(rawRowCount()).isEqualTo(0)
+    }
+
+    @Test
+    fun `failed snapshot save deletes oversized completed snapshot instead of crashing`() = runTest {
+        val provider = createProvider()
+        assertThat(provider.load("stream-1")).isNull()
+        insertOversizedRow()
+
+        provider.save(
+            snapshot(
+                status = StreamStatus.Failed,
+                parts = listOf(StreamPart.Error("error-stream-1", StreamError("Network failed"))),
+                error = StreamError("Network failed"),
+            )
+        )
+
+        assertThat(provider.load("stream-1")?.status).isEqualTo(StreamStatus.Failed)
     }
 
     @Test
@@ -236,6 +263,23 @@ class AndroidAgentStreamAdaptersTest {
                     put("schema_version", AGENT_STREAM_SCHEMA_VERSION)
                     put("status", "completed")
                     put("snapshot_json", "{not-json")
+                    put("updated_at_ms", 10L)
+                    put("completed_at_ms", 20L)
+                }
+            )
+        }
+    }
+
+    private fun insertOversizedRow() {
+        openDatabase().use { database ->
+            database.insertOrThrow(
+                "agent_stream_snapshots",
+                null,
+                ContentValues().apply {
+                    put("stream_id", "stream-1")
+                    put("schema_version", AGENT_STREAM_SCHEMA_VERSION)
+                    put("status", "completed")
+                    put("snapshot_json", "x".repeat(3 * 1024 * 1024))
                     put("updated_at_ms", 10L)
                     put("completed_at_ms", 20L)
                 }

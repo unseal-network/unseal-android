@@ -41,6 +41,11 @@ import androidx.compose.ui.unit.dp
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import org.json.JSONObject
+import java.time.Instant
+import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
  * Native Material 3 renderers for the Gmail and Google Drive tool cards, ported field-for-field
@@ -377,9 +382,9 @@ private fun FileAttachmentCardView(data: JSONObject, onLinkClick: () -> Unit) {
 @Composable
 private fun FileRow(file: JSONObject, open: (String?) -> Unit) {
     val name = file.cardString("name", "filename", "title") ?: "Untitled"
-    val size = file.cardString("sizeLabel", "size")
+    val size = file.cardString("sizeLabel", "size")?.friendlyDriveSize()
     val mimeType = file.cardString("mimeType", "mediaType")
-    val modifiedAt = file.cardString("modifiedAt", "modified_at", "modifiedTime", "modified_time")
+    val modifiedAt = file.cardString("modifiedAt", "modified_at", "modifiedTime", "modified_time")?.friendlyDriveDate()
     val owner = file.cardString("owner")
     val shared = file.cardBool("shared") ?: false
     val url = file.cardString("url", "webViewLink", "web_view_link", "alternateLink")
@@ -426,7 +431,7 @@ private fun FileRow(file: JSONObject, open: (String?) -> Unit) {
             Icon(
                 Icons.Filled.People,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(14.dp),
             )
         }
@@ -434,11 +439,38 @@ private fun FileRow(file: JSONObject, open: (String?) -> Unit) {
             Icon(
                 Icons.Filled.ChevronRight,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(14.dp),
             )
         }
     }
+}
+
+private fun String.friendlyDriveSize(): String {
+    val raw = trim()
+    if (raw.isBlank()) return raw
+    if (raw.any { it.isLetter() }) return raw
+    val bytes = raw.toLongOrNull() ?: return raw
+    if (bytes < 1024L) return "$bytes B"
+    val units = listOf("KB", "MB", "GB", "TB")
+    var value = bytes / 1024.0
+    var unitIndex = 0
+    while (value >= 1024.0 && unitIndex < units.lastIndex) {
+        value /= 1024.0
+        unitIndex += 1
+    }
+    val rounded = if (value >= 10.0 || value % 1.0 < 0.05) "%.0f" else "%.1f"
+    return "${String.format(Locale.US, rounded, value)} ${units[unitIndex]}"
+}
+
+private fun String.friendlyDriveDate(): String {
+    val raw = trim()
+    if (raw.isBlank()) return raw
+    val formatter = DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.US)
+    val date = runCatching { OffsetDateTime.parse(raw).toLocalDate() }.getOrNull()
+        ?: runCatching { Instant.parse(raw).atOffset(java.time.ZoneOffset.UTC).toLocalDate() }.getOrNull()
+        ?: runCatching { LocalDate.parse(raw.substringBefore('T')) }.getOrNull()
+    return date?.format(formatter) ?: raw.compactToolCardMetaDate()
 }
 
 /** File-type badge: label + color (mirror iOS FileTypeIcon). */

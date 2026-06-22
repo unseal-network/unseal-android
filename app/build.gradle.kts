@@ -49,7 +49,10 @@ android {
 
         // Keep abiFilter for the universalApk
         ndk {
-            abiFilters += listOf("armeabi-v7a", "x86", "arm64-v8a", "x86_64")
+            val onlyAbi = providers.gradleProperty("unsealOnlyAbi").orNull
+            if (onlyAbi == null) {
+                abiFilters += listOf("armeabi-v7a", "x86", "arm64-v8a", "x86_64")
+            }
         }
 
         // Ref: https://developer.android.com/studio/build/configure-apk-splits.html#configure-abi-split
@@ -67,10 +70,15 @@ android {
                 reset()
 
                 if (!buildingAppBundle) {
+                    val onlyAbi = providers.gradleProperty("unsealOnlyAbi").orNull
                     // Specifies a list of ABIs that Gradle should create APKs for.
-                    include("armeabi-v7a", "x86", "arm64-v8a", "x86_64")
+                    if (onlyAbi != null) {
+                        include(onlyAbi)
+                    } else {
+                        include("armeabi-v7a", "x86", "arm64-v8a", "x86_64")
+                    }
                     // Generate a universal APK that includes all ABIs, so user who installs from CI tool can use this one by default.
-                    isUniversalApk = true
+                    isUniversalApk = onlyAbi == null
                 }
             }
         }
@@ -309,6 +317,7 @@ licensee {
     allow("BSD-2-Clause")
     allow("BSD-3-Clause")
     allow("EPL-1.0")
+    allowUrl("http://opensource.org/licenses/BSD-2-Clause")
     allowUrl("https://opensource.org/license/bsd-3-clause")
     allowUrl("https://opensource.org/licenses/MIT")
     allowUrl("https://developer.android.com/studio/terms.html")
@@ -323,6 +332,9 @@ licensee {
     ignoreDependencies("com.github.matrix-org", "matrix-analytics-events")
     // Ignore dependency that are not third-party licenses to us.
     ignoreDependencies(groupId = "io.element.android")
+    // agent-stream-android is our own first-party SDK (network.unseal / unseal-network's
+    // agent-stream-sdk), not a third-party dependency, so it carries no third-party license to report.
+    ignoreDependencies(groupId = "network.unseal", artifactId = "agent-stream-android")
 }
 
 fun Project.configureLicensesTasks(reportingExtension: ReportingExtension) {

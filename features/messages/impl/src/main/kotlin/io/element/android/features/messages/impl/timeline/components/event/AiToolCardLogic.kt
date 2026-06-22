@@ -16,6 +16,7 @@ import io.element.android.features.messages.impl.timeline.components.event.toolc
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.IGNORED_TOOL_NAMES
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.KNOWN_LIST_KEYS
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.META_TOOL_NAMES
+import io.element.android.features.messages.impl.timeline.components.event.toolcards.RENDER_UI_TOOL_NAMES
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.TOOL_CARD_REGISTRY
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.TOOL_CARD_REGISTRY_WITH_DISPLAY
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.errorProps
@@ -92,6 +93,7 @@ internal fun AiToolStreamPart.toRenderableToolParts(): List<AiToolStreamPart> {
     val normalizedToolName = toolName.removePrefix("tool-")
     return when {
         IGNORED_TOOL_NAMES.contains(normalizedToolName) -> emptyList()
+        RENDER_UI_TOOL_NAMES.contains(normalizedToolName) -> if (renderUiSpecCardEntry() != null) listOf(this) else emptyList()
         META_TOOL_NAMES.contains(normalizedToolName) -> expandMultiExecute()
         normalizedToolName.startsWith("agent-") -> expandSubAgent()
         TOOL_CARD_REGISTRY.containsKey(normalizedToolName) -> listOf(this)
@@ -103,12 +105,15 @@ internal fun AiToolStreamPart.toRenderableToolParts(): List<AiToolStreamPart> {
 internal fun AiToolStreamPart.toToolCardEntries(): List<AiToolCardEntry> {
     val normalizedToolName = toolName.removePrefix("tool-")
     if (IGNORED_TOOL_NAMES.contains(normalizedToolName)) return emptyList()
+    if (RENDER_UI_TOOL_NAMES.contains(normalizedToolName)) {
+        return renderUiSpecCardEntry()?.let(::listOf).orEmpty()
+    }
     if (META_TOOL_NAMES.contains(normalizedToolName)) return expandMultiExecuteEntries()
     if (normalizedToolName.startsWith("agent-")) return expandSubAgentEntries()
     val registry = TOOL_CARD_REGISTRY_WITH_DISPLAY[normalizedToolName] ?: return emptyList()
     val cardState = state.toCardToolState()
     val props = when {
-        cardState == CARD_STATE_ERROR -> errorProps(registry.cardType, errorText)
+        cardState == CARD_STATE_ERROR -> toolErrorProps(registry.cardType)
         registry.cardType.isScheduleCardType() -> scheduleProps(cardType = registry.cardType, input = input)
         else -> {
             JSONObject().put("_cardType", registry.cardType).also { props ->
@@ -129,6 +134,203 @@ internal fun AiToolStreamPart.toToolCardEntries(): List<AiToolCardEntry> {
             props = props.toString(),
         )
     )
+}
+
+private fun AiToolStreamPart.renderUiSpecCardEntry(): AiToolCardEntry? {
+    val spec = input
+        ?.jsonObjectOrNull()
+        ?.optJSONObject("spec")
+        ?: rawInput
+            ?.jsonObjectOrNull()
+            ?.optJSONObject("spec")
+        ?: return null
+    return spec.toRenderUiCardEntry(id = id, state = CARD_STATE_DONE)
+}
+
+private fun JSONObject.toRenderUiCardEntry(id: String, state: String): AiToolCardEntry? {
+    val payload = toRenderUiCardPayload() ?: return null
+    val cardType = payload.cardType
+    val props = JSONObject().put("_cardType", cardType)
+    ToolCardPropsTransformCache
+        .transform(payload.data.toRenderUiCardData(cardType), cardType)
+        .copyInto(props)
+    return AiToolCardEntry(
+        id = id,
+        name = payload.displayName,
+        cardType = cardType,
+        state = state,
+        props = props.toString(),
+    )
+}
+
+private data class RenderUiCardPayload(
+    val cardType: String,
+    val displayName: String,
+    val data: JSONObject,
+)
+
+private fun JSONObject.toRenderUiCardPayload(): RenderUiCardPayload? {
+    directRenderUiPayload()?.let { return it }
+    val components = optJSONArray("components") ?: return inferRenderUiPayloadFromProps()
+    for (index in 0 until components.length()) {
+        val component = components.optJSONObject(index) ?: continue
+        component.directRenderUiPayload()?.let { return it }
+        component.optJSONObject("props")?.inferRenderUiPayloadFromProps()?.let { return it }
+    }
+    return inferRenderUiPayloadFromProps()
+}
+
+private fun JSONObject.directRenderUiPayload(): RenderUiCardPayload? {
+    val component = firstString(listOf("component", "type")) ?: return inferRenderUiPayloadFromProps()
+    val props = optJSONObject("props") ?: this
+    val cardType = component.toRenderUiCardType() ?: props.inferRenderUiCardType() ?: inferRenderUiCardType() ?: return null
+    return RenderUiCardPayload(
+        cardType = cardType,
+        displayName = component.toRenderUiDisplayName(cardType),
+        data = props,
+    )
+}
+
+private fun JSONObject.inferRenderUiPayloadFromProps(): RenderUiCardPayload? {
+    val cardType = inferRenderUiCardType() ?: return null
+    return RenderUiCardPayload(
+        cardType = cardType,
+        displayName = cardType.toRenderUiDisplayName(cardType),
+        data = this,
+    )
+}
+
+private fun JSONObject.inferRenderUiCardType(): String? {
+    return when {
+        optJSONArray("hotels") != null || optJSONArray("hotelBookings") != null -> "hotelBooking"
+        optJSONArray("flights") != null -> "flightAlert"
+        optJSONArray("images") != null || optJSONArray("imageUrls") != null -> "imageGrid"
+        optJSONArray("products") != null || optJSONArray("shopping") != null -> "productList"
+        optJSONArray("events") != null -> "eventList"
+        optJSONArray("places") != null -> "placeList"
+        optJSONArray("articles") != null || optJSONArray("headlines") != null -> "headlineList"
+        optJSONObject("current") != null && (has("city") || has("forecast")) -> "weather"
+        else -> null
+    }
+}
+
+private fun String.toRenderUiCardType(): String? {
+    val normalized = removeSuffix("Card").replaceFirstChar { it.lowercase() }
+    return when (normalized) {
+        "carousel" -> null
+        "socialPostFeed" -> "socialPostFeed"
+        "linearIssue" -> "linearIssue"
+        "linearIssuesList" -> "linearIssuesList"
+        "composeEmail" -> "composeEmail"
+        "fileAttachment" -> "fileAttachment"
+        "hotelBooking" -> "hotelBooking"
+        "flightAlert" -> "flightAlert"
+        "weather" -> "weather"
+        "eventList" -> "eventList"
+        "placeList" -> "placeList"
+        "imageGrid" -> "imageGrid"
+        "productList" -> "productList"
+        "finance" -> "finance"
+        "urlContent" -> "urlContent"
+        "headlineList" -> "headlineList"
+        else -> null
+    }
+}
+
+private fun String.toRenderUiDisplayName(cardType: String): String {
+    return when (cardType) {
+        "socialPostFeed" -> "Posts"
+        "linearIssue", "linearIssuesList" -> "Issues"
+        "composeEmail" -> "Email"
+        "fileAttachment" -> "Files"
+        "hotelBooking" -> "Hotels"
+        "flightAlert" -> "Flights"
+        "weather" -> "Weather"
+        "eventList" -> "Events"
+        "placeList" -> "Places"
+        "imageGrid" -> "Images"
+        "productList" -> "Shopping"
+        "finance" -> "Finance"
+        "urlContent", "headlineList" -> "Search"
+        else -> removeSuffix("Card").toDisplayLabel()
+    }
+}
+
+private fun JSONObject.toRenderUiCardData(cardType: String): JSONObject {
+    return when (cardType) {
+        "socialPostFeed" -> toRenderUiSocialPostData()
+        "hotelBooking" -> toRenderUiHotelData()
+        else -> this
+    }
+}
+
+private fun JSONObject.toRenderUiSocialPostData(): JSONObject {
+    val cards = optJSONArray("cards") ?: return this
+    val posts = JSONArray()
+    for (index in 0 until cards.length()) {
+        val card = cards.optJSONObject(index) ?: continue
+        val post = JSONObject()
+        card.firstString(listOf("text", "body", "content"))?.let { post.put("body", it) }
+        card.firstString(listOf("username", "author", "handle"))?.let { post.put("author", it) }
+        card.firstString(listOf("date", "createdAt", "created_at"))?.let { post.put("createdAt", it) }
+        card.optNumber("engagement")?.let { post.put("likes", it) }
+        posts.put(post)
+    }
+    return JSONObject(this.toString()).put("posts", posts)
+}
+
+private fun JSONObject.toRenderUiHotelData(): JSONObject {
+    val cards = optJSONArray("cards") ?: optJSONArray("hotels") ?: return this
+    val hotels = JSONArray()
+    for (index in 0 until cards.length()) {
+        val card = cards.optJSONObject(index) ?: continue
+        val hotel = JSONObject(card.toString())
+        card.firstString(listOf("name", "hotel_name", "hotelName", "title"))?.let { hotel.put("name", it) }
+        card.firstString(listOf("location", "address", "area", "subtitle"))?.let {
+            hotel.put("address", it)
+            hotel.put("area", it)
+        }
+        val thumbnail = card.thumbnailImageUrl()
+        val gallery = card.imageUrls(preferOriginal = false)
+        thumbnail?.let {
+            hotel.put("imageUrl", it)
+            hotel.put("thumbnail", it)
+        }
+        if (gallery.isNotEmpty()) {
+            val galleryArray = JSONArray().also { array -> gallery.forEach(array::put) }
+            hotel.put("imageUrls", galleryArray)
+            hotel.put("images", JSONArray().also { array -> gallery.forEach(array::put) })
+        } else {
+            thumbnail?.let {
+                if (!hotel.has("images")) hotel.put("images", JSONArray().put(it))
+                if (!hotel.has("imageUrls")) hotel.put("imageUrls", JSONArray().put(it))
+            }
+        }
+        card.firstString(listOf("price", "rate", "totalPrice"))?.let { hotel.put("price", it) }
+        card.optNumber("rating")?.let { hotel.put("rating", it) }
+        card.optNumber("overall_rating")?.let { hotel.put("rating", it) }
+        card.firstString(listOf("url", "link", "mapsUrl", "mapUrl"))?.let { hotel.put("url", it) }
+        hotels.put(hotel)
+    }
+    return JSONObject(this.toString()).put("hotels", hotels)
+}
+
+private fun AiToolStreamPart.toolErrorProps(cardType: String): JSONObject {
+    val outputJson = output?.jsonObjectOrNull()
+    val dataJson = outputJson?.optJSONObject("data")
+    val rawReason = errorText
+        ?: output?.errorTextFromJson()
+        ?: rawInput?.errorTextFromJson()
+        ?: input?.errorTextFromJson()
+    return errorProps(cardType, rawReason).apply {
+        toolName.takeIf { it.isNotBlank() }?.let { put("toolName", it) }
+        outputJson?.firstString(listOf("status", "state"))?.let { put("status", it) }
+        dataJson?.firstString(listOf("status", "state"))?.let { put("status", it) }
+        dataJson?.firstString(listOf("error", "message", "reason", "detail", "details", "cause", "description"))?.let {
+            put("message", it)
+        }
+        output?.takeIf { it.isNotBlank() }?.let { put("rawOutput", it.take(MAX_VALUE_CHARS)) }
+    }
 }
 
 internal fun AiToolStreamPart.expandMultiExecute(): List<AiToolStreamPart> {
@@ -165,21 +367,22 @@ internal fun AiToolStreamPart.expandMultiExecute(): List<AiToolStreamPart> {
 
 private fun AiToolStreamPart.expandMultiExecuteEntries(): List<AiToolCardEntry> {
     val cardState = state.toCardToolState()
+    val renderUiEntries = renderUiToolEntries(cardState)
     val outputJson = output?.jsonObjectOrNull()
     val results = outputJson
         ?.optJSONObject("data")
         ?.optJSONArray("results")
         ?: outputJson?.optJSONArray("results")
     if ((cardState == CARD_STATE_DONE || cardState == CARD_STATE_ERROR) && results != null) {
-        return entriesFromMultiExecuteResults(results, idPrefix = id)
+        return entriesFromMultiExecuteResults(results, idPrefix = id) + renderUiEntries
     }
 
     val tools = input
         ?.jsonObjectOrNull()
         ?.optJSONArray("tools")
-        ?: return emptyList()
+        ?: return renderUiEntries
     val seen = mutableSetOf<String>()
-    return (0 until tools.length())
+    val entries = (0 until tools.length())
         .asSequence()
         .mapNotNull { index -> tools.optJSONObject(index)?.firstString(listOf("tool_slug", "toolSlug", "toolName", "tool_name")) }
         .filter { seen.add(it) }
@@ -191,6 +394,27 @@ private fun AiToolStreamPart.expandMultiExecuteEntries(): List<AiToolCardEntry> 
                 cardType = registry.cardType,
                 state = cardState,
                 props = JSONObject().put("_cardType", registry.cardType).toString(),
+            )
+        }
+        .toList()
+    return entries + renderUiEntries
+}
+
+private fun AiToolStreamPart.renderUiToolEntries(cardState: String): List<AiToolCardEntry> {
+    val tools = input
+        ?.jsonObjectOrNull()
+        ?.optJSONArray("tools")
+        ?: return emptyList()
+    return (0 until tools.length())
+        .asSequence()
+        .mapNotNull { index -> tools.optJSONObject(index) }
+        .mapNotNull { tool ->
+            val slug = tool.firstString(listOf("tool_slug", "toolSlug", "toolName", "tool_name"))?.removePrefix("tool-")
+            if (slug != "renderUI") return@mapNotNull null
+            val spec = tool.optJSONObject("arguments")?.optJSONObject("spec") ?: return@mapNotNull null
+            spec.toRenderUiCardEntry(
+                id = "${id}_renderUI",
+                state = if (cardState == CARD_STATE_ERROR) CARD_STATE_ERROR else CARD_STATE_DONE,
             )
         }
         .toList()
@@ -423,6 +647,58 @@ internal fun JSONObject.firstString(keys: List<String>): String? {
         }
     }
     return null
+}
+
+private fun JSONObject.thumbnailImageUrl(): String? {
+    listOf("thumbnail", "thumbnailUrl", "thumbnail_url", "imageUrl", "image_url", "image", "photo").forEach { key ->
+        firstString(listOf(key))?.let { return it }
+    }
+    listOf("imageUrls", "image_urls", "images", "photos", "gallery", "photo_images").forEach { key ->
+        val array = optJSONArray(key) ?: return@forEach
+        for (index in 0 until array.length()) {
+            when (val item = array.opt(index)) {
+                is String -> if (item.isNotBlank()) return item
+                is JSONObject -> item.firstString(
+                    listOf(
+                        "thumbnail",
+                        "thumbnailUrl",
+                        "thumbnail_url",
+                        "imageUrl",
+                        "image_url",
+                        "image",
+                        "original_image",
+                        "original",
+                        "url",
+                    )
+                )?.let { return it }
+            }
+        }
+    }
+    return null
+}
+
+private fun JSONObject.imageUrls(preferOriginal: Boolean): List<String> {
+    val urls = mutableListOf<String>()
+    fun add(value: String?) {
+        value?.takeIf { it.isNotBlank() }?.let(urls::add)
+    }
+    listOf("imageUrls", "image_urls", "images", "photos", "gallery", "photo_images").forEach { key ->
+        val array = optJSONArray(key) ?: return@forEach
+        for (index in 0 until array.length()) {
+            when (val item = array.opt(index)) {
+                is String -> add(item)
+                is JSONObject -> {
+                    val original = item.firstString(listOf("original_image", "original", "url", "imageUrl", "image_url", "image"))
+                    val thumbnail = item.firstString(listOf("thumbnail", "thumbnailUrl", "thumbnail_url"))
+                    add(if (preferOriginal) original ?: thumbnail else thumbnail ?: original)
+                }
+            }
+        }
+    }
+    if (urls.isEmpty()) {
+        add(firstString(listOf("imageUrl", "image_url", "image", "thumbnail", "photo", "original_image", "original")))
+    }
+    return urls.distinctBy { it.substringBefore("?") }
 }
 
 internal fun String.jsonObjectOrNull(): JSONObject? =
@@ -670,6 +946,15 @@ private fun org.json.JSONObject.optBooleanOrNull(key: String): Boolean? = when {
         is Boolean -> v
         is String -> v.toBooleanStrictOrNull()
         is Number -> v.toInt() != 0
+        else -> null
+    }
+}
+
+private fun org.json.JSONObject.optNumber(key: String): Number? = when {
+    !has(key) || isNull(key) -> null
+    else -> when (val v = opt(key)) {
+        is Number -> v
+        is String -> v.toIntOrNull() ?: v.toDoubleOrNull()
         else -> null
     }
 }

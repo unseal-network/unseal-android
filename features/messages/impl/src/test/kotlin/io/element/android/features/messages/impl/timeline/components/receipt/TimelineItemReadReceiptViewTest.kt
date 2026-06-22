@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.v2.runAndroidComposeUiTest
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import io.element.android.tests.testutils.setSafeContent
@@ -25,7 +26,11 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class TimelineItemReadReceiptViewTest {
     @Test
-    fun `hidden receipts do not reserve row height`() = runAndroidComposeUiTest<ComponentActivity> {
+    fun `hidden receipts keep row height stable while scrolling`() = runAndroidComposeUiTest<ComponentActivity> {
+        val expectedHeightPx = with(density) {
+            14.dp.toPx()
+        }
+
         setSafeContent {
             Box(modifier = Modifier.testTag(ReceiptContainerTag)) {
                 TimelineItemReadReceiptView(
@@ -43,7 +48,7 @@ class TimelineItemReadReceiptViewTest {
             .boundsInRoot
             .height
 
-        assertThat(actualHeightPx).isWithin(1f).of(0f)
+        assertThat(actualHeightPx).isWithin(1f).of(expectedHeightPx)
     }
 
     private companion object {

@@ -1,0 +1,29 @@
+{"type":"start","messageId":"msg-github-activity-cards"}
+{"type":"tool-input-start","toolCallId":"tool-gh-orgs","toolName":"GITHUB_LIST_ORGANIZATIONS_FOR_THE_AUTHENTICATED_USER","title":"GITHUB_LIST_ORGANIZATIONS_FOR_THE_AUTHENTICATED_USER"}
+{"type":"tool-input-available","toolCallId":"tool-gh-orgs","toolName":"GITHUB_LIST_ORGANIZATIONS_FOR_THE_AUTHENTICATED_USER","title":"GITHUB_LIST_ORGANIZATIONS_FOR_THE_AUTHENTICATED_USER","input":{}}
+{"type":"tool-output-available","toolCallId":"tool-gh-orgs","output":{"successful":true,"data":{"organizations":[{"login":"unseal","description":"Private agent clients","avatar_url":"https://example.com/org.png","url":"https://github.com/unseal"}]}}}
+{"type":"tool-input-start","toolCallId":"tool-gh-contrib","toolName":"GITHUB_LIST_REPOSITORY_CONTRIBUTORS","title":"GITHUB_LIST_REPOSITORY_CONTRIBUTORS"}
+{"type":"tool-input-available","toolCallId":"tool-gh-contrib","toolName":"GITHUB_LIST_REPOSITORY_CONTRIBUTORS","title":"GITHUB_LIST_REPOSITORY_CONTRIBUTORS","input":{"owner":"unseal","repo":"mobile"}}
+{"type":"tool-output-available","toolCallId":"tool-gh-contrib","output":{"successful":true,"data":{"contributors":[{"login":"rayson","contributions":84,"avatar_url":"https://example.com/rayson.png","html_url":"https://github.com/rayson"}]}}}
+{"type":"tool-input-start","toolCallId":"tool-gh-checks","toolName":"GITHUB_LIST_CHECK_RUNS_FOR_A_REF","title":"GITHUB_LIST_CHECK_RUNS_FOR_A_REF"}
+{"type":"tool-input-available","toolCallId":"tool-gh-checks","toolName":"GITHUB_LIST_CHECK_RUNS_FOR_A_REF","title":"GITHUB_LIST_CHECK_RUNS_FOR_A_REF","input":{"ref":"main"}}
+{"type":"tool-output-available","toolCallId":"tool-gh-checks","output":{"successful":true,"data":{"check_runs":[{"name":"unit","status":"completed","conclusion":"success"},{"name":"android build","status":"completed","conclusion":"failure"},{"name":"screenshots","status":"queued","conclusion":null}]}}}
+{"type":"tool-input-start","toolCallId":"tool-gh-compare","toolName":"GITHUB_COMPARE_TWO_COMMITS","title":"GITHUB_COMPARE_TWO_COMMITS"}
+{"type":"tool-input-available","toolCallId":"tool-gh-compare","toolName":"GITHUB_COMPARE_TWO_COMMITS","title":"GITHUB_COMPARE_TWO_COMMITS","input":{"base":"main","head":"tool-card-parity"}}
+{"type":"tool-output-available","toolCallId":"tool-gh-compare","output":{"successful":true,"data":{"status":"ahead","ahead_by":3,"behind_by":0,"commits":[{"sha":"abc1234","commit":{"message":"Align tool cards","author":{"name":"Ruihan"}}}],"files":[{"filename":"ToolCard.kt","status":"modified","changes":120}]}}}
+{"type":"tool-input-start","toolCallId":"tool-gh-deploy","toolName":"GITHUB_LIST_DEPLOYMENTS","title":"GITHUB_LIST_DEPLOYMENTS"}
+{"type":"tool-input-available","toolCallId":"tool-gh-deploy","toolName":"GITHUB_LIST_DEPLOYMENTS","title":"GITHUB_LIST_DEPLOYMENTS","input":{"environment":"staging"}}
+{"type":"tool-output-available","toolCallId":"tool-gh-deploy","output":{"successful":true,"data":{"deployments":[{"environment":"staging","state":"success","created_at":"2026-06-18T11:00:00Z","sha":"abc1234"},{"environment":"production","state":"pending","created_at":"2026-06-18T12:00:00Z","sha":"def5678"}]}}}
+{"type":"tool-input-start","toolCallId":"tool-gh-notify","toolName":"GITHUB_LIST_NOTIFICATIONS","title":"GITHUB_LIST_NOTIFICATIONS"}
+{"type":"tool-input-available","toolCallId":"tool-gh-notify","toolName":"GITHUB_LIST_NOTIFICATIONS","title":"GITHUB_LIST_NOTIFICATIONS","input":{"all":false}}
+{"type":"tool-output-available","toolCallId":"tool-gh-notify","output":{"successful":true,"data":{"notifications":[{"unread":true,"reason":"mention","subject":{"title":"Review Android card layout","type":"PullRequest"},"repository":{"full_name":"unseal/unseal-android"},"updated_at":"2026-06-18T11:00:00Z"}]}}}
+{"type":"tool-input-start","toolCallId":"tool-gh-secret","toolName":"GITHUB_LIST_SECRET_SCANNING_ALERTS_FOR_A_REPOSITORY","title":"GITHUB_LIST_SECRET_SCANNING_ALERTS_FOR_A_REPOSITORY"}
+{"type":"tool-input-available","toolCallId":"tool-gh-secret","toolName":"GITHUB_LIST_SECRET_SCANNING_ALERTS_FOR_A_REPOSITORY","title":"GITHUB_LIST_SECRET_SCANNING_ALERTS_FOR_A_REPOSITORY","input":{"owner":"unseal","repo":"mobile"}}
+{"type":"tool-output-available","toolCallId":"tool-gh-secret","output":{"successful":true,"data":{"secret_alerts":[{"state":"open","secret_type":"api_token","created_at":"2026-06-18T11:00:00Z"},{"state":"resolved","secret_type":"private_key","resolution":"revoked"}]}}}
+{"type":"tool-input-start","toolCallId":"tool-gh-workflows","toolName":"GITHUB_LIST_REPOSITORY_WORKFLOWS","title":"GITHUB_LIST_REPOSITORY_WORKFLOWS"}
+{"type":"tool-input-available","toolCallId":"tool-gh-workflows","toolName":"GITHUB_LIST_REPOSITORY_WORKFLOWS","title":"GITHUB_LIST_REPOSITORY_WORKFLOWS","input":{"owner":"unseal","repo":"mobile"}}
+{"type":"tool-output-available","toolCallId":"tool-gh-workflows","output":{"successful":true,"data":{"workflows":[{"name":"Android CI","state":"active","path":".github/workflows/android.yml"},{"name":"Release","state":"disabled_manually","path":".github/workflows/release.yml"}]}}}
+{"type":"tool-input-start","toolCallId":"tool-gh-comments","toolName":"GITHUB_LIST_REVIEW_COMMENTS_ON_A_PULL_REQUEST","title":"GITHUB_LIST_REVIEW_COMMENTS_ON_A_PULL_REQUEST"}
+{"type":"tool-input-available","toolCallId":"tool-gh-comments","toolName":"GITHUB_LIST_REVIEW_COMMENTS_ON_A_PULL_REQUEST","title":"GITHUB_LIST_REVIEW_COMMENTS_ON_A_PULL_REQUEST","input":{"pull_number":42}}
+{"type":"tool-output-available","toolCallId":"tool-gh-comments","output":{"successful":true,"data":{"comments":[{"body":"Tags should live on a separate row.","user":{"login":"rayson","avatar_url":"https://example.com/avatar.png"},"created_at":"2026-06-18T11:00:00Z"},{"body":"Partial failure should not look all-error.","user":{"login":"gemini","avatar_url":"https://example.com/gemini.png"},"created_at":"2026-06-18T11:05:00Z"}]}}}
+{"type":"finish","finishReason":"stop"}

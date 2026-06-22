@@ -84,6 +84,7 @@ internal fun MessagesViewTopBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .background(ElementTheme.colors.bgCanvasDefault)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.Top,

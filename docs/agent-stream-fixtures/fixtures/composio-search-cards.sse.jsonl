@@ -1,0 +1,29 @@
+{"type":"start","messageId":"msg-composio-search-cards"}
+{"type":"text-start","id":"text-1"}
+{"type":"text-delta","id":"text-1","delta":"Composio search cards fixture."}
+{"type":"text-end","id":"text-1"}
+{"type":"tool-input-start","toolCallId":"tool-flight","toolName":"COMPOSIO_SEARCH_FLIGHTS","title":"COMPOSIO_SEARCH_FLIGHTS"}
+{"type":"tool-input-available","toolCallId":"tool-flight","toolName":"COMPOSIO_SEARCH_FLIGHTS","title":"COMPOSIO_SEARCH_FLIGHTS","input":{"from":"CAN","to":"TFU","date":"2026-06-14"}}
+{"type":"tool-output-available","toolCallId":"tool-flight","output":{"successful":true,"data":{"flights":[{"airline":"Air China","flightNumber":"CA 4304","departureAirport":"CAN","arrivalAirport":"TFU","departureTime":"19:30","arrivalTime":"22:00","duration":"2h 30m","price":"$331","cabin":"Economy","stops":"Direct"}]}}}
+{"type":"tool-input-start","toolCallId":"tool-news","toolName":"COMPOSIO_SEARCH_WEB","title":"COMPOSIO_SEARCH_WEB"}
+{"type":"tool-input-available","toolCallId":"tool-news","toolName":"COMPOSIO_SEARCH_WEB","title":"COMPOSIO_SEARCH_WEB","input":{"query":"AI conference Shanghai June 2026"}}
+{"type":"tool-output-available","toolCallId":"tool-news","output":{"successful":true,"data":{"results":{"news_results":[{"title":"AI Builders Shanghai opens registration","snippet":"A June 2026 conference for applied AI teams.","source":"Shanghai Tech News","date":"Jun 12, 2026","link":"https://example.com/ai-builders","thumbnail":"https://example.com/news.png"}]}}}}
+{"type":"tool-input-start","toolCallId":"tool-image","toolName":"COMPOSIO_SEARCH_IMAGE","title":"COMPOSIO_SEARCH_IMAGE"}
+{"type":"tool-input-available","toolCallId":"tool-image","toolName":"COMPOSIO_SEARCH_IMAGE","title":"COMPOSIO_SEARCH_IMAGE","input":{"query":"Chengdu hotel lobby pool"}}
+{"type":"tool-output-available","toolCallId":"tool-image","output":{"successful":true,"data":{"images":[{"title":"Hotel pool","url":"https://example.com/pool.jpg","thumbnail":"https://example.com/pool-thumb.jpg"},{"title":"Hotel lobby","url":"https://example.com/lobby.jpg","thumbnail":"https://example.com/lobby-thumb.jpg"}]}}}
+{"type":"tool-input-start","toolCallId":"tool-shopping","toolName":"COMPOSIO_SEARCH_SHOPPING","title":"COMPOSIO_SEARCH_SHOPPING"}
+{"type":"tool-input-available","toolCallId":"tool-shopping","toolName":"COMPOSIO_SEARCH_SHOPPING","title":"COMPOSIO_SEARCH_SHOPPING","input":{"query":"noise cancelling headphones under 300"}}
+{"type":"tool-output-available","toolCallId":"tool-shopping","output":{"successful":true,"data":{"results":{"shopping_results":[{"title":"Sony WH-CH720N","thumbnail":"https://example.com/sony.jpg","price":"$99.99","rating":4.6,"reviews":15000,"source":"Amazon","link":"https://example.com/sony"}]}}}}
+{"type":"tool-input-start","toolCallId":"tool-finance","toolName":"COMPOSIO_SEARCH_FINANCE","title":"COMPOSIO_SEARCH_FINANCE"}
+{"type":"tool-input-available","toolCallId":"tool-finance","toolName":"COMPOSIO_SEARCH_FINANCE","title":"COMPOSIO_SEARCH_FINANCE","input":{"symbol":"AAPL"}}
+{"type":"tool-output-available","toolCallId":"tool-finance","output":{"successful":true,"data":{"results":{"summary":{"title":"Apple Inc.","stock":"AAPL","exchange":"NASDAQ","extracted_price":214.5,"currency":"USD"},"graph":[{"date":"09:30","price":211.0},{"date":"16:00","price":214.5}]}}}}
+{"type":"tool-input-start","toolCallId":"tool-event","toolName":"COMPOSIO_SEARCH_EVENT","title":"COMPOSIO_SEARCH_EVENT"}
+{"type":"tool-input-available","toolCallId":"tool-event","toolName":"COMPOSIO_SEARCH_EVENT","title":"COMPOSIO_SEARCH_EVENT","input":{"query":"AI conferences Shanghai June 2026"}}
+{"type":"tool-output-available","toolCallId":"tool-event","output":{"successful":true,"data":{"results":{"events_results":[{"title":"AI Builders Shanghai","date":{"when":"Jun 20, 2026, 2:30 PM"},"venue":{"name":"West Bund Center"},"address":["Shanghai","Xuhui"],"thumbnail":"https://example.com/event.png","link":"https://example.com/event"}]}}}}
+{"type":"tool-input-start","toolCallId":"tool-place","toolName":"COMPOSIO_SEARCH_GOOGLE_MAPS","title":"COMPOSIO_SEARCH_GOOGLE_MAPS"}
+{"type":"tool-input-available","toolCallId":"tool-place","toolName":"COMPOSIO_SEARCH_GOOGLE_MAPS","title":"COMPOSIO_SEARCH_GOOGLE_MAPS","input":{"query":"coffee near Jing'an Temple"}}
+{"type":"tool-output-available","toolCallId":"tool-place","output":{"successful":true,"data":{"results":{"local_results":[{"title":"Quiet Coffee","type":"Cafe","rating":4.7,"reviews":128,"address":"Jing'an Temple, Shanghai","images":[{"thumbnail":"https://example.com/cafe-thumb.jpg","original_image":"https://example.com/cafe.jpg"}],"gps_coordinates":{"latitude":31.223,"longitude":121.445}}]}}}}
+{"type":"tool-input-start","toolCallId":"tool-url","toolName":"COMPOSIO_SEARCH_FETCH_URL_CONTENT","title":"COMPOSIO_SEARCH_FETCH_URL_CONTENT"}
+{"type":"tool-input-available","toolCallId":"tool-url","toolName":"COMPOSIO_SEARCH_FETCH_URL_CONTENT","title":"COMPOSIO_SEARCH_FETCH_URL_CONTENT","input":{"url":"https://www.apple.com/newsroom/"}}
+{"type":"tool-output-available","toolCallId":"tool-url","output":{"successful":true,"data":{"results":{"results":[{"title":"Newsroom - Apple","url":"https://www.apple.com/newsroom/","content":"Latest Apple announcements and company news."}]}}}}
+{"type":"finish","finishReason":"stop"}

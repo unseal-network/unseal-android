@@ -80,6 +80,81 @@
       ]
     },
     {
+      "id": "composio-search-cards",
+      "cardTypes": ["flightAlert", "headlineList", "imageGrid", "productList", "finance", "eventList", "placeList", "urlContent"],
+      "source": "fixtures/composio-search-cards.sse.jsonl",
+      "priority": "P0",
+      "knownDifference": "Stabilizes live-agent flaky search tools such as product/event by replaying registered Composio tool outputs.",
+      "expectedInitialStatus": "needs-screenshot-comparison",
+      "migrationDirection": "bidirectional",
+      "componentScreenshots": true,
+      "fullClientScreenshots": true,
+      "frames": [
+        {"name": "completed", "afterEvent": "end"},
+        {"name": "completed-expanded", "afterEvent": "end", "actions": ["expand-root-card"]}
+      ]
+    },
+    {
+      "id": "github-primary-cards",
+      "cardTypes": ["githubIssue", "githubIssuesList", "repoList", "release"],
+      "source": "fixtures/github-primary-cards.sse.jsonl",
+      "priority": "P0",
+      "knownDifference": "GitHub card coverage is hard to trigger from a private chat without connector credentials; replay keeps renderer parity deterministic.",
+      "expectedInitialStatus": "needs-screenshot-comparison",
+      "migrationDirection": "bidirectional",
+      "componentScreenshots": true,
+      "fullClientScreenshots": true,
+      "frames": [
+        {"name": "completed", "afterEvent": "end"},
+        {"name": "completed-expanded", "afterEvent": "end", "actions": ["expand-root-card"]}
+      ]
+    },
+    {
+      "id": "github-activity-cards",
+      "cardTypes": ["orgsList", "contributors", "checkRuns", "commitComparison", "deployments", "notifications", "secretAlerts", "workflows", "commentThread"],
+      "source": "fixtures/github-activity-cards.sse.jsonl",
+      "priority": "P0",
+      "knownDifference": "Covers less common GitHub activity cards and mixed status colors, including queued/failed check runs.",
+      "expectedInitialStatus": "needs-screenshot-comparison",
+      "migrationDirection": "bidirectional",
+      "componentScreenshots": true,
+      "fullClientScreenshots": true,
+      "frames": [
+        {"name": "completed", "afterEvent": "end"},
+        {"name": "completed-expanded", "afterEvent": "end", "actions": ["expand-root-card"]}
+      ]
+    },
+    {
+      "id": "linear-twitter-schedule-cards",
+      "cardTypes": ["linearIssue", "linearIssuesList", "socialPostFeed", "createSchedule", "updateSchedule", "updateScheduleStatus"],
+      "source": "fixtures/linear-twitter-schedule-cards.sse.jsonl",
+      "priority": "P0",
+      "knownDifference": "Covers business connector and schedule card shapes from registered tool names.",
+      "expectedInitialStatus": "needs-screenshot-comparison",
+      "migrationDirection": "bidirectional",
+      "componentScreenshots": true,
+      "fullClientScreenshots": true,
+      "frames": [
+        {"name": "completed", "afterEvent": "end"},
+        {"name": "completed-expanded", "afterEvent": "end", "actions": ["expand-root-card"]}
+      ]
+    },
+    {
+      "id": "meta-subagent-cards",
+      "cardTypes": ["weather", "githubIssuesList", "createSchedule"],
+      "source": "fixtures/meta-subagent-cards.sse.jsonl",
+      "priority": "P0",
+      "knownDifference": "Validates multi-execute partial failure counts, ignored tool filtering, and sub-agent nested tool expansion.",
+      "expectedInitialStatus": "needs-screenshot-comparison",
+      "migrationDirection": "bidirectional",
+      "componentScreenshots": true,
+      "fullClientScreenshots": true,
+      "frames": [
+        {"name": "completed", "afterEvent": "end"},
+        {"name": "completed-expanded", "afterEvent": "end", "actions": ["expand-root-card"]}
+      ]
+    },
+    {
       "id": "stream-mixed-parts",
       "cardTypes": ["text", "reasoning", "source-url", "source-document", "file", "data-error-card"],
       "source": "fixtures/stream-mixed-parts.sse.jsonl",

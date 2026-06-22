@@ -249,7 +249,7 @@ private fun GitHubIssueCardView(data: JSONObject, onLinkClick: () -> Unit) {
 
 @Composable
 private fun GitHubIssuesListCardView(data: JSONObject, onLinkClick: () -> Unit) {
-    val items = data.cardObjects("items")
+    val items = data.cardObjects("items", "issues", "pullRequests", "pull_requests")
     if (items.isEmpty()) return
     val shown = items.take(MAX_CARD_ITEMS)
     val open = rememberLinkOpener(onLinkClick)
@@ -273,12 +273,9 @@ private fun IssueRow(issue: JSONObject, open: (String?) -> Unit) {
     val labels = issue.cardObjects("labels")
     val url = issue.issueUrl()
 
-    Column(
+    ToolCardRowSurface(
         modifier = Modifier
-            .fillMaxWidth()
             .then(if (url != null) Modifier.clickable { open(url) } else Modifier)
-            .padding(vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(
             text = title,
@@ -334,12 +331,9 @@ private fun RepoRow(repo: JSONObject, open: (String?) -> Unit) {
     val stars = repo.cardInt("stargazersCount")
     val url = repo.cardString("htmlUrl", "html_url", "url")
 
-    Column(
+    ToolCardRowSurface(
         modifier = Modifier
-            .fillMaxWidth()
             .then(if (url != null) Modifier.clickable { open(url) } else Modifier)
-            .padding(vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Text(
             text = name,
@@ -479,32 +473,33 @@ private fun OrgRow(org: JSONObject, open: (String?) -> Unit) {
     val avatarUrl = org.cardString("avatarUrl")
     val url = org.cardString("url", "html_url", "htmlUrl")
 
-    Row(
+    ToolCardRowSurface(
         modifier = Modifier
-            .fillMaxWidth()
             .then(if (url != null) Modifier.clickable { open(url) } else Modifier)
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Avatar(avatarUrl, size = 30)
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = login,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (!description.isNullOrBlank()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Avatar(avatarUrl, size = 30)
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = login,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (!description.isNullOrBlank()) {
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }
@@ -536,31 +531,32 @@ private fun ContributorRow(c: JSONObject, open: (String?) -> Unit) {
     val avatarUrl = c.cardString("avatarUrl")
     val url = c.cardString("htmlUrl", "html_url", "url")
 
-    Row(
+    ToolCardRowSurface(
         modifier = Modifier
-            .fillMaxWidth()
             .then(if (url != null) Modifier.clickable { open(url) } else Modifier)
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Avatar(avatarUrl, size = 28)
-        Text(
-            text = login,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        if (contributions != null) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Avatar(avatarUrl, size = 28)
             Text(
-                text = contributions.toString(),
-                style = MaterialTheme.typography.labelSmall,
+                text = login,
+                style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
             )
+            if (contributions != null) {
+                Text(
+                    text = contributions.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

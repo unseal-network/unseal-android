@@ -120,8 +120,8 @@ fun TimelineItemVideoView(
                     model = MediaRequestData(
                         source = content.thumbnailSource,
                         kind = MediaRequestData.Kind.Thumbnail(
-                            width = content.thumbnailWidth?.toLong() ?: MAX_THUMBNAIL_WIDTH,
-                            height = content.thumbnailHeight?.toLong() ?: MAX_THUMBNAIL_HEIGHT,
+                            width = content.thumbnailWidth?.coerceAtMost(MAX_THUMBNAIL_WIDTH.toInt())?.toLong() ?: MAX_THUMBNAIL_WIDTH,
+                            height = content.thumbnailHeight?.coerceAtMost(MAX_THUMBNAIL_HEIGHT.toInt())?.toLong() ?: MAX_THUMBNAIL_HEIGHT,
                         )
                     ),
                     contentScale = ContentScale.Crop,

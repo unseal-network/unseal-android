@@ -9,6 +9,7 @@ package io.element.android.features.messages.impl.timeline.components.event
 
 import android.content.ContentValues
 import android.content.Context
+import android.database.sqlite.SQLiteBlobTooBigException
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import dev.zacsweers.metro.AppScope
@@ -140,31 +141,37 @@ class SQLiteStreamStorageProvider(
 
     override suspend fun load(streamId: String): StreamSnapshot? = withContext(dispatchers.io) {
         if (streamId.isBlank()) return@withContext null
-        helper.readableDatabase.query(
-            TABLE_NAME,
-            arrayOf(COLUMN_SNAPSHOT_JSON),
-            "$COLUMN_STREAM_ID = ?",
-            arrayOf(streamId),
-            null,
-            null,
-            null,
-        ).use { cursor ->
-            if (!cursor.moveToFirst()) {
-                return@withContext null
-            }
-            val json = cursor.getString(0)
-            val snapshot = runCatching { codec.decode(json) }
-                .onFailure {
-                    Timber.tag("AiStreamDbg").w(it, "sqlite cache CORRUPT stream=%s", streamId)
-                    deleteSync(streamId)
+        try {
+            helper.readableDatabase.query(
+                TABLE_NAME,
+                arrayOf(COLUMN_SNAPSHOT_JSON),
+                "$COLUMN_STREAM_ID = ?",
+                arrayOf(streamId),
+                null,
+                null,
+                null,
+            ).use { cursor ->
+                if (!cursor.moveToFirst()) {
+                    return@withContext null
                 }
-                .getOrNull()
-            if (snapshot?.status == StreamStatus.Completed && snapshot.parts.isEmpty()) {
-                deleteSync(streamId)
-                null
-            } else {
-                snapshot
+                val json = cursor.getString(0)
+                val snapshot = runCatching { codec.decode(json) }
+                    .onFailure {
+                        Timber.tag("AiStreamDbg").w(it, "sqlite cache CORRUPT stream=%s", streamId)
+                        deleteSync(streamId)
+                    }
+                    .getOrNull()
+                if (snapshot?.status == StreamStatus.Completed && snapshot.parts.isEmpty()) {
+                    deleteSync(streamId)
+                    null
+                } else {
+                    snapshot
+                }
             }
+        } catch (exception: SQLiteBlobTooBigException) {
+            Timber.tag("AiStreamDbg").w(exception, "sqlite cache TOO_LARGE stream=%s", streamId)
+            deleteSync(streamId)
+            null
         }
     }
 
@@ -214,28 +221,34 @@ class SQLiteStreamStorageProvider(
     }
 
     private fun hasCompletedSnapshotWithParts(database: SQLiteDatabase, streamId: String): Boolean {
-        return database.query(
-            TABLE_NAME,
-            arrayOf(COLUMN_STATUS, COLUMN_SNAPSHOT_JSON),
-            "$COLUMN_STREAM_ID = ?",
-            arrayOf(streamId),
-            null,
-            null,
-            null,
-        ).use { cursor ->
-            if (!cursor.moveToFirst()) {
-                false
-            } else {
-                val status = cursor.getString(0)
-                val json = cursor.getString(1)
-                if (status != StreamStatus.Completed.wireValue) {
+        return try {
+            database.query(
+                TABLE_NAME,
+                arrayOf(COLUMN_STATUS, COLUMN_SNAPSHOT_JSON),
+                "$COLUMN_STREAM_ID = ?",
+                arrayOf(streamId),
+                null,
+                null,
+                null,
+            ).use { cursor ->
+                if (!cursor.moveToFirst()) {
                     false
                 } else {
-                    runCatching { codec.decode(json).parts.isNotEmpty() }
-                        .onFailure { deleteSync(database, streamId) }
-                        .getOrDefault(false)
+                    val status = cursor.getString(0)
+                    val json = cursor.getString(1)
+                    if (status != StreamStatus.Completed.wireValue) {
+                        false
+                    } else {
+                        runCatching { codec.decode(json).parts.isNotEmpty() }
+                            .onFailure { deleteSync(database, streamId) }
+                            .getOrDefault(false)
+                    }
                 }
             }
+        } catch (exception: SQLiteBlobTooBigException) {
+            Timber.tag("AiStreamDbg").w(exception, "sqlite cache completed snapshot TOO_LARGE stream=%s", streamId)
+            deleteSync(database, streamId)
+            false
         }
     }
 

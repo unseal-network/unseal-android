@@ -6,7 +6,6 @@
  * Please see LICENSE files in the repository root for full details.
  */
 
-@file:OptIn(ExperimentalHazeMaterialsApi::class)
 
 package io.element.android.features.home.impl
 
@@ -47,11 +46,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import dev.chrisbanes.haze.hazeEffect
-import dev.chrisbanes.haze.hazeSource
-import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
-import dev.chrisbanes.haze.materials.HazeMaterials
-import dev.chrisbanes.haze.rememberHazeState
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.home.impl.components.HomeTopBar
@@ -277,7 +271,7 @@ private fun HomeScaffold(
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(appBarState)
     val snackbarHostState = rememberSnackbarHostState(snackbarMessage = state.snackbarMessage)
     val roomListState: RoomListState = state.roomListState
-    val presentationModel = state.toPresentationModel()
+    val presentationModel = remember(state) { state.toPresentationModel() }
 
     BackHandler(enabled = state.isBackHandlerEnabled) {
         if (state.currentHomeNavigationBarItem != HomeNavigationBarItem.Chats) {
@@ -290,7 +284,6 @@ private fun HomeScaffold(
         }
     }
 
-    val hazeState = rememberHazeState()
     val roomsLazyListState = rememberLazyListState()
     val spacesLazyListState = rememberLazyListState()
 
@@ -313,10 +306,7 @@ private fun HomeScaffold(
                 filtersState = roomListState.filtersState,
                 spaceFiltersState = roomListState.spaceFiltersState,
                 canReportBug = state.canReportBug,
-                modifier = Modifier.hazeEffect(
-                    state = hazeState,
-                    style = HazeMaterials.thick(),
-                )
+                modifier = Modifier
             )
         },
         floatingActionButton = {
@@ -385,7 +375,6 @@ private fun HomeScaffold(
                                 )
                             )
                             .consumeWindowInsets(padding)
-                            .hazeSource(state = hazeState)
                     )
                     SpaceFiltersView(roomListState.spaceFiltersState)
                 }
@@ -394,8 +383,7 @@ private fun HomeScaffold(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(padding)
-                            .consumeWindowInsets(padding)
-                            .hazeSource(state = hazeState),
+                            .consumeWindowInsets(padding),
                         contentPadding = contentPadding,
                         state = state.homeSpacesState,
                         lazyListState = spacesLazyListState,

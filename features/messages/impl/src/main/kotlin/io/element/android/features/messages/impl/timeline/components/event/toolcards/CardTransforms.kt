@@ -154,15 +154,19 @@ internal object CardTransforms {
 
     private fun imageGrid(raw: JSONObject): JSONObject {
         val source = raw.obj("results") ?: raw
-        val items = source.objList("images_results").ifEmpty { raw.objList("images_results") }.ifEmpty { source.objList("items") }
+        val items = source.objList("images_results")
+            .ifEmpty { raw.objList("images_results") }
+            .ifEmpty { source.objList("images") }
+            .ifEmpty { raw.objList("images") }
+            .ifEmpty { source.objList("items") }
         val images = JSONArray()
         items.forEach { item ->
             val img = JSONObject()
-            item.str("thumbnail")?.let { img.put("thumbnail", it) }
-            item.str("original")?.let { img.put("original", it) }
-            item.str("title")?.let { img.put("title", it) }
-            item.str("source")?.let { img.put("source", it) }
-            if (img.has("thumbnail") || img.has("original")) images.put(img)
+            (item.str("thumbnail") ?: item.str("image") ?: item.str("imageUrl"))?.let { img.put("thumbnail", it) }
+            (item.str("original") ?: item.str("original_image") ?: item.str("url") ?: item.str("link"))?.let { img.put("original", it) }
+            (item.str("title") ?: item.str("alt") ?: item.str("description"))?.let { img.put("title", it) }
+            (item.str("source") ?: item.str("domain") ?: item.str("website"))?.let { img.put("source", it) }
+            if (img.has("thumbnail") || img.has("original") || img.has("title")) images.put(img)
         }
         return JSONObject().put("images", images)
     }
@@ -180,7 +184,7 @@ internal object CardTransforms {
         items.forEach { item ->
             val p = JSONObject()
             item.str("title")?.let { p.put("title", it) } ?: return@forEach
-            (item.str("thumbnail") ?: item.str("image"))?.let { p.put("thumbnail", it) }
+            (item.thumbnailImageUrl() ?: item.firstImageUrl())?.let { p.put("thumbnail", it) }
             val priceStr = item.str("price")
             when {
                 priceStr != null -> p.put("price", priceStr)
@@ -205,7 +209,10 @@ internal object CardTransforms {
 
     private fun event(raw: JSONObject): JSONObject {
         val source = raw.obj("results") ?: raw
-        val items = source.objList("events_results").ifEmpty { source.objList("items") }
+        val items = source.objList("events_results")
+            .ifEmpty { source.objList("events") }
+            .ifEmpty { raw.objList("events") }
+            .ifEmpty { source.objList("items") }
         val events = JSONArray()
         items.forEach { item ->
             val title = item.str("title") ?: return@forEach
@@ -214,7 +221,7 @@ internal object CardTransforms {
                 ?: item.str("when")?.let { e.put("when", it) }
             item.obj("venue")?.str("name")?.let { e.put("venue", it) } ?: item.str("venue")?.let { e.put("venue", it) }
             joinStrings(item.opt("address"))?.let { e.put("address", it) }
-            item.str("thumbnail")?.let { e.put("thumbnail", it) }
+            (item.thumbnailImageUrl() ?: item.firstImageUrl())?.let { e.put("thumbnail", it) }
             item.str("link")?.let { e.put("url", it) }
             events.put(e)
         }
@@ -225,7 +232,10 @@ internal object CardTransforms {
 
     private fun place(raw: JSONObject): JSONObject {
         val source = raw.obj("results") ?: raw
-        var items = source.objList("local_results").ifEmpty { source.objList("items") }
+        var items = source.objList("local_results")
+            .ifEmpty { source.objList("places") }
+            .ifEmpty { raw.objList("places") }
+            .ifEmpty { source.objList("items") }
         if (items.isEmpty()) source.obj("place_results")?.let { items = listOf(it) }
         val places = JSONArray()
         items.forEach { item ->
@@ -237,7 +247,7 @@ internal object CardTransforms {
             val address = joinStrings(item.opt("address"))
             address?.let { p.put("address", it) }
             val imageUrls = item.imageUrls()
-            imageUrls.firstOrNull()?.let { p.put("thumbnail", it) }
+            (item.thumbnailImageUrl() ?: imageUrls.firstOrNull())?.let { p.put("thumbnail", it) }
             if (imageUrls.isNotEmpty()) {
                 p.put("imageUrls", JSONArray().also { urls -> imageUrls.forEach(urls::put) })
             }
@@ -358,6 +368,7 @@ internal object CardTransforms {
         val checkIn = source.str("checkIn") ?: source.str("check_in") ?: raw.str("checkIn") ?: raw.str("check_in")
         val checkOut = source.str("checkOut") ?: source.str("check_out") ?: raw.str("checkOut") ?: raw.str("check_out")
         val items = results.objList("properties")
+            .ifEmpty { results.objList("ads") }
             .ifEmpty { results.objList("hotels") }
             .ifEmpty { source.objList("hotels") }
             .ifEmpty { raw.objList("hotels") }
@@ -380,10 +391,11 @@ internal object CardTransforms {
             (prop.intOrNull("extracted_hotel_class") ?: prop.intOrNull("hotel_class"))?.let { hotel.put("stars", it) }
             val area = prop.str("area") ?: prop.str("address") ?: prop.objList("nearby_places").firstOrNull()?.str("name")
             area?.let { hotel.put("area", it); hotel.put("address", it) }
-            val imageUrls = prop.imageUrls()
+            val imageUrls = prop.galleryImageUrls()
             if (imageUrls.isNotEmpty()) {
-                hotel.put("thumbnail", prop.str("thumbnail") ?: imageUrls.first())
-                hotel.put("imageUrl", prop.str("thumbnail") ?: imageUrls.first())
+                val thumbnail = prop.thumbnailImageUrl() ?: imageUrls.first()
+                hotel.put("thumbnail", thumbnail)
+                hotel.put("imageUrl", thumbnail)
                 hotel.put("images", JSONArray(imageUrls))
                 hotel.put("imageUrls", JSONArray(imageUrls))
                 imageUrls.take(6 - topImages.length()).forEach { topImages.put(it) }
@@ -577,26 +589,24 @@ internal object CardTransforms {
             source.objList("news_results").isNotEmpty() -> source.objList("news_results")
             source.objList("organic_results").isNotEmpty() -> source.objList("organic_results")
             source.objList("items").isNotEmpty() -> source.objList("items")
+            source.objList("cards").isNotEmpty() -> source.objList("cards")
             else -> emptyList()
         }
         val headlines = JSONArray()
         items.forEach { item ->
             val h = JSONObject()
-            item.str("title")?.let { h.put("title", it) }
+            (item.str("title") ?: item.str("name") ?: item.str("tag") ?: item.str("component") ?: item.str("type"))?.let { h.put("title", it) }
             (item.str("url") ?: item.str("link"))?.let { h.put("url", it) }
-            (item.str("snippet") ?: item.str("text") ?: item.str("publishedDate"))?.let { h.put("snippet", it) }
+            (item.str("snippet") ?: item.str("text") ?: item.str("description") ?: item.str("status"))?.let { h.put("snippet", it) }
             (item.str("author") ?: item.str("source") ?: item.str("domain") ?: item.str("label"))?.let { h.put("source", it) }
-            (item.str("date") ?: item.str("publishedAt") ?: item.str("published_at") ?: item.str("meta"))?.let { h.put("publishedAt", it) }
-            var imageUrl = item.str("thumbnail") ?: item.str("image") ?: item.str("original") ?: item.str("imageUrl")
-            if (imageUrl == null) {
-                item.optJSONArray("images")?.takeIf { it.length() > 0 }?.let { imgs ->
-                    imageUrl = (imgs.opt(0) as? String)
-                        ?: imgs.optJSONObject(0)?.str("url")
-                        ?: imgs.optJSONObject(0)?.str("thumbnail")
-                }
+            (item.str("date") ?: item.str("publishedAt") ?: item.str("published_at") ?: item.str("publishedDate") ?: item.str("published_date") ?: item.str("meta"))?.let {
+                h.put("publishedAt", it.compactToolCardMetaDate())
             }
+            val imageUrl = item.firstImageUrl()
             imageUrl?.takeIf { it.isNotEmpty() }?.let { h.put("imageUrl", it) }
-            headlines.put(h)
+            if (h.length() > 0) {
+                headlines.put(h)
+            }
         }
         val props = JSONObject().put("headlines", headlines)
         source.str("answer")?.let { props.put("summary", it) }
@@ -621,25 +631,93 @@ internal object CardTransforms {
         return imageUrls().firstOrNull()
     }
 
+    private fun JSONObject.thumbnailImageUrl(): String? {
+        listOf("thumbnail", "thumbnailUrl", "thumbnail_url", "image", "imageUrl", "image_url", "photo").forEach { key ->
+            str(key)?.takeIf { it.isNotBlank() }?.let { return it }
+        }
+        listOf("images", "imageUrls", "image_urls", "photos", "photo_images").forEach { key ->
+            val array = optJSONArray(key) ?: return@forEach
+            for (index in 0 until array.length()) {
+                when (val item = array.opt(index)) {
+                    is String -> if (item.isNotBlank()) return item
+                    is JSONObject -> {
+                        (item.str("thumbnail")
+                            ?: item.str("thumbnail_url")
+                            ?: item.str("thumbnailUrl")
+                            ?: item.str("image")
+                            ?: item.str("imageUrl")
+                            ?: item.str("image_url")
+                            ?: item.str("original_image")
+                            ?: item.str("original")
+                            ?: item.str("url"))?.let { return it }
+                    }
+                }
+            }
+        }
+        obj("pagemap")?.let { pagemap ->
+            pagemap.objList("cse_thumbnail").firstOrNull()?.str("src")?.let { return it }
+            pagemap.objList("cse_image").firstOrNull()?.str("src")?.let { return it }
+        }
+        return null
+    }
+
     private fun JSONObject.imageUrls(): List<String> {
         val urls = mutableListOf<String>()
-        listOf("thumbnail", "image", "imageUrl", "photo").forEach { key ->
+        listOf("thumbnail", "thumbnailUrl", "thumbnail_url", "image", "imageUrl", "image_url", "photo", "original", "original_image").forEach { key ->
             str(key)?.takeIf { it.isNotBlank() }?.let(urls::add)
         }
-        listOf("images", "photos", "photo_images").forEach { key ->
+        listOf("images", "imageUrls", "image_urls", "photos", "photo_images").forEach { key ->
             val array = optJSONArray(key) ?: return@forEach
             for (index in 0 until array.length()) {
                 when (val item = array.opt(index)) {
                     is String -> if (item.isNotBlank()) urls.add(item)
                     is JSONObject -> {
                         (item.str("thumbnail")
+                            ?: item.str("thumbnail_url")
+                            ?: item.str("thumbnailUrl")
                             ?: item.str("original_image")
                             ?: item.str("original")
                             ?: item.str("url")
-                            ?: item.str("imageUrl"))?.let(urls::add)
+                            ?: item.str("imageUrl")
+                            ?: item.str("image_url")
+                            ?: item.str("image"))?.let(urls::add)
                     }
                 }
             }
+        }
+        obj("pagemap")?.let { pagemap ->
+            pagemap.objList("cse_thumbnail").firstOrNull()?.str("src")?.let(urls::add)
+            pagemap.objList("cse_image").firstOrNull()?.str("src")?.let(urls::add)
+        }
+        obj("rich_snippet")?.let { snippet ->
+            snippet.obj("top")?.imageUrls()?.firstOrNull()?.let(urls::add)
+        }
+        return urls.distinct()
+    }
+
+    private fun JSONObject.galleryImageUrls(): List<String> {
+        val urls = mutableListOf<String>()
+        listOf("imageUrls", "image_urls", "images", "photos", "photo_images", "gallery").forEach { key ->
+            val array = optJSONArray(key) ?: return@forEach
+            for (index in 0 until array.length()) {
+                when (val item = array.opt(index)) {
+                    is String -> if (item.isNotBlank()) urls.add(item)
+                    is JSONObject -> {
+                        (item.str("thumbnail")
+                            ?: item.str("thumbnail_url")
+                            ?: item.str("thumbnailUrl")
+                            ?: item.str("original_image")
+                            ?: item.str("original")
+                            ?: item.str("url")
+                            ?: item.str("imageUrl")
+                            ?: item.str("image_url")
+                            ?: item.str("image"))?.let(urls::add)
+                    }
+                }
+            }
+        }
+        if (urls.isEmpty()) {
+            firstImageUrl()?.let(urls::add)
         }
         return urls.distinct()
     }

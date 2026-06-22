@@ -1,0 +1,8 @@
+{"type":"start","messageId":"msg-meta-subagent-cards"}
+{"type":"tool-input-start","toolCallId":"tool-multi","toolName":"COMPOSIO_MULTI_EXECUTE_TOOL","title":"COMPOSIO_MULTI_EXECUTE_TOOL"}
+{"type":"tool-input-available","toolCallId":"tool-multi","toolName":"COMPOSIO_MULTI_EXECUTE_TOOL","title":"COMPOSIO_MULTI_EXECUTE_TOOL","input":{"tools":[{"tool_slug":"COMPOSIO_SEARCH_WEATHER"},{"tool_slug":"GITHUB_LIST_REPOSITORY_ISSUES"}]}}
+{"type":"tool-output-available","toolCallId":"tool-multi","output":{"successful":true,"data":{"results":[{"tool_slug":"COMPOSIO_SEARCH_WEATHER","response":{"successful":true,"data":{"city":"Shanghai","current":{"condition":"Sunny","temperature":29},"forecast":[{"day":"Fri","high":31,"low":24,"condition":"Cloudy"}]}}},{"tool_slug":"GITHUB_LIST_REPOSITORY_ISSUES","response":{"successful":false,"error":"GitHub token missing"}}]}}}
+{"type":"tool-input-start","toolCallId":"tool-agent","toolName":"agent-TravelPlannerAgent","title":"Travel Planner Agent"}
+{"type":"tool-input-available","toolCallId":"tool-agent","toolName":"agent-TravelPlannerAgent","title":"Travel Planner Agent","input":{"task":"Create QA follow-up schedule"}}
+{"type":"tool-output-available","toolCallId":"tool-agent","output":{"subAgentToolResults":[{"toolName":"createSchedule","args":{"name":"Review parity fixture screenshots","cron":"0 9 * * *","timezone":"Asia/Shanghai","action":"Compare Android and iOS cards"},"result":{"successful":true,"data":{"status":"created"}}},{"toolName":"COMPOSIO_SEARCH_TOOLS","result":{"successful":true,"data":{"items":[{"name":"ignored"}]}}}]}}
+{"type":"finish","finishReason":"stop"}

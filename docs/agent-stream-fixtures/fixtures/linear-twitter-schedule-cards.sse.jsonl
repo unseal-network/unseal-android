@@ -1,0 +1,20 @@
+{"type":"start","messageId":"msg-linear-twitter-schedule-cards"}
+{"type":"tool-input-start","toolCallId":"tool-linear-create","toolName":"LINEAR_CREATE_LINEAR_ISSUE","title":"LINEAR_CREATE_LINEAR_ISSUE"}
+{"type":"tool-input-available","toolCallId":"tool-linear-create","toolName":"LINEAR_CREATE_LINEAR_ISSUE","title":"LINEAR_CREATE_LINEAR_ISSUE","input":{"title":"Android tool card long press is inconsistent"}}
+{"type":"tool-output-available","toolCallId":"tool-linear-create","output":{"successful":true,"data":{"identifier":"MOB-42","title":"Android tool card long press is inconsistent","state":"In Progress","priority":2,"team":"Mobile","url":"https://linear.app/unseal/issue/MOB-42"}}}
+{"type":"tool-input-start","toolCallId":"tool-linear-list","toolName":"LINEAR_LIST_LINEAR_ISSUES","title":"LINEAR_LIST_LINEAR_ISSUES"}
+{"type":"tool-input-available","toolCallId":"tool-linear-list","toolName":"LINEAR_LIST_LINEAR_ISSUES","title":"LINEAR_LIST_LINEAR_ISSUES","input":{"team":"Mobile"}}
+{"type":"tool-output-available","toolCallId":"tool-linear-list","output":{"successful":true,"data":{"issues":[{"identifier":"MOB-42","title":"Long press selection priority","state":"In Progress","priority":2},{"identifier":"MOB-43","title":"Weather card light mode contrast","state":"Done","priority":1}]}}}
+{"type":"tool-input-start","toolCallId":"tool-twitter","toolName":"TWITTER_FULL_ARCHIVE_SEARCH","title":"TWITTER_FULL_ARCHIVE_SEARCH"}
+{"type":"tool-input-available","toolCallId":"tool-twitter","toolName":"TWITTER_FULL_ARCHIVE_SEARCH","title":"TWITTER_FULL_ARCHIVE_SEARCH","input":{"query":"Android markdown streaming renderer"}}
+{"type":"tool-output-available","toolCallId":"tool-twitter","output":{"successful":true,"data":{"posts":[{"text":"Streaming markdown needs stable incremental rendering.","author":{"username":"androiddev","name":"Android Dev"},"created_at":"2026-06-18T11:00:00Z","public_metrics":{"like_count":18,"reply_count":2}},{"text":"Tool cards should match across clients.","author":{"username":"unseal","name":"Unseal"},"created_at":"2026-06-18T11:10:00Z","public_metrics":{"like_count":42,"reply_count":5}}]}}}
+{"type":"tool-input-start","toolCallId":"tool-schedule-create","toolName":"createSchedule","title":"createSchedule"}
+{"type":"tool-input-available","toolCallId":"tool-schedule-create","toolName":"createSchedule","title":"createSchedule","input":{"name":"Review Android weather card","cron":"0 10 * * *","timezone":"Asia/Shanghai","action":"Review weather card screenshots"}}
+{"type":"tool-output-available","toolCallId":"tool-schedule-create","output":{"successful":true,"data":{"status":"created"}}}
+{"type":"tool-input-start","toolCallId":"tool-schedule-update","toolName":"updateSchedule","title":"updateSchedule"}
+{"type":"tool-input-available","toolCallId":"tool-schedule-update","toolName":"updateSchedule","title":"updateSchedule","input":{"name":"Review Android weather card","cron":"30 15 * * 5","timezone":"Asia/Shanghai","action":"Move review to Friday afternoon"}}
+{"type":"tool-output-available","toolCallId":"tool-schedule-update","output":{"successful":true,"data":{"status":"updated"}}}
+{"type":"tool-input-start","toolCallId":"tool-schedule-status","toolName":"updateScheduleStatus","title":"updateScheduleStatus"}
+{"type":"tool-input-available","toolCallId":"tool-schedule-status","toolName":"updateScheduleStatus","title":"updateScheduleStatus","input":{"names":["Review Android weather card"],"status":"disabled"}}
+{"type":"tool-output-available","toolCallId":"tool-schedule-status","output":{"successful":true,"data":{"status":"disabled"}}}
+{"type":"finish","finishReason":"stop"}

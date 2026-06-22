@@ -72,6 +72,7 @@ fun TimelineItemEventContentView(
             modifier = modifier,
             onLinkClick = onLinkClick,
             onLinkLongClick = onLinkLongClick,
+            onLongClick = onLongClick,
             onContentLayoutChange = onContentLayoutChange
         )
         is TimelineItemAiContent -> {
@@ -80,6 +81,7 @@ fun TimelineItemEventContentView(
                 content = presenter.present().content,
                 onLinkClick = onLinkClick,
                 onLinkLongClick = onLinkLongClick,
+                onLongClick = onLongClick,
                 modifier = modifier,
                 onContentLayoutChange = onContentLayoutChange,
             )

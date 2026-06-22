@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
@@ -43,7 +44,10 @@ internal fun ToolCard(
     onLinkClick: () -> Unit = {},
 ): Boolean {
     // Map the raw tool response into the props each card expects (iOS CardTransforms parity).
-    val data = CardTransforms.transform(rawData, cardType)
+    // Cache the transform: it allocates a whole JSONObject tree (measured 2-5ms per card in real
+    // rooms) and rawData is a stable instance, so without remember it re-runs on every recomposition
+    // (notably during streaming, which recomposes this subtree every chunk).
+    val data = remember(rawData, cardType) { CardTransforms.transform(rawData, cardType) }
     return ToolCardFinalProps(cardType = cardType, data = data, onLinkClick = onLinkClick)
 }
 
@@ -161,7 +165,7 @@ private fun GenericListRow(item: JSONObject) {
     val title = item.cardString("title", "name", "subject", "headline", "summary", "query", "text") ?: "Untitled"
     val subtitle = item.cardString("snippet", "description", "body", "content", "status", "state")
     val source = item.cardString("source", "label", "author", "from", "repository")
-    val meta = item.cardString("publishedAt", "date", "time", "meta", "price", "priceFormatted")
+    val meta = item.cardString("publishedAt", "date", "time", "meta", "price", "priceFormatted")?.compactToolCardMetaDate()
     val url = item.cardString("url", "html_url", "web_url", "link", "href")
     val imageUrl = item.cardString("imageUrl", "image", "thumbnail", "thumbnailUrl", "avatarUrl")
     val uriHandler = LocalUriHandler.current

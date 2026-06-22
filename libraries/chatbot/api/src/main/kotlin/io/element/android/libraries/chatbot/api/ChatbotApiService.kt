@@ -16,18 +16,12 @@ import io.element.android.libraries.chatbot.api.model.agent.ChatbotCreateAgentRe
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotSetAgentVoiceConfigRequest
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotUpdateAgentRequest
 import io.element.android.libraries.chatbot.api.model.analytics.AnalyticsTokensResponse
+import io.element.android.libraries.chatbot.api.model.approvals.ChatbotApproval
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotDisconnectAccountResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotInitiateConnectionResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListConnectedAccountsResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListToolkitCategoriesResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListToolkitsResponse
-import io.element.android.libraries.chatbot.api.model.voices.ChatbotCreateVoiceProfileRequest
-import io.element.android.libraries.chatbot.api.model.voices.ChatbotCreateVoiceShareRequest
-import io.element.android.libraries.chatbot.api.model.voices.ChatbotDeleteVoiceProfileResponse
-import io.element.android.libraries.chatbot.api.model.voices.ChatbotProviderVoice
-import io.element.android.libraries.chatbot.api.model.voices.ChatbotUploadVoiceProfileRequest
-import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceProfile
-import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceShare
 import io.element.android.libraries.chatbot.api.model.credits.CreditBalance
 import io.element.android.libraries.chatbot.api.model.credits.CreditDailyUsageResponse
 import io.element.android.libraries.chatbot.api.model.credits.CreditLedgerResponse
@@ -39,9 +33,6 @@ import io.element.android.libraries.chatbot.api.model.schedules.ChatbotCreateSch
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotCreateScheduleResponse
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotSchedule
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotUpdateScheduleRequest
-import io.element.android.libraries.chatbot.api.model.storage.ChatbotPresignedUpload
-import io.element.android.libraries.chatbot.api.model.storage.ChatbotStsCredentials
-import io.element.android.libraries.chatbot.api.model.storage.ChatbotStsTokenResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotCreateUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotDeleteUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotGetUserSkillResponse
@@ -50,6 +41,16 @@ import io.element.android.libraries.chatbot.api.model.skills.ChatbotListRoomAgen
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUpdateUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
+import io.element.android.libraries.chatbot.api.model.storage.ChatbotPresignedUpload
+import io.element.android.libraries.chatbot.api.model.storage.ChatbotStsCredentials
+import io.element.android.libraries.chatbot.api.model.storage.ChatbotStsTokenResponse
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotCreateVoiceProfileRequest
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotCreateVoiceShareRequest
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotDeleteVoiceProfileResponse
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotProviderVoice
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotUploadVoiceProfileRequest
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceProfile
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceShare
 import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotCreateWebhookTriggerRequest
 import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotUpdateWebhookTriggerRequest
 import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookEventCatalogResponse
@@ -101,6 +102,9 @@ interface ChatbotApiService {
     suspend fun getRoomWorkingMemory(roomId: String): Result<String>
     suspend fun updateRoomWorkingMemory(roomId: String, content: String): Result<Unit>
     suspend fun getRoomAgents(roomId: String): Result<ChatbotGetRoomAgentsResponse>
+    suspend fun getApproval(approvalId: String): Result<ChatbotApproval>
+    suspend fun approveApproval(approvalId: String): Result<ChatbotApproval>
+    suspend fun rejectApproval(approvalId: String): Result<ChatbotApproval>
     suspend fun listToolkitCategories(cursor: String?, limit: Int?): Result<ChatbotListToolkitCategoriesResponse>
     suspend fun listToolkits(search: String?, category: String?, cursor: String?, limit: Int?): Result<ChatbotListToolkitsResponse>
     suspend fun initiateConnection(toolkit: String, redirectUrl: String): Result<ChatbotInitiateConnectionResponse>

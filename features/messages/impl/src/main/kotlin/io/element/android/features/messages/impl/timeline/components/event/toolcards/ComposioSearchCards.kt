@@ -111,8 +111,6 @@ private const val MAX_ITEMS = MAX_CARD_ITEMS
 private const val MAX_IMAGES = 12
 private val FinanceUpColor = Color(0xFF219E66)
 private val FinanceDownColor = Color(0xFFE64235)
-private val FinanceSegmentBackground = Color(0xFF2B2D33)
-private val FinanceSegmentSelected = Color(0xFF777981)
 private val ShoppingPriceColor = Color(0xFF219966)
 private val ShoppingStarColor = Color(0xFFFF9E2C)
 private val NewsSourceColor = Color(0xFF31D76B)
@@ -196,8 +194,8 @@ private fun FlightRow(flight: JSONObject) {
     val arrTime = formatTime(flight.cardString("arrivalTime"))
     val duration = flight.cardString("duration")
     val stops = flight.cardInt("stops")
-    val travelClass = flight.cardString("travelClass")
-    val price = flight.cardString("priceFormatted")
+    val travelClass = flight.cardString("travelClass", "cabin", "class")
+    val price = flight.cardString("priceFormatted", "price")
 
     Column(
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -228,8 +226,9 @@ private fun FlightRow(flight: JSONObject) {
                 Text(depCode, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                 Text(depTime, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 duration?.let { MetaText(it) }
+                FlightRouteLine()
                 Text(
                     text = stopsLabel(stops),
                     style = MaterialTheme.typography.labelSmall,
@@ -242,6 +241,30 @@ private fun FlightRow(flight: JSONObject) {
             }
         }
         travelClass?.let { CardChip(it) }
+    }
+}
+
+@Composable
+private fun FlightRouteLine() {
+    val color = MaterialTheme.colorScheme.primary
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(14.dp),
+    ) {
+        val centerY = size.height / 2f
+        val startX = 4.dp.toPx()
+        val endX = size.width - 4.dp.toPx()
+        drawLine(
+            color = color.copy(alpha = 0.28f),
+            start = Offset(startX, centerY),
+            end = Offset(endX, centerY),
+            strokeWidth = 1.4.dp.toPx(),
+            cap = StrokeCap.Round,
+        )
+        drawCircle(color = color.copy(alpha = 0.72f), radius = 2.3.dp.toPx(), center = Offset(startX, centerY))
+        drawCircle(color = color.copy(alpha = 0.72f), radius = 2.3.dp.toPx(), center = Offset(endX, centerY))
+        drawCircle(color = color, radius = 3.dp.toPx(), center = Offset((startX + endX) / 2f, centerY))
     }
 }
 
@@ -286,16 +309,31 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
     val rating = hotel.cardDouble("rating")
     val reviewCount = hotel.cardInt("reviews", "reviewCount")
     val stars = hotel.cardInt("stars")
-    val imageUrl = hotel.cardString("thumbnail", "imageUrl")
-    val imageUrls = hotel.cardStrings("images", "imageUrls")
-    val primaryImageUrl = imageUrl ?: imageUrls.firstOrNull()
+    val thumbnailUrls = hotel.cardImageUrls("thumbnail", "imageUrl", "image")
+    val galleryImageUrls = (
+        hotel.cardImageUrls("imageUrls", "images", "photos") +
+            hotel.cardImageUrls("gallery", "photo_images")
+        )
+        .normalizedHotelImageUrls()
+    val primaryImageUrl = thumbnailUrls.normalizedHotelImageUrls().firstOrNull() ?: galleryImageUrls.firstOrNull()
     val amenities = hotel.cardStrings("amenities")
     val url = hotel.cardString("url")
     val mapsUrl = hotel.cardString("mapUrl", "mapsUrl")
     val bookAction = openLinkAction(url, onLinkClick)
     val mapAction = openLinkAction(mapsUrl, onLinkClick)
-    var showGallery by remember(imageUrls.joinToString("|"), primaryImageUrl) { mutableStateOf(false) }
-    val galleryUrls = if (imageUrls.isNotEmpty()) imageUrls else listOfNotNull(primaryImageUrl)
+    var showGallery by remember(galleryImageUrls.joinToString("|"), primaryImageUrl) { mutableStateOf(false) }
+    val galleryUrls = galleryImageUrls.ifEmpty { listOfNotNull(primaryImageUrl) }
+    val hasHotelDetails = listOf(address, price, totalPrice, url, mapsUrl).any { !it.isNullOrBlank() } ||
+        rating != null ||
+        reviewCount != null ||
+        stars != null ||
+        amenities.isNotEmpty() ||
+        galleryUrls.isNotEmpty()
+
+    if (!hasHotelDetails) {
+        SparseHotelRow(name = name)
+        return
+    }
 
     Column(
         modifier = Modifier
@@ -308,26 +346,35 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.Top,
         ) {
-            Box {
-                CardRemoteImage(
-                    url = primaryImageUrl,
-                    modifier = Modifier
-                        .size(56.dp)
-                        .then(if (galleryUrls.isNotEmpty()) Modifier.clickable { showGallery = true } else Modifier),
-                    corner = 8,
-                )
-                if (imageUrls.size > 1) {
-                    Text(
-                        text = imageUrls.size.toString(),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
+            if (!primaryImageUrl.isNullOrBlank()) {
+                Box(
+                    modifier = if (galleryUrls.isNotEmpty()) {
+                        Modifier.clickable { showGallery = true }
+                    } else {
+                        Modifier
+                    },
+                ) {
+                    CardRemoteImage(
+                        url = primaryImageUrl,
                         modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(2.dp)
-                            .background(Color.Black.copy(alpha = 0.50f), RoundedCornerShape(3.dp))
-                            .padding(horizontal = 3.dp, vertical = 1.dp),
-                    )
+                            .size(50.dp),
+                        corner = 8,
+                    ) {
+                        HotelImagePlaceholder()
+                    }
+                    if (galleryImageUrls.size > 1) {
+                        Text(
+                            text = galleryImageUrls.size.toString(),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(2.dp)
+                                .background(Color.Black.copy(alpha = 0.50f), RoundedCornerShape(3.dp))
+                                .padding(horizontal = 3.dp, vertical = 1.dp),
+                        )
+                    }
                 }
             }
 
@@ -335,40 +382,34 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(3.dp),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = name,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    stars?.let { HotelStarRating(count = it) }
-                }
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
 
                 if (!address.isNullOrBlank()) {
                     Text(
                         text = address,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.66f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
 
+                stars?.let { HotelStarRating(count = it) }
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     rating?.let { HotelRatingBadge(rating = it) }
-                    reviewCount?.let { MetaText("$it reviews") }
+                    reviewCount?.let { MetaText("${it.compactCount()} rev.") }
                 }
             }
 
@@ -376,7 +417,7 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
                 Column(
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.spacedBy(2.dp),
-                    modifier = Modifier.width(72.dp),
+                    modifier = Modifier.width(58.dp),
                 ) {
                     Text(
                         text = price,
@@ -390,7 +431,7 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
                         Text(
                             text = "total $it",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.50f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -403,9 +444,9 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
             HotelAmenityRow(amenities = amenities)
         }
 
-        if (galleryUrls.isNotEmpty()) {
+        if (galleryUrls.size > 1) {
             HotelImageStrip(
-                urls = galleryUrls.take(3),
+                urls = galleryUrls,
                 onClick = { showGallery = true },
             )
         }
@@ -435,6 +476,101 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
     }
 }
 
+private fun List<String>.normalizedHotelImageUrls(): List<String> =
+    distinctBy { it.substringBefore("?") }
+        .sortedWith(
+            compareBy<String> {
+                when {
+                    "gps-cs-s" in it -> 0
+                    "googleusercontent.com/proxy/" in it || "/proxy/" in it -> 4
+                    else -> 2
+                }
+            }
+        )
+        .let { urls ->
+            urls.filterNot { "googleusercontent.com/proxy/" in it || "/proxy/" in it }
+                .takeIf { it.isNotEmpty() }
+                ?: urls
+        }
+
+@Composable
+private fun SparseHotelRow(name: String) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.24f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
+    ) {
+        Row(
+            modifier = Modifier
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            FinanceUpColor.copy(alpha = 0.18f),
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.02f),
+                        ),
+                        start = Offset.Zero,
+                        end = Offset(520f, 180f),
+                    ),
+                )
+                .padding(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(
+                                Color(0xFF2F80ED).copy(alpha = 0.28f),
+                                FinanceUpColor.copy(alpha = 0.28f),
+                            ),
+                        ),
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "H",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = name.ifBlank { "Hotels" },
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "Hotel search completed, but detailed results were not returned.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    HotelAmenityChip(text = "Details unavailable", index = 1)
+                    HotelAmenityChip(text = "Try dates or city", index = 2)
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun HotelImageStrip(
     urls: List<String>,
@@ -446,7 +582,7 @@ private fun HotelImageStrip(
             .padding(bottom = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        items(urls.take(8), key = { it }) { url ->
+        items(urls.take(8)) { url ->
             CardRemoteImage(
                 url = url,
                 modifier = Modifier
@@ -454,8 +590,25 @@ private fun HotelImageStrip(
                     .clip(RoundedCornerShape(8.dp))
                     .clickable(onClick = onClick),
                 corner = 8,
-            )
+            ) {
+                HotelImagePlaceholder()
+            }
         }
+    }
+}
+
+@Composable
+private fun HotelImagePlaceholder() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.LocationOn,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.42f),
+            modifier = Modifier.size(18.dp),
+        )
     }
 }
 
@@ -484,7 +637,9 @@ private fun HotelImageDialog(
                         url = urls.getOrNull(page),
                         modifier = Modifier.fillMaxSize(),
                         corner = 18,
-                    )
+                    ) {
+                        HotelImagePlaceholder()
+                    }
                 }
                 Column(
                     modifier = Modifier
@@ -656,77 +811,188 @@ private fun HeadlineListCard(data: JSONObject, onLinkClick: () -> Unit) {
 @Composable
 private fun HeadlineRow(item: JSONObject, onLinkClick: () -> Unit) {
     val title = item.cardString("title") ?: "Untitled"
-    val snippet = item.cardString("snippet")
+    val rawSnippet = item.cardString("snippet")?.trim()
     val source = item.cardString("source", "label")
-    val publishedAt = item.cardString("publishedAt", "meta")
+    val snippetAsDate = rawSnippet?.takeIf { it.looksLikeHeadlineDate() }?.cleanHeadlineMetaDate()
+    val snippet = rawSnippet?.takeUnless { it.looksLikeHeadlineDate() }?.cleanHeadlineMetaDate()
+    val publishedAt = (
+        item.cardString("publishedAt", "published_at", "publishedDate", "published_date", "date", "meta")
+            ?: snippetAsDate
+        )?.cleanHeadlineMetaDate()
     val url = item.cardString("url")
-    val imageUrl = item.cardString("imageUrl")
+    val domain = url?.let(::domainOf)
+    val imageUrl = item.cardImageUrls("imageUrl", "thumbnail", "image", "original").firstOrNull()
+    val imageFallback = (source ?: domain ?: title).trim().take(1).uppercase(Locale.getDefault()).ifBlank { "W" }
     val action = openLinkAction(url, onLinkClick)
 
     Row(
-        modifier = Modifier.fillMaxWidth().clickableIfLink(action).padding(vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickableIfLink(action)
+            .padding(vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             snippet?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
-            Row(
+            HeadlineMetaRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                source?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Medium,
-                        color = NewsSourceColor,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                }
-                publishedAt?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.58f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                url?.let {
-                    Text(
-                        text = domainOf(it),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.42f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-        if (!imageUrl.isNullOrBlank()) {
-            CardRemoteImage(url = imageUrl, modifier = Modifier.size(width = 56.dp, height = 42.dp))
-        } else if (url != null) {
-            Icon(
-                imageVector = Icons.Filled.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.42f),
-                modifier = Modifier.padding(top = 4.dp).size(18.dp),
+                source = source,
+                publishedAt = publishedAt,
+                domain = domain,
             )
         }
+        HeadlineTrailingPreview(
+            imageUrl = imageUrl,
+            imageFallback = imageFallback,
+            hasLink = url != null,
+        )
     }
+}
+
+@Composable
+private fun HeadlineTrailingPreview(
+    imageUrl: String?,
+    imageFallback: String,
+    hasLink: Boolean,
+) {
+    Box(
+        modifier = Modifier
+            .width(68.dp)
+            .height(50.dp),
+        contentAlignment = Alignment.TopEnd,
+    ) {
+        if (!imageUrl.isNullOrBlank()) {
+            CardRemoteImage(
+                url = imageUrl,
+                modifier = Modifier
+                    .size(width = 64.dp, height = 48.dp)
+                    .clip(RoundedCornerShape(8.dp)),
+                corner = 8,
+            ) {
+                HeadlineImagePlaceholder(label = imageFallback)
+            }
+        } else if (hasLink) {
+            Box(
+                modifier = Modifier
+                    .size(width = 44.dp, height = 36.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeadlineImagePlaceholder(label: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.76f),
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun HeadlineMetaRow(
+    source: String?,
+    publishedAt: String?,
+    domain: String?,
+    modifier: Modifier = Modifier,
+) {
+    val metaItems = listOfNotNull(
+        publishedAt?.takeIf { it.isNotBlank() },
+        domain?.takeIf { it.isNotBlank() },
+    )
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(1.dp),
+    ) {
+        source?.takeIf { it.isNotBlank() }?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Medium,
+                color = NewsSourceColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (metaItems.isNotEmpty()) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                metaItems.forEachIndexed { index, value ->
+                    if (index > 0) {
+                        Text(
+                            text = "·",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.48f),
+                        )
+                    }
+                    val metaModifier = if (index == 0) {
+                        Modifier
+                    } else {
+                        Modifier.weight(1f, fill = false)
+                    }
+                    Text(
+                        text = value,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (index == 0) 0.82f else 0.58f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = metaModifier,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun String.cleanHeadlineMetaDate(): String {
+    return compactToolCardMetaDate()
+}
+
+private fun String.looksLikeHeadlineDate(): Boolean {
+    val value = trim()
+    return Regex("^\\d{4}-\\d{2}-\\d{2}(?:[T\\s].*)?$").matches(value) ||
+        Regex("^[A-Z][a-z]{2}\\s+\\d{1,2},\\s+\\d{4}").containsMatchIn(value)
 }
 
 // MARK: - Breaking news (breakingNews)
@@ -736,9 +1002,12 @@ private fun BreakingNewsCard(data: JSONObject, onLinkClick: () -> Unit) {
     val sourceItem = data.cardObjects("headlines", "items").firstOrNull() ?: data
     val headline = data.cardString("headline", "title") ?: sourceItem.cardString("headline", "title") ?: return
     val source = data.cardString("source") ?: sourceItem.cardString("source", "label")
-    val publishedAt = data.cardString("publishedAt") ?: sourceItem.cardString("publishedAt", "published_at", "date", "meta")
+    val publishedAt = (
+        data.cardString("publishedAt") ?: sourceItem.cardString("publishedAt", "published_at", "date", "meta")
+        )?.cleanHeadlineMetaDate()
     val summary = data.cardString("summary") ?: sourceItem.cardString("summary", "snippet", "description", "text")
-    val imageUrl = data.cardString("imageUrl") ?: sourceItem.cardString("imageUrl", "image", "thumbnail")
+    val imageUrl = data.cardImageUrls("imageUrl", "image", "thumbnail").firstOrNull()
+        ?: sourceItem.cardImageUrls("imageUrl", "image", "thumbnail").firstOrNull()
     val category = data.cardString("category") ?: sourceItem.cardString("category")
     val url = data.cardString("url") ?: sourceItem.cardString("url", "link")
     val action = openLinkAction(url, onLinkClick)
@@ -787,11 +1056,42 @@ private fun ImageGridCard(data: JSONObject, onLinkClick: () -> Unit) {
         images.chunked(3).forEach { rowImages ->
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 rowImages.forEach { image ->
-                    val thumb = image.cardString("thumbnail", "original")
+                    val thumb = image.cardImageUrls("thumbnail", "original", "original_image", "url", "imageUrl", "image").firstOrNull()
                     val link = image.cardString("original", "url")
                     val action = openLinkAction(link, onLinkClick)
+                    val title = image.cardString("title")
+                    val source = image.cardString("source")
                     Box(modifier = Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(10.dp)).clickableIfLink(action)) {
-                        CardRemoteImage(url = thumb, modifier = Modifier.fillMaxWidth().aspectRatio(1f), corner = 10)
+                        CardRemoteImage(
+                            url = thumb,
+                            modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+                            corner = 10,
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(8.dp),
+                                verticalArrangement = Arrangement.Bottom,
+                            ) {
+                                Text(
+                                    text = title ?: source ?: "Image",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                source?.takeIf { it != title }?.let {
+                                    Text(
+                                        text = it,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
                 repeat(3 - rowImages.size) { Spacer(Modifier.weight(1f)) }
@@ -817,78 +1117,92 @@ private fun ProductListCard(data: JSONObject, onLinkClick: () -> Unit) {
 @Composable
 private fun ProductRow(product: JSONObject, onLinkClick: () -> Unit) {
     val title = product.cardString("title") ?: ""
-    val thumb = product.cardString("thumbnail")
+    val thumb = product.cardImageUrls("thumbnail", "imageUrl", "image").firstOrNull()
     val price = product.cardString("price")
     val source = product.cardString("source")
     val rating = product.cardString("rating")
     val reviews = product.cardInt("reviews")
     val url = product.cardString("url")
     val action = openLinkAction(url, onLinkClick)
+    val imageFallback = (source ?: title).trim().take(1).uppercase(Locale.getDefault()).ifBlank { "P" }
 
     Row(
         modifier = Modifier.fillMaxWidth().clickableIfLink(action).padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CardRemoteImage(url = thumb, modifier = Modifier.size(58.dp), corner = 9)
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(5.dp),
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
+        CardRemoteImage(url = thumb, modifier = Modifier.size(52.dp), corner = 9) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
             ) {
-                source?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                rating?.let {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        Icon(Icons.Filled.Star, contentDescription = null, tint = ShoppingStarColor, modifier = Modifier.size(11.dp))
+                Text(
+                    text = imageFallback,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip,
+                )
+            }
+        }
+        Box(
+            modifier = Modifier.weight(1f),
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(end = if (price != null) 80.dp else 0.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    source?.let {
                         Text(
                             text = it,
                             style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
-                            overflow = TextOverflow.Clip,
+                            overflow = TextOverflow.Ellipsis,
                         )
-                        if (reviews != null && reviews > 0) {
+                    }
+                    rating?.let {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Icon(Icons.Filled.Star, contentDescription = null, tint = ShoppingStarColor, modifier = Modifier.size(11.dp))
                             Text(
-                                text = "(${reviews.compactCount()})",
+                                text = it,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
                                 overflow = TextOverflow.Clip,
                             )
+                            if (reviews != null && reviews > 0) {
+                                Text(
+                                    text = "(${reviews.compactCount()})",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Clip,
+                                )
+                            }
                         }
                     }
                 }
             }
-        }
-        price?.let {
-            Box(
-                modifier = Modifier.width(92.dp),
-                contentAlignment = Alignment.TopEnd,
-            ) {
+            price?.let {
                 Text(
                     text = it,
                     style = MaterialTheme.typography.bodyMedium,
@@ -896,6 +1210,7 @@ private fun ProductRow(product: JSONObject, onLinkClick: () -> Unit) {
                     color = ShoppingPriceColor,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.align(Alignment.TopEnd),
                 )
             }
         }
@@ -970,7 +1285,7 @@ private fun FinanceSegmentedTabs(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 10.dp)
-            .background(FinanceSegmentBackground, RoundedCornerShape(50))
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(50))
             .padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -982,9 +1297,9 @@ private fun FinanceSegmentedTabs(
                 onClick = { onSelected(index) },
                 modifier = Modifier
                     .weight(1f),
-                selectedColor = FinanceSegmentSelected,
+                selectedColor = MaterialTheme.colorScheme.secondaryContainer,
                 unselectedColor = Color.Transparent,
-                selectedContentColor = Color.White,
+                selectedContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                 unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
             ) {
                 Text(
@@ -1138,16 +1453,12 @@ private fun MarketRow(market: JSONObject) {
 private fun NewsRow(news: JSONObject, onLinkClick: () -> Unit) {
     val title = news.cardString("title") ?: ""
     val source = news.cardString("source")
-    val date = news.cardString("date")
-    val thumb = news.cardString("thumbnail")
+    val date = news.cardString("date", "publishedAt", "published_at", "meta")?.cleanHeadlineMetaDate()
     val url = news.cardString("url")
     val action = openLinkAction(url, onLinkClick)
     val meta = listOfNotNull(source, date).joinToString(" · ")
 
     Row(modifier = Modifier.fillMaxWidth().clickableIfLink(action).padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (!thumb.isNullOrBlank()) {
-            CardRemoteImage(url = thumb, modifier = Modifier.size(44.dp), corner = 7)
-        }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (meta.isNotEmpty()) MetaText(meta)
@@ -1158,7 +1469,7 @@ private fun NewsRow(news: JSONObject, onLinkClick: () -> Unit) {
 @Composable
 private fun KeyEventRow(event: JSONObject) {
     val title = event.cardString("title") ?: ""
-    val meta = listOfNotNull(event.cardString("date"), event.cardString("source")).joinToString(" · ")
+    val meta = listOfNotNull(event.cardString("date")?.cleanHeadlineMetaDate(), event.cardString("source")).joinToString(" · ")
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Icon(Icons.Outlined.CalendarToday, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -1170,7 +1481,7 @@ private fun KeyEventRow(event: JSONObject) {
 
 @Composable
 private fun StatRow(text: String) {
-    val parts = text.split(":", limit = 2).map { it.trim() }
+    val parts = splitStatLabelValue(text)
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (parts.size == 2) {
             MetaText(parts[0])
@@ -1183,25 +1494,17 @@ private fun StatRow(text: String) {
 
 @Composable
 private fun StatsGrid(stats: List<String>) {
-    val rows = stats.chunked(2)
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        rows.forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                row.forEach { stat ->
-                    StatChip(text = stat, modifier = Modifier.weight(1f))
-                }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
-            }
-        }
+        stats.forEach { stat -> StatRow(stat) }
     }
 }
 
 @Composable
 private fun StatChip(text: String, modifier: Modifier = Modifier) {
-    val parts = text.split(":", limit = 2).map { it.trim() }
+    val parts = splitStatLabelValue(text)
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(1.dp),
@@ -1234,6 +1537,15 @@ private fun StatChip(text: String, modifier: Modifier = Modifier) {
     }
 }
 
+private fun splitStatLabelValue(text: String): List<String> {
+    val index = text.indexOf(':')
+    if (index <= 0) return listOf(text)
+    val label = text.take(index).trim()
+    val value = text.drop(index + 1).trim()
+    val labelLooksLikeText = label.any { it.isLetter() } && label.none { it.isDigit() || it == ',' }
+    return if (labelLooksLikeText && value.isNotEmpty()) listOf(label, value) else listOf(text)
+}
+
 @Composable
 private fun FinancialsList(sections: List<JSONObject>) {
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -1262,7 +1574,7 @@ private fun FinancialsList(sections: List<JSONObject>) {
                     Text(
                         text = it,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.58f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -1349,111 +1661,98 @@ private fun WeatherCard(data: JSONObject) {
     }
     val humidity = current?.cardDouble("humidity")
     val windSpeed = current?.cardDouble("windSpeed", "wind_speed")
+    val statPanelColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.30f)
+    val statBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.36f)
+    val weatherAccent = MaterialTheme.colorScheme.primary
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-            WeatherLocationHeader(
-                city = city,
-                country = country.orEmpty(),
-                dateText = weatherDateText(selectedDay, selectedForecast),
-            )
+        WeatherLocationHeader(
+            city = city,
+            country = country.orEmpty(),
+            dateText = weatherDateText(selectedDay, selectedForecast),
+        )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.Top,
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            WeatherHeroIcon(condition = condition, tint = themeColor)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    WeatherHeroIcon(condition = condition, tint = themeColor)
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(verticalAlignment = Alignment.Bottom) {
-                            Text(
-                                text = temp?.roundedInt()?.toString() ?: "—",
-                                style = MaterialTheme.typography.displayMedium,
-                                fontWeight = FontWeight.Light,
-                                color = Color.White,
-                                maxLines = 1,
-                            )
-                            Text(
-                                text = "°C",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Color.White.copy(alpha = 0.45f),
-                                modifier = Modifier.padding(bottom = 9.dp, start = 2.dp),
-                            )
-                        }
-                        Text(
-                            text = formatWeatherCondition(condition),
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.White.copy(alpha = 0.64f),
-                        )
-                        Text(
-                            text = if (selectedDay == 0) "Current conditions" else "Forecast for ${selectedForecast?.cardString("day", "weekday", "date") ?: ""}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.32f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        text = "FEELS LIKE",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.White.copy(alpha = 0.34f),
+                        text = temp?.roundedInt()?.toString() ?: "—",
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.Light,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
                     )
                     Text(
-                        text = feelsLike?.let { "${it.roundedInt()}°" } ?: "—",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White.copy(alpha = 0.92f),
+                        text = "°C",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 5.dp, start = 2.dp),
                     )
                 }
+                Text(
+                    text = formatWeatherCondition(condition),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = if (selectedDay == 0) "Current" else "Forecast ${selectedForecast?.cardString("day", "weekday", "date") ?: ""}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
+        }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.White.copy(alpha = 0.02f), RoundedCornerShape(12.dp))
-                    .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(12.dp))
-                    .padding(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                WeatherStat(label = "Wind", value = windSpeed?.let { "${it.roundedInt()}" } ?: "—", unit = "km/h", icon = Icons.Outlined.Air, tint = Color(0xFF10B7C7), modifier = Modifier.weight(1f))
-                WeatherStat(label = "Humidity", value = humidity?.let { "${it.roundedInt()}" } ?: "—", unit = "%", icon = Icons.Outlined.WaterDrop, tint = Color(0xFF10B7C7), modifier = Modifier.weight(1f))
-                WeatherStat(label = "UV Index", value = if (selectedDay == 0) "4" else "3", unit = "moderate", icon = Icons.Outlined.WbSunny, tint = Color(0xFF10B7C7), modifier = Modifier.weight(1f))
-            }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(statPanelColor, RoundedCornerShape(14.dp))
+                .border(0.6.dp, statBorderColor, RoundedCornerShape(14.dp))
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            WeatherStat(label = "Feels", value = feelsLike?.let { "${it.roundedInt()}°" } ?: "—", unit = "", icon = Icons.Outlined.DeviceThermostat, tint = weatherAccent, modifier = Modifier.weight(1f))
+            WeatherStat(label = "Wind", value = windSpeed?.let { "${it.roundedInt()}" } ?: "—", unit = if (windSpeed == null) "" else "km/h", icon = Icons.Outlined.Air, tint = weatherAccent, modifier = Modifier.weight(1f))
+            WeatherStat(label = "Humid", value = humidity?.let { "${it.roundedInt()}%" } ?: "—", unit = "", icon = Icons.Outlined.WaterDrop, tint = weatherAccent, modifier = Modifier.weight(1f))
+        }
 
         if (forecast.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(Icons.Outlined.CalendarToday, contentDescription = null, tint = Color.White.copy(alpha = 0.35f), modifier = Modifier.size(11.dp))
-                        Text(
-                            text = "7-DAY FORECAST",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White.copy(alpha = 0.42f),
-                        )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Outlined.CalendarToday, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(11.dp))
+                    Text(
+                        text = "7-DAY FORECAST",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    forecast.forEachIndexed { index, item ->
+                        ForecastPill(item = item, selected = selectedDay == index, onClick = { selectedDay = index })
                     }
-                    Row(
-                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        forecast.forEachIndexed { index, item ->
-                            ForecastPill(item = item, selected = selectedDay == index, onClick = { selectedDay = index })
-                        }
-                    }
-                    selectedForecast?.let { DetailedForecast(item = it, themeColor = weatherColor(it.cardString("condition", "weather", "description").orEmpty())) }
                 }
             }
         }
+    }
 }
 
 @Composable
@@ -1465,7 +1764,7 @@ private fun WeatherLocationHeader(city: String, country: String, dateText: Strin
                 text = listOf(city, country).filter { it.isNotBlank() }.joinToString(", "),
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
-                color = Color.White.copy(alpha = 0.48f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -1474,9 +1773,9 @@ private fun WeatherLocationHeader(city: String, country: String, dateText: Strin
             text = dateText,
             style = MaterialTheme.typography.labelSmall,
             fontFamily = FontFamily.Monospace,
-            color = Color.White.copy(alpha = 0.38f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
-                .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(50))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f), RoundedCornerShape(50))
                 .padding(horizontal = 10.dp, vertical = 5.dp),
         )
     }
@@ -1484,13 +1783,13 @@ private fun WeatherLocationHeader(city: String, country: String, dateText: Strin
 
 @Composable
 private fun WeatherHeroIcon(condition: String, tint: Color) {
-    Box(modifier = Modifier.size(92.dp), contentAlignment = Alignment.Center) {
+    Box(modifier = Modifier.size(56.dp), contentAlignment = Alignment.Center) {
         Box(
             modifier = Modifier
-                .size(58.dp)
+                .size(40.dp)
                 .background(tint.copy(alpha = 0.10f), RoundedCornerShape(50)),
         )
-        Icon(weatherIcon(condition), contentDescription = null, tint = tint, modifier = Modifier.size(64.dp))
+        Icon(weatherIcon(condition), contentDescription = null, tint = tint, modifier = Modifier.size(44.dp))
     }
 }
 
@@ -1503,15 +1802,15 @@ private fun WeatherStat(
     tint: Color,
     modifier: Modifier = Modifier,
 ) {
-    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(text = label.uppercase(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium, color = Color.White.copy(alpha = 0.42f), maxLines = 1)
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(text = value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.9f), maxLines = 1)
-                Text(text = unit, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.34f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
+    val displayValue = if (unit.isBlank() || value == "—") value else "$value $unit"
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(15.dp))
+        Text(text = label.uppercase(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        Text(text = displayValue, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -1526,18 +1825,18 @@ private fun ForecastPill(item: JSONObject, selected: Boolean, onClick: () -> Uni
         selected = selected,
         onClick = onClick,
         modifier = Modifier
-            .width(82.dp),
-        selectedColor = color.copy(alpha = 0.14f),
-        unselectedColor = Color.White.copy(alpha = 0.025f),
-        selectedContentColor = color,
-        unselectedContentColor = Color.White.copy(alpha = 0.48f),
-        selectedBorder = BorderStroke(1.dp, color.copy(alpha = 0.28f)),
+            .width(74.dp),
+        selectedColor = color.copy(alpha = 0.16f),
+        unselectedColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.30f),
+        selectedContentColor = MaterialTheme.colorScheme.onSurface,
+        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        selectedBorder = BorderStroke(0.8.dp, color.copy(alpha = 0.36f)),
         shape = RoundedCornerShape(12.dp),
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
                 text = item.cardString("day", "weekday", "date")?.take(3) ?: "Day",
@@ -1546,13 +1845,13 @@ private fun ForecastPill(item: JSONObject, selected: Boolean, onClick: () -> Uni
                 color = androidx.compose.material3.LocalContentColor.current,
                 maxLines = 1,
             )
-            Icon(weatherIcon(condition), contentDescription = null, tint = if (selected) color else Color.White.copy(alpha = 0.34f), modifier = Modifier.size(24.dp))
+            Icon(weatherIcon(condition), contentDescription = null, tint = if (selected) color else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(high?.let { "${it.roundedInt()}°" } ?: "—", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = if (selected) Color.White else Color.White.copy(alpha = 0.78f), maxLines = 1)
-                low?.let { Text("${it.roundedInt()}°", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.36f), maxLines = 1) }
+                Text(high?.let { "${it.roundedInt()}°" } ?: "—", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                low?.let { Text("${it.roundedInt()}°", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1) }
             }
             if (precipitation > 0) {
-                Text("💧 ${precipitation.roundedInt()}%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium, color = if (selected) Color(0xFF1597F5) else Color(0xFF1597F5).copy(alpha = 0.72f), maxLines = 1)
+                Text("${precipitation.roundedInt()}%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium, color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.72f), maxLines = 1)
             }
         }
     }
@@ -1567,35 +1866,35 @@ private fun DetailedForecast(item: JSONObject, themeColor: Color) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White.copy(alpha = 0.025f), RoundedCornerShape(12.dp))
-            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(12.dp))
-            .padding(16.dp),
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.30f), RoundedCornerShape(14.dp))
+            .border(0.6.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.36f), RoundedCornerShape(14.dp))
+            .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(item.cardString("day", "weekday") ?: "Day", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = Color.White, modifier = Modifier.weight(1f))
-            item.cardString("date")?.let { Text(it, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = Color.White.copy(alpha = 0.32f)) }
-            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Color.White.copy(alpha = 0.35f), modifier = Modifier.size(16.dp))
+            Text(item.cardString("day", "weekday") ?: "Day", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+            item.cardString("date")?.let { Text(it, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
         }
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(weatherIcon(condition), contentDescription = null, tint = themeColor, modifier = Modifier.size(36.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(formatWeatherCondition(condition), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium, color = Color.White)
-                    if (precipitation > 0) Text("Precipitation chance", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.34f))
+                    Text(formatWeatherCondition(condition), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                    if (precipitation > 0) Text("Precipitation chance", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(high?.let { "${it.roundedInt()}°" } ?: "—", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
-                    low?.let { Text("/ ${it.roundedInt()}°", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.42f), modifier = Modifier.padding(bottom = 3.dp)) }
+                    Text(high?.let { "${it.roundedInt()}°" } ?: "—", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    low?.let { Text("/ ${it.roundedInt()}°", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 3.dp)) }
                 }
-                if (precipitation > 0) Text("${precipitation.roundedInt()}% chance of rain", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium, color = Color(0xFF1597F5))
+                if (precipitation > 0) Text("${precipitation.roundedInt()}% chance of rain", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
             }
         }
         if (precipitation > 0) {
-            Box(modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.10f))) {
-                Box(modifier = Modifier.fillMaxWidth((precipitation / 100.0).toFloat().coerceIn(0f, 1f)).height(4.dp).background(Color(0xFF1597F5), RoundedCornerShape(50)))
+            Box(modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))) {
+                Box(modifier = Modifier.fillMaxWidth((precipitation / 100.0).toFloat().coerceIn(0f, 1f)).height(4.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(50)))
             }
         }
     }
@@ -1666,32 +1965,97 @@ private fun EventListCard(data: JSONObject, onLinkClick: () -> Unit) {
 @Composable
 private fun EventRow(event: JSONObject, onLinkClick: () -> Unit) {
     val title = event.cardString("title") ?: ""
-    val whenText = event.cardString("when")
+    val whenText = event.cardString("when")?.cleanEventTimeText()
     val location = event.cardString("venue", "address")
-    val thumb = event.cardString("thumbnail")
+    val imageUrl = event.cardImageUrls("thumbnail", "imageUrl", "image", "images").firstOrNull()
     val action = openLinkAction(event.cardString("url"), onLinkClick)
 
     Row(
         modifier = Modifier.fillMaxWidth().clickableIfLink(action).padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Top,
     ) {
-        CardRemoteImage(url = thumb, modifier = Modifier.size(50.dp), corner = 8)
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(title, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
             whenText?.let {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Icon(Icons.Outlined.CalendarToday, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(12.dp))
-                    MetaText(it, MaterialTheme.colorScheme.primary)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Outlined.CalendarToday, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(13.dp))
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
             location?.let {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(12.dp))
-                    MetaText(it)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(13.dp))
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         }
+        imageUrl?.let {
+            CardRemoteImage(
+                url = it,
+                modifier = Modifier.size(width = 72.dp, height = 54.dp),
+                corner = 10,
+            )
+        }
     }
+}
+
+private fun String.cleanEventTimeText(): String {
+    val monthNames = mapOf(
+        "ene" to "Jan",
+        "feb" to "Feb",
+        "mar" to "Mar",
+        "abr" to "Apr",
+        "apr" to "Apr",
+        "may" to "May",
+        "jun" to "Jun",
+        "jul" to "Jul",
+        "ago" to "Aug",
+        "aug" to "Aug",
+        "sep" to "Sep",
+        "oct" to "Oct",
+        "nov" to "Nov",
+        "dic" to "Dec",
+        "dec" to "Dec",
+    )
+    val weekdayPattern = "(mon|tue|wed|thu|fri|sat|sun|lun|mar|mi[eé]|jue|vie|s[aá]b|dom)"
+    val compact = replace(Regex("\\s+"), " ")
+        .replace("–", "-")
+        .trim()
+    val withoutWeekday = compact
+        .replace(Regex("^$weekdayPattern,?\\s+", RegexOption.IGNORE_CASE), "")
+        .replace(Regex("-\\s*$weekdayPattern,?\\s+", RegexOption.IGNORE_CASE), "- ")
+    val normalizedMonths = Regex("(\\d{1,2})\\s+de\\s+([a-záé]{3})", RegexOption.IGNORE_CASE)
+        .replace(withoutWeekday) { match ->
+            val day = match.groupValues[1]
+            val month = monthNames[match.groupValues[2].lowercase(Locale.US)] ?: match.groupValues[2]
+            "$month $day"
+        }
+    return normalizedMonths
+        .replace("a.m.", "AM")
+        .replace("p.m.", "PM")
+        .replace(Regex("\\s+-\\s+"), " - ")
 }
 
 // MARK: - Places (placeList)
@@ -1704,7 +2068,7 @@ private fun PlaceListCard(data: JSONObject, onLinkClick: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
             if (all.isEmpty()) {
-                MetaText("No places found", Color(0xFF9AA0A8))
+                MetaText("No places found")
                 return@Column
             }
             Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -1721,14 +2085,14 @@ private fun PlaceHeader(count: Int) {
             text = "Places",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),
         )
         Text(
             text = count.toString(),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
-            color = Color(0xFFB0B5BD),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -1739,39 +2103,85 @@ private fun PlaceRow(place: JSONObject, onLinkClick: () -> Unit) {
     val type = place.cardString("type")
     val address = place.cardString("address")
     val price = place.cardString("price")
-    val thumb = place.cardString("thumbnail", "imageUrl", "image")
-    val imageUrls = place.cardStrings("imageUrls", "images")
+    val thumb = place.cardImageUrls("thumbnail", "imageUrl", "image").firstOrNull()
+    val imageUrls = place.cardImageUrls("imageUrls", "images", "photos")
     val galleryUrls = if (imageUrls.isNotEmpty()) imageUrls else listOfNotNull(thumb)
     val rating = place.cardString("rating")
     val reviews = place.cardInt("reviews")
     val openState = place.cardString("openState")
     val url = place.cardString("url")
     val action = openLinkAction(url, onLinkClick)
+    val imageFallback = name.trim().take(1).uppercase(Locale.getDefault()).ifBlank { "P" }
     var showGallery by remember(imageUrls.joinToString("|"), thumb) { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxWidth().clickableIfLink(action),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        PlaceBanner(
-            thumb = thumb,
-            imageCount = galleryUrls.size,
-            onClick = if (galleryUrls.isNotEmpty()) ({ showGallery = true }) else null,
-        )
-        if (galleryUrls.size > 1) {
-            HotelImageStrip(
-                urls = galleryUrls,
-                onClick = { showGallery = true },
-            )
-        }
-        Text(name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        val tail = listOfNotNull(reviews?.let { "$it reviews" }, price, type).joinToString("  ·  ")
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            rating?.let {
-                Icon(Icons.Filled.Star, contentDescription = null, tint = Color(0xFFFFA142), modifier = Modifier.size(14.dp))
-                Text(it, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = Color.White)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(68.dp)
+                    .then(if (galleryUrls.isNotEmpty()) Modifier.clickable { showGallery = true } else Modifier),
+            ) {
+                CardRemoteImage(url = thumb, modifier = Modifier.fillMaxSize(), corner = 10) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = imageFallback,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Clip,
+                        )
+                    }
+                }
+                if (galleryUrls.size > 1) {
+                    Text(
+                        text = galleryUrls.size.toString(),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(4.dp)
+                            .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(5.dp))
+                            .padding(horizontal = 5.dp, vertical = 1.dp),
+                    )
+                }
             }
-            if (tail.isNotEmpty()) MetaText(tail, Color(0xFF9AA0A8))
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Text(name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                val tail = listOfNotNull(reviews?.let { "$it reviews" }, price, type).joinToString("  ·  ")
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    rating?.let {
+                        Row(
+                            modifier = Modifier
+                                .background(Color(0xFFFFA142).copy(alpha = 0.18f), RoundedCornerShape(7.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        ) {
+                            Icon(Icons.Filled.Star, contentDescription = null, tint = Color(0xFFFFA142), modifier = Modifier.size(12.dp))
+                            Text(it, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+                    if (tail.isNotEmpty()) MetaText(tail)
+                }
+            }
         }
         openState?.let {
             val closed = it.lowercase().let { s -> s.contains("closed") || s.contains("temporarily") || s.contains("permanently") }
@@ -1779,9 +2189,15 @@ private fun PlaceRow(place: JSONObject, onLinkClick: () -> Unit) {
         }
         address?.let {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = Color(0xFF8B929C), modifier = Modifier.size(14.dp))
-                Text(it, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF9AA0A8), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
+                Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+        }
+        if (galleryUrls.size > 1) {
+            HotelImageStrip(
+                urls = galleryUrls,
+                onClick = { showGallery = true },
+            )
         }
     }
     if (showGallery) {
@@ -1846,14 +2262,11 @@ private fun PlaceBanner(
 @Composable
 private fun UrlContentCard(data: JSONObject, onLinkClick: () -> Unit) {
     val all = data.cardObjects("articles", "results", "items", "data")
-    ToolCardSurface {
-        ToolCardHeader(title = "Web Content", count = all.size)
-        if (all.isEmpty()) {
-            MetaText("No content fetched")
-            return@ToolCardSurface
-        }
-        DividedList(all.take(MAX_ITEMS)) { UrlRow(it, onLinkClick) }
+    if (all.isEmpty()) {
+        MetaText("No content fetched")
+        return
     }
+    DividedList(all.take(MAX_ITEMS)) { UrlRow(it, onLinkClick) }
 }
 
 @Composable
@@ -1953,6 +2366,31 @@ internal fun ComposioHeadlineCardPreview() = ElementPreview {
             "headlines" to previewArray(
                 jsonOf("title" to "OpenAI announces GPT-5 with major reasoning improvements", "snippet" to "Significant gains in math, coding, and reasoning across benchmarks.", "source" to "TechCrunch", "url" to "https://techcrunch.com/2026/05/gpt5", "publishedAt" to "2h ago"),
                 jsonOf("title" to "EU passes comprehensive AI regulation framework", "source" to "Reuters", "url" to "https://reuters.com/eu-ai", "publishedAt" to "5h ago"),
+            ),
+        ),
+        onLinkClick = {},
+    )
+}
+
+@PreviewsDayNight
+@Composable
+internal fun ComposioWeatherCardPreview() = ElementPreview {
+    composioSearchCard(
+        cardType = "weather",
+        data = jsonOf(
+            "city" to "Shanghai",
+            "country" to "China",
+            "current" to jsonOf(
+                "temperature" to 28,
+                "feelsLike" to 31,
+                "humidity" to 74,
+                "windSpeed" to 18,
+                "condition" to "Clear",
+            ),
+            "forecast" to previewArray(
+                jsonOf("day" to "Today", "date" to "2026-06-18", "high" to 30, "low" to 24, "condition" to "Clear", "precipitation" to 10),
+                jsonOf("day" to "Friday", "date" to "2026-06-19", "high" to 27, "low" to 22, "condition" to "Rain", "precipitation" to 65),
+                jsonOf("day" to "Saturday", "date" to "2026-06-20", "high" to 29, "low" to 23, "condition" to "Cloudy", "precipitation" to 25),
             ),
         ),
         onLinkClick = {},

@@ -267,8 +267,17 @@ internal interface PinnedMessagesBannerViewScrollBehavior {
 internal object PinnedMessagesBannerViewDefaults {
     @Composable
     fun rememberScrollBehavior(pinnedMessagesCount: Int): PinnedMessagesBannerViewScrollBehavior = remember(pinnedMessagesCount) {
-        ExitOnScrollBehavior()
+        if (pinnedMessagesCount > 0) {
+            ExitOnScrollBehavior()
+        } else {
+            NoPinnedMessagesScrollBehavior
+        }
     }
+}
+
+private object NoPinnedMessagesScrollBehavior : PinnedMessagesBannerViewScrollBehavior {
+    override val isVisible: Boolean = false
+    override val nestedScrollConnection: NestedScrollConnection = object : NestedScrollConnection {}
 }
 
 private class ExitOnScrollBehavior : PinnedMessagesBannerViewScrollBehavior {

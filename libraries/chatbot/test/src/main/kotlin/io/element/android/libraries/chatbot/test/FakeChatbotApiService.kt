@@ -14,19 +14,14 @@ import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentRoom
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotCreateAgentRequest
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotUpdateAgentRequest
 import io.element.android.libraries.chatbot.api.model.analytics.AnalyticsTokensResponse
+import io.element.android.libraries.chatbot.api.model.approvals.ChatbotApproval
+import io.element.android.libraries.chatbot.api.model.approvals.ChatbotApprovalAction
+import io.element.android.libraries.chatbot.api.model.approvals.ChatbotApprovalStatus
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotDisconnectAccountResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotInitiateConnectionResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListConnectedAccountsResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListToolkitCategoriesResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListToolkitsResponse
-import io.element.android.libraries.chatbot.api.model.voices.ChatbotCreateVoiceProfileRequest
-import io.element.android.libraries.chatbot.api.model.voices.ChatbotCreateVoiceShareRequest
-import io.element.android.libraries.chatbot.api.model.voices.ChatbotDeleteVoiceProfileResponse
-import io.element.android.libraries.chatbot.api.model.voices.ChatbotProviderVoice
-import io.element.android.libraries.chatbot.api.model.voices.ChatbotUploadVoiceProfileRequest
-import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceProfile
-import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceShare
-import io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem
 import io.element.android.libraries.chatbot.api.model.credits.CreditBalance
 import io.element.android.libraries.chatbot.api.model.credits.CreditDailyUsageResponse
 import io.element.android.libraries.chatbot.api.model.credits.CreditLedgerResponse
@@ -38,9 +33,6 @@ import io.element.android.libraries.chatbot.api.model.schedules.ChatbotCreateSch
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotCreateScheduleResponse
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotSchedule
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotUpdateScheduleRequest
-import io.element.android.libraries.chatbot.api.model.storage.ChatbotPresignedUpload
-import io.element.android.libraries.chatbot.api.model.storage.ChatbotStsCredentials
-import io.element.android.libraries.chatbot.api.model.storage.ChatbotStsTokenResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotCreateUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotDeleteUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotGetUserSkillResponse
@@ -49,6 +41,17 @@ import io.element.android.libraries.chatbot.api.model.skills.ChatbotListRoomAgen
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUpdateUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
+import io.element.android.libraries.chatbot.api.model.storage.ChatbotPresignedUpload
+import io.element.android.libraries.chatbot.api.model.storage.ChatbotStsCredentials
+import io.element.android.libraries.chatbot.api.model.storage.ChatbotStsTokenResponse
+import io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotCreateVoiceProfileRequest
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotCreateVoiceShareRequest
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotDeleteVoiceProfileResponse
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotProviderVoice
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotUploadVoiceProfileRequest
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceProfile
+import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceShare
 import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotCreateWebhookTriggerRequest
 import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotUpdateWebhookTriggerRequest
 import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookEventCatalogResponse
@@ -89,6 +92,9 @@ class FakeChatbotApiService : ChatbotApiService {
     var getRoomWorkingMemoryResult: (String) -> Result<String> = { Result.success("") }
     var updateRoomWorkingMemoryResult: (String, String) -> Result<Unit> = { _, _ -> Result.success(Unit) }
     var getRoomAgentsResult: (String) -> Result<ChatbotGetRoomAgentsResponse> = { Result.success(ChatbotGetRoomAgentsResponse()) }
+    var getApprovalResult: (String) -> Result<ChatbotApproval> = { Result.success(aChatbotApproval(approvalId = it)) }
+    var approveApprovalResult: (String) -> Result<ChatbotApproval> = { Result.success(aChatbotApproval(approvalId = it, status = ChatbotApprovalStatus.Approved)) }
+    var rejectApprovalResult: (String) -> Result<ChatbotApproval> = { Result.success(aChatbotApproval(approvalId = it, status = ChatbotApprovalStatus.Rejected)) }
     var listToolkitCategoriesResult: (String?, Int?) -> Result<ChatbotListToolkitCategoriesResponse> = { _, _ -> Result.success(ChatbotListToolkitCategoriesResponse()) }
     var listToolkitsResult: (String?, String?, String?, Int?) -> Result<ChatbotListToolkitsResponse> = { _, _, _, _ -> Result.success(ChatbotListToolkitsResponse()) }
     var initiateConnectionResult: (String, String) -> Result<ChatbotInitiateConnectionResponse> = { _, _ -> Result.success(ChatbotInitiateConnectionResponse(connectUrl = "https://connect.example")) }
@@ -158,6 +164,9 @@ class FakeChatbotApiService : ChatbotApiService {
     override suspend fun getRoomWorkingMemory(roomId: String) = simulateLongTask { getRoomWorkingMemoryResult(roomId) }
     override suspend fun updateRoomWorkingMemory(roomId: String, content: String) = simulateLongTask { updateRoomWorkingMemoryResult(roomId, content) }
     override suspend fun getRoomAgents(roomId: String) = simulateLongTask { getRoomAgentsResult(roomId) }
+    override suspend fun getApproval(approvalId: String) = simulateLongTask { getApprovalResult(approvalId) }
+    override suspend fun approveApproval(approvalId: String) = simulateLongTask { approveApprovalResult(approvalId) }
+    override suspend fun rejectApproval(approvalId: String) = simulateLongTask { rejectApprovalResult(approvalId) }
     override suspend fun listToolkitCategories(cursor: String?, limit: Int?) = simulateLongTask { listToolkitCategoriesResult(cursor, limit) }
     override suspend fun listToolkits(search: String?, category: String?, cursor: String?, limit: Int?) = simulateLongTask { listToolkitsResult(search, category, cursor, limit) }
     override suspend fun initiateConnection(toolkit: String, redirectUrl: String) = simulateLongTask { initiateConnectionResult(toolkit, redirectUrl) }
@@ -235,3 +244,20 @@ class FakeChatbotApiService : ChatbotApiService {
         onChunk: suspend (String) -> Unit,
     ): Result<Unit> = streamAgentMessageResult(streamId, sender, onChunk)
 }
+
+fun aChatbotApproval(
+    approvalId: String = "appr_test",
+    status: ChatbotApprovalStatus = ChatbotApprovalStatus.Pending,
+): ChatbotApproval =
+    ChatbotApproval(
+        approvalId = approvalId,
+        action = ChatbotApprovalAction.AgentJoinRoom,
+        status = status,
+        requesterUserId = "@alice:example.org",
+        createdAt = 1780560400000,
+        updatedAt = 1780560400000,
+        resolvedAt = if (status == ChatbotApprovalStatus.Pending) null else 1780560401000,
+        agentId = "@agent:example.org",
+        agentName = "Agent",
+        roomId = "!room:example.org",
+    )
