@@ -132,6 +132,28 @@ class TimelineTextViewTest {
         assert(formatLambda).isCalledOnce()
     }
 
+    @Test
+    fun `shouldRenderBodyAsMarkdown - markdown body wins over generated html`() {
+        val content = aTextContentWithFormattedBody(
+            body = "**bold**\n\n- item",
+            formattedBody = SpannedString("bold\nitem"),
+            htmlBody = "<strong>bold</strong><ul><li>item</li></ul>",
+        )
+
+        assertThat(content.shouldRenderBodyAsMarkdown()).isTrue()
+    }
+
+    @Test
+    fun `shouldRenderBodyAsMarkdown - non markdown formatted body keeps html renderer`() {
+        val content = aTextContentWithFormattedBody(
+            body = "bold item",
+            formattedBody = SpannedString("bold item"),
+            htmlBody = "<strong>bold</strong> item",
+        )
+
+        assertThat(content.shouldRenderBodyAsMarkdown()).isFalse()
+    }
+
     private suspend fun AndroidComposeUiTest<ComponentActivity>.getText(
         mentionSpanUpdater: MentionSpanUpdater,
         content: TimelineItemTextBasedContent,
@@ -156,10 +178,14 @@ class TimelineTextViewTest {
         )
     }
 
-    private fun aTextContentWithFormattedBody(formattedBody: CharSequence?, body: String = "") =
+    private fun aTextContentWithFormattedBody(
+        formattedBody: CharSequence?,
+        body: String = "",
+        htmlBody: String? = null,
+    ) =
         TimelineItemTextContent(
             body = body,
-            htmlDocument = null,
+            htmlDocument = htmlBody?.let { org.jsoup.Jsoup.parse(it) },
             formattedBody = formattedBody ?: SpannedString(body),
             isEdited = false
         )

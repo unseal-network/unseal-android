@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
@@ -31,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewParameter
@@ -58,7 +58,6 @@ import io.element.android.libraries.ui.utils.a11y.isTalkbackActive
 import io.element.android.wysiwyg.compose.EditorStyledText
 import io.element.android.wysiwyg.link.Link
 
-private const val TALL_IMAGE_RATIO_DIVISOR = 3
 @Composable
 fun TimelineItemImageView(
     content: TimelineItemImageContent,
@@ -73,7 +72,7 @@ fun TimelineItemImageView(
 ) {
     val a11yLabel = stringResource(CommonStrings.common_image)
     val description = content.caption?.let { "$a11yLabel: $it" } ?: a11yLabel
-    Column(modifier = modifier) {
+    Column(modifier = modifier.then(if (content.showCaption) Modifier.fillMaxWidth() else Modifier)) {
         val containerModifier = if (content.showCaption) {
             Modifier.clip(RoundedCornerShape(10.dp))
         } else {
@@ -115,34 +114,47 @@ fun TimelineItemImageView(
 
         if (content.showCaption) {
             Spacer(modifier = Modifier.height(8.dp))
-            val caption = if (LocalInspectionMode.current) {
-                SpannedString(content.caption)
-            } else {
-                content.formattedCaption ?: SpannedString(content.caption)
-            }
-            CompositionLocalProvider(
-                LocalContentColor provides ElementTheme.colors.textPrimary,
-                LocalTextStyle provides ElementTheme.typography.fontBodyLgRegular
-            ) {
-                val width = content.width ?: 0
-                val height = content.height ?: 0
-                // if image is narrow and tall use DEFAULT_ASPECT_RATIO
-                val aspectRatio = if (width < height / TALL_IMAGE_RATIO_DIVISOR) {
-                    DEFAULT_ASPECT_RATIO
-                } else {
-                    content.aspectRatio ?: DEFAULT_ASPECT_RATIO
-                }
-                EditorStyledText(
-                    modifier = Modifier
-                        .padding(horizontal = 4.dp) // This is (12.dp - 8.dp) contentPadding from CommonLayout
-                        .widthIn(min = MIN_HEIGHT_IN_DP.dp * aspectRatio, max = MAX_HEIGHT_IN_DP.dp * aspectRatio),
+            val caption = content.caption.orEmpty()
+            val captionModifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp) // This is (12.dp - 8.dp) contentPadding from CommonLayout
+            if (!LocalInspectionMode.current && caption.hasMarkdownSyntax()) {
+                MarkdownBody(
                     text = caption,
-                    style = ElementRichTextEditorStyle.textStyle(),
-                    onLinkClickedListener = onLinkClick,
-                    onLinkLongClickedListener = onLinkLongClick,
-                    releaseOnDetach = false,
-                    onTextLayout = ContentAvoidingLayout.measureLegacyLastTextLine(onContentLayoutChange = onContentLayoutChange),
+                    renderMode = MarkdownRenderMode.Stable,
+                    onLinkClick = onLinkClick,
+                    onLongClick = onLongClick,
+                    modifier = captionModifier.onSizeChanged { size ->
+                        onContentLayoutChange(
+                            ContentAvoidingLayoutData(
+                                contentWidth = size.width,
+                                contentHeight = size.height,
+                                nonOverlappingContentWidth = size.width,
+                                nonOverlappingContentHeight = size.height,
+                            )
+                        )
+                    },
                 )
+            } else {
+                val formattedCaption = if (LocalInspectionMode.current) {
+                    SpannedString(caption)
+                } else {
+                    content.formattedCaption ?: SpannedString(caption)
+                }
+                CompositionLocalProvider(
+                    LocalContentColor provides ElementTheme.colors.textPrimary,
+                    LocalTextStyle provides ElementTheme.typography.fontBodyLgRegular
+                ) {
+                    EditorStyledText(
+                        modifier = captionModifier,
+                        text = formattedCaption,
+                        style = ElementRichTextEditorStyle.textStyle(),
+                        onLinkClickedListener = onLinkClick,
+                        onLinkLongClickedListener = onLinkLongClick,
+                        releaseOnDetach = false,
+                        onTextLayout = ContentAvoidingLayout.measureLegacyLastTextLine(onContentLayoutChange = onContentLayoutChange),
+                    )
+                }
             }
         }
     }

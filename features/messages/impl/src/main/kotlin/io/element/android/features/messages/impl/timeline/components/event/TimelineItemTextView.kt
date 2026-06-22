@@ -49,7 +49,7 @@ fun TimelineItemTextView(
     modifier: Modifier = Modifier,
     onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit = {},
 ) {
-    if (content.shouldRenderPlainBodyAsMarkdown()) {
+    if (content.shouldRenderBodyAsMarkdown()) {
         Box(
             modifier
                 .fillMaxWidth()
@@ -113,15 +113,11 @@ internal fun getTextWithResolvedMentions(content: TimelineItemTextBasedContent):
     return SpannedString.valueOf(bodyWithResolvedMentions)
 }
 
-private fun TimelineItemTextBasedContent.shouldRenderPlainBodyAsMarkdown(): Boolean {
-    // HTML wins: when the event has a non-empty formatted (HTML) body it already carries the
-    // rendered formatting and mention spans (rendered via EditorStyledText below), so we render
-    // that. Only when the HTML body is empty do we fall back to the raw Markdown body — and then
-    // only if it actually contains Markdown syntax, which is exactly what users expect to render.
-    return htmlBody.isNullOrBlank() && body.hasMarkdownSyntax()
+internal fun TimelineItemTextBasedContent.shouldRenderBodyAsMarkdown(): Boolean {
+    return body.hasMarkdownSyntax()
 }
 
-private fun String.hasMarkdownSyntax(): Boolean {
+internal fun String.hasMarkdownSyntax(): Boolean {
     return MARKDOWN_SYNTAX_PATTERNS.any { it.containsMatchIn(this) }
 }
 
