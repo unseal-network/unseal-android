@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
@@ -38,16 +38,18 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 // Tables with at most this many columns are laid out to fit the available width (cells wrap their
-// text). Wider tables fall back to a horizontally scrollable grid with fixed-width cells, since
-// fitting many columns into the bubble width would make each unreadably narrow.
-private const val MaxFitColumns = 4
+// text). Wider tables fall back to a horizontally scrollable grid, since fitting 4+ columns into the
+// bubble width forces cells to wrap mid-word and read as a cramped block. Mirrors the iOS approach of
+// horizontally scrolling wide tables rather than squashing them.
+private const val MaxFitColumns = 3
 
 // Columns whose longest cell is at most this many characters size to content (one line); longer
 // columns flex and wrap.
 private const val SHORT_COLUMN_MAX_CHARS = 12
 
-// Fixed cell width used only in the scrollable fallback for wide tables.
-private val ScrollCellWidth = 148.dp
+// In the scrollable fallback, short columns size to their content (one line) and long columns are
+// capped at this width and wrap, so nothing is squashed mid-token.
+private val ScrollColumnMaxWidth = 220.dp
 
 private val TableShape = RoundedCornerShape(12.dp)
 private val GridLineThickness = 0.5.dp
@@ -97,11 +99,20 @@ private fun HtmlTableView(table: HtmlTable) {
             }
         }
     } else {
+        // Short columns size to content and stay on one line; long columns are capped and wrap. The
+        // whole table scrolls horizontally so nothing is squashed mid-token.
+        val longestPerColumn = (0 until columnCount).map { column ->
+            table.rows.maxOf { row -> row.cells.getOrNull(column)?.text?.length ?: 0 }
+        }
         Column(modifier = containerModifier.horizontalScroll(rememberScrollState())) {
             table.rows.forEachIndexed { index, row ->
                 if (index > 0) HorizontalDivider(thickness = GridLineThickness, color = gridColor)
-                TableRow(row = row, columnCount = columnCount, rowIndex = index, gridColor = gridColor) { _, cellModifier ->
-                    cellModifier.width(ScrollCellWidth)
+                TableRow(row = row, columnCount = columnCount, rowIndex = index, gridColor = gridColor) { column, cellModifier ->
+                    if (longestPerColumn[column] > SHORT_COLUMN_MAX_CHARS) {
+                        cellModifier.widthIn(max = ScrollColumnMaxWidth)
+                    } else {
+                        cellModifier
+                    }
                 }
             }
         }
