@@ -12,12 +12,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -27,6 +24,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.isTraversalGroup
@@ -109,19 +110,24 @@ private fun TimelineReplyContent(
     maxLines: Int,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier.height(IntrinsicSize.Min),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.Top,
+    // The leading accent bar is painted via drawBehind using the actual measured height, so we avoid
+    // IntrinsicSize.Min here — that would add an extra measurement pass to every reply and make the
+    // timeline janky while scrolling.
+    val accentColor = ElementTheme.colors.borderAccentSubtle
+    Box(
+        modifier = modifier
+            .drawBehind {
+                val barWidth = 3.dp.toPx()
+                val vInset = 2.dp.toPx()
+                drawRoundRect(
+                    color = accentColor,
+                    topLeft = Offset(0f, vInset),
+                    size = Size(barWidth, (size.height - vInset * 2).coerceAtLeast(0f)),
+                    cornerRadius = CornerRadius(barWidth / 2f),
+                )
+            }
+            .padding(start = 11.dp),
     ) {
-        Box(
-            modifier = Modifier
-                .padding(vertical = 2.dp)
-                .width(3.dp)
-                .fillMaxHeight()
-                .clip(CircleShape)
-                .background(ElementTheme.colors.borderAccentSubtle)
-        )
         when (inReplyTo) {
             is InReplyToDetails.Ready -> {
                 val a11yInReplyToText = stringResource(

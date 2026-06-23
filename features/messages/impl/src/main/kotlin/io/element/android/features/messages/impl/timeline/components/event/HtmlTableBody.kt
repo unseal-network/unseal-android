@@ -12,11 +12,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -24,7 +21,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -93,7 +89,7 @@ private fun HtmlTableView(table: HtmlTable) {
         Column(modifier = containerModifier.fillMaxWidth()) {
             table.rows.forEachIndexed { index, row ->
                 if (index > 0) HorizontalDivider(thickness = GridLineThickness, color = gridColor)
-                TableRow(row = row, columnCount = columnCount, rowIndex = index, gridColor = gridColor) { column, cellModifier ->
+                TableRow(row = row, columnCount = columnCount, rowIndex = index) { column, cellModifier ->
                     if (noFlexColumns || column in flexColumns) cellModifier.weight(1f) else cellModifier
                 }
             }
@@ -107,7 +103,7 @@ private fun HtmlTableView(table: HtmlTable) {
         Column(modifier = containerModifier.horizontalScroll(rememberScrollState())) {
             table.rows.forEachIndexed { index, row ->
                 if (index > 0) HorizontalDivider(thickness = GridLineThickness, color = gridColor)
-                TableRow(row = row, columnCount = columnCount, rowIndex = index, gridColor = gridColor) { column, cellModifier ->
+                TableRow(row = row, columnCount = columnCount, rowIndex = index) { column, cellModifier ->
                     if (longestPerColumn[column] > SHORT_COLUMN_MAX_CHARS) {
                         cellModifier.widthIn(max = ScrollColumnMaxWidth)
                     } else {
@@ -124,30 +120,25 @@ private fun TableRow(
     row: HtmlTableRow,
     columnCount: Int,
     rowIndex: Int,
-    gridColor: Color,
     columnSizing: androidx.compose.foundation.layout.RowScope.(column: Int, Modifier) -> Modifier,
 ) {
     val isHeaderRow = row.cells.any { it.isHeader }
     // iOS parity: a header band plus subtle alternating-row striping on the data rows.
+    // Deliberately no IntrinsicSize.Min / full-height vertical dividers here — those force an extra
+    // measurement pass per row and make scrolling janky for large tables. Row separation comes from
+    // striping + horizontal dividers + the outer border instead.
     val rowBackground = when {
         isHeaderRow -> ElementTheme.colors.bgSubtleSecondary
         (rowIndex - 1) % 2 == 0 -> ElementTheme.colors.bgSubtleSecondary.copy(alpha = 0.3f)
         else -> Color.Transparent
     }
-    Row(
-        modifier = Modifier
-            .height(IntrinsicSize.Min)
-            .background(rowBackground),
-    ) {
+    Row(modifier = Modifier.background(rowBackground)) {
         for (column in 0 until columnCount) {
-            if (column > 0) {
-                VerticalDivider(thickness = GridLineThickness, color = gridColor)
-            }
             val cell = row.cells.getOrNull(column)
             Text(
                 text = cell?.text.orEmpty(),
-                modifier = columnSizing(column, Modifier.fillMaxHeight())
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                modifier = columnSizing(column, Modifier)
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
                 color = ElementTheme.colors.textPrimary,
                 style = LocalTextStyle.current.copy(
                     fontWeight = if (cell?.isHeader == true) FontWeight.SemiBold else FontWeight.Normal,
