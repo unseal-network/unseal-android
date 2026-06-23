@@ -10,7 +10,6 @@ package io.element.android.features.messages.impl.timeline.components
 
 import android.annotation.SuppressLint
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.Orientation
@@ -128,6 +127,7 @@ import io.element.android.libraries.matrix.api.timeline.item.event.getDisplayNam
 import io.element.android.libraries.matrix.api.user.MatrixUser
 import io.element.android.libraries.matrix.ui.messages.reply.InReplyToDetails
 import io.element.android.libraries.matrix.ui.messages.reply.InReplyToView
+import io.element.android.libraries.matrix.ui.messages.reply.InReplyToViewStyle
 import io.element.android.libraries.matrix.ui.messages.reply.eventId
 import io.element.android.libraries.matrix.ui.messages.sender.SenderName
 import io.element.android.libraries.matrix.ui.messages.sender.SenderNameMode
@@ -365,9 +365,18 @@ fun TimelineItemEventRow(
         }
 
         // Read receipts / Send state
-        // For text/poll messages from self, receipt is shown inline with the timestamp inside the bubble.
-        val receiptShownInline = event.isMine &&
-            (event.content is TimelineItemTextBasedContent || event.content is TimelineItemPollContent)
+        // Self messages show the receipt inline next to the timestamp for every content type that
+        // renders an inline timestamp: text/poll (below), image/video/sticker (overlay/aligned).
+        // Content whose timestamp is hidden or embedded elsewhere (AI streams, game cards) and
+        // location messages keep the separate below-row.
+        val receiptShownInline = event.isMine && when (event.content) {
+            is TimelineItemTextBasedContent,
+            is TimelineItemPollContent,
+            is TimelineItemImageContent,
+            is TimelineItemVideoContent,
+            is TimelineItemStickerContent -> true
+            else -> false
+        }
         if (!receiptShownInline) {
             TimelineItemReadReceiptView(
                 state = ReadReceiptViewState(
@@ -455,11 +464,11 @@ private fun TimelineItemStandaloneRow(
                                 .padding(top = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            // Self text messages render the receipt/send-state inline here (matching
+                            // Self messages render the receipt/send-state inline here (matching
                             // receiptShownInline, which suppresses the below-bubble TimelineItemReadReceiptView
-                            // for these). Standalone fast path is text-only for self; non-text self content
-                            // is not standalone or falls back to the shared receipt view.
-                            if (event.isMine && event.content is TimelineItemTextBasedContent) {
+                            // for these). The standalone fast path serves self text and uncaptioned media,
+                            // so inline the receipt for any non-AI self content.
+                            if (event.isMine && event.content !is TimelineItemAiContent) {
                                 InlineReadReceiptView(
                                     state = ReadReceiptViewState(
                                         sendState = event.localSendState,
@@ -690,16 +699,27 @@ private fun TimelineItemEventRowContent(
                     0.dp
                 }
                 top.linkTo(sender.bottom, margin = topMargin)
+                // Left edge of the content column, shared by incoming and own standalone messages so
+                // they line up under the avatar/sender label (this app shows the avatar for own
+                // messages too, and the standalone fast path uses this same column).
+                val startMargin = if (presentation.reserveAvatarColumn) {
+                    standaloneContentStartMargin
+                } else if (timelineRoomInfo.isDm) {
+                    16.dp
+                } else {
+                    16.dp + BUBBLE_INCOMING_OFFSET
+                }
                 if (presentation.alignment == TimelineItemAlignment.End) {
                     end.linkTo(parent.end, margin = 16.dp)
-                } else {
-                    val startMargin = if (presentation.reserveAvatarColumn) {
-                        standaloneContentStartMargin
-                    } else if (timelineRoomInfo.isDm) {
-                        16.dp
-                    } else {
-                        16.dp + BUBBLE_INCOMING_OFFSET
+                    if (presentation.isStandalone) {
+                        // Own standalone content (incl. replies) is left-aligned at the same content
+                        // column as everything else — not hugging the right edge. Anchoring start here
+                        // also stops the inner fillMaxWidth content / reply EqualWidthColumn from
+                        // expanding to the full parent width and shoving wide content off-axis.
+                        start.linkTo(parent.start, margin = startMargin)
+                        width = Dimension.fillToConstraints
                     }
+                } else {
                     start.linkTo(parent.start, margin = startMargin)
                     if (presentation.isStandalone) {
                         end.linkTo(parent.end, margin = standaloneContentEndMargin)
@@ -725,6 +745,7 @@ private fun TimelineItemEventRowContent(
                         renderReadReceipts = renderReadReceipts,
                         isLastOutgoingMessage = isLastOutgoingMessage,
                         onReadReceiptsClick = onReadReceiptsClick,
+                        alignContentToStart = true,
                         eventContentView = eventContentView,
                     )
                 }
@@ -852,6 +873,10 @@ private fun MessageEventBubbleContent(
     renderReadReceipts: Boolean,
     isLastOutgoingMessage: Boolean,
     onReadReceiptsClick: () -> Unit,
+    // When true the content has no surrounding bubble, so the bubble's internal left padding is
+    // dropped from the reply preview and the textual body. This lines their left edge up with the
+    // message-box start, matching the standalone fast-path content column (see TimelineItemStandaloneRow).
+    alignContentToStart: Boolean = false,
     @SuppressLint("ModifierParameter")
     // need to rename this modifier to prevent linter false positives
     @Suppress("ModifierNaming")
@@ -861,6 +886,23 @@ private fun MessageEventBubbleContent(
     // Long clicks are not not automatically propagated from a `clickable`
     // to its `combinedClickable` parent so we do it manually
     fun onTimestampLongClick() = onMessageLongClick()
+
+    // Receipt / send-state shown inline next to the timestamp, for self messages only.
+    @Composable
+    fun InlineReceiptIfMine(modifier: Modifier = Modifier) {
+        if (event.isMine && event.content !is TimelineItemAiContent) {
+            InlineReadReceiptView(
+                state = ReadReceiptViewState(
+                    sendState = event.localSendState,
+                    isLastOutgoingMessage = isLastOutgoingMessage,
+                    receipts = event.readReceiptState.receipts,
+                ),
+                renderReadReceipts = renderReadReceipts,
+                onReadReceiptsClick = onReadReceiptsClick,
+                modifier = modifier,
+            )
+        }
+    }
 
     @Composable
     fun ThreadDecoration(
@@ -900,17 +942,22 @@ private fun MessageEventBubbleContent(
             TimestampPosition.Overlay ->
                 Box(modifier, contentAlignment = Alignment.Center) {
                     content {}
-                    TimelineEventTimestampView(
-                        event = event,
-                        eventSink = eventSink,
+                    Row(
                         modifier = Modifier
                             // Outer padding
                             .padding(horizontal = 4.dp, vertical = 4.dp)
                             .background(ElementTheme.colors.bgSubtleSecondary, RoundedCornerShape(10.0.dp))
                             .align(Alignment.BottomEnd)
                             // Inner padding
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                    )
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        InlineReceiptIfMine(modifier = Modifier.padding(end = 4.dp))
+                        TimelineEventTimestampView(
+                            event = event,
+                            eventSink = eventSink,
+                        )
+                    }
                 }
             TimestampPosition.Aligned ->
                 ContentAvoidingLayout(
@@ -921,12 +968,15 @@ private fun MessageEventBubbleContent(
                     shrinkContent = canShrinkContent,
                     content = { content(this::onContentLayoutChange) },
                     overlay = {
-                        TimelineEventTimestampView(
-                            event = event,
-                            eventSink = eventSink,
-                            modifier = Modifier
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            InlineReceiptIfMine(modifier = Modifier.padding(start = 8.dp))
+                            TimelineEventTimestampView(
+                                event = event,
+                                eventSink = eventSink,
+                                modifier = Modifier
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
                     }
                 )
             TimestampPosition.Below ->
@@ -936,18 +986,7 @@ private fun MessageEventBubbleContent(
                         modifier = Modifier.align(Alignment.End),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        if (event.isMine && event.content !is TimelineItemAiContent) {
-                            InlineReadReceiptView(
-                                state = ReadReceiptViewState(
-                                    sendState = event.localSendState,
-                                    isLastOutgoingMessage = isLastOutgoingMessage,
-                                    receipts = event.readReceiptState.receipts,
-                                ),
-                                renderReadReceipts = renderReadReceipts,
-                                onReadReceiptsClick = onReadReceiptsClick,
-                                modifier = Modifier.padding(start = 8.dp),
-                            )
-                        }
+                        InlineReceiptIfMine(modifier = Modifier.padding(start = 8.dp))
                         TimelineEventTimestampView(
                             event = event,
                             eventSink = eventSink,
@@ -977,9 +1016,12 @@ private fun MessageEventBubbleContent(
             }
 
         val topPadding = if (inReplyToDetails != null) 0.dp else 8.dp
+        // Standalone (no-bubble) content aligns its left edge with the message-box start so it shares
+        // the same content column as regular fast-path messages; bubble content keeps the inset.
+        val textualStartPadding = if (alignContentToStart) 0.dp else 12.dp
         val contentModifier = when (paddingBehaviour) {
             ContentPadding.Textual ->
-                Modifier.padding(start = 12.dp, end = 12.dp, top = topPadding, bottom = 8.dp)
+                Modifier.padding(start = textualStartPadding, end = 12.dp, top = topPadding, bottom = 8.dp)
             ContentPadding.Media -> {
                 if (inReplyToDetails == null) {
                     Modifier
@@ -1013,9 +1055,10 @@ private fun MessageEventBubbleContent(
 
         val inReplyTo = @Composable { inReplyTo: InReplyToDetails ->
             val topPadding = if (showThreadDecoration) 0.dp else 8.dp
+            // Align the reply preview's left edge with the message content column when standalone.
+            val replyStartPadding = if (alignContentToStart) 0.dp else 8.dp
             val inReplyToModifier = Modifier
-                .padding(top = topPadding, start = 8.dp, end = 8.dp)
-                .clip(RoundedCornerShape(6.dp))
+                .padding(top = topPadding, start = replyStartPadding, end = 8.dp)
 
             val talkbackCompatModifier = if (isTalkbackActive()) {
                 // Use z-index to make the replied to text being read after the message
@@ -1024,15 +1067,12 @@ private fun MessageEventBubbleContent(
             } else {
                 inReplyToModifier.clickable(onClick = inReplyToClick)
             }
-            Box(
-                modifier = talkbackCompatModifier
-                    .border(1.dp, ElementTheme.colors.separatorPrimary, RoundedCornerShape(6.dp))
-                    .background(ElementTheme.colors.bgCanvasDefault, RoundedCornerShape(6.dp))
-                    .padding(4.dp)
-            ) {
+            // iOS-parity timeline style: accent bar + sender pill + preview, no bordered card.
+            Box(modifier = talkbackCompatModifier) {
                 InReplyToView(
                     inReplyTo = inReplyTo,
                     hideImage = timelineProtectionState.hideMediaContent(inReplyTo.eventId()),
+                    style = InReplyToViewStyle.Timeline,
                 )
             }
         }

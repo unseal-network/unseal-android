@@ -10,13 +10,18 @@ package io.element.android.libraries.matrix.ui.messages.reply
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -51,27 +56,121 @@ import io.element.android.libraries.ui.strings.CommonStrings
 /**
  * https://www.figma.com/design/G1xy0HDZKJf5TCRFmKb5d5/Compound-Android-Components?node-id=2019-6286
  */
+enum class InReplyToViewStyle {
+    /** Composer / default: optional media thumbnail + coloured sender name + preview. */
+    Default,
+
+    /** Timeline: left accent bar, an "In reply to" label + sender pill, then a 2-line preview.
+     *  Mirrors unseal-ios `TimelineReplyView.timelineStyle`. */
+    Timeline,
+}
+
 @Composable
 fun InReplyToView(
     inReplyTo: InReplyToDetails,
     hideImage: Boolean,
     modifier: Modifier = Modifier,
     maxLines: Int = 2,
+    style: InReplyToViewStyle = InReplyToViewStyle.Default,
 ) {
-    when (inReplyTo) {
-        is InReplyToDetails.Ready -> {
-            ReplyToReadyContent(
-                senderId = inReplyTo.senderId,
-                senderProfile = inReplyTo.senderProfile,
-                metadata = inReplyTo.metadata(hideImage),
-                maxLines = maxLines,
-                modifier = modifier,
-            )
+    when (style) {
+        InReplyToViewStyle.Timeline -> TimelineReplyContent(
+            inReplyTo = inReplyTo,
+            hideImage = hideImage,
+            maxLines = maxLines,
+            modifier = modifier,
+        )
+        InReplyToViewStyle.Default -> when (inReplyTo) {
+            is InReplyToDetails.Ready -> {
+                ReplyToReadyContent(
+                    senderId = inReplyTo.senderId,
+                    senderProfile = inReplyTo.senderProfile,
+                    metadata = inReplyTo.metadata(hideImage),
+                    maxLines = maxLines,
+                    modifier = modifier,
+                )
+            }
+            is InReplyToDetails.Error ->
+                ReplyToErrorContent(data = inReplyTo, maxLines = maxLines, modifier = modifier)
+            is InReplyToDetails.Loading ->
+                ReplyToLoadingContent(modifier = modifier)
         }
-        is InReplyToDetails.Error ->
-            ReplyToErrorContent(data = inReplyTo, maxLines = maxLines, modifier = modifier)
-        is InReplyToDetails.Loading ->
-            ReplyToLoadingContent(modifier = modifier)
+    }
+}
+
+/**
+ * iOS-parity timeline reply preview: a thin capsule accent bar on the leading edge, an
+ * "In reply to" label next to the sender name in a subtle pill, and a two-line content preview.
+ */
+@Composable
+private fun TimelineReplyContent(
+    inReplyTo: InReplyToDetails,
+    hideImage: Boolean,
+    maxLines: Int,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.height(IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(vertical = 2.dp)
+                .width(3.dp)
+                .fillMaxHeight()
+                .clip(CircleShape)
+                .background(ElementTheme.colors.borderAccentSubtle)
+        )
+        when (inReplyTo) {
+            is InReplyToDetails.Ready -> {
+                val a11yInReplyToText = stringResource(
+                    CommonStrings.common_in_reply_to,
+                    inReplyTo.senderProfile.getDisambiguatedDisplayName(inReplyTo.senderId),
+                )
+                Column(
+                    modifier = Modifier.semantics(mergeDescendants = false) { isTraversalGroup = true },
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = stringResource(CommonStrings.action_reply),
+                            style = ElementTheme.typography.fontBodyXsRegular,
+                            color = ElementTheme.colors.textSecondary,
+                        )
+                        Text(
+                            text = inReplyTo.senderProfile.getDisambiguatedDisplayName(inReplyTo.senderId),
+                            style = ElementTheme.typography.fontBodyXsMedium,
+                            color = ElementTheme.colors.textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(ElementTheme.colors.bgSubtleSecondary)
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                                .semantics { contentDescription = a11yInReplyToText },
+                        )
+                    }
+                    ReplyToContentText(metadata = inReplyTo.metadata(hideImage), maxLines = maxLines)
+                }
+            }
+            is InReplyToDetails.Error ->
+                Text(
+                    text = inReplyTo.message,
+                    style = ElementTheme.typography.fontBodyMdRegular,
+                    color = ElementTheme.colors.textCriticalPrimary,
+                    maxLines = maxLines,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            is InReplyToDetails.Loading ->
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    PlaceholderAtom(width = 80.dp, height = 12.dp)
+                    PlaceholderAtom(width = 140.dp, height = 14.dp)
+                }
+        }
     }
 }
 

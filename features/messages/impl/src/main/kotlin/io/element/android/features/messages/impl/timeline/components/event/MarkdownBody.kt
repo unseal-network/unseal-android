@@ -118,14 +118,111 @@ internal fun MarkdownBody(
         )
         return
     }
-    MarkwonMarkdownBody(
-        text = text,
-        renderMode = renderMode,
-        onLinkClick = onLinkClick,
-        onLongClick = onLongClick,
-        modifier = modifier,
-        fillMaxWidth = fillMaxWidth,
-    )
+    // Markwon renders GFM tables unreliably inside an AndroidView (rows collapse/overlap on a static
+    // layout pass), so we split tables out and render them as a proper Compose grid (iOS parity),
+    // keeping the surrounding prose on Markwon. Text-only content keeps the original single-view path.
+    val safeText = when (renderMode) {
+        MarkdownRenderMode.Stable -> text
+        MarkdownRenderMode.Streaming -> text.streamingMarkdownSafeText()
+    }
+    val segments = remember(safeText) { splitMarkdownTableSegments(safeText) }
+    val hasTable = segments.any { it is MarkdownSegment.Table }
+    if (!hasTable) {
+        MarkwonMarkdownBody(
+            text = text,
+            renderMode = renderMode,
+            onLinkClick = onLinkClick,
+            onLongClick = onLongClick,
+            modifier = modifier,
+            fillMaxWidth = fillMaxWidth,
+        )
+        return
+    }
+    Column(
+        modifier = modifier.then(if (fillMaxWidth) Modifier.fillMaxWidth() else Modifier),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        segments.forEach { segment ->
+            when (segment) {
+                is MarkdownSegment.Text -> MarkwonMarkdownBody(
+                    text = segment.text,
+                    // Segments are already streaming-trimmed above.
+                    renderMode = MarkdownRenderMode.Stable,
+                    onLinkClick = onLinkClick,
+                    onLongClick = onLongClick,
+                    fillMaxWidth = fillMaxWidth,
+                )
+                is MarkdownSegment.Table -> HtmlTableBody(
+                    tables = listOf(segment.table),
+                    modifier = Modifier.padding(vertical = 4.dp),
+                )
+            }
+        }
+    }
+}
+
+private sealed interface MarkdownSegment {
+    data class Text(val text: String) : MarkdownSegment
+    data class Table(val table: HtmlTable) : MarkdownSegment
+}
+
+/**
+ * Splits markdown into prose segments and GFM table segments. Tables (a header row, a separator row,
+ * then one or more data rows) become [HtmlTable]s rendered by [HtmlTableBody]; everything else stays
+ * as text rendered by Markwon. Fenced code blocks are left untouched.
+ */
+private fun splitMarkdownTableSegments(text: String): List<MarkdownSegment> {
+    val lines = text.lines()
+    val segments = mutableListOf<MarkdownSegment>()
+    val textBuffer = StringBuilder()
+    var index = 0
+    var inFence = false
+
+    fun flushText() {
+        val pending = textBuffer.toString().trim('\n')
+        if (pending.isNotBlank()) segments += MarkdownSegment.Text(pending)
+        textBuffer.setLength(0)
+    }
+
+    while (index < lines.size) {
+        val line = lines[index]
+        val trimmed = line.trim()
+        if (trimmed.startsWith("```") || trimmed.startsWith("~~~")) {
+            inFence = !inFence
+            textBuffer.append(line).append('\n')
+            index += 1
+            continue
+        }
+        if (!inFence && index + 1 < lines.size && isMarkdownTableSeparator(lines[index + 1])) {
+            val headers = parseMarkdownTableRow(line)
+            if (headers.size >= 2) {
+                val dataRows = mutableListOf<List<String>>()
+                var rowIndex = index + 2
+                while (rowIndex < lines.size) {
+                    val row = parseMarkdownTableRow(lines[rowIndex])
+                    if (row.size < 2) break
+                    dataRows += row
+                    rowIndex += 1
+                }
+                if (dataRows.isNotEmpty()) {
+                    flushText()
+                    val rows = buildList {
+                        add(HtmlTableRow(headers.map { HtmlTableCell(text = it, isHeader = true) }))
+                        dataRows.forEach { row ->
+                            add(HtmlTableRow(row.map { HtmlTableCell(text = it, isHeader = false) }))
+                        }
+                    }
+                    segments += MarkdownSegment.Table(HtmlTable(rows = rows))
+                    index = rowIndex
+                    continue
+                }
+            }
+        }
+        textBuffer.append(line).append('\n')
+        index += 1
+    }
+    flushText()
+    return segments
 }
 
 internal enum class MarkdownRenderMode {
@@ -164,7 +261,7 @@ private fun MarkwonMarkdownBody(
     val renderedText = when (renderMode) {
         MarkdownRenderMode.Stable -> text
         MarkdownRenderMode.Streaming -> text.streamingMarkdownSafeText()
-    }.mobileFriendlyMarkdownTables()
+    }
     val textColorArgb = textColor.toArgb()
     val linkColorArgb = linkColor.toArgb()
     val codeBackgroundArgb = ElementTheme.colors.bgSubtleSecondary.toArgb()
