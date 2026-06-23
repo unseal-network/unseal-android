@@ -124,9 +124,17 @@ object TimelinePresentationReducer {
             isMine -> TimelineItemAlignment.End
             else -> TimelineItemAlignment.Start
         }
-        // Plain-style content and full-bleed media both render without a bubble (no card/notch);
-        // media keeps its normal alignment though (only plain style forces Start).
-        val bubblePolicy = if (usesPlainTimelineStyle || contentKind == TimelineContentKind.Media) {
+        // Captioned image/video render bubble-less too (image + caption stacked, iOS-style); the
+        // bubble looked out of place now that the rest of the timeline is bubble-free. They keep the
+        // RichEvent content kind so swipe-to-reply and timestamp handling are unchanged.
+        val isCaptionedMedia = when (content) {
+            is TimelineItemImageContent -> content.caption != null || content.formattedCaption != null
+            is TimelineItemVideoContent -> content.caption != null || content.formattedCaption != null
+            else -> false
+        }
+        // Plain-style content, full-bleed media and captioned media all render without a bubble (no
+        // card/notch); media keeps its normal alignment though (only plain style forces Start).
+        val bubblePolicy = if (usesPlainTimelineStyle || contentKind == TimelineContentKind.Media || isCaptionedMedia) {
             TimelineBubblePolicy.Standalone
         } else {
             TimelineBubblePolicy.StandardBubble
