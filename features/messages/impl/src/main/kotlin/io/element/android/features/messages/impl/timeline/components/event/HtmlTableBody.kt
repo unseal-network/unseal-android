@@ -47,6 +47,11 @@ private const val SHORT_COLUMN_MAX_CHARS = 12
 // capped at this width and wrap, so nothing is squashed mid-token.
 private val ScrollColumnMaxWidth = 220.dp
 
+// A timeline item is not lazy, so every table row composes/measures up-front when the item scrolls
+// into view. Cap the rows actually rendered so a huge table (e.g. a long meeting transcript) can't
+// blow the frame budget; the remainder is summarised in a footer.
+private const val MaxRenderedTableRows = 40
+
 private val TableShape = RoundedCornerShape(12.dp)
 private val GridLineThickness = 0.5.dp
 
@@ -68,49 +73,58 @@ internal fun HtmlTableBody(
 @Composable
 private fun HtmlTableView(table: HtmlTable) {
     val columnCount = table.rows.maxOfOrNull { it.cells.size }?.coerceAtLeast(1) ?: return
+    val rows = table.rows.take(MaxRenderedTableRows)
+    val hiddenRows = table.rows.size - rows.size
     val gridColor = ElementTheme.colors.separatorPrimary
     val containerModifier = Modifier
         .clip(TableShape)
         .border(GridLineThickness, gridColor, TableShape)
+    val longestPerColumn = (0 until columnCount).map { column ->
+        rows.maxOf { row -> row.cells.getOrNull(column)?.text?.length ?: 0 }
+    }
 
-    if (columnCount <= MaxFitColumns) {
-        // Short columns (timestamps, short labels) size to their content and stay on one line; only
-        // long columns flex to share the remaining width and wrap. This mirrors the iOS table look and
-        // avoids a single long column (e.g. a URL) forcing short columns to wrap awkwardly.
-        val longestPerColumn = (0 until columnCount).map { column ->
-            table.rows.maxOf { row -> row.cells.getOrNull(column)?.text?.length ?: 0 }
-        }
-        val flexColumns = longestPerColumn.withIndex()
-            .filter { it.value > SHORT_COLUMN_MAX_CHARS }
-            .map { it.index }
-            .toSet()
-        // If every column is short, let them all flex equally so the table still fills the width.
-        val noFlexColumns = flexColumns.isEmpty()
-        Column(modifier = containerModifier.fillMaxWidth()) {
-            table.rows.forEachIndexed { index, row ->
-                if (index > 0) HorizontalDivider(thickness = GridLineThickness, color = gridColor)
-                TableRow(row = row, columnCount = columnCount, rowIndex = index) { column, cellModifier ->
-                    if (noFlexColumns || column in flexColumns) cellModifier.weight(1f) else cellModifier
-                }
-            }
-        }
-    } else {
-        // Short columns size to content and stay on one line; long columns are capped and wrap. The
-        // whole table scrolls horizontally so nothing is squashed mid-token.
-        val longestPerColumn = (0 until columnCount).map { column ->
-            table.rows.maxOf { row -> row.cells.getOrNull(column)?.text?.length ?: 0 }
-        }
-        Column(modifier = containerModifier.horizontalScroll(rememberScrollState())) {
-            table.rows.forEachIndexed { index, row ->
-                if (index > 0) HorizontalDivider(thickness = GridLineThickness, color = gridColor)
-                TableRow(row = row, columnCount = columnCount, rowIndex = index) { column, cellModifier ->
-                    if (longestPerColumn[column] > SHORT_COLUMN_MAX_CHARS) {
-                        cellModifier.widthIn(max = ScrollColumnMaxWidth)
-                    } else {
-                        cellModifier
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (columnCount <= MaxFitColumns) {
+            // Short columns (timestamps, short labels) size to their content and stay on one line; only
+            // long columns flex to share the remaining width and wrap. This mirrors the iOS table look
+            // and avoids a single long column (e.g. a URL) forcing short columns to wrap awkwardly.
+            val flexColumns = longestPerColumn.withIndex()
+                .filter { it.value > SHORT_COLUMN_MAX_CHARS }
+                .map { it.index }
+                .toSet()
+            // If every column is short, let them all flex equally so the table still fills the width.
+            val noFlexColumns = flexColumns.isEmpty()
+            Column(modifier = containerModifier.fillMaxWidth()) {
+                rows.forEachIndexed { index, row ->
+                    if (index > 0) HorizontalDivider(thickness = GridLineThickness, color = gridColor)
+                    TableRow(row = row, columnCount = columnCount, rowIndex = index) { column, cellModifier ->
+                        if (noFlexColumns || column in flexColumns) cellModifier.weight(1f) else cellModifier
                     }
                 }
             }
+        } else {
+            // Short columns size to content and stay on one line; long columns are capped and wrap. The
+            // whole table scrolls horizontally so nothing is squashed mid-token.
+            Column(modifier = containerModifier.horizontalScroll(rememberScrollState())) {
+                rows.forEachIndexed { index, row ->
+                    if (index > 0) HorizontalDivider(thickness = GridLineThickness, color = gridColor)
+                    TableRow(row = row, columnCount = columnCount, rowIndex = index) { column, cellModifier ->
+                        if (longestPerColumn[column] > SHORT_COLUMN_MAX_CHARS) {
+                            cellModifier.widthIn(max = ScrollColumnMaxWidth)
+                        } else {
+                            cellModifier
+                        }
+                    }
+                }
+            }
+        }
+        if (hiddenRows > 0) {
+            Text(
+                text = "＋$hiddenRows",
+                modifier = Modifier.padding(start = 4.dp),
+                color = ElementTheme.colors.textSecondary,
+                style = ElementTheme.typography.fontBodySmRegular,
+            )
         }
     }
 }

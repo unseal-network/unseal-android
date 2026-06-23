@@ -290,21 +290,23 @@ private fun MarkwonMarkdownBody(
             if (previousState?.linkColorArgb != linkColorArgb) {
                 textView.setLinkTextColor(linkColorArgb)
             }
-            if (
-                previousState?.markdownText != renderedText ||
+            // Only re-parse markdown and re-apply theme spans when the content or theme actually
+            // changed. Doing this on every recomposition (the common case while scrolling) is a major
+            // source of dropped frames. The span pass is the expensive part, so it stays guarded too.
+            val needsRender = previousState?.markdownText != renderedText ||
                 previousState.renderMode != renderMode ||
                 previousState.textColorArgb != textColorArgb ||
                 previousState.linkColorArgb != linkColorArgb ||
                 previousState.codeBackgroundArgb != codeBackgroundArgb
-            ) {
+            if (needsRender) {
                 markwon.setMarkdown(textView, renderedText)
+                applyMarkdownThemeSpans(
+                    textView = textView,
+                    textColorArgb = textColorArgb,
+                    linkColorArgb = linkColorArgb,
+                    codeBackgroundArgb = codeBackgroundArgb,
+                )
             }
-            applyMarkdownThemeSpans(
-                textView = textView,
-                textColorArgb = textColorArgb,
-                linkColorArgb = linkColorArgb,
-                codeBackgroundArgb = codeBackgroundArgb,
-            )
             textView.tag = RenderedMarkdownState(
                 markdownText = renderedText,
                 renderMode = renderMode,
