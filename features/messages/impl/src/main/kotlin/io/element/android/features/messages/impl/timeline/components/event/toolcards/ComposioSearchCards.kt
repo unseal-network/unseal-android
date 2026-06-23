@@ -40,6 +40,7 @@ import androidx.compose.material.icons.outlined.Air
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.DeviceThermostat
+import androidx.compose.material.icons.outlined.Flight
 import androidx.compose.material.icons.outlined.Thunderstorm
 import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material.icons.outlined.WbSunny
@@ -187,6 +188,7 @@ private fun FlightAlertCard(data: JSONObject, onLinkClick: () -> Unit) {
 @Composable
 private fun FlightRow(flight: JSONObject) {
     val airline = flight.cardString("airline") ?: "Flight"
+    val airlineLogo = flight.cardString("airlineLogo")
     val flightNumber = flight.cardString("flightNumber") ?: "—"
     val depCode = flight.cardString("departureCode", "departureAirport") ?: "—"
     val arrCode = flight.cardString("arrivalCode", "arrivalAirport") ?: "—"
@@ -195,6 +197,7 @@ private fun FlightRow(flight: JSONObject) {
     val duration = flight.cardString("duration")
     val stops = flight.cardInt("stops")
     val travelClass = flight.cardString("travelClass", "cabin", "class")
+    val airplane = flight.cardString("airplane")
     val price = flight.cardString("priceFormatted", "price")
 
     Column(
@@ -202,6 +205,7 @@ private fun FlightRow(flight: JSONObject) {
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AirlineLogo(airlineLogo)
             Text(
                 text = airline,
                 style = MaterialTheme.typography.labelLarge,
@@ -240,7 +244,44 @@ private fun FlightRow(flight: JSONObject) {
                 Text(arrTime, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        travelClass?.let { CardChip(it) }
+        if (travelClass != null || airplane != null) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                travelClass?.let { CardChip(it) }
+                airplane?.let {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(
+                            imageVector = Icons.Outlined.Flight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(12.dp),
+                        )
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AirlineLogo(url: String?) {
+    CardRemoteImage(
+        url = url,
+        modifier = Modifier.size(22.dp),
+        corner = 5,
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Flight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.align(Alignment.Center).size(14.dp),
+        )
     }
 }
 
