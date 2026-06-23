@@ -205,7 +205,7 @@ internal fun ToolCardSurface(content: ColumnContent) {
         color = colors.container,
         contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = if (isSystemInDarkTheme()) 2.dp else 2.dp,
-        shadowElevation = if (isSystemInDarkTheme()) 10.dp else 8.dp,
+        shadowElevation = if (isSystemInDarkTheme()) 4.dp else 3.dp,
         border = BorderStroke(0.6.dp, colors.border),
     ) {
         Column(
@@ -275,7 +275,7 @@ internal fun ToolCardRowSurface(
         color = colors.rowContainer,
         contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = if (isSystemInDarkTheme()) 1.dp else 0.dp,
-        shadowElevation = if (isSystemInDarkTheme()) 3.dp else 2.dp,
+        shadowElevation = if (isSystemInDarkTheme()) 2.dp else 1.dp,
         border = BorderStroke(0.5.dp, colors.border.copy(alpha = 0.42f)),
     ) {
         Column(
