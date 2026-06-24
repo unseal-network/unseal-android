@@ -405,6 +405,11 @@ internal class DefaultChatbotApiService(
                     "encodingAESKey" to JsonPrimitive(body.encodingAESKey),
                 )
             )
+            ChatbotChannelConnectBody.Feishu -> JsonObject(
+                mapOf(
+                    "platform" to JsonPrimitive("feishu"),
+                )
+            )
         }
         val payload = JsonObject(mapOf("credentials" to credentials)).toString()
         return httpClient.requestJson("/api/agents/${path(agentId)}/channels", ChatbotHttpMethod.POST, payload)

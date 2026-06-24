@@ -17,6 +17,9 @@ enum class ChatbotChannelPlatform {
 
     @SerialName("wecom")
     WeCom,
+
+    @SerialName("feishu")
+    Feishu,
 }
 
 /** Public channel summary — never contains secrets. */
@@ -27,6 +30,7 @@ data class ChatbotChannelSummary(
     val status: String,
     val label: String,
     val callbackUrl: String? = null,
+    val qrUrl: String? = null,
 )
 
 @Serializable
@@ -40,6 +44,8 @@ data class ChatbotConnectChannelResponse(
     val platform: ChatbotChannelPlatform,
     val botUsername: String? = null,
     val callbackUrl: String? = null,
+    val status: String? = null,
+    val qrUrl: String? = null,
 )
 
 /** Owner-only credential reveal — used to prefill the WeCom edit dialog. */
@@ -58,4 +64,5 @@ data class ChatbotChannelCredentials(
 sealed interface ChatbotChannelConnectBody {
     data class Telegram(val botToken: String) : ChatbotChannelConnectBody
     data class WeCom(val token: String, val encodingAESKey: String) : ChatbotChannelConnectBody
+    data object Feishu : ChatbotChannelConnectBody
 }
