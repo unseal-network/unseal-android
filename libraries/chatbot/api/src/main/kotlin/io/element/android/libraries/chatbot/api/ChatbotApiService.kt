@@ -149,6 +149,7 @@ interface ChatbotApiService {
     suspend fun disconnectAgentChannel(agentId: String, installationId: String): Result<Unit>
     suspend fun updateAgentChannel(agentId: String, installationId: String, token: String, encodingAESKey: String): Result<ChatbotConnectChannelResponse>
     suspend fun getAgentChannelCredentials(agentId: String, installationId: String): Result<ChatbotChannelCredentials>
+    suspend fun getAgentChannel(agentId: String, installationId: String): Result<ChatbotChannelSummary>
 
     // Personal vault (secret store) — AI-stream base endpoints.
     suspend fun listVault(): Result<List<io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem>>

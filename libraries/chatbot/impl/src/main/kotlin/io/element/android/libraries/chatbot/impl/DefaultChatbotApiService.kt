@@ -435,6 +435,9 @@ internal class DefaultChatbotApiService(
     override suspend fun getAgentChannelCredentials(agentId: String, installationId: String): Result<ChatbotChannelCredentials> =
         httpClient.requestJson("/api/agents/${path(agentId)}/channels/${path(installationId)}/credentials", ChatbotHttpMethod.GET)
 
+    override suspend fun getAgentChannel(agentId: String, installationId: String): Result<ChatbotChannelSummary> =
+        httpClient.requestJson("/api/agents/${path(agentId)}/channels/${path(installationId)}", ChatbotHttpMethod.GET)
+
     override suspend fun listVault(): Result<List<io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem>> =
         httpClient.requestJson<io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultListResponse>("/chatbot/v1/vault", ChatbotHttpMethod.GET).map { it.items }
 

@@ -130,6 +130,9 @@ class FakeChatbotApiService : ChatbotApiService {
     var getAgentChannelCredentialsResult: (String, String) -> Result<ChatbotChannelCredentials> = { _, installationId ->
         Result.success(ChatbotChannelCredentials(installationId = installationId, platform = ChatbotChannelPlatform.WeCom, token = "", encodingAESKey = ""))
     }
+    var getAgentChannelResult: (String, String) -> Result<ChatbotChannelSummary> = { _, installationId ->
+        Result.success(ChatbotChannelSummary(installationId = installationId, platform = ChatbotChannelPlatform.Feishu, status = "pending", label = ""))
+    }
     var listVaultResult: () -> Result<List<ChatbotVaultItem>> = { Result.success(emptyList()) }
     var getVaultValueResult: (String) -> Result<String> = { Result.success("") }
     var createVaultEntryResult: (String, String, String?) -> Result<Unit> = { _, _, _ -> Result.success(Unit) }
@@ -241,6 +244,7 @@ class FakeChatbotApiService : ChatbotApiService {
     override suspend fun updateAgentChannel(agentId: String, installationId: String, token: String, encodingAESKey: String) =
         simulateLongTask { updateAgentChannelResult(agentId, installationId, token, encodingAESKey) }
     override suspend fun getAgentChannelCredentials(agentId: String, installationId: String) = simulateLongTask { getAgentChannelCredentialsResult(agentId, installationId) }
+    override suspend fun getAgentChannel(agentId: String, installationId: String) = simulateLongTask { getAgentChannelResult(agentId, installationId) }
     override suspend fun listVault() = simulateLongTask { listVaultResult() }
 
     override suspend fun getVaultValue(key: String) = simulateLongTask { getVaultValueResult(key) }
