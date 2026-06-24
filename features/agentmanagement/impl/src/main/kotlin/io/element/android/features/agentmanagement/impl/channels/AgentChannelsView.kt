@@ -33,6 +33,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -53,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -61,6 +63,8 @@ import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelPlatform
 import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelSummary
+import io.element.android.libraries.qrcode.QrCodeImage
+import java.net.URLEncoder
 
 private val TelegramBrand = Color(0xFF229ED9)
 private val WeComBrand = Color(0xFF07C160)
@@ -77,6 +81,12 @@ private fun ChatbotChannelPlatform.displayName(): String = when (this) {
     ChatbotChannelPlatform.Telegram -> "Telegram"
     ChatbotChannelPlatform.WeCom -> "WeCom"
     ChatbotChannelPlatform.Feishu -> "飞书"
+}
+
+private fun feishuAppLink(verificationUrl: String): String {
+    val host = if (verificationUrl.contains("larksuite")) "applink.larksuite.com" else "applink.feishu.cn"
+    val encoded = URLEncoder.encode(verificationUrl, "UTF-8")
+    return "https://$host/client/web_url/open?url=$encoded"
 }
 
 @Composable
@@ -242,6 +252,7 @@ private fun AddChannelSheet(sheet: ChannelSheetState, eventSink: (AgentChannelsE
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             val title = when {
+                sheet.isFeishuPanel -> "Authorize in Feishu"
                 sheet.isEditMode -> "Edit WeCom channel"
                 sheet.callbackUrl != null -> "Finish WeCom setup"
                 else -> "Add a channel"
@@ -249,6 +260,7 @@ private fun AddChannelSheet(sheet: ChannelSheetState, eventSink: (AgentChannelsE
             Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
 
             when {
+                sheet.isFeishuPanel -> FeishuPanel(sheet)
                 sheet.isEditMode && sheet.callbackUrl == null -> {
                     Box(Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
                         if (sheet.error != null) {
@@ -275,24 +287,37 @@ private fun AddForm(sheet: ChannelSheetState, eventSink: (AgentChannelsEvents) -
         PlatformCard(ChatbotChannelPlatform.WeCom, sheet.platform == ChatbotChannelPlatform.WeCom) {
             eventSink(AgentChannelsEvents.SetPlatform(ChatbotChannelPlatform.WeCom))
         }
+        PlatformCard(ChatbotChannelPlatform.Feishu, sheet.platform == ChatbotChannelPlatform.Feishu) {
+            eventSink(AgentChannelsEvents.SetPlatform(ChatbotChannelPlatform.Feishu))
+        }
     }
 
-    if (sheet.platform == ChatbotChannelPlatform.Telegram) {
-        OutlinedTextField(
-            modifier = Modifier.fillMaxWidth(),
-            value = sheet.botToken,
-            onValueChange = { eventSink(AgentChannelsEvents.SetBotToken(it)) },
-            label = { Text("Bot Token") },
-            placeholder = { Text("123456:ABC-DEF…") },
-            singleLine = true,
-        )
-        Text("Get this from @BotFather in Telegram.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    } else {
-        GeneratableField("Token", sheet.wecomToken, { eventSink(AgentChannelsEvents.SetWecomToken(it)) }) {
-            eventSink(AgentChannelsEvents.GenerateToken)
+    when (sheet.platform) {
+        ChatbotChannelPlatform.Telegram -> {
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = sheet.botToken,
+                onValueChange = { eventSink(AgentChannelsEvents.SetBotToken(it)) },
+                label = { Text("Bot Token") },
+                placeholder = { Text("123456:ABC-DEF…") },
+                singleLine = true,
+            )
+            Text("Get this from @BotFather in Telegram.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        GeneratableField("EncodingAESKey", sheet.wecomAesKey, { eventSink(AgentChannelsEvents.SetWecomAesKey(it)) }) {
-            eventSink(AgentChannelsEvents.GenerateAesKey)
+        ChatbotChannelPlatform.WeCom -> {
+            GeneratableField("Token", sheet.wecomToken, { eventSink(AgentChannelsEvents.SetWecomToken(it)) }) {
+                eventSink(AgentChannelsEvents.GenerateToken)
+            }
+            GeneratableField("EncodingAESKey", sheet.wecomAesKey, { eventSink(AgentChannelsEvents.SetWecomAesKey(it)) }) {
+                eventSink(AgentChannelsEvents.GenerateAesKey)
+            }
+        }
+        ChatbotChannelPlatform.Feishu -> {
+            Text(
+                "Feishu needs no keys — tap Connect, then approve in the Feishu app.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 
@@ -366,6 +391,65 @@ private fun CallbackPanel(sheet: ChannelSheetState, eventSink: (AgentChannelsEve
     } else {
         Button(modifier = Modifier.fillMaxWidth(), enabled = !sheet.busy, onClick = { eventSink(AgentChannelsEvents.FinishSheet) }) {
             Text("Done")
+        }
+    }
+}
+
+@Composable
+private fun FeishuPanel(sheet: ChannelSheetState) {
+    val uriHandler = LocalUriHandler.current
+    var showQr by remember { mutableStateOf(false) }
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        PlatformBadge(ChatbotChannelPlatform.Feishu, 60.dp)
+        Text("Authorize in Feishu", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+        Text(
+            "Open Feishu as a workspace admin and approve — it connects automatically in a few seconds.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        when {
+            sheet.feishuExpired -> {
+                Text(
+                    "This link has expired. Close and try again.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(vertical = 24.dp),
+                )
+            }
+            sheet.feishuQrUrl != null -> {
+                val qrUrl = sheet.feishuQrUrl
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { uriHandler.openUri(feishuAppLink(qrUrl)) },
+                ) {
+                    Text("Open in Feishu to authorize")
+                }
+                TextButton(onClick = { showQr = !showQr }) { Text("Scan with another device") }
+                if (showQr) {
+                    Box(
+                        modifier = Modifier
+                            .background(Color.White, RoundedCornerShape(18.dp))
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        QrCodeImage(data = qrUrl, modifier = Modifier.size(180.dp))
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                    Text("Waiting for you to approve…", style = MaterialTheme.typography.bodySmall, color = FeishuBrand)
+                }
+            }
+            else -> {
+                CircularProgressIndicator()
+                Text("Generating a secure link…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }
