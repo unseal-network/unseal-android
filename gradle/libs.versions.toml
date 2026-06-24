@@ -44,7 +44,7 @@ coil = "3.4.0"
 markdown_renderer = "0.41.0"
 markwon = "4.6.2"
 stripe_android = "23.10.0"
-agent_stream_android = "0.1.0-rc.2"
+agent_stream_android = "0.1.0-rc.5"
 # Rollback to 1.0.4, 1.0.5 has this issue: https://github.com/airbnb/Showkase/issues/420
 showkase = "1.0.5"
 # There is some custom logic in `RootFlowNode` that may break because it reuses some Appyx internal APIs.
