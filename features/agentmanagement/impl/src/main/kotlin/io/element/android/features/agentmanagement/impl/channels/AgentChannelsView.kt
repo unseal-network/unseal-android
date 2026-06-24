@@ -76,7 +76,7 @@ private fun ChatbotChannelPlatform.brandColor(): Color = when (this) {
 private fun ChatbotChannelPlatform.displayName(): String = when (this) {
     ChatbotChannelPlatform.Telegram -> "Telegram"
     ChatbotChannelPlatform.WeCom -> "WeCom"
-    ChatbotChannelPlatform.Feishu -> "Feishu"
+    ChatbotChannelPlatform.Feishu -> "飞书"
 }
 
 @Composable
@@ -210,7 +210,7 @@ private fun EmptyState() {
         }
         Text("No channels bound yet", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
         Text(
-            "Connect Telegram or WeCom so this agent can reply there.",
+            "Connect a channel so this agent can reply there.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
