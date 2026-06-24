@@ -8,6 +8,7 @@
 package io.element.android.features.agentmanagement.impl.channels
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,10 +26,13 @@ import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelSum
 import io.element.android.libraries.chatbot.api.model.channels.ChatbotConnectChannelResponse
 import io.element.android.libraries.matrix.api.MatrixClient
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.security.SecureRandom
 
 private const val RANDOM_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+private const val FEISHU_POLL_DELAY_MILLIS = 2_000L
+private const val FEISHU_MAX_POLL_ATTEMPTS = 150
 
 private fun randomString(length: Int): String {
     val random = SecureRandom()
@@ -98,6 +102,17 @@ class AgentChannelsPresenter(
 
         fun connect() {
             val current = sheet ?: return
+            if (current.platform == ChatbotChannelPlatform.Feishu) {
+                sheet = current.copy(busy = true, error = null)
+                coroutineScope.launch {
+                    api().connectAgentChannel(agentId, ChatbotChannelConnectBody.Feishu)
+                        .onSuccess { res ->
+                            sheet = sheet?.copy(busy = false, feishuInstallationId = res.installationId, feishuQrUrl = res.qrUrl)
+                        }
+                        .onFailure { sheet = sheet?.copy(busy = false, error = it.message ?: it::class.simpleName ?: "Failed to connect Feishu.") }
+                }
+                return
+            }
             val body: ChatbotChannelConnectBody = if (current.platform == ChatbotChannelPlatform.Telegram) {
                 val trimmed = current.botToken.trim()
                 if (trimmed.isEmpty()) {
@@ -197,6 +212,31 @@ class AgentChannelsPresenter(
                 is AgentChannelsEvents.Copy -> clipboardHelper.copyPlainText(event.value)
                 AgentChannelsEvents.ClearError -> error = null
             }
+        }
+
+        LaunchedEffect(sheet?.feishuInstallationId) {
+            val installationId = sheet?.feishuInstallationId ?: return@LaunchedEffect
+            repeat(FEISHU_MAX_POLL_ATTEMPTS) {
+                delay(FEISHU_POLL_DELAY_MILLIS)
+                val summary = api().getAgentChannel(agentId, installationId).getOrNull()
+                if (summary != null) {
+                    if (sheet?.feishuQrUrl == null && summary.qrUrl != null) {
+                        sheet = sheet?.copy(feishuQrUrl = summary.qrUrl)
+                    }
+                    when (summary.status) {
+                        "active" -> {
+                            sheet = null
+                            loadChannels(isInitial = false)
+                            return@LaunchedEffect
+                        }
+                        "error" -> {
+                            sheet = sheet?.copy(error = "Couldn't connect Feishu. Please try again.")
+                            return@LaunchedEffect
+                        }
+                    }
+                }
+            }
+            sheet = sheet?.copy(feishuExpired = true)
         }
 
         return AgentChannelsState(

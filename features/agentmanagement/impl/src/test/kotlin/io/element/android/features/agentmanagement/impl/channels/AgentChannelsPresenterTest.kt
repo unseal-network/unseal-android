@@ -110,6 +110,76 @@ class AgentChannelsPresenterTest {
         }
     }
 
+    @Test
+    fun `present - feishu connect enters panel without closing`() = runTest {
+        val service = FakeChatbotApiService().apply {
+            connectAgentChannelResult = { _, body ->
+                assertThat(body).isEqualTo(ChatbotChannelConnectBody.Feishu)
+                Result.success(ChatbotConnectChannelResponse(installationId = "fs1", platform = ChatbotChannelPlatform.Feishu, status = "pending", qrUrl = "https://accounts.feishu.cn/x?user_code=A"))
+            }
+            getAgentChannelResult = { _, installationId ->
+                Result.success(ChatbotChannelSummary(installationId = installationId, platform = ChatbotChannelPlatform.Feishu, status = "pending", label = "", qrUrl = "https://accounts.feishu.cn/x?user_code=A"))
+            }
+        }
+        val presenter = createPresenter(service)
+        presenter.test {
+            awaitItem().eventSink(AgentChannelsEvents.OpenAdd)
+            awaitStateWhere { it.sheet != null }.eventSink(AgentChannelsEvents.SetPlatform(ChatbotChannelPlatform.Feishu))
+            awaitStateWhere { it.sheet?.platform == ChatbotChannelPlatform.Feishu }.eventSink(AgentChannelsEvents.Connect)
+            val panel = awaitStateWhere { it.sheet?.isFeishuPanel == true }
+            assertThat(panel.sheet?.feishuQrUrl).isEqualTo("https://accounts.feishu.cn/x?user_code=A")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - feishu poll fills late qrUrl then closes on active`() = runTest {
+        var tick = 0
+        val service = FakeChatbotApiService().apply {
+            connectAgentChannelResult = { _, _ ->
+                Result.success(ChatbotConnectChannelResponse(installationId = "fs2", platform = ChatbotChannelPlatform.Feishu, status = "pending", qrUrl = null))
+            }
+            getAgentChannelResult = { _, installationId ->
+                tick += 1
+                if (tick == 1) {
+                    Result.success(ChatbotChannelSummary(installationId = installationId, platform = ChatbotChannelPlatform.Feishu, status = "pending", label = "", qrUrl = "https://accounts.feishu.cn/x?user_code=B"))
+                } else {
+                    Result.success(ChatbotChannelSummary(installationId = installationId, platform = ChatbotChannelPlatform.Feishu, status = "active", label = "Acme"))
+                }
+            }
+        }
+        val presenter = createPresenter(service)
+        presenter.test {
+            awaitItem().eventSink(AgentChannelsEvents.OpenAdd)
+            awaitStateWhere { it.sheet != null }.eventSink(AgentChannelsEvents.SetPlatform(ChatbotChannelPlatform.Feishu))
+            awaitStateWhere { it.sheet?.platform == ChatbotChannelPlatform.Feishu }.eventSink(AgentChannelsEvents.Connect)
+            awaitStateWhere { it.sheet?.feishuQrUrl == "https://accounts.feishu.cn/x?user_code=B" }
+            awaitStateWhere { it.sheet == null }
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - feishu poll error sets sheet error`() = runTest {
+        val service = FakeChatbotApiService().apply {
+            connectAgentChannelResult = { _, _ ->
+                Result.success(ChatbotConnectChannelResponse(installationId = "fs3", platform = ChatbotChannelPlatform.Feishu, status = "pending", qrUrl = "https://accounts.feishu.cn/x?user_code=C"))
+            }
+            getAgentChannelResult = { _, installationId ->
+                Result.success(ChatbotChannelSummary(installationId = installationId, platform = ChatbotChannelPlatform.Feishu, status = "error", label = ""))
+            }
+        }
+        val presenter = createPresenter(service)
+        presenter.test {
+            awaitItem().eventSink(AgentChannelsEvents.OpenAdd)
+            awaitStateWhere { it.sheet != null }.eventSink(AgentChannelsEvents.SetPlatform(ChatbotChannelPlatform.Feishu))
+            awaitStateWhere { it.sheet?.platform == ChatbotChannelPlatform.Feishu }.eventSink(AgentChannelsEvents.Connect)
+            val errored = awaitStateWhere { it.sheet?.error != null }
+            assertThat(errored.sheet?.isFeishuPanel).isTrue()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     private fun createPresenter(service: FakeChatbotApiService) = AgentChannelsPresenter(
         agentId = "@bot:server",
         matrixClient = FakeMatrixClient(),

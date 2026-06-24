@@ -28,15 +28,19 @@ data class ChannelSheetState(
     val installationId: String?,
     val connectedToken: String,
     val connectedAesKey: String,
+    val feishuInstallationId: String? = null,
+    val feishuQrUrl: String? = null,
+    val feishuExpired: Boolean = false,
 ) {
     val isEditMode: Boolean get() = editInstallationId != null
+    val isFeishuPanel: Boolean get() = feishuInstallationId != null
     val credsChanged: Boolean
         get() = callbackUrl != null && (wecomToken != connectedToken || wecomAesKey != connectedAesKey)
     val canConnect: Boolean
-        get() = if (platform == ChatbotChannelPlatform.Telegram) {
-            botToken.isNotBlank()
-        } else {
-            wecomToken.isNotBlank() && wecomAesKey.length == WECOM_AES_KEY_LENGTH
+        get() = when (platform) {
+            ChatbotChannelPlatform.Feishu -> true
+            ChatbotChannelPlatform.Telegram -> botToken.isNotBlank()
+            ChatbotChannelPlatform.WeCom -> wecomToken.isNotBlank() && wecomAesKey.length == WECOM_AES_KEY_LENGTH
         }
 }
 

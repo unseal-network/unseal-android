@@ -65,14 +65,18 @@ import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelSum
 private val TelegramBrand = Color(0xFF229ED9)
 private val WeComBrand = Color(0xFF07C160)
 
+private val FeishuBrand = Color(0xFF3370FF)
+
 private fun ChatbotChannelPlatform.brandColor(): Color = when (this) {
     ChatbotChannelPlatform.Telegram -> TelegramBrand
     ChatbotChannelPlatform.WeCom -> WeComBrand
+    ChatbotChannelPlatform.Feishu -> FeishuBrand
 }
 
 private fun ChatbotChannelPlatform.displayName(): String = when (this) {
     ChatbotChannelPlatform.Telegram -> "Telegram"
     ChatbotChannelPlatform.WeCom -> "WeCom"
+    ChatbotChannelPlatform.Feishu -> "Feishu"
 }
 
 @Composable
