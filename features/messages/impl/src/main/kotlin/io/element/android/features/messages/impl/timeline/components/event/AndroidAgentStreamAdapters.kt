@@ -39,6 +39,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 @SingleIn(RoomScope::class)
 @ContributesBinding(RoomScope::class)
@@ -71,12 +76,16 @@ class ChatbotStreamHttpClient(
         Timber.tag("AiStreamDbg").d("HTTP openStream START stream=%s sender=%s", request.streamId, request.sender)
         var chunks = 0
         var bytes = 0
+        val processor = PagepeekSseProcessor()
         chatbotApiServiceFactory
             .createForAiStream(matrixClient)
             .streamAgentMessage(request.streamId, request.sender.takeIf { it.isNotBlank() }) { chunk ->
                 chunks++
                 bytes += chunk.length
-                onChunk(chunk)
+                val processed = processor.process(chunk)
+                if (processed != null) {
+                    onChunk(processed)
+                }
             }
             .onSuccess { Timber.tag("AiStreamDbg").d("HTTP openStream DONE stream=%s chunks=%d bytes=%d (connection closed)", request.streamId, chunks, bytes) }
             .onFailure { Timber.tag("AiStreamDbg").w(it, "HTTP openStream FAILED stream=%s chunks=%d bytes=%d", request.streamId, chunks, bytes) }
@@ -300,6 +309,99 @@ class SQLiteStreamStorageProvider(
         const val COLUMN_COMPLETED_AT_MS = "completed_at_ms"
     }
 }
+
+/**
+ * Stateful per-stream processor for the pagepeek SSE envelope.
+ *
+ * Outer envelope:
+ *   data: {"subtype":"response.output_chunk.delta","type":"streaming","content":"<inner AI SDK event JSON>"}
+ *
+ * Stateless behaviour (control frames, blank lines, non-wrapper lines) is identical to the old
+ * [unwrapPagepeekSseChunk]. The additional stateful logic handles JSON block assembly:
+ *
+ *  - content_block_start with content_type "json" → enter JSON-block mode, buffer null
+ *  - content_block_delta with delta.type "json"   → accumulate json_chunk, buffer null
+ *  - content_block_stop while buffering           → emit synthetic data-json-block event
+ *
+ * One instance must be created per stream; it is NOT thread-safe.
+ */
+internal class PagepeekSseProcessor {
+    private var jsonBlockIndex = 0
+    private var jsonBuffer: StringBuilder? = null
+
+    fun process(chunk: String): String? {
+        val line = chunk.trimEnd()
+        // Blank lines are SSE event terminators — the Rust SDK dispatches buffered events when it
+        // sees a blank line, so we must pass them through even though they carry no data.
+        if (line.isEmpty()) return chunk
+        if (!line.startsWith("data: ")) return null
+        val json = line.removePrefix("data: ")
+        if (json.isBlank()) return null
+        return try {
+            val obj = Json.parseToJsonElement(json).jsonObject
+            val subtype = obj["subtype"]?.jsonPrimitive?.contentOrNull
+            if (subtype == "response.output_chunk.delta") {
+                val content = obj["content"]?.jsonPrimitive?.contentOrNull ?: return null
+                processInner(content)
+            } else {
+                // Outer pagepeek control frames ({"type":"start"}, {"type":"end"}) are protocol
+                // framing only — drop them so they do not interfere with the Rust reducer state.
+                null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun processInner(innerJson: String): String? {
+        return try {
+            val obj = Json.parseToJsonElement(innerJson).jsonObject
+            when (obj["type"]?.jsonPrimitive?.contentOrNull) {
+                "content_block_start" -> {
+                    if (obj["content_type"]?.jsonPrimitive?.contentOrNull == "json") {
+                        jsonBuffer = StringBuilder()
+                        null
+                    } else {
+                        "data: $innerJson\n"
+                    }
+                }
+                "content_block_delta" -> {
+                    val delta = obj["delta"] as? JsonObject
+                    val jsonChunk = delta?.get("json_chunk")?.jsonPrimitive?.contentOrNull
+                    if (delta?.get("type")?.jsonPrimitive?.contentOrNull == "json" && jsonChunk != null && jsonBuffer != null) {
+                        jsonBuffer!!.append(jsonChunk)
+                        null
+                    } else {
+                        "data: $innerJson\n"
+                    }
+                }
+                "content_block_stop" -> {
+                    val buffer = jsonBuffer
+                    jsonBuffer = null
+                    if (buffer != null) {
+                        val blockId = "json-block-${jsonBlockIndex++}"
+                        // Compact the assembled JSON to remove embedded newlines that would
+                        // break the SSE single-line data format the Rust SDK expects.
+                        val compact = try {
+                            Json.parseToJsonElement(buffer.toString()).toString()
+                        } catch (_: Exception) {
+                            buffer.toString().replace("\n", "").replace("\r", "")
+                        }
+                        """data: {"type":"data-json-block","id":"$blockId","state":"done","data":$compact}""" + "\n"
+                    } else {
+                        null
+                    }
+                }
+                else -> "data: $innerJson\n"
+            }
+        } catch (_: Exception) {
+            "data: $innerJson\n"
+        }
+    }
+}
+
+/** Delegates to a fresh [PagepeekSseProcessor] for single-chunk callers (tests). */
+internal fun unwrapPagepeekSseChunk(chunk: String): String? = PagepeekSseProcessor().process(chunk)
 
 private val StreamStatus.wireValue: String
     get() = when (this) {

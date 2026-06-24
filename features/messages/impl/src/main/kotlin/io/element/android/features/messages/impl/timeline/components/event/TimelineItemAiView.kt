@@ -147,6 +147,7 @@ fun TimelineItemAiView(
     onLinkLongClick: (Link) -> Unit,
     onLongClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    workflowProgress: kotlinx.collections.immutable.ImmutableMap<String, WorkflowTaskProgress> = kotlinx.collections.immutable.persistentMapOf(),
     onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit = {},
 ) {
     val toolRootUiStates = remember { mutableStateMapOf<String, ToolRootUiState>() }
@@ -179,6 +180,7 @@ fun TimelineItemAiView(
                 lastPartIsStreamingText = content.lastPartIsStreamingText,
                 isStreaming = content.isStreaming,
                 rootUiStates = toolRootUiStates,
+                workflowProgress = workflowProgress,
                 onLinkClick = onLinkClick,
                 onLinkLongClick = onLinkLongClick,
                 onLongClick = onLongClick,
@@ -285,6 +287,7 @@ private fun AiStreamPartsView(
     lastPartIsStreamingText: Boolean,
     isStreaming: Boolean,
     rootUiStates: MutableMap<String, ToolRootUiState>,
+    workflowProgress: kotlinx.collections.immutable.ImmutableMap<String, WorkflowTaskProgress> = kotlinx.collections.immutable.persistentMapOf(),
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
     onLongClick: (() -> Unit)?,
@@ -322,7 +325,7 @@ private fun AiStreamPartsView(
                     is AiSourceStreamPart -> SourcePart(part, onLinkClick, onLinkLongClick)
                     is AiFileStreamPart -> FilePart(part, onLinkClick, onLinkLongClick)
                     is AiErrorStreamPart -> ErrorPart(part)
-                    is AiDataStreamPart -> DataPart(part, onLinkClick, onLinkLongClick, toolCardInserted)
+                    is AiDataStreamPart -> DataPart(part, onLinkClick, onLinkLongClick, toolCardInserted, workflowProgress)
                     is AiCustomStreamPart -> Unit
                 }
             }
@@ -1248,6 +1251,7 @@ private fun DataPart(
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
     toolCardInserted: Boolean,
+    workflowProgress: kotlinx.collections.immutable.ImmutableMap<String, WorkflowTaskProgress> = kotlinx.collections.immutable.persistentMapOf(),
 ) {
     when (part.type) {
         "data-error" -> ErrorPart(AiErrorStreamPart(id = part.id, state = part.state, errorText = part.payload.errorTextFromJson() ?: "Stream error"))
@@ -1261,7 +1265,299 @@ private fun DataPart(
                 )
             }
         }
+        "data-json-block" -> {
+            val json = part.payload.jsonObjectOrNull()
+            val taskId = json?.optString("task_id")?.takeIf { it.isNotBlank() }
+            val progress = taskId?.let { workflowProgress[it] }
+            when (json?.optString("content_type")) {
+                "ppt_planning" -> PptPlanningCard(part.payload, progress)
+                "writing_generation_workflow_activity",
+                "ppt_generation_workflow_activity" -> WorkflowActivityCard(part.payload, progress)
+                "writing_planning" -> WritingPlanningCard(part.payload)
+                "ppt_outline_v2", "ppt_outline" -> OutlineCard(label = "PPT Outline", payload = part.payload)
+                "writing_outline" -> OutlineCard(label = "Writing Outline", payload = part.payload)
+                "deep_research", "research" -> ResearchCard(part.payload)
+                "professor_review" -> ReviewCard(part.payload)
+                else -> {
+                    val msg = json?.optString("message")?.takeIf { it.isNotBlank() }
+                    if (msg != null) {
+                        MarkdownBody(
+                            text = msg,
+                            renderMode = MarkdownRenderMode.Stable,
+                            onLinkClick = {},
+                        )
+                    }
+                }
+            }
+        }
         else -> Unit
+    }
+}
+
+@Composable
+private fun PptPlanningCard(payload: String, progress: WorkflowTaskProgress? = null) {
+    val json = payload.jsonObjectOrNull()
+    val topic = json?.optString("topic")?.takeIf { it.isNotBlank() }
+    val slides = json?.optInt("number_of_slides", 0)?.takeIf { it > 0 }
+    val tone = json?.optString("tone")?.takeIf { it.isNotBlank() }
+    val message = json?.optString("message")?.takeIf { it.isNotBlank() }
+    val shape = RoundedCornerShape(12.dp)
+    Surface(
+        shape = shape,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = "PPT Planning",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            topic?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+            if (slides != null || tone != null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    slides?.let {
+                        Text(
+                            text = "$it slides",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    tone?.let {
+                        Text(
+                            text = it.replaceFirstChar { c -> c.uppercaseChar() },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+            message?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            WorkflowProgressOverlay(progress)
+        }
+    }
+}
+
+@Composable
+private fun WorkflowActivityCard(payload: String, progress: WorkflowTaskProgress? = null) {
+    val json = payload.jsonObjectOrNull()
+    val contentType = json?.optString("content_type")?.takeIf { it.isNotBlank() }
+    val message = json?.optString("message")?.takeIf { it.isNotBlank() }
+    val title = when (contentType) {
+        "ppt_generation_workflow_activity" -> "Creating presentation"
+        else -> "Writing in progress"
+    }
+    val shape = RoundedCornerShape(12.dp)
+    Surface(
+        shape = shape,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            message?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            WorkflowProgressOverlay(progress)
+        }
+    }
+}
+
+/**
+ * Renders live WebSocket workflow progress below the card's static content.
+ * Shown only when [progress] is non-null and has something to display.
+ */
+@Composable
+private fun WorkflowProgressOverlay(progress: WorkflowTaskProgress?) {
+    if (progress == null) return
+    val progressText = progress.progressText ?: return
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        if (progress.isTracking) {
+            androidx.compose.material3.CircularProgressIndicator(
+                modifier = Modifier.size(12.dp),
+                strokeWidth = 1.5.dp,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        Text(
+            text = progressText,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (progress.isComplete) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    progress.activities.lastOrNull()?.let { latest ->
+        Text(
+            text = latest,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun WritingPlanningCard(payload: String) {
+    val json = payload.jsonObjectOrNull()
+    val topic = json?.optString("topic")?.takeIf { it.isNotBlank() }
+    val sections = json?.optInt("total_sections", 0)?.takeIf { it > 0 }
+    val message = json?.optString("message")?.takeIf { it.isNotBlank() }
+    JsonBlockCard(label = "Writing Plan") {
+        topic?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+        sections?.let {
+            Text(
+                text = "$it sections",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        message?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun OutlineCard(label: String, payload: String) {
+    val json = payload.jsonObjectOrNull()
+    val topic = json?.optString("topic")?.takeIf { it.isNotBlank() }
+    val message = json?.optString("message")?.takeIf { it.isNotBlank() }
+    val slidesOrSections = (json?.optInt("number_of_slides", 0)
+        ?: json?.optInt("total_sections", 0))?.takeIf { it > 0 }
+    JsonBlockCard(label = label) {
+        topic?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+        slidesOrSections?.let {
+            Text(
+                text = "$it items",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        message?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ResearchCard(payload: String) {
+    val json = payload.jsonObjectOrNull()
+    val topic = json?.optString("topic")?.takeIf { it.isNotBlank() }
+        ?: json?.optString("query")?.takeIf { it.isNotBlank() }
+    val message = json?.optString("message")?.takeIf { it.isNotBlank() }
+    JsonBlockCard(label = "Research") {
+        topic?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+        message?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReviewCard(payload: String) {
+    val json = payload.jsonObjectOrNull()
+    val message = json?.optString("message")?.takeIf { it.isNotBlank() }
+    val status = json?.optString("status")?.takeIf { it.isNotBlank() }
+    JsonBlockCard(label = "Review") {
+        status?.let {
+            Text(
+                text = it.replaceFirstChar { c -> c.uppercaseChar() },
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        message?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun JsonBlockCard(
+    label: String,
+    content: @Composable () -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            content()
+        }
     }
 }
 

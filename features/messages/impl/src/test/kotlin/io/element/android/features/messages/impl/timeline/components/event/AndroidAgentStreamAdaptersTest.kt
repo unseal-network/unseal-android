@@ -27,6 +27,8 @@ import io.element.android.libraries.matrix.test.FakeMatrixClient
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -201,6 +203,148 @@ class AndroidAgentStreamAdaptersTest {
         )
 
         assertThat(provider.load("stream-1")?.status).isEqualTo(StreamStatus.Failed)
+    }
+
+    // region unwrapPagepeekSseChunk
+
+    @Test
+    fun `unwrap extracts content from pagepeek wrapper`() {
+        val inner = """{"type":"text-delta","id":"txt-0","delta":"hello"}"""
+        val chunk = """data: {"subtype":"response.output_chunk.delta","item_id":"chunk_1","index":0,"type":"streaming","content":"${inner.replace("\"", "\\\"")}"}""" + "\n"
+
+        val result = unwrapPagepeekSseChunk(chunk)
+
+        assertThat(result).isEqualTo("data: $inner\n")
+    }
+
+    @Test
+    fun `unwrap drops outer pagepeek start control frame`() {
+        val chunk = """data: {"type":"start"}""" + "\n"
+
+        val result = unwrapPagepeekSseChunk(chunk)
+
+        assertThat(result).isNull()
+    }
+
+    @Test
+    fun `unwrap drops outer pagepeek end control frame`() {
+        val chunk = """data: {"type":"end"}""" + "\n"
+
+        val result = unwrapPagepeekSseChunk(chunk)
+
+        assertThat(result).isNull()
+    }
+
+    @Test
+    fun `unwrap passes through blank line as SSE event terminator`() {
+        assertThat(unwrapPagepeekSseChunk("\n")).isEqualTo("\n")
+        assertThat(unwrapPagepeekSseChunk("")).isEqualTo("")
+    }
+
+    @Test
+    fun `unwrap returns null for named event line`() {
+        assertThat(unwrapPagepeekSseChunk("event: toolCallOutput\n")).isNull()
+    }
+
+    @Test
+    fun `unwrap returns null when content field is missing`() {
+        val chunk = """data: {"subtype":"response.output_chunk.delta","type":"streaming"}""" + "\n"
+
+        val result = unwrapPagepeekSseChunk(chunk)
+
+        assertThat(result).isNull()
+    }
+
+    @Test
+    fun `unwrap drops line with invalid json`() {
+        val chunk = "data: not-json\n"
+
+        val result = unwrapPagepeekSseChunk(chunk)
+
+        assertThat(result).isNull()
+    }
+
+    // endregion
+
+    // region PagepeekSseProcessor
+
+    @Test
+    fun `processor assembles json block from content_block events`() {
+        val processor = PagepeekSseProcessor()
+        // Simulate streaming of {"content_type":"ppt_planning","topic":"Gold Report"} in two delta chunks.
+        assertThat(processor.process(wrapInner("""{"type":"content_block_start","index":0,"content_type":"json"}"""))).isNull()
+        assertThat(processor.process(wrapInner("""{"type":"content_block_delta","index":0,"delta":{"type":"json","json_chunk":"{\"content_type\":\"ppt_planning\","}}"""))).isNull()
+        assertThat(processor.process(wrapInner("""{"type":"content_block_delta","index":0,"delta":{"type":"json","json_chunk":"\"topic\":\"Gold Report\"}"}}"""))).isNull()
+
+        val result = processor.process(wrapInner("""{"type":"content_block_stop","index":0}"""))
+        assertThat(result).isNotNull()
+        assertThat(result!!).startsWith("data: {")
+        assertThat(result).contains("\"type\":\"data-json-block\"")
+        assertThat(result).contains("\"id\":\"json-block-0\"")
+        assertThat(result).contains("content_type")
+        assertThat(result).contains("ppt_planning")
+        assertThat(result).endsWith("\n")
+    }
+
+    @Test
+    fun `processor passes through non-block inner events`() {
+        val processor = PagepeekSseProcessor()
+        val inner = """{"type":"text-delta","id":"txt-0","delta":"hello"}"""
+
+        val result = processor.process(wrapInner(inner))
+
+        assertThat(result).isEqualTo("data: $inner\n")
+    }
+
+    @Test
+    fun `processor increments block index across multiple blocks`() {
+        val processor = PagepeekSseProcessor()
+
+        fun emitBlock(): String? {
+            processor.process(wrapInner("""{"type":"content_block_start","index":0,"content_type":"json"}"""))
+            processor.process(wrapInner("""{"type":"content_block_delta","index":0,"delta":{"type":"json","json_chunk":"{}"}}"""))
+            return processor.process(wrapInner("""{"type":"content_block_stop","index":0}"""))
+        }
+
+        val block0 = emitBlock()
+        val block1 = emitBlock()
+
+        assertThat(block0).contains(""""id":"json-block-0"""")
+        assertThat(block1).contains(""""id":"json-block-1"""")
+    }
+
+    @Test
+    fun `processor stop with no active block returns null`() {
+        val processor = PagepeekSseProcessor()
+
+        val result = processor.process(wrapInner("""{"type":"content_block_stop","index":0}"""))
+
+        assertThat(result).isNull()
+    }
+
+    @Test
+    fun `processor content_block_start with non-json content_type passes through`() {
+        val processor = PagepeekSseProcessor()
+        val inner = """{"type":"content_block_start","index":0,"content_type":"text"}"""
+
+        val result = processor.process(wrapInner(inner))
+
+        assertThat(result).isEqualTo("data: $inner\n")
+    }
+
+    // endregion
+
+    /**
+     * Wraps an inner AI SDK event JSON string in the pagepeek outer envelope.
+     * Uses [buildJsonObject] so the content field is always properly JSON-encoded.
+     */
+    private fun wrapInner(innerJson: String): String {
+        val outer = buildJsonObject {
+            put("subtype", "response.output_chunk.delta")
+            put("type", "streaming")
+            put("content", innerJson)
+        }
+        return "data: $outer\n"
     }
 
     @Test

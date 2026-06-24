@@ -9,6 +9,7 @@ package io.element.android.features.messages.impl.timeline.components.event
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,6 +26,8 @@ import io.element.android.features.messages.impl.timeline.di.TimelineItemPresent
 import io.element.android.features.messages.impl.timeline.factories.event.AiStreamContentCache
 import io.element.android.features.messages.impl.timeline.factories.event.AiStreamHandleStore
 import io.element.android.features.messages.impl.timeline.factories.event.AiSdkStreamReducer
+import io.element.android.features.messages.impl.timeline.model.event.AiDataStreamPart
+import io.element.android.features.messages.impl.timeline.model.event.AiToolStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.libraries.agentstream.api.StreamRequest
 import io.element.android.libraries.agentstream.api.StreamSnapshot
@@ -33,9 +36,15 @@ import io.element.android.libraries.agentstream.api.StreamSnapshotUpdatePolicy
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.di.RoomScope
+import kotlinx.collections.immutable.ImmutableMap
+import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.json.JSONException
+import org.json.JSONObject
 
 @BindingContainer
 @ContributesTo(RoomScope::class)
@@ -48,6 +57,8 @@ interface TimelineItemAiPresenterModule {
 
 data class TimelineItemAiState(
     val content: TimelineItemAiContent,
+    /** Progress updates from WebSocket connections, keyed by task_id. */
+    val workflowProgress: ImmutableMap<String, WorkflowTaskProgress> = persistentMapOf(),
 )
 
 @AssistedInject
@@ -56,6 +67,7 @@ class TimelineItemAiPresenter(
     private val aiStreamHandleStore: AiStreamHandleStore,
     private val aiStreamContentCache: AiStreamContentCache,
     private val aiSdkStreamReducer: AiSdkStreamReducer,
+    private val workflowProgressManager: WorkflowProgressManager,
     private val dispatchers: CoroutineDispatchers,
 ) : Presenter<TimelineItemAiState> {
     @AssistedFactory
@@ -101,7 +113,30 @@ class TimelineItemAiPresenter(
             )
         }
 
-        return TimelineItemAiState(currentContent)
+        // Start WebSocket tracking for any workflow task_ids found in parts.
+        val workflowTaskIds = remember(currentContent.parts) {
+            currentContent.parts.extractWorkflowTaskIds()
+        }
+        LaunchedEffect(workflowTaskIds) {
+            for ((taskId, wsUrl) in workflowTaskIds) {
+                workflowProgressManager.ensureTracking(
+                    taskId = taskId,
+                    wsUrl = wsUrl,
+                    scope = this,
+                )
+            }
+        }
+
+        // Collect live progress for all known task_ids.
+        val workflowProgress = workflowTaskIds
+            .map { (taskId, _) -> workflowProgressManager.progressFlow(taskId).collectAsState() }
+            .associate { state -> state.value.taskId to state.value }
+            .toImmutableMap()
+
+        return TimelineItemAiState(
+            content = currentContent,
+            workflowProgress = workflowProgress,
+        )
     }
 
     private suspend fun loadCompletedCachedContent(
@@ -197,6 +232,65 @@ class TimelineItemAiPresenter(
 
     private companion object {
         const val STREAMING_TEXT_PATCH_COALESCE_MS = 120L
+    }
+}
+
+/** Content types that trigger a WebSocket workflow progress connection when task_id is present. */
+private val WORKFLOW_DATA_CONTENT_TYPES = setOf(
+    "ppt_planning",
+    "ppt_generation_workflow_activity",
+    "writing_planning",
+    "writing_generation_workflow_activity",
+    "deep_research",
+    "research",
+    "professor_review",
+)
+
+/** Tool output task_types that indicate a workflow WebSocket should be opened. */
+private val WORKFLOW_TOOL_TASK_TYPES = setOf(
+    "ppt_generation",
+    "writing_generation",
+    "deep_research",
+    "professor_review",
+)
+
+/**
+ * Scans all parts for workflow task IDs that need WebSocket progress tracking.
+ * Returns a list of Pair(taskId, optionalExplicitWsUrl).
+ */
+private fun Iterable<io.element.android.features.messages.impl.timeline.model.event.AiStreamPart>.extractWorkflowTaskIds(): List<Pair<String, String?>> {
+    val seen = mutableSetOf<String>()
+    return buildList {
+        for (part in this@extractWorkflowTaskIds) {
+            when (part) {
+                is AiDataStreamPart -> {
+                    if (part.type != "data-json-block") continue
+                    val json = tryParseJson(part.payload) ?: continue
+                    val contentType = json.optString("content_type").takeIf { it.isNotBlank() } ?: continue
+                    if (contentType !in WORKFLOW_DATA_CONTENT_TYPES) continue
+                    val taskId = json.optString("task_id").takeIf { it.isNotBlank() } ?: continue
+                    if (seen.add(taskId)) add(taskId to null)
+                }
+                is AiToolStreamPart -> {
+                    val output = part.output?.takeIf { it.isNotBlank() } ?: continue
+                    val json = tryParseJson(output) ?: continue
+                    val taskType = json.optString("task_type").takeIf { it.isNotBlank() } ?: continue
+                    if (taskType !in WORKFLOW_TOOL_TASK_TYPES) continue
+                    val taskId = json.optString("task_id").takeIf { it.isNotBlank() } ?: continue
+                    val wsUrl = json.optString("websocket_url").takeIf { it.isNotBlank() }
+                    if (seen.add(taskId)) add(taskId to wsUrl)
+                }
+                else -> continue
+            }
+        }
+    }
+}
+
+private fun tryParseJson(s: String): JSONObject? {
+    return try {
+        JSONObject(s)
+    } catch (_: JSONException) {
+        null
     }
 }
 

@@ -1,0 +1,54 @@
+data: {"type": "start"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_1", "type": "streaming", "content": "{\"type\":\"content_block_start\",\"index\":0,\"content_type\":\"json\"}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_2", "index": 1, "type": "streaming", "content": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"json\",\"json_chunk\":\"{\\n  \\\"content_type\\\": \\\"ppt_planning\\\",\\n\"}}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_3", "index": 2, "type": "streaming", "content": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"json\",\"json_chunk\":\"  \\\"task_id\\\": \\\"ppt_plan_20260603_001\\\",\\n\"}}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_4", "index": 3, "type": "streaming", "content": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"json\",\"json_chunk\":\"  \\\"topic\\\": \\\"黄金全面分析报告\\\",\\n\"}}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_5", "index": 4, "type": "streaming", "content": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"json\",\"json_chunk\":\"  \\\"number_of_slides\\\": 12,\\n  \\\"tone\\\": \\\"professional\\\",\\n\"}}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_6", "index": 5, "type": "streaming", "content": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"json\",\"json_chunk\":\"  \\\"color_palette\\\": \\\"elegant_navy\\\",\\n\"}}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_7", "index": 6, "type": "streaming", "content": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"json\",\"json_chunk\":\"  \\\"attachments\\\": [],\\n\"}}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_8", "index": 7, "type": "streaming", "content": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"json\",\"json_chunk\":\"  \\\"language\\\": \\\"zh-cn\\\",\\n\"}}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_9", "index": 8, "type": "streaming", "content": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"json\",\"json_chunk\":\"  \\\"requirements\\\": [\\n    \\\"开篇以权威数据或趋势，突出黄金的投资地位与话题热度\"}}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_10", "index": 9, "type": "streaming", "content": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"json\",\"json_chunk\":\"\\\",\\n    \\\"结构部分涵盖：黄金的历史地位与货币属性、全球黄金储量与产量分布、近几年国际金价走势\\\",\\n\"}}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_11", "index": 10, "type": "streaming", "content": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"json\",\"json_chunk\":\"    \\\"详细分析影响黄金价格的核心因素（如美联储政策、地缘政治、通胀、美元指数等），适配投资者与普通\"}}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_12", "index": 11, "type": "streaming", "content": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"json\",\"json_chunk\":\"读者视角，配合数据图表演示\\\",\\n    \\\"对黄金多元投资方式（实物黄金、ETF、期货、金矿股）进行并\"}}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_13", "index": 12, "type": "streaming", "content": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"json\",\"json_chunk\":\"列比较，阐述各自优劣\\\",\\n    \\\"结合黄金与其他主流资产类别的相关性，展示资产配置与风险对冲优势，\"}}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_14", "index": 13, "type": "streaming", "content": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"json\",\"json_chunk\":\"最后以专业观点展望未来金价趋势与投资建议\\\"\\n  ],\\n\"}}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_15", "index": 14, "type": "streaming", "content": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"json\",\"json_chunk\":\"  \\\"message\\\": \\\"## ✅ **PPT REQUIREMENTS FINALIZED**\\\\\"}}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_16", "index": 15, "type": "streaming", "content": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"json\",\"json_chunk\":\"n\\\\nI've analyzed your planning conversation and created\"}}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_17", "index": 16, "type": "streaming", "content": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"json\",\"json_chunk\":\" your complete presentation project specification:\\\\\"}}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_18", "index": 17, "type": "streaming", "content": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"json\",\"json_chunk\":\"n\\\\n**🚀 Next Steps:**\\\\nYour specification is ready!\"}}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_19", "index": 18, "type": "streaming", "content": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"json\",\"json_chunk\":\" You can:\\\\n- **Continue** to create your presentation\"}}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_20", "index": 19, "type": "streaming", "content": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"json\",\"json_chunk\":\" outline\\\\n- **Modify** any requirements or parameters\"}}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_21", "index": 20, "type": "streaming", "content": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"json\",\"json_chunk\":\" if needed\\\\n- **Create a mind map** to better understand\"}}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_22", "index": 21, "type": "streaming", "content": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"json\",\"json_chunk\":\" your topic before proceeding\\\\n\\\\nOnce everything looks\"}}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_23", "index": 22, "type": "streaming", "content": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"json\",\"json_chunk\":\" good, just continue to move forward!\\\"\\n}\"}}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_24", "index": 23, "type": "streaming", "content": "{\"type\":\"content_block_stop\",\"index\":0}"}
+
+data: {"subtype": "response.output_chunk.delta", "item_id": "chunk_25", "index": 24, "type": "streaming", "content": "{\"type\":\"finish\"}"}
+
+data: {"type": "end"}
+

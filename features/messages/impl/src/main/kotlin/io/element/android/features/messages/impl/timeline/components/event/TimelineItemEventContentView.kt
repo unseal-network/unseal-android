@@ -10,6 +10,7 @@ package io.element.android.features.messages.impl.timeline.components.event
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import kotlinx.collections.immutable.persistentMapOf
 import io.element.android.features.messages.impl.timeline.TimelineEvent
 import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
 import io.element.android.features.messages.impl.timeline.di.LocalTimelineItemPresenterFactories
@@ -77,8 +78,10 @@ fun TimelineItemEventContentView(
         )
         is TimelineItemAiContent -> {
             val presenter: Presenter<TimelineItemAiState> = presenterFactories.rememberPresenter(content)
+            val aiState = presenter.present()
             TimelineItemAiView(
-                content = presenter.present().content,
+                content = aiState.content,
+                workflowProgress = aiState.workflowProgress,
                 onLinkClick = onLinkClick,
                 onLinkLongClick = onLinkLongClick,
                 onLongClick = onLongClick,

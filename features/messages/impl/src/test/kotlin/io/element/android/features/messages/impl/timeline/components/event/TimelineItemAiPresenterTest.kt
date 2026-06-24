@@ -26,10 +26,15 @@ import io.element.android.libraries.agentstream.api.StreamStorageProvider
 import io.element.android.libraries.agentstream.api.StreamSubscription
 import io.element.android.libraries.agentstream.api.TextPartState
 import io.element.android.libraries.agentstream.api.ToolPartState
+import io.element.android.libraries.chatbot.api.WorkflowWebSocketFactory
+import io.element.android.libraries.chatbot.api.WorkflowWebSocketMessage
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
+import io.element.android.libraries.matrix.api.MatrixClient
+import io.element.android.libraries.matrix.test.FakeMatrixClient
 import io.element.android.tests.testutils.test
 import io.element.android.tests.testutils.testCoroutineDispatchers
 import kotlinx.collections.immutable.ImmutableList
+import java.io.Closeable
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
@@ -455,8 +460,23 @@ class TimelineItemAiPresenterTest {
             aiStreamHandleStore = streamHandleStore,
             aiStreamContentCache = streamContentCache,
             aiSdkStreamReducer = AiSdkStreamReducer(),
+            workflowProgressManager = WorkflowProgressManager(
+                matrixClient = FakeMatrixClient(),
+                workflowWebSocketFactory = FakeWorkflowWebSocketFactory(),
+            ),
             dispatchers = dispatchers,
         )
+    }
+
+    private class FakeWorkflowWebSocketFactory : WorkflowWebSocketFactory {
+        override suspend fun open(
+            taskId: String,
+            explicitWsUrl: String?,
+            matrixClient: MatrixClient,
+            onActivity: (WorkflowWebSocketMessage) -> Unit,
+            onComplete: () -> Unit,
+            onError: (Throwable) -> Unit,
+        ): Closeable = Closeable { }
     }
 
     private class FakeAgentStreamClient(
