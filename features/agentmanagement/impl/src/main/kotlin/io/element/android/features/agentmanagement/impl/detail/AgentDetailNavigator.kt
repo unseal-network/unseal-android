@@ -13,4 +13,5 @@ interface AgentDetailNavigator {
     fun onEdit(botName: String)
     fun onOpenRoom(roomIdOrAlias: RoomIdOrAlias)
     fun onOpenSkills(botName: String)
+    fun onManageChannels(agentId: String)
 }

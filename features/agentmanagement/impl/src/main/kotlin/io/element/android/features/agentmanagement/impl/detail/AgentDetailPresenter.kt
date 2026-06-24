@@ -24,6 +24,7 @@ import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentRoom
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelSummary
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.core.RoomIdOrAlias
@@ -52,6 +53,7 @@ class AgentDetailPresenter(
         var agent by remember { mutableStateOf<ChatbotAgent?>(null) }
         var rooms by remember { mutableStateOf(emptyList<ChatbotAgentRoom>()) }
         var agentSkills by remember { mutableStateOf(emptyList<ChatbotUserSkill>()) }
+        var channels by remember { mutableStateOf(emptyList<ChatbotChannelSummary>()) }
         var isLoading by remember { mutableStateOf(true) }
         var canEdit by remember { mutableStateOf(false) }
         var isStartingChat by remember { mutableStateOf(false) }
@@ -87,6 +89,12 @@ class AgentDetailPresenter(
                     .onSuccess { freshSkills ->
                         agentSkills = freshSkills
                     }
+                // Channels live on the agent-api and are keyed by the agent's Matrix id.
+                agent?.agentMatrixUserId()?.let { agentId ->
+                    chatbotApiServiceFactory.createForUnsealApi(matrixClient)
+                        .listAgentChannels(agentId)
+                        .onSuccess { channels = it }
+                }
                 isLoading = false
                 hasLoadedOnce = true
             }
@@ -144,6 +152,14 @@ class AgentDetailPresenter(
                 }
                 AgentDetailEvents.ToggleSoulExpanded -> isSoulExpanded = !isSoulExpanded
                 AgentDetailEvents.ManageSkills -> navigator.onOpenSkills(botName)
+                AgentDetailEvents.ManageChannels -> {
+                    val agentId = agent?.agentMatrixUserId()
+                    if (agentId == null) {
+                        error = "Agent has no Matrix user ID"
+                    } else {
+                        navigator.onManageChannels(agentId)
+                    }
+                }
                 AgentDetailEvents.StartChat -> startChat()
                 is AgentDetailEvents.OpenRoom -> RoomIdOrAlias.from(event.roomId)
                     ?.let(navigator::onOpenRoom)
@@ -159,6 +175,7 @@ class AgentDetailPresenter(
             agent = agent,
             rooms = rooms.toImmutableList(),
             agentSkills = agentSkills.toImmutableList(),
+            channels = channels.toImmutableList(),
             isLoading = isLoading,
             canEdit = canEdit,
             isStartingChat = isStartingChat,

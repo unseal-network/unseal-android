@@ -55,6 +55,7 @@ class AgentProfileNode(
             override fun onEdit(botName: String) = callback.onEdit(botName)
             override fun onOpenRoom(roomIdOrAlias: RoomIdOrAlias) = callback.onOpenRoom(roomIdOrAlias)
             override fun onOpenSkills(botName: String) = callback.onOpenSkills(botName)
+            override fun onManageChannels(agentId: String) = Unit
         }
     )
 

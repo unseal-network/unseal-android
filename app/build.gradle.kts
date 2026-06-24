@@ -323,6 +323,7 @@ licensee {
     ignoreDependencies("com.github.matrix-org", "matrix-analytics-events")
     // Ignore dependency that are not third-party licenses to us.
     ignoreDependencies(groupId = "io.element.android")
+    ignoreDependencies(groupId = "network.unseal")
 }
 
 fun Project.configureLicensesTasks(reportingExtension: ReportingExtension) {

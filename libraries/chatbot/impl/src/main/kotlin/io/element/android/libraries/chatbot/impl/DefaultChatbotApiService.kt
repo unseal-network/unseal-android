@@ -21,6 +21,11 @@ import io.element.android.libraries.chatbot.api.model.agent.ChatbotListAgentRoom
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotListAgentsResponse
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotUpdateAgentRequest
 import io.element.android.libraries.chatbot.api.model.analytics.AnalyticsTokensResponse
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelConnectBody
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelCredentials
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelSummary
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotConnectChannelResponse
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotListChannelsResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotDisconnectAccountResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotInitiateConnectionResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListConnectedAccountsResponse
@@ -381,6 +386,49 @@ internal class DefaultChatbotApiService(
 
     override suspend fun deleteAgentVoiceConfig(agentId: String): Result<Unit> =
         rawUnit("/api/agents/${path(agentId)}/voice-config", ChatbotHttpMethod.DELETE)
+
+    override suspend fun listAgentChannels(agentId: String): Result<List<ChatbotChannelSummary>> =
+        httpClient.requestJson<ChatbotListChannelsResponse>("/api/agents/${path(agentId)}/channels", ChatbotHttpMethod.GET).map { it.channels }
+
+    override suspend fun connectAgentChannel(agentId: String, body: ChatbotChannelConnectBody): Result<ChatbotConnectChannelResponse> {
+        val credentials = when (body) {
+            is ChatbotChannelConnectBody.Telegram -> JsonObject(
+                mapOf(
+                    "platform" to JsonPrimitive("telegram"),
+                    "botToken" to JsonPrimitive(body.botToken),
+                )
+            )
+            is ChatbotChannelConnectBody.WeCom -> JsonObject(
+                mapOf(
+                    "platform" to JsonPrimitive("wecom"),
+                    "token" to JsonPrimitive(body.token),
+                    "encodingAESKey" to JsonPrimitive(body.encodingAESKey),
+                )
+            )
+        }
+        val payload = JsonObject(mapOf("credentials" to credentials)).toString()
+        return httpClient.requestJson("/api/agents/${path(agentId)}/channels", ChatbotHttpMethod.POST, payload)
+    }
+
+    override suspend fun disconnectAgentChannel(agentId: String, installationId: String): Result<Unit> =
+        rawUnit("/api/agents/${path(agentId)}/channels/${path(installationId)}", ChatbotHttpMethod.DELETE)
+
+    override suspend fun updateAgentChannel(agentId: String, installationId: String, token: String, encodingAESKey: String): Result<ChatbotConnectChannelResponse> {
+        val payload = JsonObject(
+            mapOf(
+                "credentials" to JsonObject(
+                    mapOf(
+                        "token" to JsonPrimitive(token),
+                        "encodingAESKey" to JsonPrimitive(encodingAESKey),
+                    )
+                )
+            )
+        ).toString()
+        return httpClient.requestJson("/api/agents/${path(agentId)}/channels/${path(installationId)}", ChatbotHttpMethod.PUT, payload)
+    }
+
+    override suspend fun getAgentChannelCredentials(agentId: String, installationId: String): Result<ChatbotChannelCredentials> =
+        httpClient.requestJson("/api/agents/${path(agentId)}/channels/${path(installationId)}/credentials", ChatbotHttpMethod.GET)
 
     override suspend fun listVault(): Result<List<io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem>> =
         httpClient.requestJson<io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultListResponse>("/chatbot/v1/vault", ChatbotHttpMethod.GET).map { it.items }

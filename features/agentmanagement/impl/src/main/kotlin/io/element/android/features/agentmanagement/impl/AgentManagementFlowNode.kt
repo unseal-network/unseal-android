@@ -20,6 +20,7 @@ import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
 import io.element.android.features.agentmanagement.api.AgentManagementEntryPoint
+import io.element.android.features.agentmanagement.impl.channels.AgentChannelsNode
 import io.element.android.features.agentmanagement.impl.detail.AgentDetailNode
 import io.element.android.features.agentmanagement.impl.profile.AgentProfileNode
 import io.element.android.features.agentmanagement.impl.edit.AgentEditNode
@@ -62,6 +63,9 @@ class AgentManagementFlowNode(
 
         @Parcelize
         data class Edit(val botName: String) : NavTarget
+
+        @Parcelize
+        data class Channels(val agentId: String) : NavTarget
     }
 
     private val callback: AgentManagementEntryPoint.Callback = callback()
@@ -88,6 +92,16 @@ class AgentManagementFlowNode(
                         override fun onEdit(botName: String) = backstack.push(NavTarget.Edit(botName))
                         override fun onOpenRoom(roomIdOrAlias: RoomIdOrAlias) = callback.onOpenRoom(roomIdOrAlias)
                         override fun onOpenSkills(botName: String) = callback.onOpenSkills(botName)
+                        override fun onManageChannels(agentId: String) = backstack.push(NavTarget.Channels(agentId))
+                    }
+                ),
+            )
+            is NavTarget.Channels -> createNode<AgentChannelsNode>(
+                buildContext = buildContext,
+                plugins = listOf(
+                    AgentChannelsNode.Inputs(navTarget.agentId),
+                    object : AgentChannelsNode.Callback {
+                        override fun onDone() = closeOrPop()
                     }
                 ),
             )

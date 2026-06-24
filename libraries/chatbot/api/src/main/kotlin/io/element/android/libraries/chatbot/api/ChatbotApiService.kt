@@ -16,6 +16,10 @@ import io.element.android.libraries.chatbot.api.model.agent.ChatbotCreateAgentRe
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotSetAgentVoiceConfigRequest
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotUpdateAgentRequest
 import io.element.android.libraries.chatbot.api.model.analytics.AnalyticsTokensResponse
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelConnectBody
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelCredentials
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelSummary
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotConnectChannelResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotDisconnectAccountResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotInitiateConnectionResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListConnectedAccountsResponse
@@ -138,6 +142,13 @@ interface ChatbotApiService {
     suspend fun getAgentVoiceConfig(agentId: String): Result<ChatbotAgentVoiceConfigResolution>
     suspend fun setAgentVoiceConfig(agentId: String, request: ChatbotSetAgentVoiceConfigRequest): Result<ChatbotAgentVoiceConfig>
     suspend fun deleteAgentVoiceConfig(agentId: String): Result<Unit>
+
+    // Agent channels (Telegram / WeCom bindings) — agent-api endpoints.
+    suspend fun listAgentChannels(agentId: String): Result<List<ChatbotChannelSummary>>
+    suspend fun connectAgentChannel(agentId: String, body: ChatbotChannelConnectBody): Result<ChatbotConnectChannelResponse>
+    suspend fun disconnectAgentChannel(agentId: String, installationId: String): Result<Unit>
+    suspend fun updateAgentChannel(agentId: String, installationId: String, token: String, encodingAESKey: String): Result<ChatbotConnectChannelResponse>
+    suspend fun getAgentChannelCredentials(agentId: String, installationId: String): Result<ChatbotChannelCredentials>
 
     // Personal vault (secret store) — AI-stream base endpoints.
     suspend fun listVault(): Result<List<io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem>>

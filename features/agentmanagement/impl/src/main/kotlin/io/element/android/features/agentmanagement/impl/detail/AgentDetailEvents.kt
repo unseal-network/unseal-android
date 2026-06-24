@@ -14,6 +14,7 @@ sealed interface AgentDetailEvents {
     data object CopyAgentId : AgentDetailEvents
     data object ToggleSoulExpanded : AgentDetailEvents
     data object ManageSkills : AgentDetailEvents
+    data object ManageChannels : AgentDetailEvents
     data object StartChat : AgentDetailEvents
     data class OpenRoom(val roomId: String) : AgentDetailEvents
     data class LeaveRoom(val roomId: String) : AgentDetailEvents
