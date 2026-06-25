@@ -211,7 +211,17 @@ private fun androidx.compose.foundation.lazy.LazyListScope.marketplaceContent(st
             items(count = 5) { SkillSkeletonRow() }
         }
         state.marketplaceSkills.isEmpty() -> {
-            item { EmptyMessage("暂无公开技能") }
+            item {
+                EmptyMessage(
+                    text = if (state.hasActiveFiltersOrSearch) "没有匹配的技能" else "暂无公开技能",
+                    actionText = if (state.hasActiveFiltersOrSearch) "清除筛选" else null,
+                    onAction = if (state.hasActiveFiltersOrSearch) {
+                        { state.eventSink(SkillsHomeEvents.ClearFilters) }
+                    } else {
+                        null
+                    },
+                )
+            }
         }
         else -> {
             state.marketplaceTotal?.let { total ->
