@@ -25,6 +25,7 @@ import io.element.android.features.messages.impl.timeline.di.TimelineItemPresent
 import io.element.android.features.messages.impl.timeline.factories.event.AiStreamContentCache
 import io.element.android.features.messages.impl.timeline.factories.event.AiStreamHandleStore
 import io.element.android.features.messages.impl.timeline.factories.event.AiSdkStreamReducer
+import io.element.android.features.messages.impl.timeline.model.event.AiDataStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.libraries.agentstream.api.StreamRequest
 import io.element.android.libraries.agentstream.api.StreamSnapshot
@@ -36,6 +37,7 @@ import io.element.android.libraries.di.RoomScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.json.JSONObject
 
 @BindingContainer
 @ContributesTo(RoomScope::class)
@@ -44,10 +46,17 @@ interface TimelineItemAiPresenterModule {
     @IntoMap
     @TimelineItemEventContentKey(TimelineItemAiContent::class)
     fun bindTimelineItemAiPresenterFactory(factory: TimelineItemAiPresenter.Factory): TimelineItemPresenterFactory<*, *>
+
+    @Binds
+    fun bindWorkflowWebSocketFactory(impl: DefaultWorkflowWebSocketFactory): WorkflowWebSocketFactory
+
+    @Binds
+    fun bindWorkflowProgressProvider(impl: WorkflowProgressManager): WorkflowProgressProvider
 }
 
 data class TimelineItemAiState(
     val content: TimelineItemAiContent,
+    val workflowMessages: Map<String, WorkflowMessage> = emptyMap(),
 )
 
 @AssistedInject
@@ -57,6 +66,7 @@ class TimelineItemAiPresenter(
     private val aiStreamContentCache: AiStreamContentCache,
     private val aiSdkStreamReducer: AiSdkStreamReducer,
     private val dispatchers: CoroutineDispatchers,
+    private val workflowProgressManager: WorkflowProgressProvider,
 ) : Presenter<TimelineItemAiState> {
     @AssistedFactory
     fun interface Factory : TimelineItemPresenterFactory<TimelineItemAiContent, TimelineItemAiState> {
@@ -76,6 +86,7 @@ class TimelineItemAiPresenter(
                 cachedContent ?: initialContent
             )
         }
+        var workflowMessages by remember { mutableStateOf<Map<String, WorkflowMessage>>(emptyMap()) }
 
         LaunchedEffect(contentIdentity) {
             if (streamId == null) {
@@ -101,7 +112,26 @@ class TimelineItemAiPresenter(
             )
         }
 
-        return TimelineItemAiState(currentContent)
+        // Start WebSocket progress tracking whenever a ppt_planning task_id appears in parts.
+        val pptTaskId = remember(currentContent.visibleParts) {
+            currentContent.visibleParts
+                .filterIsInstance<AiDataStreamPart>()
+                .firstOrNull { part ->
+                    part.type == "data" && part.payload.isPptPlanningPayload()
+                }
+                ?.let { part -> extractPptTaskId(part.payload) }
+        }
+
+        LaunchedEffect(pptTaskId) {
+            if (pptTaskId == null) return@LaunchedEffect
+            workflowProgressManager.progressFlow(pptTaskId).collect { msg ->
+                if (msg !is WorkflowMessage.Empty) {
+                    workflowMessages = workflowMessages + (pptTaskId to msg)
+                }
+            }
+        }
+
+        return TimelineItemAiState(currentContent, workflowMessages)
     }
 
     private suspend fun loadCompletedCachedContent(
@@ -197,6 +227,22 @@ class TimelineItemAiPresenter(
 
     private companion object {
         const val STREAMING_TEXT_PATCH_COALESCE_MS = 120L
+    }
+}
+
+private fun String.isPptPlanningPayload(): Boolean {
+    return try {
+        JSONObject(this).optString("content_type") == "ppt_planning"
+    } catch (_: Exception) {
+        false
+    }
+}
+
+private fun extractPptTaskId(payload: String): String? {
+    return try {
+        JSONObject(payload).optString("task_id").takeIf { it.isNotEmpty() }
+    } catch (_: Exception) {
+        null
     }
 }
 

@@ -449,6 +449,7 @@ class TimelineItemAiPresenterTest {
         streamHandleStore: AiStreamHandleStore = AiStreamHandleStore(agentStreamClient, FakeStreamStorageProvider()),
         streamContentCache: AiStreamContentCache = AiStreamContentCache(),
         dispatchers: CoroutineDispatchers,
+        workflowProgressProvider: WorkflowProgressProvider = FakeWorkflowProgressProvider(),
     ): TimelineItemAiPresenter {
         return TimelineItemAiPresenter(
             content = content,
@@ -456,7 +457,12 @@ class TimelineItemAiPresenterTest {
             aiStreamContentCache = streamContentCache,
             aiSdkStreamReducer = AiSdkStreamReducer(),
             dispatchers = dispatchers,
+            workflowProgressManager = workflowProgressProvider,
         )
+    }
+
+    private class FakeWorkflowProgressProvider : WorkflowProgressProvider {
+        override fun progressFlow(taskId: String) = kotlinx.coroutines.flow.flowOf<WorkflowMessage>()
     }
 
     private class FakeAgentStreamClient(

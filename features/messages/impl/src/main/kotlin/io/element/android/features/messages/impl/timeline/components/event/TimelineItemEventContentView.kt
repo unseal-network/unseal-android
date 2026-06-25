@@ -77,8 +77,10 @@ fun TimelineItemEventContentView(
         )
         is TimelineItemAiContent -> {
             val presenter: Presenter<TimelineItemAiState> = presenterFactories.rememberPresenter(content)
+            val state = presenter.present()
             TimelineItemAiView(
-                content = presenter.present().content,
+                content = state.content,
+                workflowMessages = state.workflowMessages,
                 onLinkClick = onLinkClick,
                 onLinkLongClick = onLinkLongClick,
                 onLongClick = onLongClick,

@@ -148,6 +148,7 @@ fun TimelineItemAiView(
     onLongClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
     onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit = {},
+    workflowMessages: Map<String, WorkflowMessage> = emptyMap(),
 ) {
     val toolRootUiStates = remember { mutableStateMapOf<String, ToolRootUiState>() }
     Column(
@@ -179,6 +180,7 @@ fun TimelineItemAiView(
                 lastPartIsStreamingText = content.lastPartIsStreamingText,
                 isStreaming = content.isStreaming,
                 rootUiStates = toolRootUiStates,
+                workflowMessages = workflowMessages,
                 onLinkClick = onLinkClick,
                 onLinkLongClick = onLinkLongClick,
                 onLongClick = onLongClick,
@@ -285,6 +287,7 @@ private fun AiStreamPartsView(
     lastPartIsStreamingText: Boolean,
     isStreaming: Boolean,
     rootUiStates: MutableMap<String, ToolRootUiState>,
+    workflowMessages: Map<String, WorkflowMessage>,
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
     onLongClick: (() -> Unit)?,
@@ -322,7 +325,7 @@ private fun AiStreamPartsView(
                     is AiSourceStreamPart -> SourcePart(part, onLinkClick, onLinkLongClick)
                     is AiFileStreamPart -> FilePart(part, onLinkClick, onLinkLongClick)
                     is AiErrorStreamPart -> ErrorPart(part)
-                    is AiDataStreamPart -> DataPart(part, onLinkClick, onLinkLongClick, toolCardInserted)
+                    is AiDataStreamPart -> DataPart(part, onLinkClick, onLinkLongClick, toolCardInserted, workflowMessages)
                     is AiCustomStreamPart -> Unit
                 }
             }
@@ -1248,6 +1251,7 @@ private fun DataPart(
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
     toolCardInserted: Boolean,
+    workflowMessages: Map<String, WorkflowMessage> = emptyMap(),
 ) {
     when (part.type) {
         "data-error" -> ErrorPart(AiErrorStreamPart(id = part.id, state = part.state, errorText = part.payload.errorTextFromJson() ?: "Stream error"))
@@ -1259,6 +1263,13 @@ private fun DataPart(
                     payload = part.payload,
                     onLinkClick = onLinkClick,
                 )
+            }
+        }
+        "data" -> {
+            val pptData = remember(part.id, part.payload) { PptPlanningData.fromJson(part.payload) }
+            if (pptData != null) {
+                val progress = workflowMessages[pptData.taskId] ?: WorkflowMessage.Empty
+                PptPlanningCard(data = pptData, workflowProgress = progress)
             }
         }
         else -> Unit

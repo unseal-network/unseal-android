@@ -33,11 +33,16 @@ dependencyResolutionManagement {
             credentials {
                 username = providers.environmentVariable("GITHUB_ACTOR")
                     .orElse(providers.environmentVariable("GITHUB_USERNAME"))
+                    .orElse(providers.gradleProperty("GITHUB_ACTOR"))
+                    .orElse(providers.gradleProperty("GITHUB_USERNAME"))
                     .getOrElse("")
                 password = providers.environmentVariable("GITHUB_TOKEN")
                     .orElse(providers.environmentVariable("GH_TOKEN"))
                     .orElse(providers.environmentVariable("PACKAGES_TOKEN"))
                     .orElse(providers.environmentVariable("PRIVATE_REGISTRY_TOKEN"))
+                    .orElse(providers.gradleProperty("GITHUB_TOKEN"))
+                    .orElse(providers.gradleProperty("GH_TOKEN"))
+                    .orElse(providers.gradleProperty("PACKAGES_TOKEN"))
                     .getOrElse("")
             }
             content {

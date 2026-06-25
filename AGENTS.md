@@ -198,7 +198,7 @@ AI SDK stream parsing and `parts` state updates are shared through the Rust stre
 - SDK repo: `git@pagepeek:unseal-network/agent-stream-sdk.git`
 - Android dependency publishing repo: `git@pagepeek:unseal-network/agent-stream-components-kotlin.git`
 - GitHub Packages Maven repo: `https://maven.pkg.github.com/unseal-network/agent-stream-components-kotlin`
-- Current Android SDK release: `network.unseal:agent-stream-android:0.1.0-rc.2`
+- Current Android SDK release: `network.unseal:agent-stream-android:0.1.0-rc.9`
 - Android wrapper module: `libraries/agentstream`
 - Native library name loaded by Android: `libunseal_agent_stream.so`
 - JNI Kotlin entrypoint: `libraries/agentstream/src/main/kotlin/io/element/android/libraries/agentstream/jni/UnsealAgentStreamNative.kt`
