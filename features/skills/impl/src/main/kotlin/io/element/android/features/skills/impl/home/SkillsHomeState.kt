@@ -39,4 +39,6 @@ data class SkillsHomeState(
     val filteredSkills: ImmutableList<ChatbotUserSkill> = skills.filter { filterState.copy(searchQuery = searchQuery).matches(it) }.toImmutableList()
     val filtersAvailable: Boolean = facets.hasAnyFacet()
     val marketplaceHasMore: Boolean = marketplaceTotal?.let { marketplaceSkills.size < it } ?: (marketplaceSkills.size >= marketplacePageSize)
+    val hasActiveFiltersOrSearch: Boolean = searchQuery.isNotBlank() || filterState.activeTokenCount > 0
+    val showClearFiltersForEmptyMine: Boolean = selectedTab == SkillsHomeTab.Mine && skills.isNotEmpty() && filteredSkills.isEmpty() && hasActiveFiltersOrSearch
 }

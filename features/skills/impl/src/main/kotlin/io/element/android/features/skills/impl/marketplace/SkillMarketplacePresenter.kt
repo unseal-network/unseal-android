@@ -8,6 +8,7 @@
 package io.element.android.features.skills.impl.marketplace
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -16,6 +17,9 @@ import androidx.compose.runtime.setValue
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import io.element.android.features.skills.impl.SkillMetadataFilterBridge
+import io.element.android.features.skills.impl.SkillMetadataFilterOrigin
+import io.element.android.features.skills.impl.shared.SkillFilterToken
 import io.element.android.features.skills.impl.shared.SkillFilterState
 import io.element.android.features.skills.impl.shared.hasAnyFacet
 import io.element.android.features.skills.impl.shared.toApiFilters
@@ -33,12 +37,13 @@ import kotlinx.coroutines.launch
 @AssistedInject
 class SkillMarketplacePresenter(
     @Assisted private val navigator: SkillMarketplaceNavigator,
+    @Assisted private val filterBridge: SkillMetadataFilterBridge?,
     private val matrixClient: MatrixClient,
     private val chatbotApiServiceFactory: ChatbotApiServiceFactory,
 ) : Presenter<SkillMarketplaceState> {
     @AssistedFactory
     interface Factory {
-        fun create(navigator: SkillMarketplaceNavigator): SkillMarketplacePresenter
+        fun create(navigator: SkillMarketplaceNavigator, filterBridge: SkillMetadataFilterBridge?): SkillMarketplacePresenter
     }
 
     @Composable
@@ -57,6 +62,7 @@ class SkillMarketplacePresenter(
         var searchJob by remember { mutableStateOf<Job?>(null) }
         var listRequestId by remember { mutableStateOf(0) }
         var facetsRequestId by remember { mutableStateOf(0) }
+        var handledFilterRequestId by remember { mutableStateOf(0L) }
 
         suspend fun api() = chatbotApiServiceFactory.createForHomeserver(matrixClient)
 
@@ -130,6 +136,24 @@ class SkillMarketplacePresenter(
             }
         }
 
+        fun applyFilterToken(token: SkillFilterToken) {
+            filterState = filterState.apply(token)
+            searchQuery = ""
+            isFilterSheetVisible = false
+            searchJob?.cancel()
+            loadFirstPage()
+        }
+
+        LaunchedEffect(filterBridge) {
+            filterBridge?.requests?.collect { request ->
+                if (request != null && request.origin == SkillMetadataFilterOrigin.Marketplace && request.id != handledFilterRequestId) {
+                    handledFilterRequestId = request.id
+                    applyFilterToken(request.token)
+                    filterBridge.markHandled(request.id)
+                }
+            }
+        }
+
         fun handleEvent(event: SkillMarketplaceEvents) {
             when (event) {
                 SkillMarketplaceEvents.OnAppear -> {
@@ -149,8 +173,7 @@ class SkillMarketplacePresenter(
                 }
                 SkillMarketplaceEvents.DismissFilterSheet -> isFilterSheetVisible = false
                 is SkillMarketplaceEvents.ApplyFilterToken -> {
-                    filterState = filterState.apply(event.token)
-                    loadFirstPage()
+                    applyFilterToken(event.token)
                 }
                 is SkillMarketplaceEvents.RemoveFilterToken -> {
                     filterState = filterState.remove(event.token)

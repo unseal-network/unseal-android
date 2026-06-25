@@ -99,10 +99,10 @@ fun ChatbotUserSkill.skillTags(): List<String> {
 
 fun ChatbotUserSkill.skillSourceLabel(): String? = source?.displayLabel()
     ?: metadataSource()?.displayLabel()
-    ?: metadataString("source")
+    ?: metadataString("repository")
     ?: metadataString("source_id")
     ?: metadataString("sourceId")
-    ?: metadataString("repository")
+    ?: metadataString("source")
 
 fun ChatbotSkillSource.displayLabel(): String? =
     listOf(label, repository, id, type).firstNotNullOfOrNull { it.clean() }

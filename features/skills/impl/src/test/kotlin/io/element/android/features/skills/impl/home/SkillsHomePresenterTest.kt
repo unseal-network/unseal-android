@@ -10,6 +10,8 @@ package io.element.android.features.skills.impl.home
 import app.cash.turbine.TurbineTestContext
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.skills.impl.shared.SkillFilterToken
+import io.element.android.features.skills.impl.SkillMetadataFilterBridge
+import io.element.android.features.skills.impl.SkillMetadataFilterOrigin
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotListPublicSkillsResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillFacetValue
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillFacetsResponse
@@ -23,6 +25,7 @@ import io.element.android.libraries.matrix.test.FakeMatrixClient
 import io.element.android.tests.testutils.WarmUpRule
 import io.element.android.tests.testutils.awaitWithLatch
 import io.element.android.tests.testutils.test
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -167,6 +170,91 @@ class SkillsHomePresenterTest {
     }
 
     @Test
+    fun `event - selecting marketplace after filtered visit reloads unfiltered first page`() = runTest {
+        val captured = mutableListOf<ChatbotSkillListFilters>()
+        val service = FakeChatbotApiService().apply {
+            listPublicSkillsWithFiltersResult = { _, _, filters ->
+                captured += filters
+                val id = filters.category ?: "all"
+                Result.success(ChatbotListPublicSkillsResponse(skills = listOf(aSkill(id = id, name = id)), total = 1))
+            }
+        }
+        val presenter = createSkillsHomePresenter(service = service)
+
+        presenter.test {
+            awaitItem().eventSink(SkillsHomeEvents.SelectTab(SkillsHomeTab.Marketplace))
+            val marketplaceState = awaitStateWhere { it.marketplaceSkills.singleOrNull()?.id == "all" && !it.isLoadingMarketplace }
+            marketplaceState.eventSink(SkillsHomeEvents.ApplyFilterToken(SkillFilterToken.Category("Testing")))
+            val filteredState = awaitStateWhere { it.marketplaceSkills.singleOrNull()?.id == "Testing" && !it.isLoadingMarketplace }
+
+            filteredState.eventSink(SkillsHomeEvents.SelectTab(SkillsHomeTab.Mine))
+            val mineState = awaitStateWhere { it.selectedTab == SkillsHomeTab.Mine }
+            mineState.eventSink(SkillsHomeEvents.SelectTab(SkillsHomeTab.Marketplace))
+
+            val resetState = awaitStateWhere { it.selectedTab == SkillsHomeTab.Marketplace && it.marketplaceSkills.singleOrNull()?.id == "all" && !it.isLoadingMarketplace }
+            assertThat(resetState.filterState.activeTokenCount).isEqualTo(0)
+            assertThat(captured.map { it.category }).containsExactly(null, "Testing", null).inOrder()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `event - marketplace failure after leaving tab does not set mine error`() = runTest {
+        val marketplaceStarted = CompletableDeferred<Unit>()
+        val marketplaceResult = CompletableDeferred<Result<ChatbotListPublicSkillsResponse>>()
+        val service = FakeChatbotApiService().apply {
+            listPublicSkillsWithFiltersSuspendResult = { _, _, _ ->
+                marketplaceStarted.complete(Unit)
+                marketplaceResult.await()
+            }
+        }
+        val presenter = createSkillsHomePresenter(service = service)
+
+        presenter.test {
+            val initialState = awaitItem()
+            initialState.eventSink(SkillsHomeEvents.SelectTab(SkillsHomeTab.Marketplace))
+            runCurrent()
+            marketplaceStarted.await()
+
+            initialState.eventSink(SkillsHomeEvents.SelectTab(SkillsHomeTab.Mine))
+            val mineState = awaitStateWhere { it.selectedTab == SkillsHomeTab.Mine }
+            assertThat(mineState.error).isNull()
+            marketplaceResult.complete(Result.failure(IllegalStateException("stale marketplace failure")))
+            runCurrent()
+
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `event - metadata filter bridge applies filter to originating home list`() = runTest {
+        val bridge = SkillMetadataFilterBridge()
+        val service = FakeChatbotApiService().apply {
+            listUserSkillsResult = {
+                Result.success(
+                    listOf(
+                        aSkill(id = "browser", name = "Browser", category = "Testing"),
+                        aSkill(id = "docs", name = "Docs", category = "Writing"),
+                    )
+                )
+            }
+        }
+        val presenter = createSkillsHomePresenter(service = service, filterBridge = bridge)
+
+        presenter.test {
+            awaitItem().eventSink(SkillsHomeEvents.OnAppear)
+            val loadedState = awaitStateWhere { it.skills.size == 2 && !it.isLoading }
+
+            bridge.applyFilter(SkillMetadataFilterOrigin.Home, SkillFilterToken.Category("Testing"))
+            val filteredState = awaitStateWhere { it.filterState.category == "Testing" }
+            assertThat(filteredState.filteredSkills.map { it.id }).containsExactly("browser")
+            assertThat(loadedState.filteredSkills.map { it.id }).containsExactly("browser", "docs").inOrder()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `event - marketplace search debounces and sends trimmed query`() = runTest {
         val capturedSearches = mutableListOf<String?>()
         val service = FakeChatbotApiService().apply {
@@ -241,6 +329,28 @@ class SkillsHomePresenterTest {
             assertThat(loadedState.filtersAvailable).isTrue()
             assertThat(loadedState.facets.categories.map { it.value }).containsExactly("Testing", "Writing")
             assertThat(loadedState.facets.sources.map { it.value }).containsExactly("GitHub", "internal/skills")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `state - mine empty filtered result requests clear filters affordance`() = runTest {
+        val service = FakeChatbotApiService().apply {
+            listUserSkillsResult = { Result.success(listOf(aSkill(id = "browser", name = "Browser", category = "Testing"))) }
+        }
+        val presenter = createSkillsHomePresenter(service = service)
+
+        presenter.test {
+            awaitItem().eventSink(SkillsHomeEvents.OnAppear)
+            val loadedState = awaitStateWhere { it.skills.isNotEmpty() && !it.isLoading }
+
+            loadedState.eventSink(SkillsHomeEvents.ApplyFilterToken(SkillFilterToken.Category("Writing")))
+            val emptyState = awaitStateWhere { it.filteredSkills.isEmpty() && it.filterState.category == "Writing" }
+            assertThat(emptyState.showClearFiltersForEmptyMine).isTrue()
+
+            emptyState.eventSink(SkillsHomeEvents.ClearFilters)
+            val clearedState = awaitStateWhere { it.filteredSkills.isNotEmpty() && it.filterState.activeTokenCount == 0 && it.searchQuery.isEmpty() }
+            assertThat(clearedState.showClearFiltersForEmptyMine).isFalse()
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -342,9 +452,11 @@ class SkillsHomePresenterTest {
     private fun createSkillsHomePresenter(
         service: FakeChatbotApiService = FakeChatbotApiService(),
         navigator: SkillsHomeNavigator = FakeSkillsHomeNavigator(),
+        filterBridge: SkillMetadataFilterBridge? = null,
     ): SkillsHomePresenter {
         return SkillsHomePresenter(
             navigator = navigator,
+            filterBridge = filterBridge,
             matrixClient = FakeMatrixClient(),
             chatbotApiServiceFactory = FakeChatbotApiServiceFactory(service),
         )

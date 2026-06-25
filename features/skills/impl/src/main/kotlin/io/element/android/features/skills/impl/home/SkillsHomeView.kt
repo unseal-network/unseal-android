@@ -179,7 +179,17 @@ private fun androidx.compose.foundation.lazy.LazyListScope.mineContent(state: Sk
             items(count = 5) { SkillSkeletonRow() }
         }
         state.filteredSkills.isEmpty() -> {
-            item { EmptyMessage("暂无技能") }
+            item {
+                EmptyMessage(
+                    text = if (state.showClearFiltersForEmptyMine) "没有符合条件的技能" else "暂无技能",
+                    actionText = if (state.showClearFiltersForEmptyMine) "清除筛选" else null,
+                    onAction = if (state.showClearFiltersForEmptyMine) {
+                        { state.eventSink(SkillsHomeEvents.ClearFilters) }
+                    } else {
+                        null
+                    },
+                )
+            }
         }
         else -> {
             items(items = state.filteredSkills, key = { "mine-${it.id}" }) { skill ->
@@ -285,7 +295,11 @@ private fun SkillsTabPicker(
 }
 
 @Composable
-private fun EmptyMessage(text: String) {
+private fun EmptyMessage(
+    text: String,
+    actionText: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
     Text(
         modifier = Modifier
             .fillMaxWidth()
@@ -295,6 +309,18 @@ private fun EmptyMessage(text: String) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
     )
+    if (actionText != null && onAction != null) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp, bottom = 16.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            FilledTonalButton(onClick = onAction) {
+                Text(actionText)
+            }
+        }
+    }
 }
 
 @Composable

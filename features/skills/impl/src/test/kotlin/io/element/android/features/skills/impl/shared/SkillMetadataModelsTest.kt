@@ -64,6 +64,21 @@ class SkillMetadataModelsTest {
     }
 
     @Test
+    fun `legacy primitive source is treated as type after sibling repository and id`() {
+        val skill = ChatbotUserSkill(
+            id = "legacy",
+            name = "legacy",
+            metadata = buildJsonObject {
+                put("source", JsonPrimitive("builtin"))
+                put("source_id", JsonPrimitive("server-id"))
+                put("repository", JsonPrimitive("org/skills"))
+            },
+        )
+
+        assertThat(skill.skillSourceLabel()).isEqualTo("org/skills")
+    }
+
+    @Test
     fun `source serializer accepts string and object values`() {
         val json = Json { ignoreUnknownKeys = true }
 

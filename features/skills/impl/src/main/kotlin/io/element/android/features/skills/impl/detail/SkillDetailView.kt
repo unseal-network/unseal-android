@@ -163,7 +163,15 @@ private fun SkillReadOnlyContent(state: SkillDetailState) {
 
     state.skill?.takeIf { it.hasDiscoveryMetadata() }?.let { skill ->
         SectionHeader("Discovery")
-        SkillMetadataChips(skill = skill, maxTags = 20)
+        SkillMetadataChips(
+            skill = skill,
+            maxTags = 20,
+            onFilterSelected = if (state.canApplyMetadataFilters) {
+                { state.eventSink(SkillDetailEvents.ApplyFilterToken(it)) }
+            } else {
+                null
+            },
+        )
         skill.source?.repository?.takeIf { it.isNotBlank() }?.let { InfoRow("Repository", it) }
         skill.source?.path?.takeIf { it.isNotBlank() }?.let { InfoRow("Path", it) }
         skill.source?.ref?.takeIf { it.isNotBlank() }?.let { InfoRow("Ref", it) }
@@ -306,6 +314,7 @@ private fun aSkillDetailState(
     isSaving = false,
     isDeleting = false,
     isEditing = isEditing,
+    canApplyMetadataFilters = false,
     editName = "Weather lookup",
     editDescription = "Fetches current weather and forecasts for any location.",
     editVisibility = ChatbotSkillVisibility.Public,

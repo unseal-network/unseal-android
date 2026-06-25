@@ -8,6 +8,7 @@
 package io.element.android.features.skills.impl.home
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -16,6 +17,9 @@ import androidx.compose.runtime.setValue
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import io.element.android.features.skills.impl.SkillMetadataFilterBridge
+import io.element.android.features.skills.impl.SkillMetadataFilterOrigin
+import io.element.android.features.skills.impl.shared.SkillFilterToken
 import io.element.android.features.skills.impl.shared.sortedBySkillName
 import io.element.android.features.skills.impl.shared.SkillFilterState
 import io.element.android.features.skills.impl.shared.deriveSkillFacets
@@ -35,12 +39,13 @@ import kotlinx.coroutines.launch
 @AssistedInject
 class SkillsHomePresenter(
     @Assisted private val navigator: SkillsHomeNavigator,
+    @Assisted private val filterBridge: SkillMetadataFilterBridge?,
     private val matrixClient: MatrixClient,
     private val chatbotApiServiceFactory: ChatbotApiServiceFactory,
 ) : Presenter<SkillsHomeState> {
     @AssistedFactory
     interface Factory {
-        fun create(navigator: SkillsHomeNavigator): SkillsHomePresenter
+        fun create(navigator: SkillsHomeNavigator, filterBridge: SkillMetadataFilterBridge?): SkillsHomePresenter
     }
 
     @Composable
@@ -64,6 +69,7 @@ class SkillsHomePresenter(
         var skillsRequestId by remember { mutableStateOf(0) }
         var marketplaceRequestId by remember { mutableStateOf(0) }
         var facetsRequestId by remember { mutableStateOf(0) }
+        var handledFilterRequestId by remember { mutableStateOf(0L) }
 
         suspend fun api() = chatbotApiServiceFactory.createForHomeserver(matrixClient)
 
@@ -77,13 +83,13 @@ class SkillsHomePresenter(
             coroutineScope.launch {
                 api().listSkillFacets(ChatbotSkillVisibility.Public)
                     .onSuccess {
-                        if (requestId == facetsRequestId) {
+                        if (requestId == facetsRequestId && selectedTab == SkillsHomeTab.Marketplace) {
                             facets = it
                             isFilterSheetVisible = isFilterSheetVisible && it.hasAnyFacet()
                         }
                     }
                     .onFailure {
-                        if (requestId == facetsRequestId) {
+                        if (requestId == facetsRequestId && selectedTab == SkillsHomeTab.Marketplace) {
                             facets = ChatbotSkillFacetsResponse()
                             isFilterSheetVisible = false
                         }
@@ -129,7 +135,7 @@ class SkillsHomePresenter(
             coroutineScope.launch {
                 api().listPublicSkills(page = page, pageSize = MARKETPLACE_PAGE_SIZE, filters = filterState.copy(searchQuery = searchQuery).toApiFilters())
                     .onSuccess { response ->
-                        if (requestId == marketplaceRequestId) {
+                        if (requestId == marketplaceRequestId && selectedTab == SkillsHomeTab.Marketplace) {
                             marketplaceTotal = response.total
                             marketplacePage = response.page ?: page
                             marketplaceSkills = if (replacing) {
@@ -141,7 +147,7 @@ class SkillsHomePresenter(
                         }
                     }
                     .onFailure {
-                        if (requestId == marketplaceRequestId) {
+                        if (requestId == marketplaceRequestId && selectedTab == SkillsHomeTab.Marketplace) {
                             error = it.message ?: it::class.simpleName ?: "Failed to load marketplace skills"
                         }
                     }
@@ -170,6 +176,26 @@ class SkillsHomePresenter(
             }
         }
 
+        fun applyFilterToken(token: SkillFilterToken) {
+            filterState = filterState.apply(token)
+            searchQuery = ""
+            isFilterSheetVisible = false
+            marketplaceSearchJob?.cancel()
+            if (selectedTab == SkillsHomeTab.Marketplace) {
+                loadMarketplaceFirstPage()
+            }
+        }
+
+        LaunchedEffect(filterBridge) {
+            filterBridge?.requests?.collect { request ->
+                if (request != null && request.origin == SkillMetadataFilterOrigin.Home && request.id != handledFilterRequestId) {
+                    handledFilterRequestId = request.id
+                    applyFilterToken(request.token)
+                    filterBridge.markHandled(request.id)
+                }
+            }
+        }
+
         fun handleEvent(event: SkillsHomeEvents) {
             when (event) {
                 SkillsHomeEvents.OnAppear -> loadSkills(isInitial = true)
@@ -186,13 +212,21 @@ class SkillsHomePresenter(
                     isOwner = skills.any { it.id == event.id },
                 )
                 is SkillsHomeEvents.SelectTab -> {
+                    val wasMarketplace = selectedTab == SkillsHomeTab.Marketplace
+                    if (wasMarketplace && event.tab != SkillsHomeTab.Marketplace) {
+                        marketplaceRequestId++
+                        facetsRequestId++
+                        marketplaceSearchJob?.cancel()
+                        isLoadingMarketplace = false
+                        isLoadingMarketplaceNextPage = false
+                    }
                     selectedTab = event.tab
                     searchQuery = ""
                     filterState = SkillFilterState()
                     isFilterSheetVisible = false
                     marketplaceSearchJob?.cancel()
                     loadFacets()
-                    if (event.tab == SkillsHomeTab.Marketplace && marketplaceSkills.isEmpty()) {
+                    if (event.tab == SkillsHomeTab.Marketplace) {
                         loadMarketplaceFirstPage()
                     }
                 }
@@ -207,10 +241,7 @@ class SkillsHomePresenter(
                 }
                 SkillsHomeEvents.DismissFilterSheet -> isFilterSheetVisible = false
                 is SkillsHomeEvents.ApplyFilterToken -> {
-                    filterState = filterState.apply(event.token)
-                    if (selectedTab == SkillsHomeTab.Marketplace) {
-                        loadMarketplaceFirstPage()
-                    }
+                    applyFilterToken(event.token)
                 }
                 is SkillsHomeEvents.RemoveFilterToken -> {
                     filterState = filterState.remove(event.token)

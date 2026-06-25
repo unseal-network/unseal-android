@@ -263,6 +263,7 @@ class SkillMarketplacePresenterTest {
     ): SkillMarketplacePresenter {
         return SkillMarketplacePresenter(
             navigator = navigator,
+            filterBridge = null,
             matrixClient = FakeMatrixClient(),
             chatbotApiServiceFactory = FakeChatbotApiServiceFactory(service),
         )
