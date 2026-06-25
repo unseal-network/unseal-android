@@ -45,7 +45,9 @@ import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.skills.impl.shared.SkillMetadataChips
 import io.element.android.features.skills.impl.shared.displayName
+import io.element.android.features.skills.impl.shared.hasDiscoveryMetadata
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotGetUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
@@ -158,6 +160,15 @@ private fun SkillReadOnlyContent(state: SkillDetailState) {
     state.skill?.description?.takeIf { it.isNotBlank() }?.let { InfoRow("描述", it) }
     state.visibilityLabel?.let { InfoRow("可见性", it) }
     state.skill?.createdAt?.let { InfoRow("创建时间", it) }
+
+    state.skill?.takeIf { it.hasDiscoveryMetadata() }?.let { skill ->
+        SectionHeader("Discovery")
+        SkillMetadataChips(skill = skill, maxTags = 20)
+        skill.source?.repository?.takeIf { it.isNotBlank() }?.let { InfoRow("Repository", it) }
+        skill.source?.path?.takeIf { it.isNotBlank() }?.let { InfoRow("Path", it) }
+        skill.source?.ref?.takeIf { it.isNotBlank() }?.let { InfoRow("Ref", it) }
+        skill.source?.trustTier?.takeIf { it.isNotBlank() }?.let { InfoRow("Trust", it) }
+    }
 
     val files = state.fileItems
     if (files.isNotEmpty()) {

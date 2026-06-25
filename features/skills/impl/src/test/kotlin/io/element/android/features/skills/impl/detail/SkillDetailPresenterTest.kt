@@ -19,6 +19,9 @@ import io.element.android.libraries.chatbot.test.FakeChatbotApiServiceFactory
 import io.element.android.libraries.matrix.test.FakeMatrixClient
 import io.element.android.tests.testutils.WarmUpRule
 import io.element.android.tests.testutils.test
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
@@ -77,6 +80,38 @@ class SkillDetailPresenterTest {
             val refreshedState = awaitStateWhere { it.skill?.name == "Stable" && !it.isLoading && it.error == "network down" }
             refreshedState.eventSink(SkillDetailEvents.ClearError)
             assertThat(awaitStateWhere { it.error == null }.skill?.name).isEqualTo("Stable")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun `event - detail load is latest request wins`() = runTest {
+        val first = CompletableDeferred<Result<ChatbotGetUserSkillResponse>>()
+        val second = CompletableDeferred<Result<ChatbotGetUserSkillResponse>>()
+        val requests = ArrayDeque(listOf(first, second))
+        val service = FakeChatbotApiService().apply {
+            getUserSkillSuspendResult = {
+                requests.removeFirst().await()
+            }
+        }
+        val presenter = createSkillDetailPresenter(service = service)
+
+        presenter.test {
+            val initialState = awaitItem()
+            initialState.eventSink(SkillDetailEvents.OnAppear)
+            awaitStateWhere { it.isLoading }
+
+            initialState.eventSink(SkillDetailEvents.Refresh)
+            runCurrent()
+
+            second.complete(Result.success(ChatbotGetUserSkillResponse(skill = aSkill(id = "skill", name = "Fresh"))))
+            val freshState = awaitStateWhere { it.skill?.name == "Fresh" && !it.isLoading }
+            assertThat(freshState.error).isNull()
+
+            first.complete(Result.success(ChatbotGetUserSkillResponse(skill = aSkill(id = "skill", name = "Stale"))))
+            runCurrent()
+            expectNoEvents()
             cancelAndIgnoreRemainingEvents()
         }
     }

@@ -7,8 +7,10 @@
 
 package io.element.android.features.skills.impl.home
 
-import io.element.android.features.skills.impl.shared.matchesSkillQuery
+import io.element.android.features.skills.impl.shared.SkillFilterState
+import io.element.android.features.skills.impl.shared.hasAnyFacet
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillFacetsResponse
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 
@@ -28,9 +30,13 @@ data class SkillsHomeState(
     val isLoadingMarketplace: Boolean,
     val isLoadingMarketplaceNextPage: Boolean,
     val searchQuery: String,
+    val filterState: SkillFilterState,
+    val facets: ChatbotSkillFacetsResponse,
+    val isFilterSheetVisible: Boolean,
     val error: String?,
     val eventSink: (SkillsHomeEvents) -> Unit,
 ) {
-    val filteredSkills: ImmutableList<ChatbotUserSkill> = skills.filter { it.matchesSkillQuery(searchQuery) }.toImmutableList()
+    val filteredSkills: ImmutableList<ChatbotUserSkill> = skills.filter { filterState.copy(searchQuery = searchQuery).matches(it) }.toImmutableList()
+    val filtersAvailable: Boolean = facets.hasAnyFacet()
     val marketplaceHasMore: Boolean = marketplaceTotal?.let { marketplaceSkills.size < it } ?: (marketplaceSkills.size >= marketplacePageSize)
 }

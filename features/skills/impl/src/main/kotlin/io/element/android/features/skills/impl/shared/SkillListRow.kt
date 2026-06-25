@@ -9,11 +9,16 @@ package io.element.android.features.skills.impl.shared
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -23,7 +28,6 @@ import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
-import io.element.android.libraries.designsystem.components.management.ManagementListRow
 
 @Composable
 fun SkillListRow(
@@ -31,31 +35,73 @@ fun SkillListRow(
     showVisibility: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onFilterSelected: ((SkillFilterToken) -> Unit)? = null,
 ) {
-    ManagementListRow(
-        modifier = modifier
-            .padding(vertical = 4.dp),
-        title = skill.name,
-        description = skill.description,
-        meta = skill.createdDateLabel()?.let { "创建时间：$it" },
+    Surface(
         onClick = onClick,
-        leadingContent = {
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             SkillIconTile()
-        },
-        titleTrailingContent = {
-            if (showVisibility) {
-                skill.visibility?.let { SkillVisibilityBadge(it) }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        modifier = Modifier.weight(1f, fill = false),
+                        text = skill.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (showVisibility) {
+                        skill.visibility?.let { SkillVisibilityBadge(it) }
+                    }
+                }
+                skill.description?.takeIf { it.isNotBlank() }?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                SkillMetadataChips(skill = skill, onFilterSelected = onFilterSelected)
+                skill.createdDateLabel()?.let {
+                    Text(
+                        text = "创建时间：$it",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
-        },
-        trailingContent = {
             Icon(
                 imageVector = CompoundIcons.ChevronRight(),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(16.dp),
             )
-        },
-    )
+        }
+    }
 }
 
 @Composable

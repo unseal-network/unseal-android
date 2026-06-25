@@ -13,6 +13,9 @@ import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 import io.element.android.libraries.chatbot.api.model.approvals.ChatbotApprovalStatus
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotCreateScheduleRequest
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillListFilters
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillTagMode
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotUploadVoiceProfileRequest
 import io.element.android.libraries.matrix.test.FakeMatrixClient
 import kotlinx.coroutines.test.runTest
@@ -97,6 +100,74 @@ class DefaultChatbotApiServiceTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"unexpected":true}"""))
 
         assertThat(service.listAgentSkills("helper").getOrThrow()).isEmpty()
+    }
+
+    @Test
+    fun `listUserSkills - sends structured filters`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"skills":[]}"""))
+
+        service.listUserSkills(
+            visibility = ChatbotSkillVisibility.Private,
+            filters = ChatbotSkillListFilters(
+                search = " browser ",
+                category = "Testing",
+                source = "GitHub",
+                tags = listOf("qa", "browser"),
+                tagMode = ChatbotSkillTagMode.All,
+            ),
+        ).getOrThrow()
+
+        assertThat(server.takeRequest().path)
+            .isEqualTo("/chatbot/v1/skills?search=browser&category=Testing&source=GitHub&tags=qa%2Cbrowser&tagMode=all&visibility=private")
+    }
+
+    @Test
+    fun `listPublicSkills - sends canonical pageSize and structured filters`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"skills":[],"total":0}"""))
+
+        service.listPublicSkills(
+            page = 2,
+            pageSize = 30,
+            filters = ChatbotSkillListFilters(
+                search = "qa",
+                category = "Testing",
+                source = "GitHub",
+                tags = listOf("browser"),
+            ),
+        ).getOrThrow()
+
+        assertThat(server.takeRequest().path)
+            .isEqualTo("/chatbot/v1/skills/public?page=2&pageSize=30&search=qa&category=Testing&source=GitHub&tags=browser&tagMode=any")
+    }
+
+    @Test
+    fun `listSkillFacets - sends visibility and decodes facets`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"categories":[{"value":"Testing","count":2}],"tags":[{"value":"browser","count":1}],"sources":[{"value":"GitHub","count":1}]}"""
+            )
+        )
+
+        val facets = service.listSkillFacets(ChatbotSkillVisibility.Public).getOrThrow()
+
+        assertThat(server.takeRequest().path).isEqualTo("/chatbot/v1/skills/facets?visibility=public")
+        assertThat(facets.categories.single().value).isEqualTo("Testing")
+        assertThat(facets.tags.single().count).isEqualTo(1)
+        assertThat(facets.sources.single().value).isEqualTo("GitHub")
+    }
+
+    @Test
+    fun `getUserSkill - decodes camelCase detail file URL fields`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"skill":{"id":"skill","name":"Skill"},"presignedUrls":["https://download.example/SKILL.md"],"preuploadUrls":["https://upload.example/SKILL.md"]}"""
+            )
+        )
+
+        val response = service.getUserSkill("skill").getOrThrow()
+
+        assertThat(response.presignedUrls).containsExactly("https://download.example/SKILL.md")
+        assertThat(response.preuploadUrls).containsExactly("https://upload.example/SKILL.md")
     }
 
     @Test

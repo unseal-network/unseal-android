@@ -52,6 +52,7 @@ class SkillDetailPresenter(
         var editVisibility by remember { mutableStateOf(ChatbotSkillVisibility.Private) }
         var error by remember { mutableStateOf<String?>(null) }
         var hasLoadedOnce by remember { mutableStateOf(false) }
+        var loadRequestId by remember { mutableStateOf(0) }
 
         suspend fun api() = chatbotApiServiceFactory.createForHomeserver(matrixClient)
 
@@ -59,9 +60,12 @@ class SkillDetailPresenter(
 
         fun load(isInitial: Boolean) {
             if (isInitial && hasLoadedOnce) return
+            val requestId = ++loadRequestId
             coroutineScope.launch {
                 isLoading = true
-                api().getUserSkill(id)
+                val result = api().getUserSkill(id)
+                if (requestId != loadRequestId) return@launch
+                result
                     .onSuccess {
                         response = it
                         error = null

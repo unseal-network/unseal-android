@@ -38,6 +38,8 @@ import io.element.android.libraries.chatbot.api.model.skills.ChatbotDeleteUserSk
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotGetUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotListPublicSkillsResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotListRoomAgentSkillsResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillFacetsResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillListFilters
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUpdateUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
@@ -74,8 +76,12 @@ class FakeChatbotApiService : ChatbotApiService {
     var addAgentSkillResult: (String, String, String?) -> Result<Unit> = { _, _, _ -> Result.success(Unit) }
     var listRoomAgentSkillsResult: (String, String, String?) -> Result<ChatbotListRoomAgentSkillsResponse> = { _, _, _ -> Result.success(ChatbotListRoomAgentSkillsResponse()) }
     var listUserSkillsResult: (ChatbotSkillVisibility?) -> Result<List<ChatbotUserSkill>> = { Result.success(emptyList()) }
+    var listUserSkillsWithFiltersResult: (ChatbotSkillVisibility?, ChatbotSkillListFilters) -> Result<List<ChatbotUserSkill>> = { visibility, _ -> listUserSkillsResult(visibility) }
     var listPublicSkillsResult: (Int, Int, String?) -> Result<ChatbotListPublicSkillsResponse> = { _, _, _ -> Result.success(ChatbotListPublicSkillsResponse()) }
+    var listPublicSkillsWithFiltersResult: (Int, Int, ChatbotSkillListFilters) -> Result<ChatbotListPublicSkillsResponse> = { page, pageSize, filters -> listPublicSkillsResult(page, pageSize, filters.search.trim().takeIf { it.isNotEmpty() }) }
+    var listSkillFacetsResult: (ChatbotSkillVisibility?) -> Result<ChatbotSkillFacetsResponse> = { Result.success(ChatbotSkillFacetsResponse()) }
     var getUserSkillResult: (String) -> Result<ChatbotGetUserSkillResponse> = { Result.success(ChatbotGetUserSkillResponse(aChatbotUserSkill(id = it))) }
+    var getUserSkillSuspendResult: (suspend (String) -> Result<ChatbotGetUserSkillResponse>)? = null
     var createUserSkillResult: (ChatbotJsonObject) -> Result<ChatbotCreateUserSkillResponse> = { Result.success(ChatbotCreateUserSkillResponse()) }
     var updateUserSkillResult: (String, ChatbotJsonObject) -> Result<ChatbotUpdateUserSkillResponse> = { _, _ -> Result.success(ChatbotUpdateUserSkillResponse()) }
     var deleteUserSkillResult: (String) -> Result<ChatbotDeleteUserSkillResponse> = { Result.success(ChatbotDeleteUserSkillResponse(success = true)) }
@@ -138,9 +144,11 @@ class FakeChatbotApiService : ChatbotApiService {
     override suspend fun listAgentSkills(botName: String) = simulateLongTask { listAgentSkillsResult(botName) }
     override suspend fun addAgentSkill(botName: String, skillId: String, name: String?) = simulateLongTask { addAgentSkillResult(botName, skillId, name) }
     override suspend fun listRoomAgentSkills(roomId: String, agentId: String, runtimeOwnerUserId: String?) = simulateLongTask { listRoomAgentSkillsResult(roomId, agentId, runtimeOwnerUserId) }
-    override suspend fun listUserSkills(visibility: ChatbotSkillVisibility?) = simulateLongTask { listUserSkillsResult(visibility) }
+    override suspend fun listUserSkills(visibility: ChatbotSkillVisibility?, filters: ChatbotSkillListFilters) = simulateLongTask { listUserSkillsWithFiltersResult(visibility, filters) }
     override suspend fun listPublicSkills(page: Int, pageSize: Int, search: String?) = simulateLongTask { listPublicSkillsResult(page, pageSize, search) }
-    override suspend fun getUserSkill(id: String) = simulateLongTask { getUserSkillResult(id) }
+    override suspend fun listPublicSkills(page: Int, pageSize: Int, filters: ChatbotSkillListFilters) = simulateLongTask { listPublicSkillsWithFiltersResult(page, pageSize, filters) }
+    override suspend fun listSkillFacets(visibility: ChatbotSkillVisibility?) = simulateLongTask { listSkillFacetsResult(visibility) }
+    override suspend fun getUserSkill(id: String) = getUserSkillSuspendResult?.invoke(id) ?: simulateLongTask { getUserSkillResult(id) }
     override suspend fun createUserSkill(body: ChatbotJsonObject) = simulateLongTask { createUserSkillResult(body) }
     override suspend fun updateUserSkill(id: String, body: ChatbotJsonObject) = simulateLongTask { updateUserSkillResult(id, body) }
     override suspend fun deleteUserSkill(id: String) = simulateLongTask { deleteUserSkillResult(id) }

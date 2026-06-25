@@ -51,8 +51,12 @@ import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.skills.impl.shared.SkillFilterSheet
+import io.element.android.features.skills.impl.shared.SkillFilterState
+import io.element.android.features.skills.impl.shared.SkillFilterTokensRow
 import io.element.android.features.skills.impl.shared.SkillIconTile
 import io.element.android.features.skills.impl.shared.SkillListRow
+import io.element.android.features.skills.impl.shared.deriveSkillFacets
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import io.element.android.libraries.designsystem.components.management.ManagementListRow
@@ -104,19 +108,30 @@ fun SkillsHomeView(
                     )
                 }
                 item {
-                    OutlinedTextField(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        value = state.searchQuery,
-                        onValueChange = { state.eventSink(SkillsHomeEvents.SearchQueryChanged(it)) },
-                        placeholder = {
-                            Text(if (state.selectedTab == SkillsHomeTab.Mine) "搜索技能" else "搜索公开技能")
-                        },
-                        leadingIcon = { Icon(imageVector = CompoundIcons.Search(), contentDescription = null) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(28.dp),
-                    )
+                    SearchAndFilterControls(state)
+                }
+
+                if (state.isFilterSheetVisible) {
+                    item {
+                        SkillFilterSheet(
+                            facets = state.facets,
+                            filterState = state.filterState,
+                            onApplyToken = { state.eventSink(SkillsHomeEvents.ApplyFilterToken(it)) },
+                            onTagModeChanged = { state.eventSink(SkillsHomeEvents.TagModeChanged(it)) },
+                            onDismiss = { state.eventSink(SkillsHomeEvents.DismissFilterSheet) },
+                        )
+                    }
+                }
+
+                if (state.filterState.activeTokenCount > 0) {
+                    item {
+                        SkillFilterTokensRow(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                            filterState = state.filterState,
+                            onRemove = { state.eventSink(SkillsHomeEvents.RemoveFilterToken(it)) },
+                            onClear = { state.eventSink(SkillsHomeEvents.ClearFilters) },
+                        )
+                    }
                 }
 
                 if (state.selectedTab == SkillsHomeTab.Mine) {
@@ -126,6 +141,34 @@ fun SkillsHomeView(
                     marketplaceContent(state)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SearchAndFilterControls(state: SkillsHomeState) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        OutlinedTextField(
+            modifier = Modifier.fillMaxWidth(),
+            value = state.searchQuery,
+            onValueChange = { state.eventSink(SkillsHomeEvents.SearchQueryChanged(it)) },
+            placeholder = {
+                Text(if (state.selectedTab == SkillsHomeTab.Mine) "搜索技能" else "搜索公开技能")
+            },
+            leadingIcon = { Icon(imageVector = CompoundIcons.Search(), contentDescription = null) },
+            singleLine = true,
+            shape = RoundedCornerShape(28.dp),
+        )
+        FilledTonalButton(
+            enabled = state.filtersAvailable,
+            onClick = { state.eventSink(SkillsHomeEvents.AddFilter) },
+        ) {
+            Text(if (state.filterState.activeTokenCount > 0) "筛选 · ${state.filterState.activeTokenCount}" else "筛选")
         }
     }
 }
@@ -145,6 +188,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.mineContent(state: Sk
                     skill = skill,
                     showVisibility = true,
                     onClick = { state.eventSink(SkillsHomeEvents.SelectSkill(skill.id)) },
+                    onFilterSelected = { state.eventSink(SkillsHomeEvents.ApplyFilterToken(it)) },
                 )
             }
         }
@@ -176,6 +220,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.marketplaceContent(st
                     skill = skill,
                     showVisibility = false,
                     onClick = { state.eventSink(SkillsHomeEvents.SelectMarketplaceSkill(skill.id)) },
+                    onFilterSelected = { state.eventSink(SkillsHomeEvents.ApplyFilterToken(it)) },
                 )
             }
             if (state.marketplaceHasMore) {
@@ -315,6 +360,9 @@ private fun aSkillsHomeState(
     isLoadingMarketplace = false,
     isLoadingMarketplaceNextPage = false,
     searchQuery = "",
+    filterState = SkillFilterState(),
+    facets = deriveSkillFacets(skills),
+    isFilterSheetVisible = false,
     error = null,
     eventSink = {},
 )

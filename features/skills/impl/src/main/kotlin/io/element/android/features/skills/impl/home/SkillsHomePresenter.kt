@@ -17,8 +17,14 @@ import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.features.skills.impl.shared.sortedBySkillName
+import io.element.android.features.skills.impl.shared.SkillFilterState
+import io.element.android.features.skills.impl.shared.deriveSkillFacets
+import io.element.android.features.skills.impl.shared.hasAnyFacet
+import io.element.android.features.skills.impl.shared.toApiFilters
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillFacetsResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import io.element.android.libraries.matrix.api.MatrixClient
 import kotlinx.collections.immutable.toImmutableList
@@ -49,51 +55,102 @@ class SkillsHomePresenter(
         var isLoadingMarketplace by remember { mutableStateOf(false) }
         var isLoadingMarketplaceNextPage by remember { mutableStateOf(false) }
         var searchQuery by remember { mutableStateOf("") }
+        var filterState by remember { mutableStateOf(SkillFilterState()) }
+        var facets by remember { mutableStateOf(ChatbotSkillFacetsResponse()) }
+        var isFilterSheetVisible by remember { mutableStateOf(false) }
         var error by remember { mutableStateOf<String?>(null) }
         var hasLoadedOnce by remember { mutableStateOf(false) }
         var marketplaceSearchJob by remember { mutableStateOf<Job?>(null) }
+        var skillsRequestId by remember { mutableStateOf(0) }
+        var marketplaceRequestId by remember { mutableStateOf(0) }
+        var facetsRequestId by remember { mutableStateOf(0) }
 
         suspend fun api() = chatbotApiServiceFactory.createForHomeserver(matrixClient)
 
+        fun loadFacets() {
+            val requestId = ++facetsRequestId
+            if (selectedTab == SkillsHomeTab.Mine) {
+                facets = deriveSkillFacets(skills)
+                isFilterSheetVisible = isFilterSheetVisible && facets.hasAnyFacet()
+                return
+            }
+            coroutineScope.launch {
+                api().listSkillFacets(ChatbotSkillVisibility.Public)
+                    .onSuccess {
+                        if (requestId == facetsRequestId) {
+                            facets = it
+                            isFilterSheetVisible = isFilterSheetVisible && it.hasAnyFacet()
+                        }
+                    }
+                    .onFailure {
+                        if (requestId == facetsRequestId) {
+                            facets = ChatbotSkillFacetsResponse()
+                            isFilterSheetVisible = false
+                        }
+                    }
+            }
+        }
+
         fun loadSkills(isInitial: Boolean) {
             if (isInitial && hasLoadedOnce) return
+            val requestId = ++skillsRequestId
             coroutineScope.launch {
                 isLoading = true
                 api().listUserSkills(visibility = null)
                     .onSuccess {
-                        skills = it.sortedBySkillName()
-                        error = null
+                        if (requestId == skillsRequestId) {
+                            skills = it.sortedBySkillName()
+                            if (selectedTab == SkillsHomeTab.Mine) {
+                                facets = deriveSkillFacets(skills)
+                                isFilterSheetVisible = isFilterSheetVisible && facets.hasAnyFacet()
+                            }
+                            error = null
+                        }
                     }
-                    .onFailure { error = it.message ?: it::class.simpleName ?: "Failed to load skills" }
-                isLoading = false
-                hasLoadedOnce = true
+                    .onFailure {
+                        if (requestId == skillsRequestId) {
+                            error = it.message ?: it::class.simpleName ?: "Failed to load skills"
+                        }
+                    }
+                if (requestId == skillsRequestId) {
+                    isLoading = false
+                    hasLoadedOnce = true
+                }
             }
         }
 
         fun loadMarketplacePage(page: Int, replacing: Boolean) {
+            val requestId = ++marketplaceRequestId
             if (replacing) {
                 isLoadingMarketplace = true
             } else {
                 isLoadingMarketplaceNextPage = true
             }
             coroutineScope.launch {
-                val query = searchQuery.trim().takeIf { it.isNotEmpty() }
-                api().listPublicSkills(page = page, pageSize = MARKETPLACE_PAGE_SIZE, search = query)
+                api().listPublicSkills(page = page, pageSize = MARKETPLACE_PAGE_SIZE, filters = filterState.copy(searchQuery = searchQuery).toApiFilters())
                     .onSuccess { response ->
-                        marketplaceTotal = response.total
-                        marketplacePage = response.page ?: page
-                        marketplaceSkills = if (replacing) {
-                            response.skills
-                        } else {
-                            marketplaceSkills + response.skills
+                        if (requestId == marketplaceRequestId) {
+                            marketplaceTotal = response.total
+                            marketplacePage = response.page ?: page
+                            marketplaceSkills = if (replacing) {
+                                response.skills
+                            } else {
+                                marketplaceSkills + response.skills
+                            }
+                            error = null
                         }
-                        error = null
                     }
-                    .onFailure { error = it.message ?: it::class.simpleName ?: "Failed to load marketplace skills" }
-                if (replacing) {
-                    isLoadingMarketplace = false
-                } else {
-                    isLoadingMarketplaceNextPage = false
+                    .onFailure {
+                        if (requestId == marketplaceRequestId) {
+                            error = it.message ?: it::class.simpleName ?: "Failed to load marketplace skills"
+                        }
+                    }
+                if (requestId == marketplaceRequestId) {
+                    if (replacing) {
+                        isLoadingMarketplace = false
+                    } else {
+                        isLoadingMarketplaceNextPage = false
+                    }
                 }
             }
         }
@@ -131,7 +188,10 @@ class SkillsHomePresenter(
                 is SkillsHomeEvents.SelectTab -> {
                     selectedTab = event.tab
                     searchQuery = ""
+                    filterState = SkillFilterState()
+                    isFilterSheetVisible = false
                     marketplaceSearchJob?.cancel()
+                    loadFacets()
                     if (event.tab == SkillsHomeTab.Marketplace && marketplaceSkills.isEmpty()) {
                         loadMarketplaceFirstPage()
                     }
@@ -140,6 +200,36 @@ class SkillsHomePresenter(
                     searchQuery = event.query
                     if (selectedTab == SkillsHomeTab.Marketplace) {
                         scheduleMarketplaceSearch()
+                    }
+                }
+                SkillsHomeEvents.AddFilter -> if (facets.hasAnyFacet()) {
+                    isFilterSheetVisible = true
+                }
+                SkillsHomeEvents.DismissFilterSheet -> isFilterSheetVisible = false
+                is SkillsHomeEvents.ApplyFilterToken -> {
+                    filterState = filterState.apply(event.token)
+                    if (selectedTab == SkillsHomeTab.Marketplace) {
+                        loadMarketplaceFirstPage()
+                    }
+                }
+                is SkillsHomeEvents.RemoveFilterToken -> {
+                    filterState = filterState.remove(event.token)
+                    if (selectedTab == SkillsHomeTab.Marketplace) {
+                        loadMarketplaceFirstPage()
+                    }
+                }
+                SkillsHomeEvents.ClearFilters -> {
+                    filterState = SkillFilterState()
+                    searchQuery = ""
+                    marketplaceSearchJob?.cancel()
+                    if (selectedTab == SkillsHomeTab.Marketplace) {
+                        loadMarketplaceFirstPage()
+                    }
+                }
+                is SkillsHomeEvents.TagModeChanged -> {
+                    filterState = filterState.copy(tagMode = event.tagMode)
+                    if (selectedTab == SkillsHomeTab.Marketplace && filterState.tags.isNotEmpty()) {
+                        loadMarketplaceFirstPage()
                     }
                 }
                 SkillsHomeEvents.LoadNextMarketplacePage -> {
@@ -162,6 +252,9 @@ class SkillsHomePresenter(
             isLoadingMarketplace = isLoadingMarketplace,
             isLoadingMarketplaceNextPage = isLoadingMarketplaceNextPage,
             searchQuery = searchQuery,
+            filterState = filterState,
+            facets = facets,
+            isFilterSheetVisible = isFilterSheetVisible,
             error = error,
             eventSink = ::handleEvent,
         )
