@@ -199,6 +199,50 @@ class SkillsHomePresenterTest {
     }
 
     @Test
+    fun `event - selecting marketplace after filtered visit clears stale rows while reloading`() = runTest {
+        val captured = mutableListOf<ChatbotSkillListFilters>()
+        val thirdRequestStarted = CompletableDeferred<Unit>()
+        val thirdRequestResult = CompletableDeferred<Result<ChatbotListPublicSkillsResponse>>()
+        val service = FakeChatbotApiService().apply {
+            listPublicSkillsWithFiltersSuspendResult = { _, _, filters ->
+                captured += filters
+                when (captured.size) {
+                    1 -> Result.success(ChatbotListPublicSkillsResponse(skills = listOf(aSkill(id = "all", name = "All")), total = 7))
+                    2 -> Result.success(ChatbotListPublicSkillsResponse(skills = listOf(aSkill(id = "Testing", name = "Testing")), total = 1))
+                    else -> {
+                        thirdRequestStarted.complete(Unit)
+                        thirdRequestResult.await()
+                    }
+                }
+            }
+        }
+        val presenter = createSkillsHomePresenter(service = service)
+
+        presenter.test {
+            awaitItem().eventSink(SkillsHomeEvents.SelectTab(SkillsHomeTab.Marketplace))
+            val marketplaceState = awaitStateWhere { it.marketplaceSkills.singleOrNull()?.id == "all" && !it.isLoadingMarketplace }
+            marketplaceState.eventSink(SkillsHomeEvents.ApplyFilterToken(SkillFilterToken.Category("Testing")))
+            val filteredState = awaitStateWhere { it.marketplaceSkills.singleOrNull()?.id == "Testing" && !it.isLoadingMarketplace }
+
+            filteredState.eventSink(SkillsHomeEvents.SelectTab(SkillsHomeTab.Mine))
+            val mineState = awaitStateWhere { it.selectedTab == SkillsHomeTab.Mine }
+            mineState.eventSink(SkillsHomeEvents.SelectTab(SkillsHomeTab.Marketplace))
+            runCurrent()
+            thirdRequestStarted.await()
+
+            val reloadingState = awaitStateWhere { it.selectedTab == SkillsHomeTab.Marketplace && it.isLoadingMarketplace }
+            assertThat(reloadingState.filterState.activeTokenCount).isEqualTo(0)
+            assertThat(reloadingState.marketplaceSkills).isEmpty()
+            assertThat(reloadingState.marketplaceTotal).isNull()
+
+            thirdRequestResult.complete(Result.success(ChatbotListPublicSkillsResponse(skills = listOf(aSkill(id = "all-again", name = "All again")), total = 1)))
+            val resetState = awaitStateWhere { it.marketplaceSkills.singleOrNull()?.id == "all-again" && !it.isLoadingMarketplace }
+            assertThat(resetState.marketplaceTotal).isEqualTo(1)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `event - marketplace failure after leaving tab does not set mine error`() = runTest {
         val marketplaceStarted = CompletableDeferred<Unit>()
         val marketplaceResult = CompletableDeferred<Result<ChatbotListPublicSkillsResponse>>()

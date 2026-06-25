@@ -227,6 +227,9 @@ class SkillsHomePresenter(
                     marketplaceSearchJob?.cancel()
                     loadFacets()
                     if (event.tab == SkillsHomeTab.Marketplace) {
+                        marketplaceSkills = emptyList()
+                        marketplaceTotal = null
+                        error = null
                         loadMarketplaceFirstPage()
                     }
                 }
