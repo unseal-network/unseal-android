@@ -18,14 +18,18 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.ErrorOutline
@@ -41,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.json.JSONObject
@@ -82,6 +87,7 @@ internal data class PptPlanningData(
  * Shows the PPT planning specification (topic, meta chips, message, requirements) and a
  * live progress section driven by [workflowProgress] from [WorkflowProgressManager].
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun PptPlanningCard(
     data: PptPlanningData,
@@ -91,6 +97,7 @@ internal fun PptPlanningCard(
     val isDark = isSystemInDarkTheme()
     val cardShape = RoundedCornerShape(16.dp)
     val accentColor = if (isDark) Color(0xFF4A90D9) else Color(0xFF1A5FAD)
+    val screenHeightDp = LocalConfiguration.current.screenHeightDp.dp
 
     Surface(
         shape = cardShape,
@@ -99,13 +106,19 @@ internal fun PptPlanningCard(
         shadowElevation = if (isDark) 10.dp else 6.dp,
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(max = screenHeightDp * 0.65f)
             .border(
                 width = 0.7.dp,
                 color = accentColor.copy(alpha = if (isDark) 0.22f else 0.18f),
                 shape = cardShape,
             ),
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             // ── Topic ──────────────────────────────────────────────────────────────
             if (data.topic.isNotBlank()) {
                 Text(
@@ -116,9 +129,10 @@ internal fun PptPlanningCard(
                 )
             }
 
-            // ── Meta chips ────────────────────────────────────────────────────────
-            Row(
+            // ── Meta chips (wrap automatically) ───────────────────────────────────
+            FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 if (data.numberOfSlides > 0) MetaChip("${data.numberOfSlides}页", accentColor)
