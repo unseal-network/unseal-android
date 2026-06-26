@@ -78,6 +78,7 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemImageContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLegacyCallInviteContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemPingContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemPollContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRedactedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRtcNotificationContent
@@ -351,6 +352,7 @@ private fun MessageSummary(
         is TimelineItemTextBasedContent,
         is TimelineItemAiContent,
         is TimelineItemGameContent,
+        is TimelineItemPingContent,
         is TimelineItemStateContent,
         is TimelineItemEncryptedContent,
         is TimelineItemRedactedContent,

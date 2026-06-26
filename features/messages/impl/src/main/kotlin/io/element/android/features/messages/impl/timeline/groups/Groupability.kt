@@ -16,6 +16,7 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemImageContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLegacyCallInviteContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemPingContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemPollContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemProfileChangeContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRedactedContent
@@ -61,6 +62,7 @@ internal fun TimelineItem.Event.canBeGrouped(): Boolean {
         is TimelineItemAudioContent,
         is TimelineItemLocationContent,
         is TimelineItemPollContent,
+        is TimelineItemPingContent,
         is TimelineItemVoiceContent,
         TimelineItemRedactedContent,
         TimelineItemUnknownContent,

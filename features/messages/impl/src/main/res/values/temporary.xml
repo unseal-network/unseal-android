@@ -31,4 +31,7 @@
     <string name="screen_room_game_card_start">Start game →</string>
     <string name="screen_room_game_card_opened">Game opened →</string>
     <string name="screen_room_game_card_missing">Game info missing</string>
+    <!-- Ping message timeline row (msgtype = m.ping) -->
+    <string name="screen_room_ping_sent">You sent a ping</string>
+    <string name="screen_room_ping_received">%1$s pinged you</string>
 </resources>

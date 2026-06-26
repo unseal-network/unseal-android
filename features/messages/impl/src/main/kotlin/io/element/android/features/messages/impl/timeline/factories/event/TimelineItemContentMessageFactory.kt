@@ -22,6 +22,7 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemImageContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemNoticeContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemPingContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemStickerContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVideoContent
@@ -58,6 +59,7 @@ private const val MIN_IMAGE_SIZE = 1L
 private const val MAX_IMAGE_SIZE = 10_000L
 private const val MIN_ASPECT_RATIO = 0.001f
 private const val MAX_ASPECT_RATIO = 10f
+private const val MSGTYPE_PING = "m.ping"
 
 @Inject
 class TimelineItemContentMessageFactory(
@@ -72,6 +74,7 @@ class TimelineItemContentMessageFactory(
         senderId: UserId,
         senderProfile: ProfileDetails,
         eventId: EventId?,
+        isOutgoing: Boolean,
     ): TimelineItemEventContent {
         return when (val messageType = content.type) {
             is EmoteMessageType -> {
@@ -266,6 +269,13 @@ class TimelineItemContentMessageFactory(
                 )
             }
             is OtherMessageType -> {
+                if (messageType.msgType == MSGTYPE_PING) {
+                    return TimelineItemPingContent(
+                        body = messageType.body.trimEnd().ifBlank { "Ping" },
+                        senderDisplayName = senderProfile.getDisambiguatedDisplayName(senderId),
+                        isOutgoing = isOutgoing,
+                    )
+                }
                 val body = messageType.body.trimEnd()
                 val formattedBody = textPillificationHelper.pillify(body).safeLinkify()
                 TimelineItemTextContent(

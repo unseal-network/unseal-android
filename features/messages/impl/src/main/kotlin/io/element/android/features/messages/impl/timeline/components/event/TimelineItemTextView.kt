@@ -51,6 +51,7 @@ fun TimelineItemTextView(
     onLinkLongClick: (Link) -> Unit,
     onLongClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    renderLinkPreviews: Boolean = true,
     onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit = {},
 ) {
     val htmlTables = remember(content.htmlDocument) {
@@ -136,7 +137,9 @@ fun TimelineItemTextView(
                 }
             }
         }
-        TimelineLinkPreviews(content.linkPreviewUrls, onLinkClick)
+        if (renderLinkPreviews) {
+            TimelineLinkPreviews(content.linkPreviewUrls, onLinkClick)
+        }
     }
 }
 

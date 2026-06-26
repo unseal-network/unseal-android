@@ -23,6 +23,7 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemImageContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLegacyCallInviteContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemPingContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemPollContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRedactedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRtcNotificationContent
@@ -73,6 +74,7 @@ fun TimelineItemEventContentView(
             onLinkClick = onLinkClick,
             onLinkLongClick = onLinkLongClick,
             onLongClick = onLongClick,
+            renderLinkPreviews = !hideMediaContent,
             onContentLayoutChange = onContentLayoutChange
         )
         is TimelineItemAiContent -> {
@@ -93,6 +95,11 @@ fun TimelineItemEventContentView(
             eventSink = eventSink,
             modifier = modifier,
             timestampSlot = gameCardTimestampSlot,
+        )
+        is TimelineItemPingContent -> TimelineItemPingView(
+            content = content,
+            onContentLayoutChange = onContentLayoutChange,
+            modifier = modifier
         )
         is TimelineItemUnknownContent -> TimelineItemUnknownView(
             content = content,
