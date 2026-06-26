@@ -1269,7 +1269,11 @@ private fun DataPart(
             val pptData = remember(part.id, part.payload) { PptPlanningData.fromJson(part.payload) }
             if (pptData != null) {
                 val progress = workflowMessages[pptData.taskId] ?: WorkflowMessage.Empty
-                PptPlanningCard(data = pptData, workflowProgress = progress)
+                PptPlanningCard(
+                    data = pptData,
+                    workflowProgress = progress,
+                    onLinkClick = onLinkClick,
+                )
             }
         }
         else -> Unit
