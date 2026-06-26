@@ -22,7 +22,7 @@ private val PACKAGE_TREES = arrayOf(
     "io.element.android.services",
     "io.element.android.appicon",
     "io.element.android.appnav",
-    "io.element.android.x",
+    "network.unseal.android",
 )
 
 object ComposablePreviewProvider : TestParameterValuesProvider() {

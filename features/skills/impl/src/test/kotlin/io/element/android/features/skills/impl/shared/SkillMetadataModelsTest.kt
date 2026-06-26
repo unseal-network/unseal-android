@@ -8,112 +8,78 @@
 package io.element.android.features.skills.impl.shared
 
 import com.google.common.truth.Truth.assertThat
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotListPublicSkillsResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillFacetsResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillListFilters
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillNamedFacet
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillSource
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillTagMode
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
 import org.junit.Test
 
 class SkillMetadataModelsTest {
-    @Test
-    fun `metadata helpers expose top-level fields`() {
-        val skill = ChatbotUserSkill(
-            id = "browser",
-            name = "browser-qa",
-            description = "Runs rendered web checks",
-            category = "Testing",
-            tags = listOf("browser", "qa"),
-            source = ChatbotSkillSource(label = "GitHub", repository = "vercel-labs/skills"),
-        )
-
-        assertThat(skill.skillCategory()).isEqualTo("Testing")
-        assertThat(skill.skillTags()).containsExactly("browser", "qa").inOrder()
-        assertThat(skill.skillSourceLabel()).isEqualTo("GitHub")
-    }
+    private val category = ChatbotSkillNamedFacet(id = 11, name = "Testing", slug = "testing")
+    private val browserTag = ChatbotSkillNamedFacet(id = 21, name = "browser", slug = "browser")
+    private val qaTag = ChatbotSkillNamedFacet(id = 22, name = "qa", slug = "qa")
+    private val githubSource = ChatbotSkillSource(id = 31, name = "GitHub", slug = "github", sourceType = "github_repo")
 
     @Test
-    fun `metadata helpers fall back to legacy metadata fields`() {
-        val skill = ChatbotUserSkill(
-            id = "legacy",
-            name = "legacy",
-            metadata = buildJsonObject {
-                put("category", JsonPrimitive("Testing"))
-                put("tags", buildJsonArray {
-                    add(JsonPrimitive("browser"))
-                    add(JsonPrimitive("qa"))
-                })
-                put("source", JsonPrimitive("GitHub"))
-            },
-        )
-
-        assertThat(skill.skillCategory()).isEqualTo("Testing")
-        assertThat(skill.skillTags()).containsExactly("browser", "qa").inOrder()
-        assertThat(skill.skillSourceLabel()).isEqualTo("GitHub")
-    }
-
-    @Test
-    fun `source label precedence is label repository id type`() {
-        assertThat(ChatbotSkillSource(label = "Label", repository = "repo", id = "id", type = "type").displayLabel()).isEqualTo("Label")
-        assertThat(ChatbotSkillSource(repository = "repo", id = "id", type = "type").displayLabel()).isEqualTo("repo")
-        assertThat(ChatbotSkillSource(id = "id", type = "type").displayLabel()).isEqualTo("id")
-        assertThat(ChatbotSkillSource(type = "type").displayLabel()).isEqualTo("type")
-    }
-
-    @Test
-    fun `legacy primitive source is treated as type after sibling repository and id`() {
-        val skill = ChatbotUserSkill(
-            id = "legacy",
-            name = "legacy",
-            metadata = buildJsonObject {
-                put("source", JsonPrimitive("builtin"))
-                put("source_id", JsonPrimitive("server-id"))
-                put("repository", JsonPrimitive("org/skills"))
-            },
-        )
-
-        assertThat(skill.skillSourceLabel()).isEqualTo("org/skills")
-    }
-
-    @Test
-    fun `source serializer accepts string and object values`() {
+    fun `public skill response decodes server taxonomy objects`() {
         val json = Json { ignoreUnknownKeys = true }
 
-        val stringSkill = json.decodeFromString<ChatbotUserSkill>("""{"id":"s","name":"Skill","source":"GitHub"}""")
-        val objectSkill = json.decodeFromString<ChatbotUserSkill>(
-            """{"id":"o","name":"Skill","source":{"type":"git","id":"github","repository":"vercel-labs/skills","trust_tier":"trusted"}}"""
+        val response = json.decodeFromString<ChatbotListPublicSkillsResponse>(
+            """
+            {
+              "skills": [
+                {
+                  "id": "browser",
+                  "name": "Browser QA",
+                  "category": {"id": 11, "name": "Testing", "slug": "testing"},
+                  "tags": [
+                    {"id": 21, "name": "browser", "slug": "browser"},
+                    {"id": 22, "name": "qa", "slug": "qa"}
+                  ],
+                  "source": {"id": 31, "name": "GitHub", "slug": "github", "sourceType": "github_repo"}
+                }
+              ],
+              "total": 1,
+              "page": 1,
+              "pageSize": 20
+            }
+            """.trimIndent()
         )
 
-        assertThat(stringSkill.skillSourceLabel()).isEqualTo("GitHub")
-        assertThat(objectSkill.skillSourceLabel()).isEqualTo("vercel-labs/skills")
-        assertThat(objectSkill.source?.trustTier).isEqualTo("trusted")
+        val skill = response.skills.single()
+        assertThat(skill.category).isEqualTo(category)
+        assertThat(skill.tags).containsExactly(browserTag, qaTag).inOrder()
+        assertThat(skill.source).isEqualTo(githubSource)
+        assertThat(skill.skillCategory()).isEqualTo("Testing")
+        assertThat(skill.skillTags()).containsExactly("browser", "qa").inOrder()
+        assertThat(skill.skillSourceLabel()).isEqualTo("GitHub")
     }
 
     @Test
-    fun `filter state matches search text and structured filters`() {
+    fun `filter state matches name and slug values from taxonomy objects`() {
         val skill = ChatbotUserSkill(
             id = "browser",
             name = "browser-qa",
             description = "Runs rendered web checks",
-            category = "Testing",
-            tags = listOf("browser", "qa"),
-            source = ChatbotSkillSource(label = "GitHub"),
+            category = category,
+            tags = listOf(browserTag, qaTag),
+            source = githubSource,
         )
 
         val state = SkillFilterState(
-            searchQuery = "rendered",
+            searchQuery = "github",
             category = "Testing",
-            source = "GitHub",
+            source = "github",
             tags = listOf("browser"),
         )
 
         assertThat(state.matches(skill)).isTrue()
         assertThat(state.copy(category = "Documents").matches(skill)).isFalse()
         assertThat(state.copy(tags = listOf("browser", "mobile"), tagMode = SkillTagMode.All).matches(skill)).isFalse()
-        assertThat(state.copy(searchQuery = "github").matches(skill)).isTrue()
     }
 
     @Test
@@ -121,56 +87,60 @@ class SkillMetadataModelsTest {
         val filters = SkillFilterState(
             searchQuery = " browser ",
             category = "Testing",
-            source = "GitHub",
+            source = "github",
             tags = listOf("qa", "browser"),
             tagMode = SkillTagMode.All,
         ).toApiFilters()
 
-        assertThat(filters.search).isEqualTo(" browser ")
-        assertThat(filters.category).isEqualTo("Testing")
-        assertThat(filters.source).isEqualTo("GitHub")
-        assertThat(filters.tags).containsExactly("qa", "browser").inOrder()
-        assertThat(filters.tagMode).isEqualTo(ChatbotSkillTagMode.All)
+        assertThat(filters).isEqualTo(
+            ChatbotSkillListFilters(
+                search = " browser ",
+                categorySlug = "Testing",
+                sourceSlug = "github",
+                tagSlugs = listOf("qa", "browser"),
+                tagMode = ChatbotSkillTagMode.All,
+            )
+        )
     }
 
     @Test
-    fun `local facets are derived from loaded skills`() {
+    fun `local facets are derived from loaded taxonomy objects`() {
         val facets = deriveSkillFacets(
             listOf(
                 ChatbotUserSkill(
                     id = "one",
                     name = "One",
-                    category = "Testing",
-                    tags = listOf("browser", "qa"),
-                    source = ChatbotSkillSource(label = "GitHub"),
+                    category = category,
+                    tags = listOf(browserTag, qaTag),
+                    source = githubSource,
                 ),
                 ChatbotUserSkill(
                     id = "two",
                     name = "Two",
-                    category = "Testing",
-                    tags = listOf("browser"),
-                    source = ChatbotSkillSource(repository = "vercel-labs/skills"),
+                    category = category,
+                    tags = listOf(browserTag),
+                    source = ChatbotSkillSource(id = 32, name = "Internal", slug = "internal", sourceType = "marketplace"),
                 ),
             )
         )
 
         assertThat(facets.categories.map { it.value to it.count }).containsExactly("Testing" to 2)
         assertThat(facets.tags.map { it.value to it.count }).containsExactly("browser" to 2, "qa" to 1).inOrder()
-        assertThat(facets.sources.map { it.value to it.count }).containsExactly("GitHub" to 1, "vercel-labs/skills" to 1).inOrder()
+        assertThat(facets.sources.map { it.value to it.count }).containsExactly("GitHub" to 1, "Internal" to 1).inOrder()
         assertThat(ChatbotSkillFacetsResponse().hasAnyFacet()).isFalse()
         assertThat(facets.hasAnyFacet()).isTrue()
     }
 
     @Test
-    fun `discovery metadata is present only when metadata exists`() {
+    fun `discovery metadata is present only when taxonomy exists`() {
         assertThat(ChatbotUserSkill(id = "empty", name = "empty").hasDiscoveryMetadata()).isFalse()
         assertThat(
             ChatbotUserSkill(
                 id = "rich",
                 name = "rich",
-                category = "Testing",
-                tags = listOf("browser"),
-                source = ChatbotSkillSource(label = "GitHub"),
+                category = category,
+                tags = listOf(browserTag),
+                source = githubSource,
             ).hasDiscoveryMetadata()
         ).isTrue()
     }

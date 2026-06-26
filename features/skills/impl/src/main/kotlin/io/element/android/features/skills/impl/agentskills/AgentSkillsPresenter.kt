@@ -62,7 +62,8 @@ class AgentSkillsPresenter(
         var hasLoadedOnce by remember { mutableStateOf(false) }
         var publicSearchJob by remember { mutableStateOf<Job?>(null) }
 
-        suspend fun api() = chatbotApiServiceFactory.createForHomeserver(matrixClient)
+        suspend fun homeserverApi() = chatbotApiServiceFactory.createForHomeserver(matrixClient)
+        suspend fun unsealApi() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
 
         fun errorMessage(throwable: Throwable, fallback: String): String {
             return throwable.message ?: throwable::class.simpleName ?: fallback
@@ -78,7 +79,7 @@ class AgentSkillsPresenter(
             if (isInitial && hasLoadedOnce) return
             coroutineScope.launch {
                 isLoading = true
-                val service = api()
+                val service = homeserverApi()
                 var nextError: String? = null
                 service.listAgentSkills(botName)
                     .onSuccess { skills ->
@@ -109,7 +110,7 @@ class AgentSkillsPresenter(
             }
             coroutineScope.launch {
                 val query = searchQuery.trim().takeIf { it.isNotEmpty() }
-                api().listPublicSkills(page = page, pageSize = PUBLIC_PAGE_SIZE, search = query)
+                unsealApi().listPublicSkills(page = page, pageSize = PUBLIC_PAGE_SIZE, search = query)
                     .onSuccess { response ->
                         publicTotal = response.total
                         publicHasMoreOverride = response.hasMore
@@ -167,7 +168,7 @@ class AgentSkillsPresenter(
                 isSaving = true
                 saveFailures = emptyList()
                 val failures = mutableListOf<AgentSkillSaveFailure>()
-                val service = api()
+                val service = homeserverApi()
                 for (skillId in idsToAdd) {
                     service.addAgentSkill(botName = botName, skillId = skillId, name = null)
                         .onSuccess {

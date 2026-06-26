@@ -7,18 +7,26 @@
 
 package io.element.android.features.skills.impl.shared
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
@@ -36,23 +44,41 @@ fun SkillMetadataChips(
     val tags = skill.skillTags()
     val source = skill.skillSourceLabel()
     if (category == null && tags.isEmpty() && source == null) return
+    var isExpanded by remember(skill.id, tags) { mutableStateOf(false) }
+    val visibleTags = if (isExpanded) tags else tags.take(maxTags)
 
-    FlowRow(
+    Column(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        category?.let {
-            MetadataChip(label = it, onClick = { onFilterSelected?.invoke(SkillFilterToken.Category(it)) })
+        if (category != null || source != null) {
+            MetadataLine(
+                category = category,
+                source = source,
+                onClick = category?.let { { onFilterSelected?.invoke(SkillFilterToken.Category(it)) } }
+                    ?: source?.let { { onFilterSelected?.invoke(SkillFilterToken.Source(it)) } },
+            )
         }
-        tags.take(maxTags).forEach { tag ->
-            MetadataChip(label = "#$tag", onClick = { onFilterSelected?.invoke(SkillFilterToken.Tag(tag)) })
-        }
-        if (tags.size > maxTags) {
-            MetadataChip(label = "+${tags.size - maxTags}", onClick = null)
-        }
-        source?.let {
-            MetadataChip(label = it, onClick = { onFilterSelected?.invoke(SkillFilterToken.Source(it)) })
+
+        if (tags.isNotEmpty()) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                visibleTags.forEach { tag ->
+                    TagLabel(
+                        label = "#$tag",
+                        onClick = { onFilterSelected?.invoke(SkillFilterToken.Tag(tag)) },
+                    )
+                }
+                if (!isExpanded && tags.size > maxTags) {
+                    TagLabel(
+                        label = "+${tags.size - maxTags}",
+                        isMore = true,
+                        onClick = { isExpanded = true },
+                    )
+                }
+            }
         }
     }
 }
@@ -98,20 +124,39 @@ fun SkillFilterTokensRow(
 }
 
 @Composable
-private fun MetadataChip(
-    label: String,
+private fun MetadataLine(
+    category: String?,
+    source: String?,
     onClick: (() -> Unit)?,
 ) {
-    AssistChip(
-        onClick = { onClick?.invoke() },
-        label = {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        },
+    val label = listOfNotNull(category, source).joinToString(" · ")
+    Text(
+        modifier = Modifier
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+            .padding(vertical = 1.dp),
+        text = label,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurface,
+        fontWeight = FontWeight.SemiBold,
+    )
+}
+
+@Composable
+private fun TagLabel(
+    label: String,
+    isMore: Boolean = false,
+    onClick: (() -> Unit)?,
+) {
+    Text(
+        modifier = Modifier
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+            .padding(vertical = 1.dp),
+        text = label,
+        style = MaterialTheme.typography.labelSmall,
+        color = if (isMore) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        fontWeight = if (isMore) FontWeight.SemiBold else FontWeight.Medium,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
     )
 }
 

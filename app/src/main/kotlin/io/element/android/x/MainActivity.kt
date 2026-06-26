@@ -6,7 +6,7 @@
  * Please see LICENSE files in the repository root for full details.
  */
 
-package io.element.android.x
+package network.unseal.android
 
 import android.content.Intent
 import android.os.Bundle
@@ -40,8 +40,8 @@ import io.element.android.libraries.core.log.logger.LoggerTag
 import io.element.android.libraries.designsystem.theme.ElementThemeApp
 import io.element.android.libraries.designsystem.utils.snackbar.LocalSnackbarDispatcher
 import io.element.android.services.analytics.compose.LocalAnalyticsService
-import io.element.android.x.di.AppBindings
-import io.element.android.x.intent.SafeUriHandler
+import network.unseal.android.di.AppBindings
+import network.unseal.android.intent.SafeUriHandler
 import kotlinx.coroutines.launch
 import timber.log.Timber
 

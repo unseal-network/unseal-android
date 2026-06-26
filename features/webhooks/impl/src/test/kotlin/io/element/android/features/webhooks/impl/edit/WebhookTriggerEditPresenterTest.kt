@@ -295,7 +295,7 @@ class WebhookTriggerEditPresenterTest {
             loaded.eventSink(WebhookTriggerEditEvents.SelectSource(loaded.eventSources.first { it.source == "gmail" }))
             awaitStateWhere { it.selectedSource?.source == "gmail" }.eventSink(WebhookTriggerEditEvents.ConnectSource)
             testScheduler.advanceUntilIdle()
-            assertThat(initiateArgs).isEqualTo("gmail" to "io.element.android.x://composio-callback?toolkit=gmail")
+            assertThat(initiateArgs).isEqualTo("gmail" to "network.unseal.android://composio-callback?toolkit=gmail")
             assertThat(navigator.openedUrls).containsExactly("https://connect.example")
             cancelAndIgnoreRemainingEvents()
         }

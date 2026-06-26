@@ -21,12 +21,13 @@ import io.element.android.features.skills.impl.SkillMetadataFilterBridge
 import io.element.android.features.skills.impl.SkillMetadataFilterOrigin
 import io.element.android.features.skills.impl.shared.SkillFilterToken
 import io.element.android.features.skills.impl.shared.SkillFilterState
+import io.element.android.features.skills.impl.shared.deriveSkillFacets
 import io.element.android.features.skills.impl.shared.hasAnyFacet
+import io.element.android.features.skills.impl.shared.publicTaxonomyFacets
 import io.element.android.features.skills.impl.shared.toApiFilters
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillFacetsResponse
-import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import io.element.android.libraries.matrix.api.MatrixClient
 import kotlinx.collections.immutable.toImmutableList
@@ -64,26 +65,33 @@ class SkillMarketplacePresenter(
         var facetsRequestId by remember { mutableStateOf(0) }
         var handledFilterRequestId by remember { mutableStateOf(0L) }
 
-        suspend fun api() = chatbotApiServiceFactory.createForHomeserver(matrixClient)
+        suspend fun api() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
 
         fun hasMore(): Boolean = total?.let { skills.size < it } ?: (skills.size >= PAGE_SIZE)
 
         fun loadFacets() {
             val requestId = ++facetsRequestId
             coroutineScope.launch {
-                api().listSkillFacets(ChatbotSkillVisibility.Public)
-                    .onSuccess {
-                        if (requestId == facetsRequestId) {
-                            facets = it
-                            isFilterSheetVisible = isFilterSheetVisible && it.hasAnyFacet()
-                        }
+                val service = api()
+                val categoriesResult = service.listPublicSkillCategories()
+                val tagsResult = service.listPublicSkillTags()
+                if (requestId == facetsRequestId && categoriesResult.isSuccess && tagsResult.isSuccess) {
+                    val nextFacets = publicTaxonomyFacets(
+                        categories = categoriesResult.getOrThrow().categories,
+                        tags = tagsResult.getOrThrow().tags,
+                        sourceFallback = deriveSkillFacets(skills).sources,
+                    )
+                    if (nextFacets.hasAnyFacet() || !facets.hasAnyFacet()) {
+                        facets = nextFacets
                     }
-                    .onFailure {
-                        if (requestId == facetsRequestId) {
-                            facets = ChatbotSkillFacetsResponse()
-                            isFilterSheetVisible = false
-                        }
+                    isFilterSheetVisible = isFilterSheetVisible && facets.hasAnyFacet()
+                } else if (requestId == facetsRequestId) {
+                    val derivedFacets = deriveSkillFacets(skills)
+                    if (derivedFacets.hasAnyFacet() || !facets.hasAnyFacet()) {
+                        facets = derivedFacets
                     }
+                    isFilterSheetVisible = isFilterSheetVisible && facets.hasAnyFacet()
+                }
             }
         }
 
@@ -104,6 +112,9 @@ class SkillMarketplacePresenter(
                                 response.skills
                             } else {
                                 skills + response.skills
+                            }
+                            if (!facets.hasAnyFacet()) {
+                                facets = deriveSkillFacets(skills)
                             }
                             error = null
                         }
@@ -157,19 +168,24 @@ class SkillMarketplacePresenter(
         fun handleEvent(event: SkillMarketplaceEvents) {
             when (event) {
                 SkillMarketplaceEvents.OnAppear -> {
-                    loadFacets()
                     loadFirstPage()
+                    loadFacets()
                 }
                 SkillMarketplaceEvents.Refresh -> {
-                    loadFacets()
                     loadFirstPage()
+                    loadFacets()
                 }
                 is SkillMarketplaceEvents.SearchQueryChanged -> {
                     searchQuery = event.query
                     scheduleSearch()
                 }
-                SkillMarketplaceEvents.AddFilter -> if (facets.hasAnyFacet()) {
-                    isFilterSheetVisible = true
+                SkillMarketplaceEvents.AddFilter -> {
+                    if (!facets.hasAnyFacet()) {
+                        facets = deriveSkillFacets(skills)
+                    }
+                    if (facets.hasAnyFacet()) {
+                        isFilterSheetVisible = true
+                    }
                 }
                 SkillMarketplaceEvents.DismissFilterSheet -> isFilterSheetVisible = false
                 is SkillMarketplaceEvents.ApplyFilterToken -> {

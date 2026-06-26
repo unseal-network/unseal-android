@@ -6,7 +6,7 @@
  * Please see LICENSE files in the repository root for full details.
  */
 
-package io.element.android.x.initializer
+package network.unseal.android.initializer
 
 import android.content.Context
 import androidx.startup.Initializer

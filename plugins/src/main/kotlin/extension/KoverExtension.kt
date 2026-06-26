@@ -127,10 +127,10 @@ fun Project.setupKover() {
                         // Copied from Appyx
                         "io.element.android.libraries.architecture.appyx.SafeChildrenTransitionScope",
                         // DI-generated classes
-                        "io.element.android.x.di.*Impl",
-                        "io.element.android.x.di.*Impls",
-                        "io.element.android.x.di.*Mirror",
-                        "io.element.android.x.di.*Factory",
+                        "network.unseal.android.di.*Impl",
+                        "network.unseal.android.di.*Impls",
+                        "network.unseal.android.di.*Mirror",
+                        "network.unseal.android.di.*Factory",
                         $$"io.element.android.*$Metro*",
                         $$"io.element.android.*$Factory*",
                         $$"io.element.android.*$Impl*",

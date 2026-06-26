@@ -48,10 +48,11 @@ import io.element.android.libraries.chatbot.api.model.skills.ChatbotCreateUserSk
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotDeleteUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotGetUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotListAgentSkillsResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotListPublicSkillCategoriesResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotListPublicSkillTagsResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotListPublicSkillsResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotListRoomAgentSkillsResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotListUserSkillsResponse
-import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillFacetsResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillListFilters
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUpdateUserSkillResponse
@@ -152,8 +153,8 @@ internal class DefaultChatbotApiService(
         return httpClient.requestJson("/api/rooms/${path(roomId)}/agents/${path(agentId)}/skills$query", ChatbotHttpMethod.GET)
     }
 
-    override suspend fun listUserSkills(visibility: ChatbotSkillVisibility?, filters: ChatbotSkillListFilters): Result<List<ChatbotUserSkill>> {
-        return httpClient.requestJson<ChatbotListUserSkillsResponse>("/chatbot/v1/skills${skillFilterQuery(filters, visibility)}", ChatbotHttpMethod.GET)
+    override suspend fun listUserSkills(visibility: ChatbotSkillVisibility?): Result<List<ChatbotUserSkill>> {
+        return httpClient.requestJson<ChatbotListUserSkillsResponse>("/chatbot/v1/skills${userSkillFilterQuery(visibility)}", ChatbotHttpMethod.GET)
             .map { it.skills }
     }
 
@@ -162,12 +163,15 @@ internal class DefaultChatbotApiService(
 
     override suspend fun listPublicSkills(page: Int, pageSize: Int, filters: ChatbotSkillListFilters): Result<ChatbotListPublicSkillsResponse> =
         httpClient.requestJson(
-            "/chatbot/v1/skills/public${skillFilterQuery(filters, extra = mapOf("page" to page.toString(), "pageSize" to pageSize.toString()))}",
+            "/api/skills/public${skillFilterQuery(filters, extra = mapOf("page" to page.toString(), "pageSize" to pageSize.toString()))}",
             ChatbotHttpMethod.GET
         )
 
-    override suspend fun listSkillFacets(visibility: ChatbotSkillVisibility?): Result<ChatbotSkillFacetsResponse> =
-        httpClient.requestJson("/chatbot/v1/skills/facets${ChatbotUrlBuilder.query(mapOf("visibility" to visibility?.name?.lowercase()))}", ChatbotHttpMethod.GET)
+    override suspend fun listPublicSkillCategories(): Result<ChatbotListPublicSkillCategoriesResponse> =
+        httpClient.requestJson("/api/skills/public/categories", ChatbotHttpMethod.GET)
+
+    override suspend fun listPublicSkillTags(): Result<ChatbotListPublicSkillTagsResponse> =
+        httpClient.requestJson("/api/skills/public/tags", ChatbotHttpMethod.GET)
 
     override suspend fun getUserSkill(id: String): Result<ChatbotGetUserSkillResponse> =
         httpClient.requestJson("/chatbot/v1/skills/${path(id)}", ChatbotHttpMethod.GET)
@@ -432,20 +436,21 @@ internal class DefaultChatbotApiService(
 
     private fun skillFilterQuery(
         filters: ChatbotSkillListFilters,
-        visibility: ChatbotSkillVisibility? = null,
         extra: Map<String, String?> = emptyMap(),
     ): String {
         return ChatbotUrlBuilder.query(
             extra + mapOf(
                 "search" to filters.search.trim().takeIf { it.isNotEmpty() },
-                "category" to filters.category?.trim()?.takeIf { it.isNotEmpty() },
-                "source" to filters.source?.trim()?.takeIf { it.isNotEmpty() },
-                "tags" to filters.tags.mapNotNull { it.trim().takeIf(String::isNotEmpty) }.takeIf { it.isNotEmpty() }?.joinToString(","),
+                "categorySlugs" to filters.categorySlug?.trim()?.takeIf { it.isNotEmpty() },
+                "sourceSlugs" to filters.sourceSlug?.trim()?.takeIf { it.isNotEmpty() },
+                "tagSlugs" to filters.tagSlugs.mapNotNull { it.trim().takeIf(String::isNotEmpty) }.takeIf { it.isNotEmpty() }?.joinToString(","),
                 "tagMode" to filters.tagMode.queryValue,
-                "visibility" to visibility?.name?.lowercase(),
             )
         )
     }
+
+    private fun userSkillFilterQuery(visibility: ChatbotSkillVisibility?): String =
+        ChatbotUrlBuilder.query(mapOf("visibility" to visibility?.name?.lowercase()))
 
     private fun jsonObject(vararg values: Pair<String, String>): String {
         return JsonObject(values.associate { (key, value) -> key to JsonPrimitive(value) }).toString()

@@ -13,12 +13,8 @@ import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillListFil
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillSource
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillTagMode
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
-import io.element.android.libraries.chatbot.api.model.skills.toChatbotSkillSource
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonPrimitive
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotPublicSkillCategory
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotPublicSkillTag
 
 enum class SkillTagMode {
     Any,
@@ -50,10 +46,10 @@ data class SkillFilterState(
         }
 
     fun matches(skill: ChatbotUserSkill): Boolean {
-        if (category != null && !skill.skillCategory().equalsNormalized(category)) return false
-        if (source != null && !skill.skillSourceLabel().equalsNormalized(source)) return false
+        if (category != null && skill.skillCategoryValues().none { it.equalsNormalized(category) }) return false
+        if (source != null && !skill.skillSourceValues().any { it.equalsNormalized(source) }) return false
         if (tags.isNotEmpty()) {
-            val skillTags = skill.skillTags().map { it.lowercase() }.toSet()
+            val skillTags = skill.skillTagValues().map { it.lowercase() }.toSet()
             val selectedTags = tags.map { it.trim().lowercase() }.filter { it.isNotEmpty() }
             val tagMatches = if (tagMode == SkillTagMode.All) {
                 selectedTags.all(skillTags::contains)
@@ -67,6 +63,7 @@ data class SkillFilterState(
         if (query.isEmpty()) return true
         return listOfNotNull(skill.name, skill.description, skill.skillCategory(), skill.skillSourceLabel())
             .plus(skill.skillTags())
+            .plus(skill.skillSourceValues())
             .joinToString(" ")
             .contains(query, ignoreCase = true)
     }
@@ -87,25 +84,34 @@ data class SkillFilterState(
     }
 }
 
-fun ChatbotUserSkill.skillCategory(): String? = category.clean()
-    ?: metadataString("category")
-    ?: metadataString("skill_category")
+fun ChatbotUserSkill.skillCategory(): String? = category?.name.clean()
+
+fun ChatbotUserSkill.skillCategoryValues(): List<String> =
+    listOfNotNull(category?.name, category?.slug, category?.id?.toString()).normalizedDistinct()
 
 fun ChatbotUserSkill.skillTags(): List<String> {
-    val sourceTags = tags.takeIf { it.isNotEmpty() }
-        ?: metadataStringList("tags") + metadataStringList("skill_tags")
-    return sourceTags.normalizedDistinct()
+    return tags.map { it.name }.normalizedDistinct()
 }
 
+fun ChatbotUserSkill.skillTagValues(): List<String> =
+    tags.flatMap { listOf(it.name, it.slug, it.id.toString()) }.normalizedDistinct()
+
 fun ChatbotUserSkill.skillSourceLabel(): String? = source?.displayLabel()
-    ?: metadataSource()?.displayLabel()
-    ?: metadataString("repository")
-    ?: metadataString("source_id")
-    ?: metadataString("sourceId")
-    ?: metadataString("source")
 
 fun ChatbotSkillSource.displayLabel(): String? =
-    listOf(label, repository, id, type).firstNotNullOfOrNull { it.clean() }
+    listOf(name, repository, slug, id.toString(), sourceType).firstNotNullOfOrNull { it.clean() }
+
+fun ChatbotUserSkill.skillSourceValues(): List<String> =
+    listOfNotNull(
+        source?.name,
+        source?.slug,
+        source?.id?.toString(),
+        source?.sourceType,
+        source?.repository,
+        source?.path,
+        source?.ref,
+        source?.installRef,
+    ).normalizedDistinct()
 
 fun ChatbotUserSkill.hasDiscoveryMetadata(): Boolean {
     return skillCategory() != null ||
@@ -121,9 +127,9 @@ fun ChatbotUserSkill.hasDiscoveryMetadata(): Boolean {
 fun SkillFilterState.toApiFilters(): ChatbotSkillListFilters =
     ChatbotSkillListFilters(
         search = searchQuery,
-        category = category,
-        source = source,
-        tags = tags,
+        categorySlug = category,
+        sourceSlug = source,
+        tagSlugs = tags,
         tagMode = if (tagMode == SkillTagMode.All) ChatbotSkillTagMode.All else ChatbotSkillTagMode.Any,
     )
 
@@ -131,37 +137,44 @@ fun ChatbotSkillFacetsResponse.hasAnyFacet(): Boolean = categories.isNotEmpty() 
 
 fun deriveSkillFacets(skills: List<ChatbotUserSkill>): ChatbotSkillFacetsResponse =
     ChatbotSkillFacetsResponse(
-        categories = skills.countFacetValues { listOfNotNull(it.skillCategory()) },
-        tags = skills.countFacetValues { it.skillTags() },
-        sources = skills.countFacetValues { listOfNotNull(it.skillSourceLabel()) },
+        categories = skills.countFacetValues { skill ->
+            skill.category?.let { listOf(FacetEntry(value = it.name, slug = it.slug)) } ?: emptyList()
+        },
+        tags = skills.countFacetValues { skill ->
+            skill.tags.map { FacetEntry(value = it.name, slug = it.slug) }
+        },
+        sources = skills.countFacetValues { skill ->
+            skill.source?.displayLabel()?.let { label -> listOf(FacetEntry(value = label, slug = skill.source?.slug)) } ?: emptyList()
+        },
     )
 
-private fun List<ChatbotUserSkill>.countFacetValues(values: (ChatbotUserSkill) -> List<String>): List<ChatbotSkillFacetValue> {
+fun publicTaxonomyFacets(
+    categories: List<ChatbotPublicSkillCategory>,
+    tags: List<ChatbotPublicSkillTag>,
+    sourceFallback: List<ChatbotSkillFacetValue>,
+): ChatbotSkillFacetsResponse =
+    ChatbotSkillFacetsResponse(
+        categories = categories.sortedWith(compareBy<ChatbotPublicSkillCategory> { it.sortOrder }.thenBy { it.name.lowercase() })
+            .map { ChatbotSkillFacetValue(value = it.name, count = 0, slug = it.slug) },
+        tags = tags.sortedWith(compareBy<ChatbotPublicSkillTag> { it.sortOrder }.thenBy { it.name.lowercase() })
+            .map { ChatbotSkillFacetValue(value = it.name, count = 0, slug = it.slug) },
+        sources = sourceFallback,
+    )
+
+private data class FacetEntry(val value: String, val slug: String?)
+
+private fun List<ChatbotUserSkill>.countFacetValues(values: (ChatbotUserSkill) -> List<FacetEntry>): List<ChatbotSkillFacetValue> {
     return flatMap(values)
-        .mapNotNull { it.clean() }
-        .groupingBy { it }
+        .mapNotNull { entry -> entry.value.clean()?.let { clean -> FacetEntry(value = clean, slug = entry.slug.clean()) } }
+        .groupingBy { it.slug ?: it.value.lowercase() }
         .eachCount()
-        .map { (value, count) -> ChatbotSkillFacetValue(value = value, count = count) }
+        .map { (key, count) ->
+            val entry = firstNotNullOf { skill ->
+                values(skill).firstOrNull { (it.slug ?: it.value.lowercase()) == key }
+            }
+            ChatbotSkillFacetValue(value = entry.value, count = count, slug = entry.slug)
+        }
         .sortedWith(compareByDescending<ChatbotSkillFacetValue> { it.count }.thenBy { it.value.lowercase() })
-}
-
-private fun ChatbotUserSkill.metadataSource(): ChatbotSkillSource? {
-    val element = metadata?.get("source") ?: return null
-    if (element is JsonPrimitive) return null
-    return element.toChatbotSkillSource()
-}
-
-private fun ChatbotUserSkill.metadataString(key: String): String? {
-    return (metadata?.get(key) as? JsonPrimitive)?.contentOrNull.clean()
-}
-
-private fun ChatbotUserSkill.metadataStringList(key: String): List<String> {
-    val element = metadata?.get(key) ?: return emptyList()
-    return when (element) {
-        is JsonArray -> element.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
-        is JsonPrimitive -> element.contentOrNull.orEmpty().split(',')
-        is JsonObject -> emptyList()
-    }
 }
 
 private fun List<String>.normalizedDistinct(): List<String> {

@@ -9,6 +9,7 @@ package io.element.android.features.skills.impl.home
 
 import io.element.android.features.skills.impl.shared.SkillFilterState
 import io.element.android.features.skills.impl.shared.hasAnyFacet
+import io.element.android.features.skills.impl.shared.hasDiscoveryMetadata
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillFacetsResponse
 import kotlinx.collections.immutable.ImmutableList
@@ -37,7 +38,11 @@ data class SkillsHomeState(
     val eventSink: (SkillsHomeEvents) -> Unit,
 ) {
     val filteredSkills: ImmutableList<ChatbotUserSkill> = skills.filter { filterState.copy(searchQuery = searchQuery).matches(it) }.toImmutableList()
-    val filtersAvailable: Boolean = facets.hasAnyFacet()
+    val filtersAvailable: Boolean = facets.hasAnyFacet() ||
+        when (selectedTab) {
+            SkillsHomeTab.Mine -> skills.any { it.hasDiscoveryMetadata() }
+            SkillsHomeTab.Marketplace -> marketplaceSkills.any { it.hasDiscoveryMetadata() }
+        }
     val marketplaceHasMore: Boolean = marketplaceTotal?.let { marketplaceSkills.size < it } ?: (marketplaceSkills.size >= marketplacePageSize)
     val hasActiveFiltersOrSearch: Boolean = searchQuery.isNotBlank() || filterState.activeTokenCount > 0
     val showClearFiltersForEmptyMine: Boolean = selectedTab == SkillsHomeTab.Mine && skills.isNotEmpty() && filteredSkills.isEmpty() && hasActiveFiltersOrSearch

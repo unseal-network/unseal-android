@@ -19,7 +19,7 @@ class KonsistContentTest {
         Konsist
             .scopeFromProduction()
             .files
-            .withImportNamed("io.element.android.x.BuildConfig")
+            .withImportNamed("network.unseal.android.BuildConfig")
             .assertFalse(additionalMessage = "Please do not use BuildConfig.VERSION_CODE, but use the versionCode from BuildMeta") {
                 it.text.contains("BuildConfig.VERSION_CODE")
             }

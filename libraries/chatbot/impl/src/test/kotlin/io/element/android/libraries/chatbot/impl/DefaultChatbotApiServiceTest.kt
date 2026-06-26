@@ -14,7 +14,6 @@ import io.element.android.libraries.chatbot.api.model.approvals.ChatbotApprovalS
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotCreateScheduleRequest
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillListFilters
-import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillTagMode
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotUploadVoiceProfileRequest
 import io.element.android.libraries.matrix.test.FakeMatrixClient
@@ -103,22 +102,13 @@ class DefaultChatbotApiServiceTest {
     }
 
     @Test
-    fun `listUserSkills - sends structured filters`() = runTest {
+    fun `listUserSkills - sends visibility only`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"skills":[]}"""))
 
-        service.listUserSkills(
-            visibility = ChatbotSkillVisibility.Private,
-            filters = ChatbotSkillListFilters(
-                search = " browser ",
-                category = "Testing",
-                source = "GitHub",
-                tags = listOf("qa", "browser"),
-                tagMode = ChatbotSkillTagMode.All,
-            ),
-        ).getOrThrow()
+        service.listUserSkills(visibility = ChatbotSkillVisibility.Private).getOrThrow()
 
         assertThat(server.takeRequest().path)
-            .isEqualTo("/chatbot/v1/skills?search=browser&category=Testing&source=GitHub&tags=qa%2Cbrowser&tagMode=all&visibility=private")
+            .isEqualTo("/chatbot/v1/skills?visibility=private")
     }
 
     @Test
@@ -130,30 +120,44 @@ class DefaultChatbotApiServiceTest {
             pageSize = 30,
             filters = ChatbotSkillListFilters(
                 search = "qa",
-                category = "Testing",
-                source = "GitHub",
-                tags = listOf("browser"),
+                categorySlug = "Testing",
+                sourceSlug = "GitHub",
+                tagSlugs = listOf("browser"),
             ),
         ).getOrThrow()
 
         assertThat(server.takeRequest().path)
-            .isEqualTo("/chatbot/v1/skills/public?page=2&pageSize=30&search=qa&category=Testing&source=GitHub&tags=browser&tagMode=any")
+            .isEqualTo("/api/skills/public?page=2&pageSize=30&search=qa&categorySlugs=Testing&sourceSlugs=GitHub&tagSlugs=browser&tagMode=any")
     }
 
     @Test
-    fun `listSkillFacets - sends visibility and decodes facets`() = runTest {
+    fun `listPublicSkillCategories - decodes public category taxonomy`() = runTest {
         server.enqueue(
             MockResponse().setResponseCode(200).setBody(
-                """{"categories":[{"value":"Testing","count":2}],"tags":[{"value":"browser","count":1}],"sources":[{"value":"GitHub","count":1}]}"""
+                """{"categories":[{"id":1,"name":"Testing","slug":"testing","sortOrder":10,"parentId":null,"categoryType":1}]}"""
             )
         )
 
-        val facets = service.listSkillFacets(ChatbotSkillVisibility.Public).getOrThrow()
+        val response = service.listPublicSkillCategories().getOrThrow()
 
-        assertThat(server.takeRequest().path).isEqualTo("/chatbot/v1/skills/facets?visibility=public")
-        assertThat(facets.categories.single().value).isEqualTo("Testing")
-        assertThat(facets.tags.single().count).isEqualTo(1)
-        assertThat(facets.sources.single().value).isEqualTo("GitHub")
+        assertThat(server.takeRequest().path).isEqualTo("/api/skills/public/categories")
+        assertThat(response.categories.single().name).isEqualTo("Testing")
+        assertThat(response.categories.single().slug).isEqualTo("testing")
+    }
+
+    @Test
+    fun `listPublicSkillTags - decodes public tag taxonomy`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"tags":[{"id":2,"name":"Browser","slug":"browser","sortOrder":20}]}"""
+            )
+        )
+
+        val response = service.listPublicSkillTags().getOrThrow()
+
+        assertThat(server.takeRequest().path).isEqualTo("/api/skills/public/tags")
+        assertThat(response.tags.single().name).isEqualTo("Browser")
+        assertThat(response.tags.single().slug).isEqualTo("browser")
     }
 
     @Test

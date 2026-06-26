@@ -9,28 +9,16 @@ package io.element.android.libraries.chatbot.api.model.skills
 
 import io.element.android.libraries.chatbot.api.model.json.ChatbotJsonMap
 import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.descriptors.SerialDescriptor
-import kotlinx.serialization.descriptors.buildClassSerialDescriptor
-import kotlinx.serialization.encoding.Decoder
-import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.JsonDecoder
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonEncoder
 import kotlinx.serialization.json.JsonNames
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonPrimitive
 
-@Serializable(with = ChatbotSkillSourceSerializer::class)
+@Serializable
 data class ChatbotSkillSource(
-    val type: String? = null,
-    val id: String? = null,
-    val label: String? = null,
+    val id: Int,
+    val name: String,
+    val slug: String,
+    val sourceType: String,
     val repository: String? = null,
     val path: String? = null,
     val ref: String? = null,
@@ -40,52 +28,18 @@ data class ChatbotSkillSource(
     val installRef: String? = null,
 )
 
-object ChatbotSkillSourceSerializer : KSerializer<ChatbotSkillSource> {
-    override val descriptor: SerialDescriptor = buildClassSerialDescriptor("ChatbotSkillSource")
-
-    override fun deserialize(decoder: Decoder): ChatbotSkillSource {
-        val input = decoder as? JsonDecoder ?: error("ChatbotSkillSource requires JSON")
-        return input.decodeJsonElement().toChatbotSkillSource()
-    }
-
-    override fun serialize(encoder: Encoder, value: ChatbotSkillSource) {
-        val output = encoder as? JsonEncoder ?: error("ChatbotSkillSource requires JSON")
-        output.encodeJsonElement(
-            buildJsonObject {
-                value.type?.let { put("type", JsonPrimitive(it)) }
-                value.id?.let { put("id", JsonPrimitive(it)) }
-                value.label?.let { put("label", JsonPrimitive(it)) }
-                value.repository?.let { put("repository", JsonPrimitive(it)) }
-                value.path?.let { put("path", JsonPrimitive(it)) }
-                value.ref?.let { put("ref", JsonPrimitive(it)) }
-                value.trustTier?.let { put("trust_tier", JsonPrimitive(it)) }
-                value.installRef?.let { put("install_ref", JsonPrimitive(it)) }
-            }
-        )
-    }
-}
-
-fun JsonElement.toChatbotSkillSource(): ChatbotSkillSource {
-    return when (this) {
-        is JsonPrimitive -> ChatbotSkillSource(label = contentOrNull)
-        is JsonObject -> ChatbotSkillSource(
-            type = stringValue("type"),
-            id = stringValue("id").orBlankString(stringValue("source_id"), stringValue("sourceId")),
-            label = stringValue("label").orBlankString(stringValue("name")),
-            repository = stringValue("repository").orBlankString(stringValue("repo")),
-            path = stringValue("path"),
-            ref = stringValue("ref"),
-            trustTier = stringValue("trust_tier").orBlankString(stringValue("trustTier")),
-            installRef = stringValue("install_ref").orBlankString(stringValue("installRef")),
-        )
-        else -> ChatbotSkillSource()
-    }
-}
+@Serializable
+data class ChatbotSkillNamedFacet(
+    val id: Int,
+    val name: String,
+    val slug: String,
+)
 
 @Serializable
 data class ChatbotSkillFacetValue(
     val value: String,
     val count: Int,
+    val slug: String? = null,
 )
 
 @Serializable
@@ -95,6 +49,34 @@ data class ChatbotSkillFacetsResponse(
     val sources: List<ChatbotSkillFacetValue> = emptyList(),
 )
 
+@Serializable
+data class ChatbotPublicSkillCategory(
+    val id: Int,
+    val name: String,
+    val slug: String,
+    val sortOrder: Int,
+    val parentId: Int? = null,
+    val categoryType: Int,
+)
+
+@Serializable
+data class ChatbotPublicSkillTag(
+    val id: Int,
+    val name: String,
+    val slug: String,
+    val sortOrder: Int,
+)
+
+@Serializable
+data class ChatbotListPublicSkillCategoriesResponse(
+    val categories: List<ChatbotPublicSkillCategory> = emptyList(),
+)
+
+@Serializable
+data class ChatbotListPublicSkillTagsResponse(
+    val tags: List<ChatbotPublicSkillTag> = emptyList(),
+)
+
 enum class ChatbotSkillTagMode(val queryValue: String) {
     Any("any"),
     All("all"),
@@ -102,9 +84,9 @@ enum class ChatbotSkillTagMode(val queryValue: String) {
 
 data class ChatbotSkillListFilters(
     val search: String = "",
-    val category: String? = null,
-    val source: String? = null,
-    val tags: List<String> = emptyList(),
+    val categorySlug: String? = null,
+    val sourceSlug: String? = null,
+    val tagSlugs: List<String> = emptyList(),
     val tagMode: ChatbotSkillTagMode = ChatbotSkillTagMode.Any,
 )
 
@@ -125,10 +107,8 @@ data class ChatbotUserSkill(
     val description: String? = null,
     val visibility: ChatbotSkillVisibility? = null,
     val role: String? = null,
-    val category: String? = null,
-    @SerialName("category_id")
-    val categoryId: Int? = null,
-    val tags: List<String> = emptyList(),
+    val category: ChatbotSkillNamedFacet? = null,
+    val tags: List<ChatbotSkillNamedFacet> = emptyList(),
     val source: ChatbotSkillSource? = null,
     @SerialName("original_skill_id")
     val originalSkillId: String? = null,
@@ -277,10 +257,3 @@ data class ChatbotRoomAgentSkillRelation(
 data class ChatbotListRoomAgentSkillsResponse(
     val skills: List<ChatbotRoomAgentSkill> = emptyList(),
 )
-
-private fun JsonObject.stringValue(key: String): String? = get(key)?.jsonPrimitive?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
-
-private fun String?.orBlankString(vararg fallbacks: String?): String? {
-    if (!isNullOrBlank()) return this
-    return fallbacks.firstOrNull { !it.isNullOrBlank() }
-}

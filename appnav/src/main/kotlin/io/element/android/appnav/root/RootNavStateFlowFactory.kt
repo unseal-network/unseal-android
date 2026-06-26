@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 
-private const val SAVE_INSTANCE_KEY = "io.element.android.x.RootNavStateFlowFactory.SAVE_INSTANCE_KEY"
+private const val SAVE_INSTANCE_KEY = "network.unseal.android.RootNavStateFlowFactory.SAVE_INSTANCE_KEY"
 
 /**
  * This class is responsible for creating a flow of [RootNavState].

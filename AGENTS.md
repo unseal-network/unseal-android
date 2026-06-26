@@ -126,7 +126,7 @@ adb install -r <APK_PATH>
 Launch the debug app:
 
 ```bash
-adb shell monkey -p io.element.android.x.debug -c android.intent.category.LAUNCHER 1
+adb shell monkey -p network.unseal.android.debug -c android.intent.category.LAUNCHER 1
 ```
 
 If launch fails, confirm the package and launchable activity from the APK:

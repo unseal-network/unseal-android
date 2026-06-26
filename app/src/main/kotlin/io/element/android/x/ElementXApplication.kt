@@ -6,7 +6,7 @@
  * Please see LICENSE files in the repository root for full details.
  */
 
-package io.element.android.x
+package network.unseal.android
 
 import android.app.Application
 import androidx.compose.material3.ComposeMaterial3Flags.isAnchoredDraggableComponentsStrictOffsetCheckEnabled
@@ -16,11 +16,11 @@ import androidx.work.Configuration
 import dev.zacsweers.metro.createGraphFactory
 import io.element.android.libraries.di.DependencyInjectionGraphOwner
 import io.element.android.libraries.workmanager.api.di.MetroWorkerFactory
-import io.element.android.x.di.AppGraph
-import io.element.android.x.info.logApplicationInfo
-import io.element.android.x.initializer.CacheCleanerInitializer
-import io.element.android.x.initializer.CrashInitializer
-import io.element.android.x.initializer.PlatformInitializer
+import network.unseal.android.di.AppGraph
+import network.unseal.android.info.logApplicationInfo
+import network.unseal.android.initializer.CacheCleanerInitializer
+import network.unseal.android.initializer.CrashInitializer
+import network.unseal.android.initializer.PlatformInitializer
 
 class ElementXApplication : Application(), DependencyInjectionGraphOwner, Configuration.Provider {
     override val graph: AppGraph = createGraphFactory<AppGraph.Factory>().create(this)

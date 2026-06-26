@@ -9,6 +9,7 @@ package io.element.android.features.skills.impl.marketplace
 
 import io.element.android.features.skills.impl.shared.SkillFilterState
 import io.element.android.features.skills.impl.shared.hasAnyFacet
+import io.element.android.features.skills.impl.shared.hasDiscoveryMetadata
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillFacetsResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import kotlinx.collections.immutable.ImmutableList
@@ -28,5 +29,5 @@ data class SkillMarketplaceState(
     val eventSink: (SkillMarketplaceEvents) -> Unit,
 ) {
     val hasMore: Boolean = total?.let { skills.size < it } ?: (skills.size >= pageSize)
-    val filtersAvailable: Boolean = facets.hasAnyFacet()
+    val filtersAvailable: Boolean = facets.hasAnyFacet() || skills.any { it.hasDiscoveryMetadata() }
 }

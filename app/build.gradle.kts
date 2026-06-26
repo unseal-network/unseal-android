@@ -39,7 +39,7 @@ plugins {
 }
 
 android {
-    namespace = "io.element.android.x"
+    namespace = "network.unseal.android"
 
     defaultConfig {
         applicationId = BuildTimeConfig.APPLICATION_ID
@@ -111,7 +111,7 @@ android {
     logger.warnInBox("Building ${defaultConfig.applicationId} ($baseAppName) [$buildType]")
 
     buildTypes {
-        val oAuthRedirectSchemeBase = BuildTimeConfig.METADATA_HOST_REVERSED ?: "io.element.android"
+        val oAuthRedirectSchemeBase = BuildTimeConfig.METADATA_HOST_REVERSED ?: "network.unseal"
         getByName("debug") {
             resValue("string", "app_name", "$baseAppName dbg")
             resValue(

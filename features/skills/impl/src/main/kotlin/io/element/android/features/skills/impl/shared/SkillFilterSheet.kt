@@ -102,7 +102,7 @@ fun SkillFilterSheet(
                             headlineContent = { Text(facet.value) },
                             supportingContent = { Text("${facet.count} 个技能") },
                             modifier = Modifier.clickable {
-                                onApplyToken(field.token(facet.value))
+                                onApplyToken(field.token(facet.filterValue()))
                                 if (field != SkillFilterField.Tag) {
                                     onDismiss()
                                 }
@@ -133,3 +133,5 @@ private enum class SkillFilterField(val label: String) {
         Source -> SkillFilterToken.Source(value)
     }
 }
+
+private fun ChatbotSkillFacetValue.filterValue(): String = slug ?: value
