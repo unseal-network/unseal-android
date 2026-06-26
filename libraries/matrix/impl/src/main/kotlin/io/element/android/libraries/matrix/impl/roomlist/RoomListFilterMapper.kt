@@ -31,7 +31,8 @@ internal object RoomListFilterMapper {
     /**
      * Base rust filters to always apply across all room lists.
      * These filters ensure we show:
-     * - Non-space, non-left rooms (regular rooms user is part of)
+     * - Non-space, non-left rooms (regular rooms the user is part of)
+     * - OR non-space invites (pending room invitations)
      * - OR space invites (pending space invitations)
      * - With version deduplication enabled
      */
@@ -39,6 +40,7 @@ internal object RoomListFilterMapper {
         Any(
             listOf(
                 All(listOf(NonSpace, NonLeft)),
+                All(listOf(NonSpace, Invite)),
                 All(listOf(Space, Invite)),
             )
         ),

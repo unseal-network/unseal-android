@@ -191,7 +191,7 @@ class MessageComposerPresenter(
 
         val canShareLocation = remember { mutableStateOf(false) }
         LaunchedEffect(Unit) {
-            canShareLocation.value = locationService.isServiceAvailable()
+            canShareLocation.value = locationService.canShareLocation()
         }
 
         val galleryMediaPicker = mediaPickerProvider.registerGalleryPicker { uri, mimeType ->
@@ -489,6 +489,15 @@ class MessageComposerPresenter(
                 MessageComposerEvent.PickAttachmentSource.Poll -> {
                     showAttachmentSourcePicker = false
                     // Navigation to the create poll screen is done at the view layer
+                }
+                MessageComposerEvent.SendPing -> {
+                    showAttachmentSourcePicker = false
+                    sessionCoroutineScope.launch {
+                        room.sendRawRoomMessage(contentJson = pingMessageContentJson())
+                            .onFailure { cause ->
+                                Timber.e(cause, "Failed to send ping message")
+                            }
+                    }
                 }
                 is MessageComposerEvent.ToggleTextFormatting -> {
                     showAttachmentSourcePicker = false
@@ -851,6 +860,13 @@ class MessageComposerPresenter(
                 messageType = Composer.MessageType.Text,
             )
         )
+    }
+
+    private fun pingMessageContentJson(): String {
+        return JSONObject().apply {
+            put("msgtype", "m.ping")
+            put("body", "Ping")
+        }.toString()
     }
 
     private fun rawAgentMessageContentJson(

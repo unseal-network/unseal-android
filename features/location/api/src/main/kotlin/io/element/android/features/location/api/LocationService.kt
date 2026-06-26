@@ -9,5 +9,9 @@
 package io.element.android.features.location.api
 
 interface LocationService {
+    fun canShareLocation(): Boolean
+
+    fun canRenderMaps(): Boolean
+
     fun isServiceAvailable(): Boolean
 }

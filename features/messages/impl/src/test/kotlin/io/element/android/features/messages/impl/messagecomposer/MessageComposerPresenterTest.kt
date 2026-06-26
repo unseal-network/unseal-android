@@ -965,6 +965,36 @@ class MessageComposerPresenterTest {
     }
 
     @Test
+    fun `present - send ping`() = runTest {
+        var rawContent: String? = null
+        var rawEventType: String? = null
+        val room = FakeJoinedRoom(
+            sendRawRoomMessageResult = { content, eventType ->
+                rawContent = content
+                rawEventType = eventType
+                Result.success(Unit)
+            },
+            typingNoticeResult = { Result.success(Unit) }
+        )
+        val presenter = createPresenter(room = room)
+        presenter.test {
+            val initialState = awaitFirstItem()
+            initialState.eventSink(MessageComposerEvent.AddAttachment)
+            val attachmentOpenState = awaitItem()
+            assertThat(attachmentOpenState.showAttachmentSourcePicker).isTrue()
+            attachmentOpenState.eventSink(MessageComposerEvent.SendPing)
+            val finalState = awaitItem()
+            assertThat(finalState.showAttachmentSourcePicker).isFalse()
+            advanceUntilIdle()
+
+            assertThat(rawEventType).isEqualTo("m.room.message")
+            val content = JSONObject(checkNotNull(rawContent))
+            assertThat(content.getString("msgtype")).isEqualTo("m.ping")
+            assertThat(content.getString("body")).isEqualTo("Ping")
+        }
+    }
+
+    @Test
     fun `present - Take photo`() = runTest {
         val room = FakeJoinedRoom(
             typingNoticeResult = { Result.success(Unit) }

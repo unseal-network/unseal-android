@@ -12,6 +12,12 @@ import io.element.android.features.location.api.LocationService
 
 class FakeLocationService(
     private val isServiceAvailable: Boolean = false,
+    private val canShareLocation: Boolean = isServiceAvailable,
+    private val canRenderMaps: Boolean = isServiceAvailable,
 ) : LocationService {
+    override fun canShareLocation() = canShareLocation
+
+    override fun canRenderMaps() = canRenderMaps
+
     override fun isServiceAvailable() = isServiceAvailable
 }

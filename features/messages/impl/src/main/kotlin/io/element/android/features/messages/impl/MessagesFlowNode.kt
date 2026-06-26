@@ -717,7 +717,7 @@ class MessagesFlowNode(
                             assetType = event.content.assetType,
                         )
                     }
-                    NavTarget.LocationViewer(mode = mode).takeIf { locationService.isServiceAvailable() }
+                    NavTarget.LocationViewer(mode = mode).takeIf { locationService.canRenderMaps() }
                 } else {
                     displayVulkanNotSupportedError = true
                     null

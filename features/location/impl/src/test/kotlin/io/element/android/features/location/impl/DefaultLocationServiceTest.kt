@@ -14,10 +14,15 @@ import org.junit.Test
 
 class DefaultLocationServiceTest {
     @Test
-    fun `isServiceAvailable should return value depending on BuildConfig MAPTILER_API_KEY`() {
+    fun `canShareLocation should not depend on BuildConfig MAPTILER_API_KEY`() {
         val locationService = DefaultLocationService()
-        assertThat(locationService.isServiceAvailable()).isEqualTo(
-            BuildConfig.MAPTILER_API_KEY.isNotEmpty()
-        )
+        assertThat(locationService.canShareLocation()).isTrue()
+    }
+
+    @Test
+    fun `canRenderMaps should return value depending on BuildConfig MAPTILER_API_KEY`() {
+        val locationService = DefaultLocationService()
+        assertThat(locationService.canRenderMaps()).isEqualTo(BuildConfig.MAPTILER_API_KEY.isNotEmpty())
+        assertThat(locationService.isServiceAvailable()).isEqualTo(locationService.canRenderMaps())
     }
 }

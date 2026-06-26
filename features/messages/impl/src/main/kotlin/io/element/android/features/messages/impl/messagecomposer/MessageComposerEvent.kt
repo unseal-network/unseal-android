@@ -32,6 +32,7 @@ sealed interface MessageComposerEvent {
         data object Poll : PickAttachmentSource
     }
 
+    data object SendPing : MessageComposerEvent
     data class ToggleTextFormatting(val enabled: Boolean) : MessageComposerEvent
     data class Error(val error: Throwable) : MessageComposerEvent
     data class TypingNotice(val isTyping: Boolean) : MessageComposerEvent

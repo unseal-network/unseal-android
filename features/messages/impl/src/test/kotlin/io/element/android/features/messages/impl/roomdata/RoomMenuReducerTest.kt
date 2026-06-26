@@ -134,6 +134,7 @@ class RoomMenuReducerTest {
             RoomAttachmentAction.Game,
             RoomAttachmentAction.TextFormatting,
             RoomAttachmentAction.Poll,
+            RoomAttachmentAction.Ping,
             RoomAttachmentAction.Location,
             RoomAttachmentAction.Files,
             RoomAttachmentAction.Gallery,
@@ -143,7 +144,7 @@ class RoomMenuReducerTest {
     }
 
     @Test
-    fun `reduce exposes full ios attachment action contract with unavailable gaps`() {
+    fun `reduce does not expose unimplemented sketch placeholder attachment action`() {
         val roomMenu = RoomMenuReducer.reduce(
             roomUnsealContext = AsyncData.Uninitialized,
             hasThreads = false,
@@ -157,19 +158,13 @@ class RoomMenuReducerTest {
             RoomAttachmentAction.TextFormatting,
             RoomAttachmentAction.Poll,
             RoomAttachmentAction.Ping,
-            RoomAttachmentAction.Sketch,
             RoomAttachmentAction.Location,
             RoomAttachmentAction.Files,
             RoomAttachmentAction.Gallery,
             RoomAttachmentAction.PhotoFromCamera,
             RoomAttachmentAction.VideoFromCamera,
         ).inOrder()
-        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Ping }.isAvailable).isFalse()
-        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Ping }.unavailableReason)
-            .isEqualTo(RoomAttachmentActionUnavailableReason.RequiresBottomLayer)
-        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Sketch }.isAvailable).isFalse()
-        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Sketch }.unavailableReason)
-            .isEqualTo(RoomAttachmentActionUnavailableReason.RequiresBottomLayer)
+        assertThat(roomMenu.attachmentActionEntries.map { it.action }).doesNotContain(RoomAttachmentAction.Sketch)
     }
 
     @Test
@@ -185,6 +180,7 @@ class RoomMenuReducerTest {
         assertThat(roomMenu.attachmentActions).containsExactly(
             RoomAttachmentAction.Game,
             RoomAttachmentAction.Poll,
+            RoomAttachmentAction.Ping,
             RoomAttachmentAction.Files,
             RoomAttachmentAction.Gallery,
             RoomAttachmentAction.PhotoFromCamera,

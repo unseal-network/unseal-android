@@ -74,7 +74,6 @@ data class RoomAttachmentActionEntry(
 
 enum class RoomAttachmentActionUnavailableReason {
     DisabledByRoomCapability,
-    RequiresBottomLayer,
 }
 
 enum class RoomTopbarAction {
@@ -181,13 +180,6 @@ private fun buildAttachmentActionEntries(
     ),
     RoomAttachmentActionEntry(
         action = RoomAttachmentAction.Ping,
-        isAvailable = false,
-        unavailableReason = RoomAttachmentActionUnavailableReason.RequiresBottomLayer,
-    ),
-    RoomAttachmentActionEntry(
-        action = RoomAttachmentAction.Sketch,
-        isAvailable = false,
-        unavailableReason = RoomAttachmentActionUnavailableReason.RequiresBottomLayer,
     ),
     RoomAttachmentActionEntry(
         action = RoomAttachmentAction.Location,

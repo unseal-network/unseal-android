@@ -9,7 +9,6 @@
 package io.element.android.features.messages.impl.messagecomposer
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -31,6 +30,8 @@ import io.element.android.features.messages.impl.R
 import io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerBottomSheet
 import io.element.android.features.messages.impl.roomdata.RoomAttachmentAction
 import io.element.android.features.messages.impl.roomdata.RoomAttachmentActionEntry
+import io.element.android.features.messages.impl.roomdata.RoomMenuReducer
+import io.element.android.libraries.architecture.AsyncData
 import io.element.android.libraries.androidutils.ui.hideKeyboard
 import io.element.android.libraries.designsystem.components.list.ListItemContent
 import io.element.android.libraries.designsystem.preview.ElementPreview
@@ -134,27 +135,32 @@ private fun AttachmentActionRow(
     val action = entry.action
     when (action) {
         RoomAttachmentAction.PhotoFromCamera -> ListItem(
-            modifier = entry.clickableIfAvailable { state.eventSink(MessageComposerEvent.PickAttachmentSource.PhotoFromCamera) },
+            enabled = entry.isAvailable,
+            onClick = entry.onClickIfAvailable { state.eventSink(MessageComposerEvent.PickAttachmentSource.PhotoFromCamera) },
             leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.TakePhoto())),
             headlineContent = { Text(stringResource(R.string.screen_room_attachment_source_camera_photo)) },
         )
         RoomAttachmentAction.VideoFromCamera -> ListItem(
-            modifier = entry.clickableIfAvailable { state.eventSink(MessageComposerEvent.PickAttachmentSource.VideoFromCamera) },
+            enabled = entry.isAvailable,
+            onClick = entry.onClickIfAvailable { state.eventSink(MessageComposerEvent.PickAttachmentSource.VideoFromCamera) },
             leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.VideoCall())),
             headlineContent = { Text(stringResource(R.string.screen_room_attachment_source_camera_video)) },
         )
         RoomAttachmentAction.Gallery -> ListItem(
-            modifier = entry.clickableIfAvailable { state.eventSink(MessageComposerEvent.PickAttachmentSource.FromGallery) },
+            enabled = entry.isAvailable,
+            onClick = entry.onClickIfAvailable { state.eventSink(MessageComposerEvent.PickAttachmentSource.FromGallery) },
             leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.Image())),
             headlineContent = { Text(stringResource(R.string.screen_room_attachment_source_gallery)) },
         )
         RoomAttachmentAction.Files -> ListItem(
-            modifier = entry.clickableIfAvailable { state.eventSink(MessageComposerEvent.PickAttachmentSource.FromFiles) },
+            enabled = entry.isAvailable,
+            onClick = entry.onClickIfAvailable { state.eventSink(MessageComposerEvent.PickAttachmentSource.FromFiles) },
             leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.Attachment())),
             headlineContent = { Text(stringResource(R.string.screen_room_attachment_source_files)) },
         )
         RoomAttachmentAction.Location -> ListItem(
-            modifier = entry.clickableIfAvailable {
+            enabled = entry.isAvailable,
+            onClick = entry.onClickIfAvailable {
                 state.eventSink(MessageComposerEvent.PickAttachmentSource.Location)
                 onSendLocationClick()
             },
@@ -162,7 +168,8 @@ private fun AttachmentActionRow(
             headlineContent = { Text(stringResource(R.string.screen_room_attachment_source_location)) },
         )
         RoomAttachmentAction.Poll -> ListItem(
-            modifier = entry.clickableIfAvailable {
+            enabled = entry.isAvailable,
+            onClick = entry.onClickIfAvailable {
                 state.eventSink(MessageComposerEvent.PickAttachmentSource.Poll)
                 onCreatePollClick()
             },
@@ -170,31 +177,32 @@ private fun AttachmentActionRow(
             headlineContent = { Text(stringResource(R.string.screen_room_attachment_source_poll)) },
         )
         RoomAttachmentAction.Game -> ListItem(
-            modifier = entry.clickableIfAvailable { state.eventSink(MessageComposerEvent.ShowGamePicker) },
+            enabled = entry.isAvailable,
+            onClick = entry.onClickIfAvailable { state.eventSink(MessageComposerEvent.ShowGamePicker) },
             leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.Play())),
             headlineContent = { Text(stringResource(R.string.screen_room_attachment_source_game)) },
         )
         RoomAttachmentAction.TextFormatting -> ListItem(
-            modifier = entry.clickableIfAvailable { state.eventSink(MessageComposerEvent.ToggleTextFormatting(enabled = true)) },
+            enabled = entry.isAvailable,
+            onClick = entry.onClickIfAvailable { state.eventSink(MessageComposerEvent.ToggleTextFormatting(enabled = true)) },
             leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.TextFormatting())),
             headlineContent = { Text(stringResource(R.string.screen_room_attachment_text_formatting)) },
         )
         RoomAttachmentAction.Ping -> ListItem(
-            modifier = Modifier,
+            enabled = entry.isAvailable,
+            onClick = entry.onClickIfAvailable { state.eventSink(MessageComposerEvent.SendPing) },
             leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.Mention())),
             headlineContent = { Text(stringResource(R.string.screen_room_attachment_source_ping)) },
         )
         RoomAttachmentAction.Sketch -> ListItem(
-            modifier = Modifier,
+            enabled = entry.isAvailable,
             leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.Edit())),
             headlineContent = { Text(stringResource(R.string.screen_room_attachment_source_sketch)) },
         )
     }
 }
 
-private fun RoomAttachmentActionEntry.clickableIfAvailable(onClick: () -> Unit): Modifier {
-    return if (isAvailable) Modifier.clickable(onClick = onClick) else Modifier
-}
+private fun RoomAttachmentActionEntry.onClickIfAvailable(onClick: () -> Unit): (() -> Unit)? = onClick.takeIf { isAvailable }
 
 @PreviewsDayNight
 @Composable
@@ -203,9 +211,13 @@ internal fun AttachmentSourcePickerMenuPreview() = ElementPreview {
         state = aMessageComposerState(
             canShareLocation = true,
         ),
-        attachmentActions = RoomAttachmentAction.entries.map { action ->
-            RoomAttachmentActionEntry(action = action, isAvailable = action != RoomAttachmentAction.Ping && action != RoomAttachmentAction.Sketch)
-        },
+        attachmentActions = RoomMenuReducer.reduce(
+            roomUnsealContext = AsyncData.Uninitialized,
+            hasThreads = false,
+            isThreadTimeline = false,
+            canShareLocation = true,
+            enableTextFormatting = true,
+        ).attachmentActionEntries,
         onSendLocationClick = {},
         onCreatePollClick = {},
     )

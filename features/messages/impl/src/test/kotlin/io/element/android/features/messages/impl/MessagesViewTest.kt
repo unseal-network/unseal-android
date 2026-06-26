@@ -39,6 +39,7 @@ import io.element.android.features.messages.impl.actionlist.anActionListState
 import io.element.android.features.messages.impl.actionlist.model.TimelineItemAction
 import io.element.android.features.messages.impl.crypto.sendfailure.VerifiedUserSendFailure
 import io.element.android.features.messages.impl.crypto.sendfailure.resolve.aChangedIdentitySendFailure
+import io.element.android.features.messages.impl.messagecomposer.MessageComposerEvent
 import io.element.android.features.messages.impl.messagecomposer.aMessageComposerState
 import io.element.android.features.messages.impl.pinned.banner.PinnedMessagesBannerItem
 import io.element.android.features.messages.impl.pinned.banner.aLoadedPinnedMessagesBannerState
@@ -333,6 +334,22 @@ class MessagesViewTest {
             // Then click on the poll action
             clickOn(R.string.screen_room_attachment_source_poll)
         }
+    }
+
+    @Test
+    fun `clicking on ping emits expected composer event`() = runAndroidComposeUiTest {
+        val composerEventsRecorder = EventsRecorder<MessageComposerEvent>()
+        val state = aMessagesState(
+            composerState = aMessageComposerState(
+                showAttachmentSourcePicker = true,
+                eventSink = composerEventsRecorder,
+            ),
+        )
+        setMessagesView(state = state)
+        composerEventsRecorder.clear()
+        clickOn(R.string.screen_room_attachment_source_ping)
+
+        composerEventsRecorder.assertSingle(MessageComposerEvent.SendPing)
     }
 
     @Test
