@@ -1266,14 +1266,31 @@ private fun DataPart(
             }
         }
         "data" -> {
-            val pptData = remember(part.id, part.payload) { PptPlanningData.fromJson(part.payload) }
-            if (pptData != null) {
-                val progress = workflowMessages[pptData.taskId] ?: WorkflowMessage.Empty
-                PptPlanningCard(
-                    data = pptData,
-                    workflowProgress = progress,
-                    onLinkClick = onLinkClick,
-                )
+            val contentType = remember(part.id, part.payload) {
+                runCatching { JSONObject(part.payload).optString("content_type") }.getOrNull().orEmpty()
+            }
+            when (contentType) {
+                "ppt_planning" -> {
+                    val pptData = remember(part.id, part.payload) { PptPlanningData.fromJson(part.payload) }
+                    if (pptData != null) {
+                        val progress = workflowMessages[pptData.taskId] ?: WorkflowMessage.Empty
+                        PptPlanningCard(
+                            data = pptData,
+                            workflowProgress = progress,
+                            onLinkClick = onLinkClick,
+                        )
+                    }
+                }
+                "ppt_outline_v2" -> {
+                    val outlineData = remember(part.id, part.payload) { PptOutlineData.fromJson(part.payload) }
+                    if (outlineData != null) {
+                        PptOutlineCard(
+                            data = outlineData,
+                            onLinkClick = onLinkClick,
+                        )
+                    }
+                }
+                else -> Unit
             }
         }
         else -> Unit
