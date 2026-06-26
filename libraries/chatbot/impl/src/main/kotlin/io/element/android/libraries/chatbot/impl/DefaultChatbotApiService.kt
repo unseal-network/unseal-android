@@ -410,6 +410,14 @@ internal class DefaultChatbotApiService(
                     "platform" to JsonPrimitive("feishu"),
                 )
             )
+            is ChatbotChannelConnectBody.Discord -> JsonObject(
+                mapOf(
+                    "platform" to JsonPrimitive("discord"),
+                    "botToken" to JsonPrimitive(body.botToken),
+                    "publicKey" to JsonPrimitive(body.publicKey),
+                    "applicationId" to JsonPrimitive(body.applicationId),
+                )
+            )
         }
         val payload = JsonObject(mapOf("credentials" to credentials)).toString()
         return httpClient.requestJson("/api/agents/${path(agentId)}/channels", ChatbotHttpMethod.POST, payload)

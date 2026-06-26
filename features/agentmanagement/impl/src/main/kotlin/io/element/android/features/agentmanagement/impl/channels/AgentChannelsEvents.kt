@@ -25,6 +25,9 @@ sealed interface AgentChannelsEvents {
     data class SetBotToken(val value: String) : AgentChannelsEvents
     data class SetWecomToken(val value: String) : AgentChannelsEvents
     data class SetWecomAesKey(val value: String) : AgentChannelsEvents
+    data class SetDiscordBotToken(val value: String) : AgentChannelsEvents
+    data class SetDiscordPublicKey(val value: String) : AgentChannelsEvents
+    data class SetDiscordApplicationId(val value: String) : AgentChannelsEvents
     data object GenerateToken : AgentChannelsEvents
     data object GenerateAesKey : AgentChannelsEvents
     data object Connect : AgentChannelsEvents

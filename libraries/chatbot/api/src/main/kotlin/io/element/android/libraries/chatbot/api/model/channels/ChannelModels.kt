@@ -20,6 +20,9 @@ enum class ChatbotChannelPlatform {
 
     @SerialName("feishu")
     Feishu,
+
+    @SerialName("discord")
+    Discord,
 }
 
 /** Public channel summary — never contains secrets. */
@@ -65,4 +68,5 @@ sealed interface ChatbotChannelConnectBody {
     data class Telegram(val botToken: String) : ChatbotChannelConnectBody
     data class WeCom(val token: String, val encodingAESKey: String) : ChatbotChannelConnectBody
     data object Feishu : ChatbotChannelConnectBody
+    data class Discord(val botToken: String, val publicKey: String, val applicationId: String) : ChatbotChannelConnectBody
 }

@@ -303,9 +303,19 @@ private fun ChannelsSection(state: AgentDetailState) {
 
 @Composable
 private fun ChannelChip(channel: ChatbotChannelSummary, onClick: () -> Unit) {
-    val brand = if (channel.platform == ChatbotChannelPlatform.Telegram) Color(0xFF229ED9) else Color(0xFF07C160)
+    val brand = when (channel.platform) {
+        ChatbotChannelPlatform.Telegram -> Color(0xFF229ED9)
+        ChatbotChannelPlatform.WeCom -> Color(0xFF07C160)
+        ChatbotChannelPlatform.Feishu -> Color(0xFF3370FF)
+        ChatbotChannelPlatform.Discord -> Color(0xFF5865F2)
+    }
     val icon = if (channel.platform == ChatbotChannelPlatform.Telegram) CompoundIcons.Send() else CompoundIcons.Chat()
-    val platformName = if (channel.platform == ChatbotChannelPlatform.Telegram) "Telegram" else "WeCom"
+    val platformName = when (channel.platform) {
+        ChatbotChannelPlatform.Telegram -> "Telegram"
+        ChatbotChannelPlatform.WeCom -> "WeCom"
+        ChatbotChannelPlatform.Feishu -> "飞书"
+        ChatbotChannelPlatform.Discord -> "Discord"
+    }
     Row(
         modifier = Modifier
             .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp))

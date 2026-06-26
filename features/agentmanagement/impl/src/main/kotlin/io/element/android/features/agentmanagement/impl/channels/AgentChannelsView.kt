@@ -70,16 +70,20 @@ private val WeComBrand = Color(0xFF07C160)
 
 private val FeishuBrand = Color(0xFF3370FF)
 
+private val DiscordBrand = Color(0xFF5865F2)
+
 private fun ChatbotChannelPlatform.brandColor(): Color = when (this) {
     ChatbotChannelPlatform.Telegram -> TelegramBrand
     ChatbotChannelPlatform.WeCom -> WeComBrand
     ChatbotChannelPlatform.Feishu -> FeishuBrand
+    ChatbotChannelPlatform.Discord -> DiscordBrand
 }
 
 private fun ChatbotChannelPlatform.displayName(): String = when (this) {
     ChatbotChannelPlatform.Telegram -> "Telegram"
     ChatbotChannelPlatform.WeCom -> "WeCom"
     ChatbotChannelPlatform.Feishu -> "飞书"
+    ChatbotChannelPlatform.Discord -> "Discord"
 }
 
 private fun feishuAppLink(verificationUrl: String): String {
@@ -289,6 +293,9 @@ private fun AddForm(sheet: ChannelSheetState, eventSink: (AgentChannelsEvents) -
         PlatformCard(ChatbotChannelPlatform.Feishu, sheet.platform == ChatbotChannelPlatform.Feishu) {
             eventSink(AgentChannelsEvents.SetPlatform(ChatbotChannelPlatform.Feishu))
         }
+        PlatformCard(ChatbotChannelPlatform.Discord, sheet.platform == ChatbotChannelPlatform.Discord) {
+            eventSink(AgentChannelsEvents.SetPlatform(ChatbotChannelPlatform.Discord))
+        }
     }
 
     when (sheet.platform) {
@@ -314,6 +321,35 @@ private fun AddForm(sheet: ChannelSheetState, eventSink: (AgentChannelsEvents) -
         ChatbotChannelPlatform.Feishu -> {
             Text(
                 "Feishu needs no keys — tap Connect, then approve in the Feishu app.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        ChatbotChannelPlatform.Discord -> {
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = sheet.discordBotToken,
+                onValueChange = { eventSink(AgentChannelsEvents.SetDiscordBotToken(it)) },
+                label = { Text("Bot Token") },
+                placeholder = { Text("MTA1…") },
+                singleLine = true,
+            )
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = sheet.discordPublicKey,
+                onValueChange = { eventSink(AgentChannelsEvents.SetDiscordPublicKey(it)) },
+                label = { Text("Public Key") },
+                singleLine = true,
+            )
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = sheet.discordApplicationId,
+                onValueChange = { eventSink(AgentChannelsEvents.SetDiscordApplicationId(it)) },
+                label = { Text("Application ID") },
+                singleLine = true,
+            )
+            Text(
+                "From the Discord Developer Portal: create an app, enable Message Content Intent on the Bot tab, then paste the three values.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

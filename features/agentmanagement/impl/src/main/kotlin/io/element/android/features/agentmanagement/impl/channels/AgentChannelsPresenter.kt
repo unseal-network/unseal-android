@@ -120,6 +120,15 @@ class AgentChannelsPresenter(
                     return
                 }
                 ChatbotChannelConnectBody.Telegram(trimmed)
+            } else if (current.platform == ChatbotChannelPlatform.Discord) {
+                val botToken = current.discordBotToken.trim()
+                val publicKey = current.discordPublicKey.trim()
+                val applicationId = current.discordApplicationId.trim()
+                if (botToken.isEmpty() || publicKey.isEmpty() || applicationId.isEmpty()) {
+                    sheet = current.copy(error = "Bot Token, Public Key and Application ID are all required.")
+                    return
+                }
+                ChatbotChannelConnectBody.Discord(botToken, publicKey, applicationId)
             } else {
                 val invalid = validateWecom(current)
                 if (invalid != null) {
@@ -201,6 +210,9 @@ class AgentChannelsPresenter(
                 is AgentChannelsEvents.SetBotToken -> sheet = sheet?.copy(botToken = event.value)
                 is AgentChannelsEvents.SetWecomToken -> sheet = sheet?.copy(wecomToken = event.value)
                 is AgentChannelsEvents.SetWecomAesKey -> sheet = sheet?.copy(wecomAesKey = event.value)
+                is AgentChannelsEvents.SetDiscordBotToken -> sheet = sheet?.copy(discordBotToken = event.value)
+                is AgentChannelsEvents.SetDiscordPublicKey -> sheet = sheet?.copy(discordPublicKey = event.value)
+                is AgentChannelsEvents.SetDiscordApplicationId -> sheet = sheet?.copy(discordApplicationId = event.value)
                 AgentChannelsEvents.GenerateToken -> sheet = sheet?.copy(wecomToken = randomString(WECOM_TOKEN_LENGTH))
                 AgentChannelsEvents.GenerateAesKey -> sheet = sheet?.copy(wecomAesKey = randomString(WECOM_AES_KEY_LENGTH))
                 AgentChannelsEvents.Connect -> connect()
@@ -255,6 +267,9 @@ class AgentChannelsPresenter(
         botToken = "",
         wecomToken = "",
         wecomAesKey = "",
+        discordBotToken = "",
+        discordPublicKey = "",
+        discordApplicationId = "",
         busy = false,
         error = null,
         callbackUrl = null,

@@ -21,6 +21,9 @@ data class ChannelSheetState(
     val botToken: String,
     val wecomToken: String,
     val wecomAesKey: String,
+    val discordBotToken: String,
+    val discordPublicKey: String,
+    val discordApplicationId: String,
     val busy: Boolean,
     val error: String?,
     /** Non-null ⇒ show the WeCom callback panel (created/loaded). */
@@ -41,6 +44,8 @@ data class ChannelSheetState(
             ChatbotChannelPlatform.Feishu -> true
             ChatbotChannelPlatform.Telegram -> botToken.isNotBlank()
             ChatbotChannelPlatform.WeCom -> wecomToken.isNotBlank() && wecomAesKey.length == WECOM_AES_KEY_LENGTH
+            ChatbotChannelPlatform.Discord ->
+                discordBotToken.isNotBlank() && discordPublicKey.isNotBlank() && discordApplicationId.isNotBlank()
         }
 }
 
