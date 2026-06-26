@@ -63,13 +63,41 @@ adb install -r app/build/outputs/apk/gplay/debug/app-gplay-arm64-v8a-debug.apk
 
 The latest install succeeded on `5fd76ce3`.
 
+## Continuation Verification (2026-06-22, device `5fd76ce3`, build `26.06.1` / versionCode `202606012`)
+
+All Android-side remaining items were verified in the real `geminirayson` chat. Evidence lives in
+`docs/qa/real-app-card-qa-20260622/continuation-20260622/`.
+
+- Places — VERIFIED. "coffee shops in Shanghai" rendered a `Places ✓3` card with per-place scoped
+  images, ratings, review counts, price, open/closed status, and addresses, plus a clean markdown
+  summary below. Evidence: `places-final-expanded-20260622.png`.
+- Image — VERIFIED. "Chengdu hotel rooms" rendered an `Images ✓1` card; expanded it shows a clean
+  grid of 5 distinct hotel-room images (no broken/duplicate-source issue).
+  Evidence: `image-final-expanded-grid-20260622.png`.
+- Events — VERIFIED with real data. The events tool returns **no data for Chinese cities** (Shanghai
+  "AI conference" → Events tab shows "No events returned" and the agent falls back to a `Web Search`
+  tab; the card handles the empty state gracefully). A US-city query ("concerts in New York this
+  weekend") returned a populated `Events ✓1` card with 10 real events (New York Philharmonic / David
+  Geffen Hall, Nick Cannon / Barclays Center, etc.), each with title, time, venue, and per-event
+  image. The empty-Events handling and populated rendering are both correct; the geo gap is a
+  tool/backend data-coverage limitation, not an Android renderer bug.
+  Evidence: `events-final-expanded-real-data-20260622.png`, `events-empty-state-graceful-20260622.png`.
+- Light mode — VERIFIED. The densest card (Weather) renders correctly in light mode: location pill,
+  big temp with condition, FEELS/WIND/HUMID stats row, and a 7-day forecast strip with day tiles.
+  Events card and markdown also render cleanly (dark text on white, good contrast).
+  Evidence: `weather-light-expanded-dense-20260622.png`, `events-light-mode-20260622.png`.
+- Long-press selection layering — VERIFIED. Long-pressing the AI message (card + markdown are one
+  timeline event) dims the whole card uniformly under the selection scrim — including the card's
+  nested stat/forecast surfaces — and overlays the action sheet (reactions, Reply, Copy link, Select
+  text, Copy text) cleanly with no z-order bleed-through. Dismissing restores the card with no
+  residual scrim. Evidence: `longpress-layering-card-body-20260622.png`,
+  `longpress-layering-markdown-20260622.png`.
+
 ## Remaining Work
 
-- Re-run real Places and Image prompts after the nested `renderUI` parser fix and capture post-fix screenshots in the actual app.
-- Get one real successful Events payload; the last event search returned no usable events.
-- Recheck light mode in the real chat for the main cards and markdown, especially Weather and dense cards.
-- Recheck long-press selection layering in the real timeline after the card shell changes.
 - Continue iOS parity screenshot comparison after Android is stable. The Android code is now closer to iOS, but final parity is not complete until both clients are captured against the same mock/live stream set.
+- (Optional/backend) The events search tool has weak geo coverage for Chinese cities. If a populated
+  Events card is wanted for CN queries, that is a tool/agent data-source change, not an Android change.
 
 ## Suggested Next Prompts
 

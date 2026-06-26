@@ -59,6 +59,18 @@ import io.element.android.libraries.designsystem.theme.components.Text
 import io.element.android.libraries.designsystem.utils.OnVisibleRangeChangeEffect
 import io.element.android.libraries.ui.strings.CommonStrings
 import kotlinx.collections.immutable.ImmutableList
+import androidx.compose.animation.core.animate
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import kotlinx.coroutines.Job
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import io.element.android.features.home.impl.model.toHomeRoomRowRenderModel
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 @Composable
 fun RoomListContentView(
@@ -211,6 +223,13 @@ private fun RoomsView(
     }
 }
 
+/** The single room currently being swiped / open, plus its reveal width and settled state. */
+private data class ActiveSwipe(
+    val id: String,
+    val revealPx: Float,
+    val settledOpen: Boolean,
+)
+
 @Composable
 private fun RoomsViewList(
     state: RoomListContentState.Rooms,
@@ -223,7 +242,37 @@ private fun RoomsViewList(
     lazyListState: LazyListState,
     modifier: Modifier = Modifier,
 ) {
-    var openedSwipeRoomId by remember { mutableStateOf<String?>(null) }
+    // List-level swipe: one active row + one shared offset. Idle rows carry no gesture/animation/
+    // offset nodes (the per-row machinery was the room-list scroll-jank cause). See
+    // docs/perf/room-list-swipe-refactor.md.
+    var activeSwipe by remember { mutableStateOf<ActiveSwipe?>(null) }
+    // Live offset updated synchronously during a drag (no per-event coroutine race); the settle
+    // animation runs on settleJob and is cancelled before any new drag/settle takes over.
+    var swipeOffsetPx by remember { mutableFloatStateOf(0f) }
+    var settleJob by remember { mutableStateOf<Job?>(null) }
+    val swipeScope = rememberCoroutineScope()
+    val actionWidthPx = with(LocalDensity.current) { 64.dp.toPx() }
+    val headerItemCount = roomListHeaderItemCount(
+        securityBannerVisible = state.securityBannerState != SecurityBannerState.None,
+        fullScreenIntentBannerVisible = state.fullScreenIntentPermissionsState.shouldDisplayBanner,
+        batteryOptimizationBannerVisible = state.batteryOptimizationState.shouldDisplayBanner,
+        newNotificationSoundBannerVisible = state.showNewNotificationSoundBanner,
+    )
+    // Read the latest values inside the (Unit-keyed, never-relaunched) gesture detector.
+    val currentSummaries by rememberUpdatedState(state.summaries)
+    val currentHeaderItemCount by rememberUpdatedState(headerItemCount)
+    val currentSelectedRoomId by rememberUpdatedState(state.selectedRoomId)
+    val currentActivityVisibility by rememberUpdatedState(state.activityVisibility)
+
+    // Scrolling closes the open row — affects only the one active row (no per-row wrapper churn).
+    LaunchedEffect(lazyListState.isScrollInProgress) {
+        if (lazyListState.isScrollInProgress && activeSwipe != null) {
+            settleJob?.cancel()
+            activeSwipe = null
+            swipeOffsetPx = 0f
+        }
+    }
+
     OnVisibleRangeChangeEffect(
         lazyListState = lazyListState,
         notifyWhileScrolling = false,
@@ -232,7 +281,60 @@ private fun RoomsViewList(
     }
     LazyColumn(
         state = lazyListState,
-        modifier = modifier,
+        modifier = modifier.pointerInput(Unit) {
+            detectHorizontalDragGestures(
+                onDragStart = { position ->
+                    settleJob?.cancel()
+                    val items = lazyListState.layoutInfo.visibleItemsInfo.map {
+                        RoomRowBounds(index = it.index, top = it.offset, height = it.size)
+                    }
+                    val index = resolveSwipeTargetIndex(
+                        y = position.y.roundToInt(),
+                        visibleItems = items,
+                        headerItemCount = currentHeaderItemCount,
+                        summaryCount = currentSummaries.size,
+                    )
+                    val summary = index?.let { currentSummaries.getOrNull(it) }
+                    val actions = summary
+                        ?.toHomeRoomRowRenderModel(
+                            isSelected = summary.roomId == currentSelectedRoomId,
+                            activityVisibility = currentActivityVisibility,
+                        )
+                        ?.actions
+                        ?.swipeActions
+                        .orEmpty()
+                    if (summary == null || actions.isEmpty()) {
+                        activeSwipe = null
+                        swipeOffsetPx = 0f
+                        return@detectHorizontalDragGestures
+                    }
+                    val grabbedOpenRow = activeSwipe?.id == summary.id && activeSwipe?.settledOpen == true
+                    activeSwipe = ActiveSwipe(id = summary.id, revealPx = actionWidthPx * actions.size, settledOpen = grabbedOpenRow)
+                    // Continue from -reveal when re-grabbing the already-open row, else start closed.
+                    swipeOffsetPx = if (grabbedOpenRow) -actionWidthPx * actions.size else 0f
+                },
+                onHorizontalDrag = { change, dragAmount ->
+                    val active = activeSwipe ?: return@detectHorizontalDragGestures
+                    change.consume()
+                    swipeOffsetPx = (swipeOffsetPx + dragAmount).coerceIn(-active.revealPx - 16f, 10f)
+                },
+                onDragEnd = {
+                    val active = activeSwipe ?: return@detectHorizontalDragGestures
+                    val open = -swipeOffsetPx > active.revealPx * 0.35f
+                    activeSwipe = active.copy(settledOpen = open)
+                    settleJob = swipeScope.launch {
+                        animate(swipeOffsetPx, if (open) -active.revealPx else 0f) { value, _ -> swipeOffsetPx = value }
+                        if (!open) activeSwipe = null
+                    }
+                },
+                onDragCancel = {
+                    settleJob = swipeScope.launch {
+                        animate(swipeOffsetPx, 0f) { value, _ -> swipeOffsetPx = value }
+                        activeSwipe = null
+                    }
+                },
+            )
+        },
         contentPadding = contentPadding,
     ) {
         when (state.securityBannerState) {
@@ -289,9 +391,15 @@ private fun RoomsViewList(
                 isSelected = room.roomId == state.selectedRoomId,
                 activityVisibility = state.activityVisibility,
                 showUnreadCount = state.showUnreadCount,
-                swipeActionsEnabled = true,
-                openedSwipeRoomId = openedSwipeRoomId,
-                onOpenSwipeRoom = { openedSwipeRoomId = it },
+                isSwipeActive = room.id == activeSwipe?.id,
+                swipeOffsetProvider = { swipeOffsetPx },
+                onCloseSwipe = {
+                    settleJob?.cancel()
+                    settleJob = swipeScope.launch {
+                        animate(swipeOffsetPx, 0f) { value, _ -> swipeOffsetPx = value }
+                        activeSwipe = null
+                    }
+                },
                 onClick = onRoomClick,
                 eventSink = eventSink,
             )
