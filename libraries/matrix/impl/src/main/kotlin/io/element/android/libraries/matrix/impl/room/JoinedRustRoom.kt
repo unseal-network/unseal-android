@@ -105,19 +105,21 @@ class JoinedRustRoom(
     private val roomDispatcher = coroutineDispatchers.io.limitedParallelism(32)
     private val innerRoom = baseRoom.innerRoom
 
-    override val roomTypingMembersFlow: Flow<List<UserId>> = mxCallbackFlow {
-        val initial = emptyList<UserId>()
+    override val roomTypingMembersFlow: Flow<List<UserId>> = mxCallbackFlow<List<String>> {
+        val initial = emptyList<String>()
         channel.trySend(initial)
         innerRoom.subscribeToTypingNotifications(object : TypingNotificationsListener {
             override fun call(typingUserIds: List<String>) {
                 channel.trySend(
                     typingUserIds
                         .filter { it != sessionId.value }
-                        .map(::UserId)
                 )
             }
         })
     }
+        .expireTypingMembers(nowMillis = systemClock::epochMillis)
+        .map { typingUserIds -> typingUserIds.map(::UserId) }
+        .distinctUntilChanged()
 
     override val identityStateChangesFlow: Flow<List<IdentityStateChange>> = mxCallbackFlow {
         val initial = emptyList<IdentityStateChange>()

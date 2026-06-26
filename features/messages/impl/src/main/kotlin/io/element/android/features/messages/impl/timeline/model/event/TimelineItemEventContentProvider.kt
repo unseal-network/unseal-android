@@ -97,11 +97,13 @@ fun aTimelineItemTextContent(
     htmlDocument: Document? = null,
     formattedBody: CharSequence = body,
     isEdited: Boolean = false,
+    linkPreviewUrls: List<String> = emptyList(),
 ) = TimelineItemTextContent(
     body = body,
     htmlDocument = htmlDocument,
     formattedBody = formattedBody,
     isEdited = isEdited,
+    linkPreviewUrls = linkPreviewUrls,
 )
 
 fun aTimelineItemUnknownContent() = TimelineItemUnknownContent

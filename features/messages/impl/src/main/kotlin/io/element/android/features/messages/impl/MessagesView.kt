@@ -275,6 +275,7 @@ fun MessagesView(
                     }
                 },
                 content = { padding ->
+                    val composerBottomInset = maxOf(0.dp, composerHeightDp - ComposerFadeZone)
                     Box(
                         modifier = Modifier
                                 .padding(padding)
@@ -314,7 +315,8 @@ fun MessagesView(
                             // Reserve the composer height minus the fade zone, so the newest message
                             // extends into the composer's transparent top zone (never behind the opaque
                             // input pill) where the gradient below fades it out.
-                            composerBottomInset = maxOf(0.dp, composerHeightDp - ComposerFadeZone),
+                            composerBottomInset = composerBottomInset,
+                            bottomContentPadding = (composerHeightDp - composerBottomInset).coerceAtLeast(0.dp),
                             topChromeInset = topBarHeightDp + 8.dp,
                         )
 
@@ -912,6 +914,7 @@ private fun MessagesViewContent(
     forceJumpToBottomVisibility: Boolean,
     onSwipeToReply: (TimelineItem.Event) -> Unit,
     composerBottomInset: Dp = 88.dp,
+    bottomContentPadding: Dp = 24.dp,
     topChromeInset: Dp = 132.dp,
     modifier: Modifier = Modifier,
     knockRequestsBannerView: @Composable () -> Unit,
@@ -969,6 +972,7 @@ private fun MessagesViewContent(
                 nestedScrollConnection = scrollBehavior.nestedScrollConnection,
                 floatingDateTopOffset = pinnedBannerHeightDp,
                 composerBottomInset = composerBottomInset,
+                bottomContentPadding = bottomContentPadding,
                 topChromeInset = topChromeInset,
             )
 
