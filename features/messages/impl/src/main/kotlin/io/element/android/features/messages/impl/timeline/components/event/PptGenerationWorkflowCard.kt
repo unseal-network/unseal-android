@@ -34,8 +34,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -72,12 +74,33 @@ internal fun PptGenerationWorkflowCard(
 ) {
     val isDark = isSystemInDarkTheme()
     val cardBg = if (isDark) Color(0xFF1C1C1E) else Color.White
-    val borderColor = if (isDark) Color(0xFF3A3A3C) else Color(0xFFE5E7EB)
     val textPrimary = if (isDark) Color(0xFFF2F2F7) else Color(0xFF111827)
     val textSecondary = if (isDark) Color(0xFF8E8E93) else Color(0xFF6B7280)
     val tealColor = Color(0xFF55B99F)
 
-    val isGenerating = data.status != "completed" && data.status != "complete"
+    // Read live WebSocket progress via CompositionLocal set in AiStreamPartsView
+    val workflowMessages = LocalWorkflowMessages.current
+    val latestMessage = workflowMessages[data.taskId]
+
+    val liveGeneratedCount = remember(latestMessage) {
+        when (latestMessage) {
+            is WorkflowMessage.Progress -> latestMessage.totalSlides?.let { _ ->
+                // count generated slides from message stage; approximate from "generating" stage index
+                null
+            }
+            is WorkflowMessage.Completed -> data.totalSlides
+            else -> null
+        }
+    }
+    val generatedCount = liveGeneratedCount ?: 0
+    val isCompleted = latestMessage is WorkflowMessage.Completed
+    val isGenerating = !isCompleted && data.status != "completed" && data.status != "complete"
+
+    val progressFraction by animateFloatAsState(
+        targetValue = if (data.totalSlides > 0) generatedCount.toFloat() / data.totalSlides else 0f,
+        animationSpec = androidx.compose.animation.core.tween(500),
+        label = "ppt-gen-progress",
+    )
 
     Column(
         modifier = modifier
@@ -108,15 +131,20 @@ internal fun PptGenerationWorkflowCard(
                         BouncingDots(color = textSecondary)
                     }
                 }
+                val statusMsg = when {
+                    latestMessage is WorkflowMessage.Progress && latestMessage.message.isNotBlank() ->
+                        latestMessage.message
+                    else -> "$generatedCount/${data.totalSlides} slides ready"
+                }
                 Text(
-                    text = "0/${data.totalSlides} slides ready",
+                    text = statusMsg,
                     style = MaterialTheme.typography.labelSmall,
                     color = textSecondary,
                 )
             }
         }
 
-        // Progress bar
+        // Progress bar: shows real fraction when data arrives, indeterminate shimmer until then
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -124,7 +152,15 @@ internal fun PptGenerationWorkflowCard(
                 .clip(RoundedCornerShape(3.dp))
                 .background(if (isDark) Color(0xFF3A3A3C) else Color(0xFFE5E7EB)),
         ) {
-            if (isGenerating) {
+            if (progressFraction > 0f) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(progressFraction)
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(tealColor),
+                )
+            } else if (isGenerating) {
                 IndeterminateShimmerBar(tealColor)
             }
         }

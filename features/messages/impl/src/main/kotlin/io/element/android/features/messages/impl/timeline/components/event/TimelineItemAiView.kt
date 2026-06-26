@@ -126,6 +126,9 @@ import org.json.JSONObject
 
 private val ToolCallContentMaxHeight = 320.dp
 
+/** Allows [PptGenerationWorkflowCard] (deep in the tool card chain) to read workflow progress. */
+internal val LocalWorkflowMessages = androidx.compose.runtime.compositionLocalOf<Map<String, WorkflowMessage>> { emptyMap() }
+
 private data class ToolRootUiState(
     val selectedIndex: Int,
     val expanded: Boolean,
@@ -296,6 +299,7 @@ private fun AiStreamPartsView(
     // first tool part's position; render every other part inline in order; trailing streaming
     // cursor unless the last part is already a streaming text (which carries its own cursor).
     val toolCardInserted = toolCallRoot != null
+    androidx.compose.runtime.CompositionLocalProvider(LocalWorkflowMessages provides workflowMessages) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -334,6 +338,7 @@ private fun AiStreamPartsView(
             StreamingCursor()
         }
     }
+    } // end CompositionLocalProvider(LocalWorkflowMessages)
 }
 
 /** Trailing streaming indicator (iOS StreamingCursor). */
