@@ -1073,6 +1073,7 @@ private fun RoomComposerChrome(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val density = LocalDensity.current
+    val bgColor = ElementTheme.colors.bgCanvasDefault
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1085,7 +1086,12 @@ private fun RoomComposerChrome(
         // here, above the opaque input pill, so it reads as a soft "渐变透明" edge without the pill
         // ever covering content.
         Spacer(Modifier.height(ComposerFadeZone))
-        content()
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(bgColor),
+            content = content,
+        )
     }
 }
 

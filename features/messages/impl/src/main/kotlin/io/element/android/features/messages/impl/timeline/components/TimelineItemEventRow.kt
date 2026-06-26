@@ -384,7 +384,7 @@ fun TimelineItemEventRow(
                     isLastOutgoingMessage = isLastOutgoingMessage,
                     receipts = event.readReceiptState.receipts,
                 ),
-                renderReadReceipts = renderReadReceipts && event.isMine && event.content !is TimelineItemAiContent,
+                renderReadReceipts = renderReadReceipts && event.content !is TimelineItemAiContent,
                 onReadReceiptsClick = { onReadReceiptClick(event) },
                 modifier = Modifier.padding(top = 4.dp)
             )

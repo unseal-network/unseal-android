@@ -317,6 +317,23 @@ class MessagesViewTest {
     }
 
     @Test
+    fun `unavailable attachment actions are hidden`() = runAndroidComposeUiTest {
+        val state = aMessagesState(
+            composerState = aMessageComposerState(
+                showAttachmentSourcePicker = true,
+                canShareLocation = false,
+            ),
+        )
+
+        setMessagesView(state = state)
+
+        val context = activity!!
+        onNodeWithText(context.getString(R.string.screen_room_attachment_source_ping)).assertDoesNotExist()
+        onNodeWithText(context.getString(R.string.screen_room_attachment_source_sketch)).assertDoesNotExist()
+        onNodeWithText(context.getString(R.string.screen_room_attachment_source_location)).assertDoesNotExist()
+    }
+
+    @Test
     fun `clicking on create poll invoke expected callback`() = runAndroidComposeUiTest {
         val eventsRecorder = EventsRecorder<MessagesEvent>(expectEvents = false)
         val state = aMessagesState(
