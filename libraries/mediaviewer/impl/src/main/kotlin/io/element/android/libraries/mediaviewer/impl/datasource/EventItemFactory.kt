@@ -20,6 +20,7 @@ import io.element.android.libraries.matrix.api.timeline.item.event.EmoteMessageT
 import io.element.android.libraries.matrix.api.timeline.item.event.FailedToParseMessageLikeContent
 import io.element.android.libraries.matrix.api.timeline.item.event.FailedToParseStateContent
 import io.element.android.libraries.matrix.api.timeline.item.event.FileMessageType
+import io.element.android.libraries.matrix.api.timeline.item.event.GalleryMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.ImageMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.LegacyCallInviteContent
 import io.element.android.libraries.matrix.api.timeline.item.event.LiveLocationContent
@@ -84,6 +85,7 @@ class EventItemFactory(
             is MessageContent -> {
                 when (val type = content.type) {
                     is EmoteMessageType,
+                    is GalleryMessageType,
                     is NoticeMessageType,
                     is OtherMessageType,
                     is LocationMessageType,

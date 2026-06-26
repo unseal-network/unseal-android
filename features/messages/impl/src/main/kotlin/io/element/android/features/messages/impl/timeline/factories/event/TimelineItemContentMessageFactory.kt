@@ -37,6 +37,7 @@ import io.element.android.libraries.matrix.api.permalink.PermalinkParser
 import io.element.android.libraries.matrix.api.timeline.item.event.AudioMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.EmoteMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.FileMessageType
+import io.element.android.libraries.matrix.api.timeline.item.event.GalleryMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.ImageMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.LocationMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageContent
@@ -74,7 +75,7 @@ class TimelineItemContentMessageFactory(
         senderId: UserId,
         senderProfile: ProfileDetails,
         eventId: EventId?,
-        isOutgoing: Boolean,
+        isOutgoing: Boolean = false,
     ): TimelineItemEventContent {
         return when (val messageType = content.type) {
             is EmoteMessageType -> {
@@ -263,6 +264,17 @@ class TimelineItemContentMessageFactory(
                 TimelineItemTextContent(
                     body = body,
                     htmlDocument = htmlDocument,
+                    formattedBody = formattedBody,
+                    isEdited = content.isEdited,
+                    linkPreviewUrls = formattedBody.extractLinkPreviewUrls(),
+                )
+            }
+            is GalleryMessageType -> {
+                val body = messageType.body.trimEnd()
+                val formattedBody = textPillificationHelper.pillify(body).safeLinkify()
+                TimelineItemTextContent(
+                    body = body,
+                    htmlDocument = null,
                     formattedBody = formattedBody,
                     isEdited = content.isEdited,
                     linkPreviewUrls = formattedBody.extractLinkPreviewUrls(),

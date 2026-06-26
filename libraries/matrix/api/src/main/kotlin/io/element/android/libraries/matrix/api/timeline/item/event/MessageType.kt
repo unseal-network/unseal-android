@@ -102,6 +102,10 @@ data class TextMessageType(
     val formatted: FormattedBody?
 ) : MessageType
 
+data class GalleryMessageType(
+    val body: String,
+) : MessageType
+
 data class OtherMessageType(
     val msgType: String,
     val body: String,
