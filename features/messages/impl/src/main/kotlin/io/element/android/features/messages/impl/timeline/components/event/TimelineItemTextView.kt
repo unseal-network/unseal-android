@@ -10,7 +10,9 @@ package io.element.android.features.messages.impl.timeline.components.event
 
 import android.text.SpannedString
 import androidx.annotation.VisibleForTesting
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
@@ -24,6 +26,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayout
 import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
@@ -53,80 +56,100 @@ fun TimelineItemTextView(
     val htmlTables = remember(content.htmlDocument) {
         content.htmlDocument?.extractHtmlTables().orEmpty()
     }
-    if (htmlTables.isNotEmpty()) {
-        Box(
-            modifier
-                .fillMaxWidth()
-                .onSizeChanged { size ->
-                    onContentLayoutChange(
-                        ContentAvoidingLayoutData(
-                            contentWidth = size.width,
-                            contentHeight = size.height,
-                            nonOverlappingContentWidth = size.width,
-                            nonOverlappingContentHeight = size.height,
-                        )
-                    )
-                }
-                .semantics { contentDescription = content.plainText }
-        ) {
-            HtmlTableBody(tables = htmlTables)
-        }
-        return
-    }
 
-    if (content.shouldRenderBodyAsMarkdown()) {
-        Box(
-            modifier
-                .fillMaxWidth()
-                .onSizeChanged { size ->
-                    onContentLayoutChange(
-                        ContentAvoidingLayoutData(
-                            contentWidth = size.width,
-                            contentHeight = size.height,
-                            nonOverlappingContentWidth = size.width,
-                            nonOverlappingContentHeight = size.height,
-                        )
-                    )
-                }
-                .semantics { contentDescription = content.plainText }
-        ) {
-            MarkdownBody(
-                text = content.body,
-                renderMode = MarkdownRenderMode.Stable,
-                onLinkClick = onLinkClick,
-                onLongClick = onLongClick,
-                modifier = Modifier,
-            )
-        }
-        return
-    }
-
-    val emojiOnly = content.formattedBody.toString() == content.body &&
-        content.body.replace(" ", "").containsOnlyEmojis()
-    val textStyle = when {
-        emojiOnly -> ElementTheme.typography.fontHeadingXlRegular
-        else -> ElementTheme.typography.fontBodyLgRegular
-    }
-    CompositionLocalProvider(
-        LocalContentColor provides ElementTheme.colors.textPrimary,
-        LocalTextStyle provides textStyle
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        val text = getTextWithResolvedMentions(content)
-        val measureTextLayout = LocalTimelineTextLayoutMeasurementEnabled.current
-        Box(modifier.semantics { contentDescription = content.plainText }) {
-            EditorStyledText(
-                text = text,
-                onLinkClickedListener = onLinkClick,
-                onLinkLongClickedListener = onLinkLongClick,
-                style = ElementRichTextEditorStyle.textStyle(),
-                onTextLayout = if (measureTextLayout) {
-                    ContentAvoidingLayout.measureLegacyLastTextLine(onContentLayoutChange = onContentLayoutChange)
-                } else {
-                    {}
-                },
-                releaseOnDetach = false,
-            )
+        when {
+            htmlTables.isNotEmpty() -> {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .onSizeChanged { size ->
+                            onContentLayoutChange(
+                                ContentAvoidingLayoutData(
+                                    contentWidth = size.width,
+                                    contentHeight = size.height,
+                                    nonOverlappingContentWidth = size.width,
+                                    nonOverlappingContentHeight = size.height,
+                                )
+                            )
+                        }
+                        .semantics { contentDescription = content.plainText }
+                ) {
+                    HtmlTableBody(tables = htmlTables)
+                }
+            }
+            content.shouldRenderBodyAsMarkdown() -> {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .onSizeChanged { size ->
+                            onContentLayoutChange(
+                                ContentAvoidingLayoutData(
+                                    contentWidth = size.width,
+                                    contentHeight = size.height,
+                                    nonOverlappingContentWidth = size.width,
+                                    nonOverlappingContentHeight = size.height,
+                                )
+                            )
+                        }
+                        .semantics { contentDescription = content.plainText }
+                ) {
+                    MarkdownBody(
+                        text = content.body,
+                        renderMode = MarkdownRenderMode.Stable,
+                        onLinkClick = onLinkClick,
+                        onLongClick = onLongClick,
+                        modifier = Modifier,
+                    )
+                }
+            }
+            else -> {
+                val emojiOnly = content.formattedBody.toString() == content.body &&
+                    content.body.replace(" ", "").containsOnlyEmojis()
+                val textStyle = when {
+                    emojiOnly -> ElementTheme.typography.fontHeadingXlRegular
+                    else -> ElementTheme.typography.fontBodyLgRegular
+                }
+                CompositionLocalProvider(
+                    LocalContentColor provides ElementTheme.colors.textPrimary,
+                    LocalTextStyle provides textStyle
+                ) {
+                    val text = getTextWithResolvedMentions(content)
+                    val measureTextLayout = LocalTimelineTextLayoutMeasurementEnabled.current
+                    Box(Modifier.semantics { contentDescription = content.plainText }) {
+                        EditorStyledText(
+                            text = text,
+                            onLinkClickedListener = onLinkClick,
+                            onLinkLongClickedListener = onLinkLongClick,
+                            style = ElementRichTextEditorStyle.textStyle(),
+                            onTextLayout = if (measureTextLayout) {
+                                ContentAvoidingLayout.measureLegacyLastTextLine(onContentLayoutChange = onContentLayoutChange)
+                            } else {
+                                {}
+                            },
+                            releaseOnDetach = false,
+                        )
+                    }
+                }
+            }
         }
+        TimelineLinkPreviews(content.linkPreviewUrls, onLinkClick)
+    }
+}
+
+@Composable
+private fun TimelineLinkPreviews(
+    urls: List<String>,
+    onLinkClick: (Link) -> Unit,
+) {
+    urls.forEach { url ->
+        TimelineItemLinkPreviewView(
+            url = url,
+            onClick = onLinkClick,
+        )
     }
 }
 
@@ -191,6 +214,22 @@ internal fun TimelineItemTextViewWithLinkifiedUrlPreview() = ElementPreview {
 internal fun TimelineItemTextViewWithLinkifiedUrlAndNestedParenthesisPreview() = ElementPreview {
     val content = aTimelineItemTextContent(
         formattedBody = LinkifyHelper.linkify("The link should end after the '(ME)' ((url: github.com/element-hq/element-x-android/READ(ME)))!")
+    )
+    TimelineItemTextView(
+        content = content,
+        onLinkClick = {},
+        onLinkLongClick = {},
+        onLongClick = {},
+    )
+}
+
+@Preview
+@Composable
+internal fun TimelineItemTextViewWithLinkPreviewPreview() = ElementPreview {
+    val content = aTimelineItemTextContent(
+        body = "https://play.google.com/apps/internaltest/4701613975292549758",
+        formattedBody = LinkifyHelper.linkify("https://play.google.com/apps/internaltest/4701613975292549758"),
+        linkPreviewUrls = listOf("https://play.google.com/apps/internaltest/4701613975292549758"),
     )
     TimelineItemTextView(
         content = content,

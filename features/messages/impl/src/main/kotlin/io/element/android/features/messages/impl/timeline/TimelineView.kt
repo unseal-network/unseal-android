@@ -105,6 +105,7 @@ fun TimelineView(
     nestedScrollConnection: NestedScrollConnection = rememberNestedScrollInteropConnection(),
     floatingDateTopOffset: Dp = 0.dp,
     composerBottomInset: Dp = 88.dp,
+    bottomContentPadding: Dp = 24.dp,
     topChromeInset: Dp = 132.dp,
 ) {
     fun clearFocusRequestState() {
@@ -171,7 +172,7 @@ fun TimelineView(
                     // At rest this is the breathing room between the last message and the composer
                     // input field — the outer composerBottomInset already clips the list to the
                     // composer's top edge, so this padding is exactly the visible bottom gap.
-                    bottom = 24.dp,
+                    bottom = bottomContentPadding,
                 ),
             ) {
                 items(
