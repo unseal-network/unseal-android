@@ -30,13 +30,19 @@ import kotlinx.serialization.json.buildJsonObject
 class SkillDetailPresenter(
     @Assisted private val id: String,
     @Assisted private val isOwner: Boolean,
+    @Assisted private val canApplyMetadataFilters: Boolean,
     @Assisted private val navigator: SkillDetailNavigator,
     private val matrixClient: MatrixClient,
     private val chatbotApiServiceFactory: ChatbotApiServiceFactory,
 ) : Presenter<SkillDetailState> {
     @AssistedFactory
     interface Factory {
-        fun create(id: String, isOwner: Boolean, navigator: SkillDetailNavigator): SkillDetailPresenter
+        fun create(
+            id: String,
+            isOwner: Boolean,
+            canApplyMetadataFilters: Boolean,
+            navigator: SkillDetailNavigator,
+        ): SkillDetailPresenter
     }
 
     @Composable
@@ -52,6 +58,7 @@ class SkillDetailPresenter(
         var editVisibility by remember { mutableStateOf(ChatbotSkillVisibility.Private) }
         var error by remember { mutableStateOf<String?>(null) }
         var hasLoadedOnce by remember { mutableStateOf(false) }
+        var loadRequestId by remember { mutableStateOf(0) }
 
         suspend fun api() = chatbotApiServiceFactory.createForHomeserver(matrixClient)
 
@@ -59,9 +66,12 @@ class SkillDetailPresenter(
 
         fun load(isInitial: Boolean) {
             if (isInitial && hasLoadedOnce) return
+            val requestId = ++loadRequestId
             coroutineScope.launch {
                 isLoading = true
-                api().getUserSkill(id)
+                val result = api().getUserSkill(id)
+                if (requestId != loadRequestId) return@launch
+                result
                     .onSuccess {
                         response = it
                         error = null
@@ -126,6 +136,7 @@ class SkillDetailPresenter(
                 is SkillDetailEvents.EditVisibilityChanged -> editVisibility = event.visibility
                 SkillDetailEvents.SaveEditing -> saveEditing()
                 is SkillDetailEvents.OpenFile -> navigator.onOpenFile(event.file)
+                is SkillDetailEvents.ApplyFilterToken -> if (canApplyMetadataFilters) navigator.onApplyMetadataFilter(event.token)
                 SkillDetailEvents.Delete -> deleteSkill()
                 SkillDetailEvents.ClearError -> error = null
             }
@@ -139,6 +150,7 @@ class SkillDetailPresenter(
             isSaving = isSaving,
             isDeleting = isDeleting,
             isEditing = isEditing,
+            canApplyMetadataFilters = canApplyMetadataFilters,
             editName = editName,
             editDescription = editDescription,
             editVisibility = editVisibility,

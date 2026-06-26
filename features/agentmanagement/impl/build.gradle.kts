@@ -34,6 +34,7 @@ dependencies {
     implementation(projects.libraries.di)
     implementation(projects.libraries.matrix.api)
     implementation(projects.libraries.matrixui)
+    implementation(projects.libraries.qrcode)
     implementation(projects.libraries.uiStrings)
     implementation(projects.services.analytics.api)
     implementation(libs.coil.compose)

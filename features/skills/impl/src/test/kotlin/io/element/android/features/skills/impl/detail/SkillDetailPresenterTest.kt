@@ -9,6 +9,7 @@ package io.element.android.features.skills.impl.detail
 
 import app.cash.turbine.TurbineTestContext
 import com.google.common.truth.Truth.assertThat
+import io.element.android.features.skills.impl.shared.SkillFilterToken
 import io.element.android.libraries.chatbot.api.model.json.ChatbotJsonObject
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotGetUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
@@ -19,6 +20,9 @@ import io.element.android.libraries.chatbot.test.FakeChatbotApiServiceFactory
 import io.element.android.libraries.matrix.test.FakeMatrixClient
 import io.element.android.tests.testutils.WarmUpRule
 import io.element.android.tests.testutils.test
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
@@ -77,6 +81,59 @@ class SkillDetailPresenterTest {
             val refreshedState = awaitStateWhere { it.skill?.name == "Stable" && !it.isLoading && it.error == "network down" }
             refreshedState.eventSink(SkillDetailEvents.ClearError)
             assertThat(awaitStateWhere { it.error == null }.skill?.name).isEqualTo("Stable")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun `event - detail load is latest request wins`() = runTest {
+        val first = CompletableDeferred<Result<ChatbotGetUserSkillResponse>>()
+        val second = CompletableDeferred<Result<ChatbotGetUserSkillResponse>>()
+        val requests = ArrayDeque(listOf(first, second))
+        val service = FakeChatbotApiService().apply {
+            getUserSkillSuspendResult = {
+                requests.removeFirst().await()
+            }
+        }
+        val presenter = createSkillDetailPresenter(service = service)
+
+        presenter.test {
+            val initialState = awaitItem()
+            initialState.eventSink(SkillDetailEvents.OnAppear)
+            awaitStateWhere { it.isLoading }
+
+            initialState.eventSink(SkillDetailEvents.Refresh)
+            runCurrent()
+
+            second.complete(Result.success(ChatbotGetUserSkillResponse(skill = aSkill(id = "skill", name = "Fresh"))))
+            val freshState = awaitStateWhere { it.skill?.name == "Fresh" && !it.isLoading }
+            assertThat(freshState.error).isNull()
+
+            first.complete(Result.success(ChatbotGetUserSkillResponse(skill = aSkill(id = "skill", name = "Stale"))))
+            runCurrent()
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `event - metadata filter is forwarded only when detail has list context`() = runTest {
+        val interactiveNavigator = FakeSkillDetailNavigator()
+        val interactivePresenter = createSkillDetailPresenter(navigator = interactiveNavigator, canApplyMetadataFilters = true)
+
+        interactivePresenter.test {
+            awaitItem().eventSink(SkillDetailEvents.ApplyFilterToken(SkillFilterToken.Category("Testing")))
+            assertThat(interactiveNavigator.appliedFilters).containsExactly(SkillFilterToken.Category("Testing"))
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        val directNavigator = FakeSkillDetailNavigator()
+        val directPresenter = createSkillDetailPresenter(navigator = directNavigator, canApplyMetadataFilters = false)
+
+        directPresenter.test {
+            awaitItem().eventSink(SkillDetailEvents.ApplyFilterToken(SkillFilterToken.Category("Testing")))
+            assertThat(directNavigator.appliedFilters).isEmpty()
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -258,10 +315,12 @@ class SkillDetailPresenterTest {
         id: String = "skill",
         isOwner: Boolean = true,
         navigator: SkillDetailNavigator = FakeSkillDetailNavigator(),
+        canApplyMetadataFilters: Boolean = false,
     ): SkillDetailPresenter {
         return SkillDetailPresenter(
             id = id,
             isOwner = isOwner,
+            canApplyMetadataFilters = canApplyMetadataFilters,
             navigator = navigator,
             matrixClient = FakeMatrixClient(),
             chatbotApiServiceFactory = FakeChatbotApiServiceFactory(service),
@@ -272,6 +331,7 @@ class SkillDetailPresenterTest {
 private class FakeSkillDetailNavigator : SkillDetailNavigator {
     val openedFiles = mutableListOf<SkillFileRenderModel>()
     val deletedIds = mutableListOf<String>()
+    val appliedFilters = mutableListOf<SkillFilterToken>()
 
     override fun onOpenFile(file: SkillFileRenderModel) {
         openedFiles += file
@@ -279,6 +339,10 @@ private class FakeSkillDetailNavigator : SkillDetailNavigator {
 
     override fun onDeleted(id: String) {
         deletedIds += id
+    }
+
+    override fun onApplyMetadataFilter(token: SkillFilterToken) {
+        appliedFilters += token
     }
 }
 

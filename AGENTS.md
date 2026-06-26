@@ -126,7 +126,7 @@ adb install -r <APK_PATH>
 Launch the debug app:
 
 ```bash
-adb shell monkey -p io.element.android.x.debug -c android.intent.category.LAUNCHER 1
+adb shell monkey -p network.unseal.android.debug -c android.intent.category.LAUNCHER 1
 ```
 
 If launch fails, confirm the package and launchable activity from the APK:
@@ -161,6 +161,8 @@ We use [Appyx](https://bumble-tech.github.io/appyx/) for navigation and [Molecul
 | `FooEvent.kt` | Sealed interface for UI actions sent to the Presenter. |
 | `FooStateProvider.kt` | Provides sample states for Previews and Screenshot tests. |
 | `FooPresenterTest.kt` | Unit tests for the Presenter logic using Turbine. |
+
+> **Gotcha:** `awaitStateWhere { predicate }` is a **private per-file helper**, not a shared util — copy its `private suspend fun TurbineTestContext<FooState>.awaitStateWhere(...)` definition into each new `FooPresenterTest.kt` (import `app.cash.turbine.TurbineTestContext`).
 
 ---
 

@@ -8,6 +8,7 @@
 
 package io.element.android.features.messages.impl.timeline.factories.event
 
+import android.text.Spanned
 import android.text.style.URLSpan
 import androidx.core.text.getSpans
 import androidx.core.text.toSpannable
@@ -261,15 +262,18 @@ class TimelineItemContentMessageFactory(
                     htmlDocument = htmlDocument,
                     formattedBody = formattedBody,
                     isEdited = content.isEdited,
+                    linkPreviewUrls = formattedBody.extractLinkPreviewUrls(),
                 )
             }
             is OtherMessageType -> {
                 val body = messageType.body.trimEnd()
+                val formattedBody = textPillificationHelper.pillify(body).safeLinkify()
                 TimelineItemTextContent(
                     body = body,
                     htmlDocument = null,
-                    formattedBody = textPillificationHelper.pillify(body).safeLinkify(),
+                    formattedBody = formattedBody,
                     isEdited = content.isEdited,
+                    linkPreviewUrls = formattedBody.extractLinkPreviewUrls(),
                 )
             }
         }
@@ -298,4 +302,20 @@ private fun String.withLinks(): CharSequence? {
     // Note: toSpannable() can return null when running unit tests
     val spannable = safeLinkify().toSpannable() ?: return null
     return spannable.takeIf { spannable.getSpans<URLSpan>(0, length).isNotEmpty() }
+}
+
+private fun CharSequence.extractLinkPreviewUrls(): List<String> {
+    if (this !is Spanned) return emptyList()
+    return getSpans<URLSpan>(0, length)
+        .map { it.url }
+        .filter { it.isPreviewableUrl() }
+        .distinct()
+        .take(2)
+}
+
+private fun String.isPreviewableUrl(): Boolean {
+    val normalized = lowercase()
+    return (normalized.startsWith("http://") || normalized.startsWith("https://")) &&
+        !normalized.startsWith("https://matrix.to/") &&
+        !normalized.startsWith("http://matrix.to/")
 }

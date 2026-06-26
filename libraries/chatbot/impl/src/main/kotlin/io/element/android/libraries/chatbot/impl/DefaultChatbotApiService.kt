@@ -22,6 +22,11 @@ import io.element.android.libraries.chatbot.api.model.agent.ChatbotSetAgentVoice
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotUpdateAgentRequest
 import io.element.android.libraries.chatbot.api.model.analytics.AnalyticsTokensResponse
 import io.element.android.libraries.chatbot.api.model.approvals.ChatbotApproval
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelConnectBody
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelCredentials
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelSummary
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotConnectChannelResponse
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotListChannelsResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotDisconnectAccountResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotInitiateConnectionResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListConnectedAccountsResponse
@@ -48,9 +53,12 @@ import io.element.android.libraries.chatbot.api.model.skills.ChatbotCreateUserSk
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotDeleteUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotGetUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotListAgentSkillsResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotListPublicSkillCategoriesResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotListPublicSkillTagsResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotListPublicSkillsResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotListRoomAgentSkillsResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotListUserSkillsResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillListFilters
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUpdateUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
@@ -151,16 +159,24 @@ internal class DefaultChatbotApiService(
     }
 
     override suspend fun listUserSkills(visibility: ChatbotSkillVisibility?): Result<List<ChatbotUserSkill>> {
-        val visibilityValue = visibility?.name?.lowercase()
-        return httpClient.requestJson<ChatbotListUserSkillsResponse>("/chatbot/v1/skills${ChatbotUrlBuilder.query(mapOf("visibility" to visibilityValue))}", ChatbotHttpMethod.GET)
+        return httpClient.requestJson<ChatbotListUserSkillsResponse>("/chatbot/v1/skills${userSkillFilterQuery(visibility)}", ChatbotHttpMethod.GET)
             .map { it.skills }
     }
 
     override suspend fun listPublicSkills(page: Int, pageSize: Int, search: String?): Result<ChatbotListPublicSkillsResponse> =
+        listPublicSkills(page, pageSize, ChatbotSkillListFilters(search = search.orEmpty()))
+
+    override suspend fun listPublicSkills(page: Int, pageSize: Int, filters: ChatbotSkillListFilters): Result<ChatbotListPublicSkillsResponse> =
         httpClient.requestJson(
-            "/chatbot/v1/skills/public${ChatbotUrlBuilder.query(mapOf("page" to page.toString(), "page_size" to pageSize.toString(), "search" to search?.takeIf { it.isNotEmpty() }))}",
+            "/api/skills/public${skillFilterQuery(filters, extra = mapOf("page" to page.toString(), "pageSize" to pageSize.toString()))}",
             ChatbotHttpMethod.GET
         )
+
+    override suspend fun listPublicSkillCategories(): Result<ChatbotListPublicSkillCategoriesResponse> =
+        httpClient.requestJson("/api/skills/public/categories", ChatbotHttpMethod.GET)
+
+    override suspend fun listPublicSkillTags(): Result<ChatbotListPublicSkillTagsResponse> =
+        httpClient.requestJson("/api/skills/public/tags", ChatbotHttpMethod.GET)
 
     override suspend fun getUserSkill(id: String): Result<ChatbotGetUserSkillResponse> =
         httpClient.requestJson("/chatbot/v1/skills/${path(id)}", ChatbotHttpMethod.GET)
@@ -392,6 +408,65 @@ internal class DefaultChatbotApiService(
     override suspend fun deleteAgentVoiceConfig(agentId: String): Result<Unit> =
         rawUnit("/api/agents/${path(agentId)}/voice-config", ChatbotHttpMethod.DELETE)
 
+    override suspend fun listAgentChannels(agentId: String): Result<List<ChatbotChannelSummary>> =
+        httpClient.requestJson<ChatbotListChannelsResponse>("/api/agents/${path(agentId)}/channels", ChatbotHttpMethod.GET).map { it.channels }
+
+    override suspend fun connectAgentChannel(agentId: String, body: ChatbotChannelConnectBody): Result<ChatbotConnectChannelResponse> {
+        val credentials = when (body) {
+            is ChatbotChannelConnectBody.Telegram -> JsonObject(
+                mapOf(
+                    "platform" to JsonPrimitive("telegram"),
+                    "botToken" to JsonPrimitive(body.botToken),
+                )
+            )
+            is ChatbotChannelConnectBody.WeCom -> JsonObject(
+                mapOf(
+                    "platform" to JsonPrimitive("wecom"),
+                    "token" to JsonPrimitive(body.token),
+                    "encodingAESKey" to JsonPrimitive(body.encodingAESKey),
+                )
+            )
+            ChatbotChannelConnectBody.Feishu -> JsonObject(
+                mapOf(
+                    "platform" to JsonPrimitive("feishu"),
+                )
+            )
+            is ChatbotChannelConnectBody.Discord -> JsonObject(
+                mapOf(
+                    "platform" to JsonPrimitive("discord"),
+                    "botToken" to JsonPrimitive(body.botToken),
+                    "publicKey" to JsonPrimitive(body.publicKey),
+                    "applicationId" to JsonPrimitive(body.applicationId),
+                )
+            )
+        }
+        val payload = JsonObject(mapOf("credentials" to credentials)).toString()
+        return httpClient.requestJson("/api/agents/${path(agentId)}/channels", ChatbotHttpMethod.POST, payload)
+    }
+
+    override suspend fun disconnectAgentChannel(agentId: String, installationId: String): Result<Unit> =
+        rawUnit("/api/agents/${path(agentId)}/channels/${path(installationId)}", ChatbotHttpMethod.DELETE)
+
+    override suspend fun updateAgentChannel(agentId: String, installationId: String, token: String, encodingAESKey: String): Result<ChatbotConnectChannelResponse> {
+        val payload = JsonObject(
+            mapOf(
+                "credentials" to JsonObject(
+                    mapOf(
+                        "token" to JsonPrimitive(token),
+                        "encodingAESKey" to JsonPrimitive(encodingAESKey),
+                    )
+                )
+            )
+        ).toString()
+        return httpClient.requestJson("/api/agents/${path(agentId)}/channels/${path(installationId)}", ChatbotHttpMethod.PUT, payload)
+    }
+
+    override suspend fun getAgentChannelCredentials(agentId: String, installationId: String): Result<ChatbotChannelCredentials> =
+        httpClient.requestJson("/api/agents/${path(agentId)}/channels/${path(installationId)}/credentials", ChatbotHttpMethod.GET)
+
+    override suspend fun getAgentChannel(agentId: String, installationId: String): Result<ChatbotChannelSummary> =
+        httpClient.requestJson("/api/agents/${path(agentId)}/channels/${path(installationId)}", ChatbotHttpMethod.GET)
+
     override suspend fun listVault(): Result<List<io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem>> =
         httpClient.requestJson<io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultListResponse>("/chatbot/v1/vault", ChatbotHttpMethod.GET).map { it.items }
 
@@ -422,6 +497,24 @@ internal class DefaultChatbotApiService(
     private inline fun <reified T> encode(value: T): String = ChatbotJson.encode(value)
 
     private fun path(value: String): String = ChatbotUrlBuilder.path("{value}", mapOf("value" to value))
+
+    private fun skillFilterQuery(
+        filters: ChatbotSkillListFilters,
+        extra: Map<String, String?> = emptyMap(),
+    ): String {
+        return ChatbotUrlBuilder.query(
+            extra + mapOf(
+                "search" to filters.search.trim().takeIf { it.isNotEmpty() },
+                "categorySlugs" to filters.categorySlug?.trim()?.takeIf { it.isNotEmpty() },
+                "sourceSlugs" to filters.sourceSlug?.trim()?.takeIf { it.isNotEmpty() },
+                "tagSlugs" to filters.tagSlugs.mapNotNull { it.trim().takeIf(String::isNotEmpty) }.takeIf { it.isNotEmpty() }?.joinToString(","),
+                "tagMode" to filters.tagMode.queryValue,
+            )
+        )
+    }
+
+    private fun userSkillFilterQuery(visibility: ChatbotSkillVisibility?): String =
+        ChatbotUrlBuilder.query(mapOf("visibility" to visibility?.name?.lowercase()))
 
     private fun jsonObject(vararg values: Pair<String, String>): String {
         return JsonObject(values.associate { (key, value) -> key to JsonPrimitive(value) }).toString()

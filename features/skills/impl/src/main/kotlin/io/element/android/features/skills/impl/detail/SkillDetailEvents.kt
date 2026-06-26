@@ -7,6 +7,7 @@
 
 package io.element.android.features.skills.impl.detail
 
+import io.element.android.features.skills.impl.shared.SkillFilterToken
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 
 sealed interface SkillDetailEvents {
@@ -19,6 +20,7 @@ sealed interface SkillDetailEvents {
     data class EditVisibilityChanged(val visibility: ChatbotSkillVisibility) : SkillDetailEvents
     data object SaveEditing : SkillDetailEvents
     data class OpenFile(val file: SkillFileRenderModel) : SkillDetailEvents
+    data class ApplyFilterToken(val token: SkillFilterToken) : SkillDetailEvents
     data object Delete : SkillDetailEvents
     data object ClearError : SkillDetailEvents
 }

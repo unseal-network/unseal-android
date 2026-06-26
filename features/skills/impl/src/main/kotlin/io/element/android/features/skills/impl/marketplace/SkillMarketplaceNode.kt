@@ -16,6 +16,7 @@ import com.bumble.appyx.core.plugin.plugins
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
+import io.element.android.features.skills.impl.SkillMetadataFilterBridge
 import io.element.android.libraries.di.SessionScope
 
 @ContributesNode(SessionScope::class)
@@ -31,10 +32,12 @@ class SkillMarketplaceNode(
     }
 
     private val callback = plugins<Callback>().first()
+    private val filterBridge = plugins<SkillMetadataFilterBridge>().firstOrNull()
     private val presenter = presenterFactory.create(
-        object : SkillMarketplaceNavigator {
+        navigator = object : SkillMarketplaceNavigator {
             override fun onOpenSkill(id: String) = callback.onOpenSkill(id)
-        }
+        },
+        filterBridge = filterBridge,
     )
 
     @Composable

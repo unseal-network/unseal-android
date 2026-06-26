@@ -7,7 +7,10 @@
 
 package io.element.android.features.skills.impl.detail
 
+import io.element.android.features.skills.impl.shared.SkillFilterToken
+
 interface SkillDetailNavigator {
     fun onOpenFile(file: SkillFileRenderModel)
     fun onDeleted(id: String)
+    fun onApplyMetadataFilter(token: SkillFilterToken)
 }

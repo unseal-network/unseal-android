@@ -8,7 +8,7 @@
 
 @file:Suppress("SameParameterValue")
 
-package io.element.android.x.intent
+package network.unseal.android.intent
 
 import android.content.Context
 import android.content.Intent
@@ -24,7 +24,7 @@ import io.element.android.libraries.matrix.test.A_SESSION_ID
 import io.element.android.libraries.matrix.test.A_THREAD_ID
 import io.element.android.tests.testutils.lambda.lambdaRecorder
 import io.element.android.tests.testutils.lambda.value
-import io.element.android.x.MainActivity
+import network.unseal.android.MainActivity
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner

@@ -39,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,6 +49,8 @@ import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentRoom
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelPlatform
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelSummary
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import io.element.android.libraries.designsystem.components.avatar.Avatar
 import io.element.android.libraries.designsystem.components.avatar.AvatarData
@@ -103,6 +106,7 @@ fun AgentDetailView(
                 item { SoulSection(state, soul) }
             }
             item { SkillsSection(state) }
+            item { ChannelsSection(state) }
             item { RoomsSection(state) }
             item { Spacer(Modifier.height(32.dp)) }
         }
@@ -266,6 +270,74 @@ private fun SkillChip(skill: AgentSkillChipRenderModel) {
 }
 
 @Composable
+private fun ChannelsSection(state: AgentDetailState) {
+    val channels = state.channels
+    Column {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            SectionLabel("Channels")
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = { state.eventSink(AgentDetailEvents.ManageChannels) }) { Text("Manage") }
+            Spacer(Modifier.size(8.dp))
+        }
+        if (channels.isEmpty()) {
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                onClick = { state.eventSink(AgentDetailEvents.ManageChannels) },
+            ) {
+                Icon(CompoundIcons.Plus(), null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.size(8.dp))
+                Text("Connect a channel")
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                channels.take(3).forEach { channel ->
+                    ChannelChip(channel) { state.eventSink(AgentDetailEvents.ManageChannels) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChannelChip(channel: ChatbotChannelSummary, onClick: () -> Unit) {
+    val brand = when (channel.platform) {
+        ChatbotChannelPlatform.Telegram -> Color(0xFF229ED9)
+        ChatbotChannelPlatform.WeCom -> Color(0xFF07C160)
+        ChatbotChannelPlatform.Feishu -> Color(0xFF3370FF)
+        ChatbotChannelPlatform.Discord -> Color(0xFF5865F2)
+    }
+    val icon = if (channel.platform == ChatbotChannelPlatform.Telegram) CompoundIcons.Send() else CompoundIcons.Chat()
+    val platformName = when (channel.platform) {
+        ChatbotChannelPlatform.Telegram -> "Telegram"
+        ChatbotChannelPlatform.WeCom -> "WeCom"
+        ChatbotChannelPlatform.Feishu -> "飞书"
+        ChatbotChannelPlatform.Discord -> "Discord"
+    }
+    Row(
+        modifier = Modifier
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp))
+            .shapeAwareClickable(RoundedCornerShape(10.dp), onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            modifier = Modifier.size(26.dp).background(brand, RoundedCornerShape(7.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, null, tint = Color.White, modifier = Modifier.size(14.dp))
+        }
+        Column {
+            Text(channel.label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(platformName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        }
+    }
+}
+
+@Composable
 private fun RoomsSection(state: AgentDetailState) {
     val rooms = state.renderModel.rooms
     Column {
@@ -337,6 +409,10 @@ private fun anAgentDetailState(
     agentSkills = persistentListOf(
         ChatbotUserSkill(id = "calendar", name = "Calendar", description = "Reads and creates events."),
         ChatbotUserSkill(id = "research", name = "Research", description = "Finds useful context."),
+    ),
+    channels = persistentListOf(
+        ChatbotChannelSummary(installationId = "i1", platform = ChatbotChannelPlatform.Telegram, status = "active", label = "alpha_bot"),
+        ChatbotChannelSummary(installationId = "i2", platform = ChatbotChannelPlatform.WeCom, status = "active", label = "wecom-9da2912f"),
     ),
     isLoading = false,
     isStartingChat = false,

@@ -15,6 +15,7 @@ import io.element.android.features.agentmanagement.impl.shared.providerModelText
 import io.element.android.libraries.chatbot.api.ChatbotConfig
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentRoom
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelSummary
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import kotlinx.collections.immutable.ImmutableList
 
@@ -24,6 +25,7 @@ data class AgentDetailState(
     val agent: ChatbotAgent?,
     val rooms: ImmutableList<ChatbotAgentRoom>,
     val agentSkills: ImmutableList<ChatbotUserSkill>,
+    val channels: ImmutableList<ChatbotChannelSummary>,
     val isLoading: Boolean,
     val isStartingChat: Boolean,
     val isSoulExpanded: Boolean,

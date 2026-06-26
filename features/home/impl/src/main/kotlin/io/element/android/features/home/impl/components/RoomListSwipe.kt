@@ -7,7 +7,7 @@
 
 package io.element.android.features.home.impl.components
 
-/**
+/*
  * Pure (Compose-free) helpers for the list-level room swipe gesture, so the hit-test — the part most
  * likely to be off-by-one across banners — is unit-testable without a UI. See
  * docs/perf/room-list-swipe-refactor.md.

@@ -20,6 +20,8 @@ import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
 import io.element.android.features.skills.api.SkillsEntryPoint
+import io.element.android.features.skills.impl.SkillMetadataFilterOrigin.Home
+import io.element.android.features.skills.impl.SkillMetadataFilterOrigin.Marketplace
 import io.element.android.features.skills.impl.agentskills.AgentSkillsNode
 import io.element.android.features.skills.impl.create.SkillCreateNode
 import io.element.android.features.skills.impl.detail.SkillDetailNode
@@ -27,6 +29,7 @@ import io.element.android.features.skills.impl.detail.SkillFileRenderModel
 import io.element.android.features.skills.impl.detail.SkillFileViewerNode
 import io.element.android.features.skills.impl.home.SkillsHomeNode
 import io.element.android.features.skills.impl.marketplace.SkillMarketplaceNode
+import io.element.android.features.skills.impl.shared.SkillFilterToken
 import io.element.android.features.skills.impl.managementhub.SkillsManagementHubNode
 import io.element.android.libraries.architecture.BackstackView
 import io.element.android.libraries.architecture.BaseFlowNode
@@ -57,7 +60,11 @@ class SkillsFlowNode(
         data object Marketplace : NavTarget
 
         @Parcelize
-        data class Detail(val id: String, val isOwner: Boolean) : NavTarget
+        data class Detail(
+            val id: String,
+            val isOwner: Boolean,
+            val filterOrigin: SkillMetadataFilterOrigin?,
+        ) : NavTarget
 
         @Parcelize
         data class FileViewer(
@@ -77,20 +84,21 @@ class SkillsFlowNode(
     }
 
     private val callback: SkillsEntryPoint.Callback = callback()
+    private val metadataFilterBridge = SkillMetadataFilterBridge()
 
     override fun resolve(navTarget: NavTarget, buildContext: BuildContext): Node {
         return when (navTarget) {
             NavTarget.Home -> createNode<SkillsHomeNode>(
                 buildContext = buildContext,
-                plugins = listOf(homeCallback),
+                plugins = listOf(homeCallback, metadataFilterBridge),
             )
             NavTarget.Marketplace -> createNode<SkillMarketplaceNode>(
                 buildContext = buildContext,
-                plugins = listOf(marketplaceCallback),
+                plugins = listOf(marketplaceCallback, metadataFilterBridge),
             )
             is NavTarget.Detail -> createNode<SkillDetailNode>(
                 buildContext = buildContext,
-                plugins = listOf(SkillDetailNode.Inputs(navTarget.id, navTarget.isOwner), detailCallback),
+                plugins = listOf(SkillDetailNode.Inputs(navTarget.id, navTarget.isOwner, navTarget.filterOrigin), detailCallback),
             )
             is NavTarget.FileViewer -> createNode<SkillFileViewerNode>(
                 buildContext = buildContext,
@@ -123,8 +131,8 @@ class SkillsFlowNode(
         BackstackView(modifier)
     }
 
-    fun openDetail(id: String, isOwner: Boolean) {
-        backstack.push(NavTarget.Detail(id, isOwner))
+    fun openDetail(id: String, isOwner: Boolean, filterOrigin: SkillMetadataFilterOrigin?) {
+        backstack.push(NavTarget.Detail(id, isOwner, filterOrigin))
     }
 
     fun openFile(file: SkillFileRenderModel) {
@@ -157,12 +165,12 @@ class SkillsFlowNode(
     private val homeCallback = object : SkillsHomeNode.Callback {
         override fun onDone() = closeOrPop()
         override fun onCreateSkill() = openCreateSkill()
-        override fun onOpenSkill(id: String, isOwner: Boolean) = openDetail(id, isOwner)
+        override fun onOpenSkill(id: String, isOwner: Boolean) = openDetail(id, isOwner, filterOrigin = Home)
     }
 
     private val marketplaceCallback = object : SkillMarketplaceNode.Callback {
         override fun onDone() = closeOrPop()
-        override fun onOpenSkill(id: String) = openDetail(id, isOwner = false)
+        override fun onOpenSkill(id: String) = openDetail(id, isOwner = false, filterOrigin = Marketplace)
     }
 
     private val createCallback = object : SkillCreateNode.Callback {
@@ -172,7 +180,7 @@ class SkillsFlowNode(
             if (backstack.canPop()) {
                 backstack.pop()
             }
-            openDetail(id, isOwner = true)
+            openDetail(id, isOwner = true, filterOrigin = Home)
         }
     }
 
@@ -180,6 +188,12 @@ class SkillsFlowNode(
         override fun onDone() = closeOrPop()
         override fun onOpenFile(file: SkillFileRenderModel) = openFile(file)
         override fun onDeleted(id: String) = onSkillDeleted(id)
+        override fun onApplyMetadataFilter(origin: SkillMetadataFilterOrigin, token: SkillFilterToken) {
+            metadataFilterBridge.applyFilter(origin, token)
+            if (backstack.canPop()) {
+                backstack.pop()
+            }
+        }
     }
 
     private val fileViewerCallback = object : SkillFileViewerNode.Callback {
@@ -202,7 +216,7 @@ class SkillsFlowNode(
 private fun SkillsEntryPoint.InitialTarget.toNavTarget(): SkillsFlowNode.NavTarget = when (this) {
     SkillsEntryPoint.InitialTarget.Home -> SkillsFlowNode.NavTarget.Home
     SkillsEntryPoint.InitialTarget.Marketplace -> SkillsFlowNode.NavTarget.Marketplace
-    is SkillsEntryPoint.InitialTarget.Detail -> SkillsFlowNode.NavTarget.Detail(id, isOwner)
+    is SkillsEntryPoint.InitialTarget.Detail -> SkillsFlowNode.NavTarget.Detail(id, isOwner, filterOrigin = null)
     SkillsEntryPoint.InitialTarget.Create -> SkillsFlowNode.NavTarget.Create
     is SkillsEntryPoint.InitialTarget.AgentSkills -> SkillsFlowNode.NavTarget.AgentSkills(botName)
     SkillsEntryPoint.InitialTarget.ManagementHub -> SkillsFlowNode.NavTarget.ManagementHub

@@ -86,7 +86,7 @@ class ConnectorManagePresenter(
 
         fun connect() = coroutineScope.launch {
             connecting = true
-            val redirectUrl = "io.element.android.x://composio-callback?toolkit=$toolkitSlug"
+            val redirectUrl = "network.unseal.android://composio-callback?toolkit=$toolkitSlug"
             api().initiateConnection(toolkitSlug, redirectUrl)
                 .onSuccess {
                     navigator.onOpenConnectUrl(it.connectUrl)

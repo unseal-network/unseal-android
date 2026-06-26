@@ -36,6 +36,7 @@ class AgentDetailNode(
         fun onEdit(botName: String)
         fun onOpenRoom(roomIdOrAlias: RoomIdOrAlias)
         fun onOpenSkills(botName: String)
+        fun onManageChannels(agentId: String)
     }
 
     private val inputs = plugins<Inputs>().first()
@@ -47,6 +48,7 @@ class AgentDetailNode(
             override fun onEdit(botName: String) = callback.onEdit(botName)
             override fun onOpenRoom(roomIdOrAlias: RoomIdOrAlias) = callback.onOpenRoom(roomIdOrAlias)
             override fun onOpenSkills(botName: String) = callback.onOpenSkills(botName)
+            override fun onManageChannels(agentId: String) = callback.onManageChannels(agentId)
         }
     )
 

@@ -16,6 +16,7 @@ data class TimelineItemTextContent(
     override val htmlDocument: Document?,
     override val formattedBody: CharSequence,
     override val isEdited: Boolean,
+    override val linkPreviewUrls: List<String> = emptyList(),
 ) : TimelineItemTextBasedContent {
     override val type: String = "TimelineItemTextContent"
     override val plainText: String = htmlDocument?.toPlainText() ?: body

@@ -39,7 +39,19 @@ plugins {
 }
 
 android {
-    namespace = "io.element.android.x"
+    namespace = "network.unseal.android"
+    val uploadKeystorePath = providers.environmentVariable("ANDROID_UPLOAD_KEYSTORE_PATH")
+        .orElse(providers.gradleProperty("ANDROID_UPLOAD_KEYSTORE_PATH"))
+    val uploadKeyAlias = providers.environmentVariable("ANDROID_UPLOAD_KEY_ALIAS")
+        .orElse(providers.gradleProperty("ANDROID_UPLOAD_KEY_ALIAS"))
+    val uploadKeystorePassword = providers.environmentVariable("ANDROID_UPLOAD_KEYSTORE_PASSWORD")
+        .orElse(providers.gradleProperty("ANDROID_UPLOAD_KEYSTORE_PASSWORD"))
+    val uploadKeyPassword = providers.environmentVariable("ANDROID_UPLOAD_KEY_PASSWORD")
+        .orElse(providers.gradleProperty("ANDROID_UPLOAD_KEY_PASSWORD"))
+    val hasUploadSigning = uploadKeystorePath.isPresent &&
+        uploadKeyAlias.isPresent &&
+        uploadKeystorePassword.isPresent &&
+        uploadKeyPassword.isPresent
 
     defaultConfig {
         applicationId = BuildTimeConfig.APPLICATION_ID
@@ -104,6 +116,14 @@ android {
             storePassword = System.getenv("ELEMENT_ANDROID_NIGHTLY_STOREPASSWORD")
                 ?: project.property("signing.element.nightly.storePassword") as? String?
         }
+        if (hasUploadSigning) {
+            register("upload") {
+                keyAlias = uploadKeyAlias.get()
+                keyPassword = uploadKeyPassword.get()
+                storeFile = file(uploadKeystorePath.get())
+                storePassword = uploadKeystorePassword.get()
+            }
+        }
     }
 
     val baseAppName = BuildTimeConfig.APPLICATION_NAME
@@ -111,7 +131,7 @@ android {
     logger.warnInBox("Building ${defaultConfig.applicationId} ($baseAppName) [$buildType]")
 
     buildTypes {
-        val oAuthRedirectSchemeBase = BuildTimeConfig.METADATA_HOST_REVERSED ?: "io.element.android"
+        val oAuthRedirectSchemeBase = BuildTimeConfig.METADATA_HOST_REVERSED ?: "network.unseal"
         getByName("debug") {
             resValue("string", "app_name", "$baseAppName dbg")
             resValue(
@@ -130,7 +150,7 @@ android {
                 "login_redirect_scheme",
                 oAuthRedirectSchemeBase,
             )
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName(if (hasUploadSigning) "upload" else "debug")
 
             optimization {
                 enable = true

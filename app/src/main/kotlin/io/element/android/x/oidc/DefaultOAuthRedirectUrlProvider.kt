@@ -6,13 +6,13 @@
  * Please see LICENSE files in the repository root for full details.
  */
 
-package io.element.android.x.oidc
+package network.unseal.android.oidc
 
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import io.element.android.libraries.matrix.api.auth.OAuthRedirectUrlProvider
 import io.element.android.services.toolbox.api.strings.StringProvider
-import io.element.android.x.R
+import network.unseal.android.R
 
 @ContributesBinding(AppScope::class)
 class DefaultOAuthRedirectUrlProvider(

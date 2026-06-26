@@ -17,6 +17,11 @@ import io.element.android.libraries.chatbot.api.model.analytics.AnalyticsTokensR
 import io.element.android.libraries.chatbot.api.model.approvals.ChatbotApproval
 import io.element.android.libraries.chatbot.api.model.approvals.ChatbotApprovalAction
 import io.element.android.libraries.chatbot.api.model.approvals.ChatbotApprovalStatus
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelConnectBody
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelCredentials
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelPlatform
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelSummary
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotConnectChannelResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotDisconnectAccountResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotInitiateConnectionResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListConnectedAccountsResponse
@@ -36,8 +41,11 @@ import io.element.android.libraries.chatbot.api.model.schedules.ChatbotUpdateSch
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotCreateUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotDeleteUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotGetUserSkillResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotListPublicSkillCategoriesResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotListPublicSkillTagsResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotListPublicSkillsResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotListRoomAgentSkillsResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillListFilters
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUpdateUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
@@ -75,7 +83,12 @@ class FakeChatbotApiService : ChatbotApiService {
     var listRoomAgentSkillsResult: (String, String, String?) -> Result<ChatbotListRoomAgentSkillsResponse> = { _, _, _ -> Result.success(ChatbotListRoomAgentSkillsResponse()) }
     var listUserSkillsResult: (ChatbotSkillVisibility?) -> Result<List<ChatbotUserSkill>> = { Result.success(emptyList()) }
     var listPublicSkillsResult: (Int, Int, String?) -> Result<ChatbotListPublicSkillsResponse> = { _, _, _ -> Result.success(ChatbotListPublicSkillsResponse()) }
+    var listPublicSkillsWithFiltersResult: (Int, Int, ChatbotSkillListFilters) -> Result<ChatbotListPublicSkillsResponse> = { page, pageSize, filters -> listPublicSkillsResult(page, pageSize, filters.search.trim().takeIf { it.isNotEmpty() }) }
+    var listPublicSkillsWithFiltersSuspendResult: (suspend (Int, Int, ChatbotSkillListFilters) -> Result<ChatbotListPublicSkillsResponse>)? = null
+    var listPublicSkillCategoriesResult: () -> Result<ChatbotListPublicSkillCategoriesResponse> = { Result.success(ChatbotListPublicSkillCategoriesResponse()) }
+    var listPublicSkillTagsResult: () -> Result<ChatbotListPublicSkillTagsResponse> = { Result.success(ChatbotListPublicSkillTagsResponse()) }
     var getUserSkillResult: (String) -> Result<ChatbotGetUserSkillResponse> = { Result.success(ChatbotGetUserSkillResponse(aChatbotUserSkill(id = it))) }
+    var getUserSkillSuspendResult: (suspend (String) -> Result<ChatbotGetUserSkillResponse>)? = null
     var createUserSkillResult: (ChatbotJsonObject) -> Result<ChatbotCreateUserSkillResponse> = { Result.success(ChatbotCreateUserSkillResponse()) }
     var updateUserSkillResult: (String, ChatbotJsonObject) -> Result<ChatbotUpdateUserSkillResponse> = { _, _ -> Result.success(ChatbotUpdateUserSkillResponse()) }
     var deleteUserSkillResult: (String) -> Result<ChatbotDeleteUserSkillResponse> = { Result.success(ChatbotDeleteUserSkillResponse(success = true)) }
@@ -120,6 +133,20 @@ class FakeChatbotApiService : ChatbotApiService {
     var deleteVoiceProfileResult: (String) -> Result<ChatbotDeleteVoiceProfileResponse> = { Result.success(ChatbotDeleteVoiceProfileResponse(deleted = true)) }
     var createVoiceShareResult: (ChatbotCreateVoiceShareRequest) -> Result<ChatbotVoiceShare> = { Result.success(ChatbotVoiceShare(id = "share-1", voiceProfileId = it.voiceProfileId)) }
     var importVoiceShareResult: (String) -> Result<ChatbotVoiceProfile> = { Result.success(aChatbotVoiceProfile()) }
+    var listAgentChannelsResult: (String) -> Result<List<ChatbotChannelSummary>> = { Result.success(emptyList()) }
+    var connectAgentChannelResult: (String, ChatbotChannelConnectBody) -> Result<ChatbotConnectChannelResponse> = { _, _ ->
+        Result.success(ChatbotConnectChannelResponse(installationId = "i1", platform = ChatbotChannelPlatform.Telegram))
+    }
+    var disconnectAgentChannelResult: (String, String) -> Result<Unit> = { _, _ -> Result.success(Unit) }
+    var updateAgentChannelResult: (String, String, String, String) -> Result<ChatbotConnectChannelResponse> = { _, installationId, _, _ ->
+        Result.success(ChatbotConnectChannelResponse(installationId = installationId, platform = ChatbotChannelPlatform.WeCom))
+    }
+    var getAgentChannelCredentialsResult: (String, String) -> Result<ChatbotChannelCredentials> = { _, installationId ->
+        Result.success(ChatbotChannelCredentials(installationId = installationId, platform = ChatbotChannelPlatform.WeCom, token = "", encodingAESKey = ""))
+    }
+    var getAgentChannelResult: (String, String) -> Result<ChatbotChannelSummary> = { _, installationId ->
+        Result.success(ChatbotChannelSummary(installationId = installationId, platform = ChatbotChannelPlatform.Feishu, status = "pending", label = ""))
+    }
     var listVaultResult: () -> Result<List<ChatbotVaultItem>> = { Result.success(emptyList()) }
     var getVaultValueResult: (String) -> Result<String> = { Result.success("") }
     var createVaultEntryResult: (String, String, String?) -> Result<Unit> = { _, _, _ -> Result.success(Unit) }
@@ -140,7 +167,11 @@ class FakeChatbotApiService : ChatbotApiService {
     override suspend fun listRoomAgentSkills(roomId: String, agentId: String, runtimeOwnerUserId: String?) = simulateLongTask { listRoomAgentSkillsResult(roomId, agentId, runtimeOwnerUserId) }
     override suspend fun listUserSkills(visibility: ChatbotSkillVisibility?) = simulateLongTask { listUserSkillsResult(visibility) }
     override suspend fun listPublicSkills(page: Int, pageSize: Int, search: String?) = simulateLongTask { listPublicSkillsResult(page, pageSize, search) }
-    override suspend fun getUserSkill(id: String) = simulateLongTask { getUserSkillResult(id) }
+    override suspend fun listPublicSkills(page: Int, pageSize: Int, filters: ChatbotSkillListFilters) =
+        listPublicSkillsWithFiltersSuspendResult?.invoke(page, pageSize, filters) ?: simulateLongTask { listPublicSkillsWithFiltersResult(page, pageSize, filters) }
+    override suspend fun listPublicSkillCategories() = simulateLongTask { listPublicSkillCategoriesResult() }
+    override suspend fun listPublicSkillTags() = simulateLongTask { listPublicSkillTagsResult() }
+    override suspend fun getUserSkill(id: String) = getUserSkillSuspendResult?.invoke(id) ?: simulateLongTask { getUserSkillResult(id) }
     override suspend fun createUserSkill(body: ChatbotJsonObject) = simulateLongTask { createUserSkillResult(body) }
     override suspend fun updateUserSkill(id: String, body: ChatbotJsonObject) = simulateLongTask { updateUserSkillResult(id, body) }
     override suspend fun deleteUserSkill(id: String) = simulateLongTask { deleteUserSkillResult(id) }
@@ -228,6 +259,13 @@ class FakeChatbotApiService : ChatbotApiService {
         Result.success(Unit)
     }
 
+    override suspend fun listAgentChannels(agentId: String) = simulateLongTask { listAgentChannelsResult(agentId) }
+    override suspend fun connectAgentChannel(agentId: String, body: ChatbotChannelConnectBody) = simulateLongTask { connectAgentChannelResult(agentId, body) }
+    override suspend fun disconnectAgentChannel(agentId: String, installationId: String) = simulateLongTask { disconnectAgentChannelResult(agentId, installationId) }
+    override suspend fun updateAgentChannel(agentId: String, installationId: String, token: String, encodingAESKey: String) =
+        simulateLongTask { updateAgentChannelResult(agentId, installationId, token, encodingAESKey) }
+    override suspend fun getAgentChannelCredentials(agentId: String, installationId: String) = simulateLongTask { getAgentChannelCredentialsResult(agentId, installationId) }
+    override suspend fun getAgentChannel(agentId: String, installationId: String) = simulateLongTask { getAgentChannelResult(agentId, installationId) }
     override suspend fun listVault() = simulateLongTask { listVaultResult() }
 
     override suspend fun getVaultValue(key: String) = simulateLongTask { getVaultValueResult(key) }

@@ -6,11 +6,11 @@
  * Please see LICENSE files in the repository root for full details.
  */
 
-package io.element.android.x.oidc
+package network.unseal.android.oidc
 
 import com.google.common.truth.Truth.assertThat
 import io.element.android.services.toolbox.test.strings.FakeStringProvider
-import io.element.android.x.R
+import network.unseal.android.R
 import org.junit.Test
 
 class DefaultOAuthRedirectUrlProviderTest {

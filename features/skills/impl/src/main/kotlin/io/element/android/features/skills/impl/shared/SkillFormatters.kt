@@ -17,8 +17,10 @@ import java.util.Locale
 fun ChatbotUserSkill.matchesSkillQuery(query: String): Boolean {
     val trimmed = query.trim()
     if (trimmed.isEmpty()) return true
-    return name.contains(trimmed, ignoreCase = true) ||
-        description.orEmpty().contains(trimmed, ignoreCase = true)
+    return listOfNotNull(name, description, skillCategory(), skillSourceLabel())
+        .plus(skillTags())
+        .joinToString(" ")
+        .contains(trimmed, ignoreCase = true)
 }
 
 fun ChatbotSkillVisibility.displayName(): String = when (this) {

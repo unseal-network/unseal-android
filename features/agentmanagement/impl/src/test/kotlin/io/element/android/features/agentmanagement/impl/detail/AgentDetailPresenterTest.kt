@@ -229,6 +229,7 @@ class AgentDetailPresenterTest {
     ): AgentDetailPresenter {
         return AgentDetailPresenter(
             botName = "planner",
+            initialMatrixUserId = null,
             navigator = navigator,
             matrixClient = FakeMatrixClient(),
             chatbotApiServiceFactory = FakeChatbotApiServiceFactory(service),
@@ -253,6 +254,11 @@ private class FakeAgentDetailNavigator : AgentDetailNavigator {
 
     override fun onOpenSkills(botName: String) {
         openedSkillsBotNames += botName
+    }
+
+    val managedChannelsAgentIds = mutableListOf<String>()
+    override fun onManageChannels(agentId: String) {
+        managedChannelsAgentIds += agentId
     }
 }
 

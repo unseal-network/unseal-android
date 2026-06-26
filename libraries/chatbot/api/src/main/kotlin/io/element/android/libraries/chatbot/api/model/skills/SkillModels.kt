@@ -8,8 +8,87 @@
 package io.element.android.libraries.chatbot.api.model.skills
 
 import io.element.android.libraries.chatbot.api.model.json.ChatbotJsonMap
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonNames
+
+@Serializable
+data class ChatbotSkillSource(
+    val id: Int,
+    val name: String,
+    val slug: String,
+    val sourceType: String,
+    val repository: String? = null,
+    val path: String? = null,
+    val ref: String? = null,
+    @SerialName("trust_tier")
+    val trustTier: String? = null,
+    @SerialName("install_ref")
+    val installRef: String? = null,
+)
+
+@Serializable
+data class ChatbotSkillNamedFacet(
+    val id: Int,
+    val name: String,
+    val slug: String,
+)
+
+@Serializable
+data class ChatbotSkillFacetValue(
+    val value: String,
+    val count: Int,
+    val slug: String? = null,
+)
+
+@Serializable
+data class ChatbotSkillFacetsResponse(
+    val categories: List<ChatbotSkillFacetValue> = emptyList(),
+    val tags: List<ChatbotSkillFacetValue> = emptyList(),
+    val sources: List<ChatbotSkillFacetValue> = emptyList(),
+)
+
+@Serializable
+data class ChatbotPublicSkillCategory(
+    val id: Int,
+    val name: String,
+    val slug: String,
+    val sortOrder: Int,
+    val parentId: Int? = null,
+    val categoryType: Int,
+)
+
+@Serializable
+data class ChatbotPublicSkillTag(
+    val id: Int,
+    val name: String,
+    val slug: String,
+    val sortOrder: Int,
+)
+
+@Serializable
+data class ChatbotListPublicSkillCategoriesResponse(
+    val categories: List<ChatbotPublicSkillCategory> = emptyList(),
+)
+
+@Serializable
+data class ChatbotListPublicSkillTagsResponse(
+    val tags: List<ChatbotPublicSkillTag> = emptyList(),
+)
+
+enum class ChatbotSkillTagMode(val queryValue: String) {
+    Any("any"),
+    All("all"),
+}
+
+data class ChatbotSkillListFilters(
+    val search: String = "",
+    val categorySlug: String? = null,
+    val sourceSlug: String? = null,
+    val tagSlugs: List<String> = emptyList(),
+    val tagMode: ChatbotSkillTagMode = ChatbotSkillTagMode.Any,
+)
 
 @Serializable
 enum class ChatbotSkillVisibility {
@@ -28,6 +107,9 @@ data class ChatbotUserSkill(
     val description: String? = null,
     val visibility: ChatbotSkillVisibility? = null,
     val role: String? = null,
+    val category: ChatbotSkillNamedFacet? = null,
+    val tags: List<ChatbotSkillNamedFacet> = emptyList(),
+    val source: ChatbotSkillSource? = null,
     @SerialName("original_skill_id")
     val originalSkillId: String? = null,
     @SerialName("created_at")
@@ -47,6 +129,8 @@ data class ChatbotListPublicSkillsResponse(
     val skills: List<ChatbotUserSkill> = emptyList(),
     val page: Int? = null,
     @SerialName("page_size")
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("pageSize")
     val pageSize: Int? = null,
     val total: Int? = null,
     @SerialName("has_more")
@@ -73,10 +157,16 @@ data class ChatbotDeleteUserSkillResponse(
 data class ChatbotGetUserSkillResponse(
     val skill: ChatbotUserSkill? = null,
     @SerialName("presigned_urls")
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("presignedUrls")
     val presignedUrls: List<String>? = null,
     @SerialName("preupload_urls")
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("preuploadUrls")
     val preuploadUrls: List<String>? = null,
     @SerialName("predelete_urls")
+    @OptIn(ExperimentalSerializationApi::class)
+    @JsonNames("predeleteUrls")
     val predeleteUrls: List<String>? = null,
 )
 

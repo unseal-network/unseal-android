@@ -17,6 +17,10 @@ import io.element.android.libraries.chatbot.api.model.agent.ChatbotSetAgentVoice
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotUpdateAgentRequest
 import io.element.android.libraries.chatbot.api.model.analytics.AnalyticsTokensResponse
 import io.element.android.libraries.chatbot.api.model.approvals.ChatbotApproval
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelConnectBody
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelCredentials
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelSummary
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotConnectChannelResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotDisconnectAccountResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotInitiateConnectionResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListConnectedAccountsResponse
@@ -36,8 +40,11 @@ import io.element.android.libraries.chatbot.api.model.schedules.ChatbotUpdateSch
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotCreateUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotDeleteUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotGetUserSkillResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotListPublicSkillCategoriesResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotListPublicSkillTagsResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotListPublicSkillsResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotListRoomAgentSkillsResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillListFilters
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUpdateUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
@@ -73,6 +80,9 @@ interface ChatbotApiService {
     suspend fun listRoomAgentSkills(roomId: String, agentId: String, runtimeOwnerUserId: String?): Result<ChatbotListRoomAgentSkillsResponse>
     suspend fun listUserSkills(visibility: ChatbotSkillVisibility?): Result<List<ChatbotUserSkill>>
     suspend fun listPublicSkills(page: Int, pageSize: Int, search: String?): Result<ChatbotListPublicSkillsResponse>
+    suspend fun listPublicSkills(page: Int, pageSize: Int, filters: ChatbotSkillListFilters): Result<ChatbotListPublicSkillsResponse>
+    suspend fun listPublicSkillCategories(): Result<ChatbotListPublicSkillCategoriesResponse>
+    suspend fun listPublicSkillTags(): Result<ChatbotListPublicSkillTagsResponse>
     suspend fun getUserSkill(id: String): Result<ChatbotGetUserSkillResponse>
     suspend fun createUserSkill(body: ChatbotJsonObject): Result<ChatbotCreateUserSkillResponse>
     suspend fun updateUserSkill(id: String, body: ChatbotJsonObject): Result<ChatbotUpdateUserSkillResponse>
@@ -142,6 +152,14 @@ interface ChatbotApiService {
     suspend fun getAgentVoiceConfig(agentId: String): Result<ChatbotAgentVoiceConfigResolution>
     suspend fun setAgentVoiceConfig(agentId: String, request: ChatbotSetAgentVoiceConfigRequest): Result<ChatbotAgentVoiceConfig>
     suspend fun deleteAgentVoiceConfig(agentId: String): Result<Unit>
+
+    // Agent channels (Telegram / WeCom bindings) — agent-api endpoints.
+    suspend fun listAgentChannels(agentId: String): Result<List<ChatbotChannelSummary>>
+    suspend fun connectAgentChannel(agentId: String, body: ChatbotChannelConnectBody): Result<ChatbotConnectChannelResponse>
+    suspend fun disconnectAgentChannel(agentId: String, installationId: String): Result<Unit>
+    suspend fun updateAgentChannel(agentId: String, installationId: String, token: String, encodingAESKey: String): Result<ChatbotConnectChannelResponse>
+    suspend fun getAgentChannelCredentials(agentId: String, installationId: String): Result<ChatbotChannelCredentials>
+    suspend fun getAgentChannel(agentId: String, installationId: String): Result<ChatbotChannelSummary>
 
     // Personal vault (secret store) — AI-stream base endpoints.
     suspend fun listVault(): Result<List<io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem>>

@@ -46,6 +46,9 @@ import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.skills.impl.shared.SkillIconTile
+import io.element.android.features.skills.impl.shared.skillCategory
+import io.element.android.features.skills.impl.shared.skillSourceLabel
+import io.element.android.features.skills.impl.shared.skillTags
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import io.element.android.libraries.designsystem.components.management.ManagementListRow
@@ -253,7 +256,10 @@ private fun SelectableSkillRow(
     ManagementListRow(
         modifier = modifier.padding(vertical = 4.dp),
         title = skill.name,
-        description = skill.description,
+        description = listOfNotNull(
+            skill.description,
+            skill.skillMetadataSummary(),
+        ).joinToString("\n"),
         onClick = onToggle,
         leadingContent = {
             SkillIconTile()
@@ -262,6 +268,17 @@ private fun SelectableSkillRow(
             Checkbox(checked = selected, onCheckedChange = { onToggle() })
         },
     )
+}
+
+private fun ChatbotUserSkill.skillMetadataSummary(): String? {
+    val parts = buildList {
+        skillCategory()?.let { add(it) }
+        val skillTags = skillTags()
+        skillTags.take(2).forEach { add("#$it") }
+        if (skillTags.size > 2) add("+${skillTags.size - 2}")
+        skillSourceLabel()?.let { add(it) }
+    }
+    return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
 }
 
 @Composable

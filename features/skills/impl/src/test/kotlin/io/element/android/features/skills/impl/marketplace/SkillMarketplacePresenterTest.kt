@@ -9,12 +9,17 @@ package io.element.android.features.skills.impl.marketplace
 
 import app.cash.turbine.TurbineTestContext
 import com.google.common.truth.Truth.assertThat
+import io.element.android.features.skills.impl.shared.SkillFilterToken
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotListPublicSkillCategoriesResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotListPublicSkillsResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotPublicSkillCategory
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillListFilters
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import io.element.android.libraries.chatbot.test.FakeChatbotApiService
 import io.element.android.libraries.chatbot.test.FakeChatbotApiServiceFactory
 import io.element.android.libraries.matrix.test.FakeMatrixClient
 import io.element.android.tests.testutils.WarmUpRule
+import io.element.android.tests.testutils.awaitWithLatch
 import io.element.android.tests.testutils.test
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
@@ -136,6 +141,47 @@ class SkillMarketplacePresenterTest {
     }
 
     @Test
+    fun `event - filter state is sent to public skills API`() = runTest {
+        val captured = mutableListOf<ChatbotSkillListFilters>()
+        val service = FakeChatbotApiService().apply {
+            listPublicSkillCategoriesResult = {
+                Result.success(ChatbotListPublicSkillCategoriesResponse(categories = listOf(aCategory("Testing", "testing"))))
+            }
+            listPublicSkillsWithFiltersResult = { _, _, filters ->
+                captured += filters
+                Result.success(ChatbotListPublicSkillsResponse(skills = listOf(aSkill(id = "browser", name = "Browser")), total = 1))
+            }
+        }
+        val presenter = createSkillMarketplacePresenter(service = service)
+
+        presenter.test {
+            awaitItem().eventSink(SkillMarketplaceEvents.OnAppear)
+            val loadedState = awaitStateWhere { it.skills.isNotEmpty() && !it.isLoading }
+            loadedState.eventSink(SkillMarketplaceEvents.ApplyFilterToken(SkillFilterToken.Category("Testing")))
+            awaitStateWhere { captured.any { filters -> filters.categorySlug == "Testing" } && !it.isLoading }
+
+            assertThat(captured.last().categorySlug).isEqualTo("Testing")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `event - add filter does not open sheet when facets are empty`() = runTest {
+        val service = FakeChatbotApiService()
+        val presenter = createSkillMarketplacePresenter(service = service)
+
+        presenter.test {
+            val initialState = awaitItem()
+            assertThat(initialState.filtersAvailable).isFalse()
+            assertThat(initialState.isFilterSheetVisible).isFalse()
+            initialState.eventSink(SkillMarketplaceEvents.AddFilter)
+
+            awaitWithLatch { }
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `event - next page appends and stops when total reached`() = runTest {
         val requestedPages = mutableListOf<Int>()
         val service = FakeChatbotApiService().apply {
@@ -213,11 +259,15 @@ class SkillMarketplacePresenterTest {
     ): SkillMarketplacePresenter {
         return SkillMarketplacePresenter(
             navigator = navigator,
+            filterBridge = null,
             matrixClient = FakeMatrixClient(),
             chatbotApiServiceFactory = FakeChatbotApiServiceFactory(service),
         )
     }
 }
+
+private fun aCategory(name: String, slug: String): ChatbotPublicSkillCategory =
+    ChatbotPublicSkillCategory(id = 1, name = name, slug = slug, sortOrder = 1, categoryType = 1)
 
 private class FakeSkillMarketplaceNavigator : SkillMarketplaceNavigator {
     val openedSkills = mutableListOf<String>()
