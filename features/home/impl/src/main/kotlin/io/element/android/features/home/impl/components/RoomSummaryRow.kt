@@ -102,11 +102,9 @@ internal fun RoomSummaryRow(
     showUnreadCount: Boolean = false,
     isSelected: Boolean = false,
     activityVisibility: HomeRoomActivityVisibility = HomeRoomActivityVisibility.Current,
-    // List-level swipe: only the single active row mounts the reveal visual; idle rows render plain
-    // content (no gesture/animation/offset nodes). See docs/perf/room-list-swipe-refactor.md.
-    isSwipeActive: Boolean = false,
-    swipeOffsetProvider: () -> Float = { 0f },
-    onCloseSwipe: () -> Unit = {},
+    swipeActionsEnabled: Boolean = false,
+    openedSwipeRoomId: String? = null,
+    onOpenSwipeRoom: (String?) -> Unit = {},
     eventSink: (RoomListEvent) -> Unit,
 ) {
     val renderModel = remember(room, isSelected, isInviteSeen, activityVisibility) {
@@ -171,12 +169,12 @@ internal fun RoomSummaryRow(
                         MessagePreviewAndIndicatorRow(room = room, renderModel = renderModel, showUnreadCount = showUnreadCount)
                     }
                 }
-                if (isSwipeActive) {
-                    SwipeRevealRow(
+                if (swipeActionsEnabled) {
+                    SwipeableRoomActions(
                         room = room,
-                        swipeActions = renderModel.actions.swipeActions,
-                        offsetProvider = swipeOffsetProvider,
-                        onCloseSwipe = onCloseSwipe,
+                        renderModel = renderModel,
+                        openedSwipeRoomId = openedSwipeRoomId,
+                        onOpenSwipeRoom = onOpenSwipeRoom,
                         eventSink = eventSink,
                         content = rowContent,
                     )
@@ -222,69 +220,113 @@ internal fun RoomSummaryRow(
     }
 }
 
-/**
- * Visual for the single row currently being swiped / open. The gesture, offset state and settle
- * animation live at the list level (RoomListContentView); this only renders the action buttons
- * behind the content and offsets the content by the shared [offsetProvider]. Idle rows never reach
- * here — they render their content directly. See docs/perf/room-list-swipe-refactor.md.
- */
 @Composable
-private fun BoxScope.SwipeRevealRow(
+private fun SwipeableRoomActions(
     room: RoomListRoomSummary,
-    swipeActions: List<RoomListItemAction>,
-    offsetProvider: () -> Float,
-    onCloseSwipe: () -> Unit,
+    renderModel: HomeRoomRowRenderModel,
+    openedSwipeRoomId: String?,
+    onOpenSwipeRoom: (String?) -> Unit,
     eventSink: (RoomListEvent) -> Unit,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val actionWidth = 64.dp
+    val swipeActions = renderModel.actions.swipeActions
+    if (swipeActions.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            content = content,
+        )
+        return
+    }
+    val totalRevealPx = with(LocalDensity.current) { (actionWidth * swipeActions.size).toPx() }
+    var dragOffsetPx by remember(room.id) { mutableFloatStateOf(0f) }
+    var isDragging by remember(room.id) { androidx.compose.runtime.mutableStateOf(false) }
+    val targetOffsetPx = if (openedSwipeRoomId == room.id) -totalRevealPx else 0f
+    val isSwipeActive = isDragging || openedSwipeRoomId == room.id || dragOffsetPx != 0f
+    val animatedOffsetPx by animateFloatAsState(
+        targetValue = if (isDragging) dragOffsetPx else targetOffsetPx,
+        label = "room-list-swipe-offset",
+    )
+    val draggableState = rememberDraggableState { delta ->
+        if (!isDragging) {
+            isDragging = true
+            dragOffsetPx = animatedOffsetPx
+        }
+        dragOffsetPx = (dragOffsetPx + delta).coerceIn(-totalRevealPx - 16f, 10f)
+    }
     val coroutineScope = rememberCoroutineScope()
-    Row(
-        modifier = Modifier
-            .matchParentSize()
-            .padding(vertical = 1.dp),
-        horizontalArrangement = Arrangement.End,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        swipeActions.forEach { action ->
-            SwipeActionButton(
-                action = action,
-                modifier = Modifier
-                    .width(actionWidth)
-                    .fillMaxHeight()
-                    .heightIn(min = minHeight),
-                onClick = {
-                    onCloseSwipe()
-                    coroutineScope.launch {
-                        delay(300)
-                        when (action.kind) {
-                            RoomListItemActionKind.MarkAsRead -> eventSink(RoomListEvent.MarkAsRead(room.roomId))
-                            RoomListItemActionKind.MarkAsUnread -> eventSink(RoomListEvent.MarkAsUnread(room.roomId))
-                            RoomListItemActionKind.Favorite -> eventSink(RoomListEvent.SetRoomIsFavorite(room.roomId, true))
-                            RoomListItemActionKind.Unfavorite -> eventSink(RoomListEvent.SetRoomIsFavorite(room.roomId, false))
-                            RoomListItemActionKind.Pin,
-                            RoomListItemActionKind.Unpin,
-                            RoomListItemActionKind.Mute,
-                            RoomListItemActionKind.Unmute,
-                            RoomListItemActionKind.Archive,
-                            RoomListItemActionKind.Unarchive,
-                            RoomListItemActionKind.Settings,
-                            RoomListItemActionKind.Report,
-                            RoomListItemActionKind.Leave,
-                            RoomListItemActionKind.ClearCache -> Unit
-                        }
-                    }
-                },
-            )
+
+    LaunchedEffect(openedSwipeRoomId) {
+        if (openedSwipeRoomId != room.id && !isDragging) {
+            dragOffsetPx = 0f
         }
     }
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .absoluteOffset { IntOffset(x = offsetProvider().roundToInt(), y = 0) }
-            .background(ElementTheme.colors.bgCanvasDefault),
-        content = content,
-    )
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        if (isSwipeActive) {
+            Row(
+                modifier = Modifier
+                    .matchParentSize()
+                    .padding(vertical = 1.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                swipeActions.forEach { action ->
+                    SwipeActionButton(
+                        action = action,
+                        modifier = Modifier
+                            .width(actionWidth)
+                            .fillMaxHeight()
+                            .heightIn(min = minHeight),
+                        onClick = {
+                            onOpenSwipeRoom(null)
+                            coroutineScope.launch {
+                                delay(300)
+                                when (action.kind) {
+                                    RoomListItemActionKind.MarkAsRead -> eventSink(RoomListEvent.MarkAsRead(room.roomId))
+                                    RoomListItemActionKind.MarkAsUnread -> eventSink(RoomListEvent.MarkAsUnread(room.roomId))
+                                    RoomListItemActionKind.Favorite -> eventSink(RoomListEvent.SetRoomIsFavorite(room.roomId, true))
+                                    RoomListItemActionKind.Unfavorite -> eventSink(RoomListEvent.SetRoomIsFavorite(room.roomId, false))
+                                    RoomListItemActionKind.Pin,
+                                    RoomListItemActionKind.Unpin,
+                                    RoomListItemActionKind.Mute,
+                                    RoomListItemActionKind.Unmute,
+                                    RoomListItemActionKind.Archive,
+                                    RoomListItemActionKind.Unarchive,
+                                    RoomListItemActionKind.Settings,
+                                    RoomListItemActionKind.Report,
+                                    RoomListItemActionKind.Leave,
+                                    RoomListItemActionKind.ClearCache -> Unit
+                                }
+                            }
+                        },
+                    )
+                }
+            }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .absoluteOffset { IntOffset(x = animatedOffsetPx.roundToInt(), y = 0) }
+                .background(ElementTheme.colors.bgCanvasDefault)
+                .draggable(
+                    state = draggableState,
+                    orientation = Orientation.Horizontal,
+                    startDragImmediately = openedSwipeRoomId == room.id,
+                    onDragStopped = {
+                        val threshold = totalRevealPx * 0.35f
+                        val shouldStayOpen = if (openedSwipeRoomId == room.id) {
+                            dragOffsetPx < -totalRevealPx + threshold
+                        } else {
+                            -dragOffsetPx > threshold
+                        }
+                        isDragging = false
+                        onOpenSwipeRoom(if (shouldStayOpen) room.id else null)
+                    },
+                ),
+            content = content,
+        )
+    }
 }
 
 @Composable
