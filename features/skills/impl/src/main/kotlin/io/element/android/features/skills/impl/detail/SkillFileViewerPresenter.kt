@@ -42,6 +42,7 @@ class SkillFileViewerPresenter(
         var loadError by remember { mutableStateOf<String?>(null) }
         var saveError by remember { mutableStateOf<String?>(null) }
         var showSavedToast by remember { mutableStateOf(false) }
+        var loadRequestId by remember { mutableStateOf(0) }
 
         fun errorMessage(throwable: Throwable, fallback: String): String {
             return throwable.message ?: throwable::class.simpleName ?: fallback
@@ -49,10 +50,13 @@ class SkillFileViewerPresenter(
 
         fun load(force: Boolean = false) {
             if (hasLoadedOnce && !force) return
+            val requestId = ++loadRequestId
             coroutineScope.launch {
                 isLoading = true
                 loadError = null
-                client.load(presignedUrl)
+                val result = client.load(presignedUrl)
+                if (requestId != loadRequestId) return@launch
+                result
                     .onSuccess {
                         content = it
                         hasLoadedOnce = true

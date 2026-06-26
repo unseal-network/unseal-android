@@ -53,9 +53,12 @@ import io.element.android.libraries.chatbot.api.model.skills.ChatbotCreateUserSk
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotDeleteUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotGetUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotListAgentSkillsResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotListPublicSkillCategoriesResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotListPublicSkillTagsResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotListPublicSkillsResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotListRoomAgentSkillsResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotListUserSkillsResponse
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillListFilters
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUpdateUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
@@ -156,16 +159,24 @@ internal class DefaultChatbotApiService(
     }
 
     override suspend fun listUserSkills(visibility: ChatbotSkillVisibility?): Result<List<ChatbotUserSkill>> {
-        val visibilityValue = visibility?.name?.lowercase()
-        return httpClient.requestJson<ChatbotListUserSkillsResponse>("/chatbot/v1/skills${ChatbotUrlBuilder.query(mapOf("visibility" to visibilityValue))}", ChatbotHttpMethod.GET)
+        return httpClient.requestJson<ChatbotListUserSkillsResponse>("/chatbot/v1/skills${userSkillFilterQuery(visibility)}", ChatbotHttpMethod.GET)
             .map { it.skills }
     }
 
     override suspend fun listPublicSkills(page: Int, pageSize: Int, search: String?): Result<ChatbotListPublicSkillsResponse> =
+        listPublicSkills(page, pageSize, ChatbotSkillListFilters(search = search.orEmpty()))
+
+    override suspend fun listPublicSkills(page: Int, pageSize: Int, filters: ChatbotSkillListFilters): Result<ChatbotListPublicSkillsResponse> =
         httpClient.requestJson(
-            "/chatbot/v1/skills/public${ChatbotUrlBuilder.query(mapOf("page" to page.toString(), "page_size" to pageSize.toString(), "search" to search?.takeIf { it.isNotEmpty() }))}",
+            "/api/skills/public${skillFilterQuery(filters, extra = mapOf("page" to page.toString(), "pageSize" to pageSize.toString()))}",
             ChatbotHttpMethod.GET
         )
+
+    override suspend fun listPublicSkillCategories(): Result<ChatbotListPublicSkillCategoriesResponse> =
+        httpClient.requestJson("/api/skills/public/categories", ChatbotHttpMethod.GET)
+
+    override suspend fun listPublicSkillTags(): Result<ChatbotListPublicSkillTagsResponse> =
+        httpClient.requestJson("/api/skills/public/tags", ChatbotHttpMethod.GET)
 
     override suspend fun getUserSkill(id: String): Result<ChatbotGetUserSkillResponse> =
         httpClient.requestJson("/chatbot/v1/skills/${path(id)}", ChatbotHttpMethod.GET)
@@ -486,6 +497,24 @@ internal class DefaultChatbotApiService(
     private inline fun <reified T> encode(value: T): String = ChatbotJson.encode(value)
 
     private fun path(value: String): String = ChatbotUrlBuilder.path("{value}", mapOf("value" to value))
+
+    private fun skillFilterQuery(
+        filters: ChatbotSkillListFilters,
+        extra: Map<String, String?> = emptyMap(),
+    ): String {
+        return ChatbotUrlBuilder.query(
+            extra + mapOf(
+                "search" to filters.search.trim().takeIf { it.isNotEmpty() },
+                "categorySlugs" to filters.categorySlug?.trim()?.takeIf { it.isNotEmpty() },
+                "sourceSlugs" to filters.sourceSlug?.trim()?.takeIf { it.isNotEmpty() },
+                "tagSlugs" to filters.tagSlugs.mapNotNull { it.trim().takeIf(String::isNotEmpty) }.takeIf { it.isNotEmpty() }?.joinToString(","),
+                "tagMode" to filters.tagMode.queryValue,
+            )
+        )
+    }
+
+    private fun userSkillFilterQuery(visibility: ChatbotSkillVisibility?): String =
+        ChatbotUrlBuilder.query(mapOf("visibility" to visibility?.name?.lowercase()))
 
     private fun jsonObject(vararg values: Pair<String, String>): String {
         return JsonObject(values.associate { (key, value) -> key to JsonPrimitive(value) }).toString()

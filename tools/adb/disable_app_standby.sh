@@ -11,7 +11,7 @@
 echo " => Standby OFF"
 
 set -x
-package_name="io.element.android.x.debug"
+package_name="network.unseal.android.debug"
 adb shell dumpsys battery reset
 adb shell am set-inactive "${package_name}" false
 adb shell am get-inactive "${package_name}"

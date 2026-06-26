@@ -139,7 +139,7 @@ class ConnectorListPresenter(
 
         fun connect(toolkit: ChatbotToolkit) = coroutineScope.launch {
             connectingSlug = toolkit.slug
-            val redirectUrl = "io.element.android.x://composio-callback?toolkit=${toolkit.slug}"
+            val redirectUrl = "network.unseal.android://composio-callback?toolkit=${toolkit.slug}"
             api().initiateConnection(toolkit.slug, redirectUrl)
                 .onSuccess {
                     navigator.onOpenConnectUrl(it.connectUrl)

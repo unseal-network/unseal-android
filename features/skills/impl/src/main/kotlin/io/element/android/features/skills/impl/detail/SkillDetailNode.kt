@@ -17,6 +17,8 @@ import com.bumble.appyx.core.plugin.plugins
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
+import io.element.android.features.skills.impl.SkillMetadataFilterOrigin
+import io.element.android.features.skills.impl.shared.SkillFilterToken
 import io.element.android.libraries.di.SessionScope
 import kotlinx.parcelize.Parcelize
 
@@ -28,12 +30,17 @@ class SkillDetailNode(
     presenterFactory: SkillDetailPresenter.Factory,
 ) : Node(buildContext, plugins = plugins) {
     @Parcelize
-    data class Inputs(val id: String, val isOwner: Boolean) : Plugin, Parcelable
+    data class Inputs(
+        val id: String,
+        val isOwner: Boolean,
+        val filterOrigin: SkillMetadataFilterOrigin?,
+    ) : Plugin, Parcelable
 
     interface Callback : Plugin {
         fun onDone()
         fun onOpenFile(file: SkillFileRenderModel)
         fun onDeleted(id: String)
+        fun onApplyMetadataFilter(origin: SkillMetadataFilterOrigin, token: SkillFilterToken)
     }
 
     private val inputs = plugins<Inputs>().first()
@@ -41,9 +48,13 @@ class SkillDetailNode(
     private val presenter = presenterFactory.create(
         id = inputs.id,
         isOwner = inputs.isOwner,
+        canApplyMetadataFilters = inputs.filterOrigin != null,
         navigator = object : SkillDetailNavigator {
             override fun onOpenFile(file: SkillFileRenderModel) = callback.onOpenFile(file)
             override fun onDeleted(id: String) = callback.onDeleted(id)
+            override fun onApplyMetadataFilter(token: SkillFilterToken) {
+                inputs.filterOrigin?.let { callback.onApplyMetadataFilter(it, token) }
+            }
         }
     )
 

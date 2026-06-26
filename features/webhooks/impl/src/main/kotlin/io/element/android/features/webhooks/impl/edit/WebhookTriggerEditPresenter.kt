@@ -200,7 +200,7 @@ class WebhookTriggerEditPresenter(
 
         fun connectSource() = coroutineScope.launch {
             val source = selectedSource ?: return@launch
-            val redirectUrl = "io.element.android.x://composio-callback?toolkit=${source.source}"
+            val redirectUrl = "network.unseal.android://composio-callback?toolkit=${source.source}"
             api().initiateConnection(source.source, redirectUrl)
                 .onSuccess {
                     navigator.onOpenConnectUrl(it.connectUrl)

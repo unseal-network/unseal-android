@@ -6,7 +6,7 @@
  * Please see LICENSE files in the repository root for full details.
  */
 
-package io.element.android.x.intent
+package network.unseal.android.intent
 
 import android.app.Activity
 import androidx.compose.ui.platform.UriHandler

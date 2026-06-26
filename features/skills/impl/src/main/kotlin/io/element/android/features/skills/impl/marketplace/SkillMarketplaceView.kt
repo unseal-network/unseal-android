@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,7 +42,11 @@ import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.skills.impl.shared.SkillFilterSheet
+import io.element.android.features.skills.impl.shared.SkillFilterState
+import io.element.android.features.skills.impl.shared.SkillFilterTokensRow
 import io.element.android.features.skills.impl.shared.SkillListRow
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillFacetsResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
@@ -83,17 +89,28 @@ fun SkillMarketplaceView(
             contentPadding = PaddingValues(bottom = 24.dp),
         ) {
             item {
-                OutlinedTextField(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    value = state.searchQuery,
-                    onValueChange = { state.eventSink(SkillMarketplaceEvents.SearchQueryChanged(it)) },
-                    placeholder = { Text("搜索公开技能") },
-                    leadingIcon = { Icon(imageVector = CompoundIcons.Search(), contentDescription = null) },
-                    singleLine = true,
-                    shape = RoundedCornerShape(28.dp),
-                )
+                SearchAndFilterControls(state)
+            }
+            if (state.isFilterSheetVisible) {
+                item {
+                    SkillFilterSheet(
+                        facets = state.facets,
+                        filterState = state.filterState,
+                        onApplyToken = { state.eventSink(SkillMarketplaceEvents.ApplyFilterToken(it)) },
+                        onTagModeChanged = { state.eventSink(SkillMarketplaceEvents.TagModeChanged(it)) },
+                        onDismiss = { state.eventSink(SkillMarketplaceEvents.DismissFilterSheet) },
+                    )
+                }
+            }
+            if (state.filterState.activeTokenCount > 0) {
+                item {
+                    SkillFilterTokensRow(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        filterState = state.filterState,
+                        onRemove = { state.eventSink(SkillMarketplaceEvents.RemoveFilterToken(it)) },
+                        onClear = { state.eventSink(SkillMarketplaceEvents.ClearFilters) },
+                    )
+                }
             }
             state.total?.let { total ->
                 item {
@@ -120,11 +137,23 @@ fun SkillMarketplaceView(
                     item {
                         Text(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 40.dp),
-                            text = "暂无公开技能",
+                            text = if (state.searchQuery.isNotBlank() || state.filterState.activeTokenCount > 0) "没有匹配的技能" else "暂无公开技能",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
                         )
+                        if (state.searchQuery.isNotBlank() || state.filterState.activeTokenCount > 0) {
+                            Text(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { state.eventSink(SkillMarketplaceEvents.ClearFilters) }
+                                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                                text = "清除筛选",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
                     }
                 }
                 else -> {
@@ -134,6 +163,7 @@ fun SkillMarketplaceView(
                             skill = skill,
                             showVisibility = false,
                             onClick = { state.eventSink(SkillMarketplaceEvents.SelectSkill(skill.id)) },
+                            onFilterSelected = { state.eventSink(SkillMarketplaceEvents.ApplyFilterToken(it)) },
                         )
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                     }
@@ -167,6 +197,32 @@ fun SkillMarketplaceView(
     }
 }
 
+@Composable
+private fun SearchAndFilterControls(state: SkillMarketplaceState) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        OutlinedTextField(
+            modifier = Modifier.fillMaxWidth(),
+            value = state.searchQuery,
+            onValueChange = { state.eventSink(SkillMarketplaceEvents.SearchQueryChanged(it)) },
+            placeholder = { Text("搜索公开技能") },
+            leadingIcon = { Icon(imageVector = CompoundIcons.Search(), contentDescription = null) },
+            singleLine = true,
+            shape = RoundedCornerShape(28.dp),
+        )
+        FilledTonalButton(
+            enabled = state.filtersAvailable,
+            onClick = { state.eventSink(SkillMarketplaceEvents.AddFilter) },
+        ) {
+            Text(if (state.filterState.activeTokenCount > 0) "筛选 · ${state.filterState.activeTokenCount}" else "筛选")
+        }
+    }
+}
+
 internal class SkillMarketplaceStateProvider : PreviewParameterProvider<SkillMarketplaceState> {
     override val values: Sequence<SkillMarketplaceState>
         get() = sequenceOf(
@@ -186,6 +242,9 @@ private fun aSkillMarketplaceState(
     isLoading = isLoading,
     isLoadingNextPage = false,
     searchQuery = "",
+    filterState = SkillFilterState(),
+    facets = ChatbotSkillFacetsResponse(),
+    isFilterSheetVisible = false,
     error = null,
     eventSink = {},
 )

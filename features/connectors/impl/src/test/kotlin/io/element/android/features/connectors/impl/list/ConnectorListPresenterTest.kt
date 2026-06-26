@@ -135,7 +135,7 @@ class ConnectorListPresenterTest {
             val loaded = awaitStateWhere { !it.isLoading && it.toolkits.isNotEmpty() }
             loaded.eventSink(ConnectorListEvents.Connect(loaded.toolkits.single()))
             awaitStateWhere { it.connectingSlug == null && navigator.openedUrls.isNotEmpty() }
-            assertThat(connects).containsExactly("gmail" to "io.element.android.x://composio-callback?toolkit=gmail")
+            assertThat(connects).containsExactly("gmail" to "network.unseal.android://composio-callback?toolkit=gmail")
             assertThat(navigator.openedUrls).containsExactly("https://connect.example/gmail")
             cancelAndIgnoreRemainingEvents()
         }

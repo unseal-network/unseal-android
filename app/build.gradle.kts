@@ -39,7 +39,7 @@ plugins {
 }
 
 android {
-    namespace = "io.element.android.x"
+    namespace = "network.unseal.android"
     val uploadKeystorePath = providers.environmentVariable("ANDROID_UPLOAD_KEYSTORE_PATH")
         .orElse(providers.gradleProperty("ANDROID_UPLOAD_KEYSTORE_PATH"))
     val uploadKeyAlias = providers.environmentVariable("ANDROID_UPLOAD_KEY_ALIAS")
@@ -131,7 +131,7 @@ android {
     logger.warnInBox("Building ${defaultConfig.applicationId} ($baseAppName) [$buildType]")
 
     buildTypes {
-        val oAuthRedirectSchemeBase = BuildTimeConfig.METADATA_HOST_REVERSED ?: "io.element.android"
+        val oAuthRedirectSchemeBase = BuildTimeConfig.METADATA_HOST_REVERSED ?: "network.unseal"
         getByName("debug") {
             resValue("string", "app_name", "$baseAppName dbg")
             resValue(

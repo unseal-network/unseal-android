@@ -6,7 +6,7 @@
  * Please see LICENSE files in the repository root for full details.
  */
 
-package io.element.android.x.di
+package network.unseal.android.di
 
 import dev.zacsweers.metro.ContributesBinding
 import io.element.android.appnav.di.RoomGraphFactory

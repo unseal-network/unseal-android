@@ -6,11 +6,11 @@
  * Please see LICENSE files in the repository root for full details.
  */
 
-package io.element.android.x.info
+package network.unseal.android.info
 
 import android.content.Context
 import io.element.android.libraries.androidutils.system.getVersionCodeFromManifest
-import io.element.android.x.BuildConfig
+import network.unseal.android.BuildConfig
 import timber.log.Timber
 import java.text.SimpleDateFormat
 import java.util.Date

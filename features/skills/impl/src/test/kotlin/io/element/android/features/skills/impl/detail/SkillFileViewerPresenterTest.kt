@@ -11,6 +11,9 @@ import app.cash.turbine.TurbineTestContext
 import com.google.common.truth.Truth.assertThat
 import io.element.android.tests.testutils.WarmUpRule
 import io.element.android.tests.testutils.test
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -53,6 +56,32 @@ class SkillFileViewerPresenterTest {
             failed.eventSink(SkillFileViewerEvents.RetryLoad)
             awaitStateWhere { !it.isLoading && it.content == "reloaded" && it.loadError == null }
             assertThat(client.loadCalls).hasSize(2)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun `event - file load is latest request wins`() = runTest {
+        val first = CompletableDeferred<Result<String>>()
+        val second = CompletableDeferred<Result<String>>()
+        val client = BlockingSkillFileClient(ArrayDeque(listOf(first, second)))
+        val presenter = createPresenter(client = client)
+
+        presenter.test {
+            val initialState = awaitItem()
+            initialState.eventSink(SkillFileViewerEvents.OnAppear)
+            awaitStateWhere { it.isLoading }
+
+            initialState.eventSink(SkillFileViewerEvents.RetryLoad)
+            runCurrent()
+
+            second.complete(Result.success("fresh"))
+            awaitStateWhere { !it.isLoading && it.content == "fresh" && it.loadError == null }
+
+            first.complete(Result.success("stale"))
+            runCurrent()
+            expectNoEvents()
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -134,6 +163,16 @@ class SkillFileViewerPresenterTest {
 }
 
 private data class SaveCall(val url: String, val fileName: String, val content: String)
+
+private class BlockingSkillFileClient(
+    private val loadResults: ArrayDeque<CompletableDeferred<Result<String>>>,
+) : SkillFileClient {
+    override suspend fun load(url: String): Result<String> {
+        return loadResults.removeFirst().await()
+    }
+
+    override suspend fun save(url: String, fileName: String, content: String): Result<Unit> = Result.success(Unit)
+}
 
 private class FakeSkillFileClient(
     private val loadResults: ArrayDeque<Result<String>> = ArrayDeque(listOf(Result.success(""))),

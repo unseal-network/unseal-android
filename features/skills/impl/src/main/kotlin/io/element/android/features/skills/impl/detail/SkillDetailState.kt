@@ -19,6 +19,7 @@ data class SkillDetailState(
     val isSaving: Boolean,
     val isDeleting: Boolean,
     val isEditing: Boolean,
+    val canApplyMetadataFilters: Boolean,
     val editName: String,
     val editDescription: String,
     val editVisibility: ChatbotSkillVisibility,

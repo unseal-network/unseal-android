@@ -6,7 +6,7 @@
  * Please see LICENSE files in the repository root for full details.
  */
 
-package io.element.android.x.intent
+package network.unseal.android.intent
 
 import android.content.Context
 import android.content.Intent
@@ -21,7 +21,7 @@ import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.libraries.matrix.api.core.ThreadId
 import io.element.android.libraries.push.impl.intent.IntentProvider
-import io.element.android.x.MainActivity
+import network.unseal.android.MainActivity
 
 @ContributesBinding(AppScope::class)
 class DefaultIntentProvider(

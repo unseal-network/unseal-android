@@ -26,7 +26,7 @@ import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
 import java.util.concurrent.ConcurrentHashMap
 
-private const val SAVE_INSTANCE_KEY = "io.element.android.x.di.MatrixClientsHolder.SaveInstanceKey"
+private const val SAVE_INSTANCE_KEY = "network.unseal.android.di.MatrixClientsHolder.SaveInstanceKey"
 
 /**
  * In-memory cache for logged in Matrix sessions.

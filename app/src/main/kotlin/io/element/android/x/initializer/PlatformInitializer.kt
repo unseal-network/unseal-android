@@ -6,7 +6,7 @@
  * Please see LICENSE files in the repository root for full details.
  */
 
-package io.element.android.x.initializer
+package network.unseal.android.initializer
 
 import android.content.Context
 import android.system.Os
@@ -15,7 +15,7 @@ import io.element.android.features.rageshake.api.logs.createWriteToFilesConfigur
 import io.element.android.libraries.architecture.bindings
 import io.element.android.libraries.featureflag.api.FeatureFlags
 import io.element.android.libraries.matrix.api.tracing.TracingConfiguration
-import io.element.android.x.di.AppBindings
+import network.unseal.android.di.AppBindings
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import timber.log.Timber
