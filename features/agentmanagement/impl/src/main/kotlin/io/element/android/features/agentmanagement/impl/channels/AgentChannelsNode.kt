@@ -5,7 +5,7 @@
  * Please see LICENSE files in the repository root for full details.
  */
 
-package io.element.android.features.agentmanagement.impl.detail
+package io.element.android.features.agentmanagement.impl.channels
 
 import android.os.Parcelable
 import androidx.compose.runtime.Composable
@@ -18,43 +18,29 @@ import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
 import io.element.android.libraries.di.SessionScope
-import io.element.android.libraries.matrix.api.core.RoomIdOrAlias
 import kotlinx.parcelize.Parcelize
 
 @ContributesNode(SessionScope::class)
 @AssistedInject
-class AgentDetailNode(
+class AgentChannelsNode(
     @Assisted buildContext: BuildContext,
     @Assisted plugins: List<Plugin>,
-    presenterFactory: AgentDetailPresenter.Factory,
+    presenterFactory: AgentChannelsPresenter.Factory,
 ) : Node(buildContext, plugins = plugins) {
     @Parcelize
-    data class Inputs(val botName: String) : Plugin, Parcelable
+    data class Inputs(val agentId: String) : Plugin, Parcelable
 
     interface Callback : Plugin {
         fun onDone()
-        fun onEdit(botName: String)
-        fun onOpenRoom(roomIdOrAlias: RoomIdOrAlias)
-        fun onOpenSkills(botName: String)
-        fun onManageChannels(agentId: String)
     }
 
     private val inputs = plugins<Inputs>().first()
     private val callback = plugins<Callback>().first()
-    private val presenter = presenterFactory.create(
-        botName = inputs.botName,
-        initialMatrixUserId = null,
-        navigator = object : AgentDetailNavigator {
-            override fun onEdit(botName: String) = callback.onEdit(botName)
-            override fun onOpenRoom(roomIdOrAlias: RoomIdOrAlias) = callback.onOpenRoom(roomIdOrAlias)
-            override fun onOpenSkills(botName: String) = callback.onOpenSkills(botName)
-            override fun onManageChannels(agentId: String) = callback.onManageChannels(agentId)
-        }
-    )
+    private val presenter = presenterFactory.create(agentId = inputs.agentId)
 
     @Composable
     override fun View(modifier: Modifier) {
-        AgentDetailView(
+        AgentChannelsView(
             state = presenter.present(),
             onBackClick = callback::onDone,
             modifier = modifier,

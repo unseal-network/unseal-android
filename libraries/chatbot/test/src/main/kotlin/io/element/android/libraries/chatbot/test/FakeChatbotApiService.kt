@@ -17,6 +17,11 @@ import io.element.android.libraries.chatbot.api.model.analytics.AnalyticsTokensR
 import io.element.android.libraries.chatbot.api.model.approvals.ChatbotApproval
 import io.element.android.libraries.chatbot.api.model.approvals.ChatbotApprovalAction
 import io.element.android.libraries.chatbot.api.model.approvals.ChatbotApprovalStatus
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelConnectBody
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelCredentials
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelPlatform
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelSummary
+import io.element.android.libraries.chatbot.api.model.channels.ChatbotConnectChannelResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotDisconnectAccountResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotInitiateConnectionResponse
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotListConnectedAccountsResponse
@@ -120,6 +125,20 @@ class FakeChatbotApiService : ChatbotApiService {
     var deleteVoiceProfileResult: (String) -> Result<ChatbotDeleteVoiceProfileResponse> = { Result.success(ChatbotDeleteVoiceProfileResponse(deleted = true)) }
     var createVoiceShareResult: (ChatbotCreateVoiceShareRequest) -> Result<ChatbotVoiceShare> = { Result.success(ChatbotVoiceShare(id = "share-1", voiceProfileId = it.voiceProfileId)) }
     var importVoiceShareResult: (String) -> Result<ChatbotVoiceProfile> = { Result.success(aChatbotVoiceProfile()) }
+    var listAgentChannelsResult: (String) -> Result<List<ChatbotChannelSummary>> = { Result.success(emptyList()) }
+    var connectAgentChannelResult: (String, ChatbotChannelConnectBody) -> Result<ChatbotConnectChannelResponse> = { _, _ ->
+        Result.success(ChatbotConnectChannelResponse(installationId = "i1", platform = ChatbotChannelPlatform.Telegram))
+    }
+    var disconnectAgentChannelResult: (String, String) -> Result<Unit> = { _, _ -> Result.success(Unit) }
+    var updateAgentChannelResult: (String, String, String, String) -> Result<ChatbotConnectChannelResponse> = { _, installationId, _, _ ->
+        Result.success(ChatbotConnectChannelResponse(installationId = installationId, platform = ChatbotChannelPlatform.WeCom))
+    }
+    var getAgentChannelCredentialsResult: (String, String) -> Result<ChatbotChannelCredentials> = { _, installationId ->
+        Result.success(ChatbotChannelCredentials(installationId = installationId, platform = ChatbotChannelPlatform.WeCom, token = "", encodingAESKey = ""))
+    }
+    var getAgentChannelResult: (String, String) -> Result<ChatbotChannelSummary> = { _, installationId ->
+        Result.success(ChatbotChannelSummary(installationId = installationId, platform = ChatbotChannelPlatform.Feishu, status = "pending", label = ""))
+    }
     var listVaultResult: () -> Result<List<ChatbotVaultItem>> = { Result.success(emptyList()) }
     var getVaultValueResult: (String) -> Result<String> = { Result.success("") }
     var createVaultEntryResult: (String, String, String?) -> Result<Unit> = { _, _, _ -> Result.success(Unit) }
@@ -228,6 +247,13 @@ class FakeChatbotApiService : ChatbotApiService {
         Result.success(Unit)
     }
 
+    override suspend fun listAgentChannels(agentId: String) = simulateLongTask { listAgentChannelsResult(agentId) }
+    override suspend fun connectAgentChannel(agentId: String, body: ChatbotChannelConnectBody) = simulateLongTask { connectAgentChannelResult(agentId, body) }
+    override suspend fun disconnectAgentChannel(agentId: String, installationId: String) = simulateLongTask { disconnectAgentChannelResult(agentId, installationId) }
+    override suspend fun updateAgentChannel(agentId: String, installationId: String, token: String, encodingAESKey: String) =
+        simulateLongTask { updateAgentChannelResult(agentId, installationId, token, encodingAESKey) }
+    override suspend fun getAgentChannelCredentials(agentId: String, installationId: String) = simulateLongTask { getAgentChannelCredentialsResult(agentId, installationId) }
+    override suspend fun getAgentChannel(agentId: String, installationId: String) = simulateLongTask { getAgentChannelResult(agentId, installationId) }
     override suspend fun listVault() = simulateLongTask { listVaultResult() }
 
     override suspend fun getVaultValue(key: String) = simulateLongTask { getVaultValueResult(key) }
