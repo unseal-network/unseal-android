@@ -74,14 +74,49 @@ class RoomListSwipeTest {
 
     @Test
     fun `header item count is 1 when any banner is visible`() {
-        assertThat(roomListHeaderItemCount(securityBannerVisible = true, fullScreenIntentBannerVisible = false, batteryOptimizationBannerVisible = false, newNotificationSoundBannerVisible = false)).isEqualTo(1)
-        assertThat(roomListHeaderItemCount(securityBannerVisible = false, fullScreenIntentBannerVisible = true, batteryOptimizationBannerVisible = false, newNotificationSoundBannerVisible = false)).isEqualTo(1)
-        assertThat(roomListHeaderItemCount(securityBannerVisible = false, fullScreenIntentBannerVisible = false, batteryOptimizationBannerVisible = true, newNotificationSoundBannerVisible = false)).isEqualTo(1)
-        assertThat(roomListHeaderItemCount(securityBannerVisible = false, fullScreenIntentBannerVisible = false, batteryOptimizationBannerVisible = false, newNotificationSoundBannerVisible = true)).isEqualTo(1)
+        assertThat(
+            roomListHeaderItemCount(
+                securityBannerVisible = true,
+                fullScreenIntentBannerVisible = false,
+                batteryOptimizationBannerVisible = false,
+                newNotificationSoundBannerVisible = false
+            )
+        ).isEqualTo(1)
+        assertThat(
+            roomListHeaderItemCount(
+                securityBannerVisible = false,
+                fullScreenIntentBannerVisible = true,
+                batteryOptimizationBannerVisible = false,
+                newNotificationSoundBannerVisible = false
+            )
+        ).isEqualTo(1)
+        assertThat(
+            roomListHeaderItemCount(
+                securityBannerVisible = false,
+                fullScreenIntentBannerVisible = false,
+                batteryOptimizationBannerVisible = true,
+                newNotificationSoundBannerVisible = false
+            )
+        ).isEqualTo(1)
+        assertThat(
+            roomListHeaderItemCount(
+                securityBannerVisible = false,
+                fullScreenIntentBannerVisible = false,
+                batteryOptimizationBannerVisible = false,
+                newNotificationSoundBannerVisible = true
+            )
+        ).isEqualTo(1)
     }
 
     @Test
     fun `header item count is 0 when no banner is visible`() {
-        assertThat(roomListHeaderItemCount(securityBannerVisible = false, fullScreenIntentBannerVisible = false, batteryOptimizationBannerVisible = false, newNotificationSoundBannerVisible = false)).isEqualTo(0)
+        assertThat(
+            roomListHeaderItemCount(
+                securityBannerVisible = false,
+                fullScreenIntentBannerVisible = false,
+                batteryOptimizationBannerVisible = false,
+                newNotificationSoundBannerVisible = false
+            )
+        ).isEqualTo(0)
     }
 }
