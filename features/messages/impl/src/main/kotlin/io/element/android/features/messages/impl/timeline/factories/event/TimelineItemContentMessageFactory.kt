@@ -33,6 +33,7 @@ import io.element.android.libraries.androidutils.text.safeLinkify
 import io.element.android.libraries.core.mimetype.MimeTypes
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.UserId
+import io.element.android.libraries.matrix.api.permalink.PermalinkData
 import io.element.android.libraries.matrix.api.permalink.PermalinkParser
 import io.element.android.libraries.matrix.api.timeline.item.event.AudioMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.EmoteMessageType
@@ -266,7 +267,7 @@ class TimelineItemContentMessageFactory(
                     htmlDocument = htmlDocument,
                     formattedBody = formattedBody,
                     isEdited = content.isEdited,
-                    linkPreviewUrls = formattedBody.extractLinkPreviewUrls(),
+                    linkPreviewUrls = formattedBody.extractLinkPreviewUrls(permalinkParser),
                 )
             }
             is GalleryMessageType -> {
@@ -277,7 +278,7 @@ class TimelineItemContentMessageFactory(
                     htmlDocument = null,
                     formattedBody = formattedBody,
                     isEdited = content.isEdited,
-                    linkPreviewUrls = formattedBody.extractLinkPreviewUrls(),
+                    linkPreviewUrls = formattedBody.extractLinkPreviewUrls(permalinkParser),
                 )
             }
             is OtherMessageType -> {
@@ -295,7 +296,7 @@ class TimelineItemContentMessageFactory(
                     htmlDocument = null,
                     formattedBody = formattedBody,
                     isEdited = content.isEdited,
-                    linkPreviewUrls = formattedBody.extractLinkPreviewUrls(),
+                    linkPreviewUrls = formattedBody.extractLinkPreviewUrls(permalinkParser),
                 )
             }
         }
@@ -326,18 +327,26 @@ private fun String.withLinks(): CharSequence? {
     return spannable.takeIf { spannable.getSpans<URLSpan>(0, length).isNotEmpty() }
 }
 
-private fun CharSequence.extractLinkPreviewUrls(): List<String> {
+private fun CharSequence.extractLinkPreviewUrls(permalinkParser: PermalinkParser): List<String> {
     if (this !is Spanned) return emptyList()
     return getSpans<URLSpan>(0, length)
         .map { it.url }
-        .filter { it.isPreviewableUrl() }
+        .filter { it.isPreviewableUrl(permalinkParser) }
         .distinct()
         .take(2)
 }
 
-private fun String.isPreviewableUrl(): Boolean {
+private fun String.isPreviewableUrl(permalinkParser: PermalinkParser): Boolean {
     val normalized = lowercase()
     return (normalized.startsWith("http://") || normalized.startsWith("https://")) &&
         !normalized.startsWith("https://matrix.to/") &&
-        !normalized.startsWith("http://matrix.to/")
+        !normalized.startsWith("http://matrix.to/") &&
+        !isMatrixPermalink(permalinkParser)
+}
+
+private fun String.isMatrixPermalink(permalinkParser: PermalinkParser): Boolean {
+    return runCatching { permalinkParser.parse(this) }
+        .getOrNull()
+        ?.let { it !is PermalinkData.FallbackLink }
+        ?: false
 }

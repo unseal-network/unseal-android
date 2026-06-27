@@ -102,4 +102,24 @@
   <string name="screen_room_topbar_webhooks">"Webhook triggers"</string>
   <string name="screen_room_topbar_ai_config">"Room AI Config"</string>
   <string name="screen_room_topbar_close_remote_terminal">"Close remote terminal"</string>
+  <string name="screen_room_timeline_ai_unavailable_title">"Message content failed to load"</string>
+  <string name="screen_room_timeline_ai_unavailable_description">"This reply has no displayable content. Please try again later."</string>
+  <string name="screen_room_timeline_ai_reasoning">"Thinking"</string>
+  <string name="screen_room_timeline_ai_reasoning_in_progress">"Thinking…"</string>
+  <string name="screen_room_timeline_ppt_total_pages">"%1$d pages"</string>
+  <string name="screen_room_timeline_ppt_completed">"Generation complete"</string>
+  <string name="screen_room_timeline_ppt_failed">"Generation failed"</string>
+  <string name="screen_room_timeline_ppt_default_title">"Presentation"</string>
+  <string name="screen_room_timeline_ppt_slide_type_cover">"Cover"</string>
+  <string name="screen_room_timeline_ppt_slide_type_content">"Content"</string>
+  <string name="screen_room_timeline_ppt_slide_type_end">"End"</string>
+  <string name="screen_room_timeline_ppt_edit">"Edit"</string>
+  <string name="screen_room_timeline_ppt_continue">"Continue"</string>
+  <string name="screen_room_timeline_ppt_generating">"Generating presentation"</string>
+  <string name="screen_room_timeline_ppt_generated">"Presentation generated"</string>
+  <string name="screen_room_timeline_link_preview_sign_in">"Sign in"</string>
+  <plurals name="game_picker_room_count">
+    <item quantity="one">"%1$d room"</item>
+    <item quantity="other">"%1$d rooms"</item>
+  </plurals>
 </resources>

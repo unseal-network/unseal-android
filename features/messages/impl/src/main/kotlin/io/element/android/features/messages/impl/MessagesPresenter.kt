@@ -195,13 +195,16 @@ class MessagesPresenter(
         val roomMemberSignature = remember(membersState) {
             membersState.roomUnsealMemberSignature()
         }
-        val threadsList by produceState(persistentListOf()) {
+        val canOpenThreadList by featureFlagService.isFeatureEnabledFlow(FeatureFlags.RoomThreadList).collectAsState(initial = false)
+        val threadsList by produceState(persistentListOf(), canOpenThreadList) {
+            if (!canOpenThreadList) {
+                value = persistentListOf()
+                return@produceState
+            }
             room.threadsListService.subscribeToItemUpdates()
                 .onStart { room.threadsListService.paginate() }
                 .collectLatest { value = it.toImmutableList() }
         }
-
-        val canOpenThreadList by featureFlagService.isFeatureEnabledFlow(FeatureFlags.RoomThreadList).collectAsState(initial = false)
         val isCurrentlySharingLiveLocationInRoom by remember { liveLocationShareManager.isCurrentlySharing(room.roomId) }.collectAsState()
 
         val userEventPermissions by room.permissionsAsState(UserEventPermissions.DEFAULT) { perms ->
@@ -270,7 +273,7 @@ class MessagesPresenter(
             }
         }
         LifecycleResumeEffect(Unit) {
-            if (!roomUnsealContextState.isLoading()) {
+            if (roomUnsealContextState.dataOrNull() != null && !roomUnsealContextState.isLoading()) {
                 coroutineScope.launch { roomUnsealContextStore.refresh(RoomUnsealRefreshReason.AppResumed) }
             }
             onPauseOrDispose {}

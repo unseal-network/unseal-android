@@ -154,6 +154,7 @@ class RoomMenuReducerTest {
             RoomAttachmentAction.Game,
             RoomAttachmentAction.TextFormatting,
             RoomAttachmentAction.Poll,
+            RoomAttachmentAction.Ping,
             RoomAttachmentAction.Location,
             RoomAttachmentAction.Files,
             RoomAttachmentAction.Gallery,
@@ -177,6 +178,7 @@ class RoomMenuReducerTest {
             RoomAttachmentAction.TextFormatting,
             RoomAttachmentAction.Skill,
             RoomAttachmentAction.Poll,
+            RoomAttachmentAction.Ping,
             RoomAttachmentAction.Location,
             RoomAttachmentAction.Files,
             RoomAttachmentAction.Gallery,
@@ -208,9 +210,9 @@ class RoomMenuReducerTest {
             RoomAttachmentAction.PhotoFromCamera,
             RoomAttachmentAction.VideoFromCamera,
         ).inOrder()
-        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Ping }.isAvailable).isFalse()
+        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Ping }.isAvailable).isTrue()
         assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Ping }.unavailableReason)
-            .isEqualTo(RoomAttachmentActionUnavailableReason.RequiresBottomLayer)
+            .isNull()
         assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Sketch }.isAvailable).isFalse()
         assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Sketch }.unavailableReason)
             .isEqualTo(RoomAttachmentActionUnavailableReason.RequiresBottomLayer)
@@ -232,6 +234,7 @@ class RoomMenuReducerTest {
         assertThat(roomMenu.attachmentActions).containsExactly(
             RoomAttachmentAction.Game,
             RoomAttachmentAction.Poll,
+            RoomAttachmentAction.Ping,
             RoomAttachmentAction.Files,
             RoomAttachmentAction.Gallery,
             RoomAttachmentAction.PhotoFromCamera,

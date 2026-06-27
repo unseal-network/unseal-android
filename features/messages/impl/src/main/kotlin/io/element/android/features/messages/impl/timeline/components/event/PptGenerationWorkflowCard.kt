@@ -44,8 +44,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import io.element.android.features.messages.impl.R
 import org.json.JSONObject
 
 internal data class PptGenerationWorkflowData(
@@ -122,7 +124,11 @@ internal fun PptGenerationWorkflowCard(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Text(
-                        text = if (isGenerating) "正在生成演示文稿" else "演示文稿已生成",
+                        text = if (isGenerating) {
+                            stringResource(R.string.screen_room_timeline_ppt_generating)
+                        } else {
+                            stringResource(R.string.screen_room_timeline_ppt_generated)
+                        },
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         color = textPrimary,

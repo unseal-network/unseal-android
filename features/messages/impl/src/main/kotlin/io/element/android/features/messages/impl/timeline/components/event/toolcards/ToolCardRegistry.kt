@@ -109,7 +109,7 @@ internal val TOOL_CARD_REGISTRY_WITH_DISPLAY = mapOf(
     "createSchedule" to ToolRegistryEntry("createSchedule", "Create Schedule"),
     "updateSchedule" to ToolRegistryEntry("updateSchedule", "Update Schedule"),
     "updateScheduleStatus" to ToolRegistryEntry("updateScheduleStatus", "Schedule Status"),
-    "generate_ppt_html_presentation" to ToolRegistryEntry("pptGenerationWorkflow", "生成演示文稿"),
+    "generate_ppt_html_presentation" to ToolRegistryEntry("pptGenerationWorkflow", "Generate Presentation"),
 )
 
 internal val TOOL_CARD_REGISTRY: Map<String, String> = TOOL_CARD_REGISTRY_WITH_DISPLAY.mapValues { it.value.cardType }

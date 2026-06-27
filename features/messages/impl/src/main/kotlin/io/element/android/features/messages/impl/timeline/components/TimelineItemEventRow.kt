@@ -252,6 +252,7 @@ fun TimelineItemEventRow(
             )
         }
         val canUseStandaloneFastPath = presentation.isStandalone &&
+            !event.isMine &&
             presentation.supplementaryPolicy == TimelineSupplementaryPolicy.None &&
             // Voice messages own their rounded capsule and need the content-managed timestamp
             // to stay inside the bar, so they use the standard standalone layout below.

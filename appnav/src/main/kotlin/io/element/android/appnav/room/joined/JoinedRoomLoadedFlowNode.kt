@@ -50,12 +50,14 @@ import io.element.android.libraries.matrix.api.core.ThreadId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.permalink.PermalinkData
 import io.element.android.libraries.matrix.api.room.JoinedRoom
+import io.element.android.libraries.matrix.api.room.roomMembers
 import io.element.android.services.analytics.api.AnalyticsLongRunningTransaction.LoadJoinedRoomFlow
 import io.element.android.services.analytics.api.AnalyticsService
 import io.element.android.services.analytics.api.finishLongRunningTransaction
 import io.element.android.services.appnavstate.api.ActiveRoomsHolder
 import io.element.android.services.appnavstate.api.AppNavigationStateService
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.parcelize.Parcelize
@@ -145,7 +147,10 @@ class JoinedRoomLoadedFlowNode(
     }
 
     private fun fetchRoomMembers() = lifecycleScope.launch {
-        inputs.room.updateMembers()
+        delay(350)
+        if (inputs.room.membersStateFlow.value.roomMembers().isNullOrEmpty()) {
+            inputs.room.updateMembers()
+        }
     }
 
     private fun createRoomDetailsNode(buildContext: BuildContext, initialTarget: RoomDetailsEntryPoint.InitialTarget): Node {

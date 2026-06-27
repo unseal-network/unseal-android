@@ -187,8 +187,6 @@ private fun buildAttachmentActionEntries(
     ),
     RoomAttachmentActionEntry(
         action = RoomAttachmentAction.Ping,
-        isAvailable = false,
-        unavailableReason = RoomAttachmentActionUnavailableReason.RequiresBottomLayer,
     ),
     RoomAttachmentActionEntry(
         action = RoomAttachmentAction.Sketch,

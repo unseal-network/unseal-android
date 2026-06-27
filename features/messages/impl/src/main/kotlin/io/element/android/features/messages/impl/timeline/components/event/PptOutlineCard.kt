@@ -50,9 +50,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.element.android.features.messages.impl.R
 import io.element.android.wysiwyg.link.Link
 import org.json.JSONObject
 
@@ -111,10 +113,11 @@ private fun slideTypeColor(contentType: String): Color = when (contentType) {
     else    -> Color(0xFF55B99F)
 }
 
+@Composable
 private fun slideTypeLabel(contentType: String): String = when (contentType) {
-    "cover" -> "封面"
-    "end"   -> "结尾"
-    else    -> "内容"
+    "cover" -> stringResource(R.string.screen_room_timeline_ppt_slide_type_cover)
+    "end" -> stringResource(R.string.screen_room_timeline_ppt_slide_type_end)
+    else -> stringResource(R.string.screen_room_timeline_ppt_slide_type_content)
 }
 
 /**
@@ -143,6 +146,7 @@ internal fun PptOutlineCard(
     val headerBg = if (isDark) Color(0xFF2C2C2E) else Color(0xFFF9FAFB)
     val borderColor = if (isDark) Color(0xFF3A3A3C) else Color(0xFFE5E7EB)
     val tealColor = Color(0xFF55B99F)
+    val defaultTitle = stringResource(R.string.screen_room_timeline_ppt_default_title)
 
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (data.message.isNotBlank()) {
@@ -174,7 +178,7 @@ internal fun PptOutlineCard(
                 ) {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
-                            text = data.presentationTitle.ifBlank { "演示文稿" },
+                            text = data.presentationTitle.ifBlank { defaultTitle },
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold,
                             color = if (isDark) Color(0xFFF2F2F7) else Color(0xFF111827),
@@ -227,7 +231,7 @@ internal fun PptOutlineCard(
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = tealColor),
                         ) {
                             Text(
-                                text = "编辑",
+                                text = stringResource(R.string.screen_room_timeline_ppt_edit),
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.SemiBold,
                             )
@@ -239,7 +243,7 @@ internal fun PptOutlineCard(
                             shape = RoundedCornerShape(8.dp),
                         ) {
                             Text(
-                                text = "继续",
+                                text = stringResource(R.string.screen_room_timeline_ppt_continue),
                                 color = Color.White,
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.SemiBold,

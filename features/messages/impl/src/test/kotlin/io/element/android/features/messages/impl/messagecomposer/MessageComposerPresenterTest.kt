@@ -468,6 +468,37 @@ class MessageComposerPresenterTest {
     }
 
     @Test
+    fun `present - send ping emits raw ping message content`() = runTest {
+        var rawContent: String? = null
+        var rawEventType: String? = null
+        val room = FakeJoinedRoom(
+            baseRoom = FakeBaseRoom(initialRoomInfo = aRoomInfo()),
+            sendRawRoomMessageResult = { content, eventType ->
+                rawContent = content
+                rawEventType = eventType
+                Result.success(Unit)
+            },
+            typingNoticeResult = { Result.success(Unit) },
+        )
+        val presenter = createPresenter(room = room)
+
+        moleculeFlow(RecompositionMode.Immediate) {
+            presenter.present()
+        }.test {
+            val state = awaitFirstItem()
+            state.eventSink(MessageComposerEvent.SendPing)
+
+            advanceUntilIdle()
+
+            assertThat(rawEventType).isEqualTo("m.room.message")
+            val content = JSONObject(checkNotNull(rawContent))
+            assertThat(content.getString("msgtype")).isEqualTo("m.ping")
+            assertThat(content.getString("body")).isEqualTo("Ping")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `present - selected agent skill sends raw message content matching iOS shape`() = runTest {
         val agentUserId = UserId("@mail-agent:server.org")
         val roomUnsealContextStore = FakeRoomUnsealContextStore(

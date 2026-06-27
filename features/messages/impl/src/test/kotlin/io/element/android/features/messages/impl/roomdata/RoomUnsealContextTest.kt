@@ -45,7 +45,7 @@ class RoomUnsealContextTest {
     }
 
     @Test
-    fun `from keeps member agent skill target when all agents response is incomplete`() {
+    fun `from uses room agents when all agents response is incomplete`() {
         val context = RoomUnsealContext.from(
             roomId = ROOM_ID,
             members = listOf(aRoomMember(userId = ACTIVE_AGENT_ID, displayName = "Mail Agent", membership = RoomMembershipState.JOIN)),
@@ -57,7 +57,16 @@ class RoomUnsealContextTest {
             ),
         )
 
-        assertThat(context.agentsInRoom).isEmpty()
+        assertThat(context.agentsInRoom.single()).isEqualTo(
+            RoomAgentInRoomDescriptor(
+                agentId = ACTIVE_AGENT_ID.value,
+                mxid = ACTIVE_AGENT_ID.value,
+                label = "Mail Agent",
+                avatarUrl = null,
+                isDeviceAgent = false,
+                boundDeviceId = null,
+            )
+        )
         assertThat(context.agentSkillTargets.single()).isEqualTo(
             RoomAgentSkillTargetDescriptor(
                 agentId = ACTIVE_AGENT_ID.value,
@@ -66,6 +75,71 @@ class RoomUnsealContextTest {
             )
         )
         assertThat(context.hasAgentInRoom).isTrue()
+    }
+
+    @Test
+    fun `from matches global agent to room member by bot name when mxid is missing`() {
+        val context = RoomUnsealContext.from(
+            roomId = ROOM_ID,
+            members = listOf(aRoomMember(userId = ACTIVE_AGENT_ID, displayName = "geminirayson", membership = RoomMembershipState.JOIN)),
+            snapshot = RoomUnsealDataSnapshot(
+                allAgents = RoomUnsealResource.success(
+                    listOf(
+                        AgentAccountDescriptor(
+                            botName = "geminirayson",
+                            localpart = null,
+                            serverName = null,
+                            matrixUserId = null,
+                            displayName = "GeminiRayson",
+                            avatarUrl = null,
+                            isDeviceAgent = false,
+                            boundDeviceId = null,
+                        )
+                    )
+                ),
+            ),
+        )
+
+        assertThat(context.agentsInRoom.map { it.mxid }).containsExactly(ACTIVE_AGENT_ID.value)
+        assertThat(context.agentSkillTargets.single()).isEqualTo(
+            RoomAgentSkillTargetDescriptor(
+                agentId = ACTIVE_AGENT_ID.value,
+                mxid = ACTIVE_AGENT_ID.value,
+                label = "GeminiRayson",
+            )
+        )
+        assertThat(context.hasAgentInRoom).isTrue()
+    }
+
+    @Test
+    fun `from does not match global agent by name when multiple room members match`() {
+        val context = RoomUnsealContext.from(
+            roomId = ROOM_ID,
+            members = listOf(
+                aRoomMember(userId = ACTIVE_AGENT_ID, displayName = "geminirayson", membership = RoomMembershipState.JOIN),
+                aRoomMember(userId = UserId("@other:example.org"), displayName = "geminirayson", membership = RoomMembershipState.JOIN),
+            ),
+            snapshot = RoomUnsealDataSnapshot(
+                allAgents = RoomUnsealResource.success(
+                    listOf(
+                        AgentAccountDescriptor(
+                            botName = "geminirayson",
+                            localpart = null,
+                            serverName = null,
+                            matrixUserId = null,
+                            displayName = "GeminiRayson",
+                            avatarUrl = null,
+                            isDeviceAgent = false,
+                            boundDeviceId = null,
+                        )
+                    )
+                ),
+            ),
+        )
+
+        assertThat(context.agentsInRoom).isEmpty()
+        assertThat(context.agentSkillTargets).isEmpty()
+        assertThat(context.hasAgentInRoom).isFalse()
     }
 
     @Test
@@ -90,6 +164,53 @@ class RoomUnsealContextTest {
                 agentId = ACTIVE_AGENT_ID.value,
                 mxid = ACTIVE_AGENT_ID.value,
                 label = "Room Agent",
+            )
+        )
+    }
+
+    @Test
+    fun `from preserves global device metadata while using room agent mxid and label`() {
+        val context = RoomUnsealContext.from(
+            roomId = ROOM_ID,
+            members = listOf(
+                aRoomMember(userId = ACTIVE_AGENT_ID, displayName = "Matrix fallback", membership = RoomMembershipState.JOIN),
+            ),
+            snapshot = RoomUnsealDataSnapshot(
+                roomAgents = RoomUnsealResource.success(
+                    listOf(RoomAgentDescriptor(ACTIVE_AGENT_ID.value, "Room Device", "mxc://avatar", "agent", "join"))
+                ),
+                allAgents = RoomUnsealResource.success(
+                    listOf(
+                        AgentAccountDescriptor(
+                            botName = "device",
+                            localpart = null,
+                            serverName = null,
+                            matrixUserId = ACTIVE_AGENT_ID.value,
+                            displayName = "Global Device",
+                            avatarUrl = null,
+                            isDeviceAgent = true,
+                            boundDeviceId = "device-1",
+                        )
+                    )
+                ),
+            ),
+        )
+
+        assertThat(context.agentsInRoom.single()).isEqualTo(
+            RoomAgentInRoomDescriptor(
+                agentId = ACTIVE_AGENT_ID.value,
+                mxid = ACTIVE_AGENT_ID.value,
+                label = "Room Device",
+                avatarUrl = "mxc://avatar",
+                isDeviceAgent = true,
+                boundDeviceId = "device-1",
+            )
+        )
+        assertThat(context.deviceAgentInRoom).isEqualTo(
+            RoomDeviceAgent(
+                boundDeviceId = "device-1",
+                displayName = "Room Device",
+                matrixUserId = ACTIVE_AGENT_ID.value,
             )
         )
     }

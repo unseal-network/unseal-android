@@ -327,9 +327,6 @@ class MessageComposerPresenter(
         ResolveSuggestionsEffect(suggestions, suggestionRenderModels)
 
         LaunchedEffect(Unit) {
-            roomUnsealContextStore.refresh(RoomUnsealRefreshReason.Initial)
-        }
-        LaunchedEffect(Unit) {
             var mentionWasActive = false
             suggestionSearchTrigger.collect { suggestion ->
                 val mentionIsActive = suggestion?.type == SuggestionType.Mention
@@ -548,6 +545,10 @@ class MessageComposerPresenter(
                 }
                 MessageComposerEvent.DismissGamePicker -> {
                     showGamePicker = false
+                }
+                MessageComposerEvent.SendPing -> {
+                    showAttachmentSourcePicker = false
+                    sessionCoroutineScope.sendPing()
                 }
                 MessageComposerEvent.ShowAgentSkillPicker -> {
                     showAttachmentSourcePicker = false
@@ -902,6 +903,17 @@ class MessageComposerPresenter(
             path = path,
             directoryName = directoryName,
         )
+    }
+
+    private fun CoroutineScope.sendPing() = launch {
+        room.sendRawRoomMessage(
+            contentJson = JSONObject()
+                .put("msgtype", "m.ping")
+                .put("body", "Ping")
+                .toString()
+        ).onFailure { cause ->
+            Timber.e(cause, "Failed to send ping message")
+        }
     }
 
     private fun CoroutineScope.sendAttachment(

@@ -36,11 +36,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.element.android.compound.theme.ElementTheme
+import io.element.android.features.messages.impl.R
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.wysiwyg.link.Link
 import kotlinx.coroutines.Dispatchers
@@ -68,7 +70,10 @@ fun TimelineItemLinkPreviewView(
     }
 
     val shape = RoundedCornerShape(12.dp)
-    val title = metadata.title?.takeIf { it.isNotBlank() } ?: metadata.host
+    val title = when (metadata.style) {
+        LinkPreviewStyle.GooglePlayInternalTest -> stringResource(R.string.screen_room_timeline_link_preview_sign_in)
+        else -> metadata.title?.takeIf { it.isNotBlank() } ?: metadata.host
+    }
     val subtitle = metadata.description?.takeIf { it.isNotBlank() } ?: metadata.host
     val isBranded = metadata.style != LinkPreviewStyle.Default
     val cardBackground = metadata.style.backgroundColor() ?: ElementTheme.colors.bgSubtleSecondaryLevel0
@@ -305,7 +310,7 @@ private data class BrandedFallbackText(
 
 private fun LinkPreviewStyle.fallbackText(host: String): BrandedFallbackText? = when (this) {
     LinkPreviewStyle.Default -> null
-    LinkPreviewStyle.GooglePlayInternalTest -> BrandedFallbackText("登录", host)
+    LinkPreviewStyle.GooglePlayInternalTest -> BrandedFallbackText("Sign in", host)
     LinkPreviewStyle.AppStore -> BrandedFallbackText("App Store", host)
     LinkPreviewStyle.GitHub -> BrandedFallbackText("GitHub", host)
     LinkPreviewStyle.GoogleMaps -> BrandedFallbackText("Google Maps", host)

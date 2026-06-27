@@ -328,7 +328,7 @@ class MessagesViewTest {
         setMessagesView(state = state)
 
         val context = activity!!
-        onNodeWithText(context.getString(R.string.screen_room_attachment_source_ping)).assertDoesNotExist()
+        onNodeWithText(context.getString(R.string.screen_room_attachment_source_ping)).assertExists()
         onNodeWithText(context.getString(R.string.screen_room_attachment_source_sketch)).assertDoesNotExist()
         onNodeWithText(context.getString(R.string.screen_room_attachment_source_location)).assertDoesNotExist()
     }

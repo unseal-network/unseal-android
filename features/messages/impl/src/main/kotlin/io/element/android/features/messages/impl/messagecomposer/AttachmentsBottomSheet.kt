@@ -184,7 +184,7 @@ private fun AttachmentActionRow(
             headlineContent = { Text(stringResource(R.string.screen_room_attachment_source_skill)) },
         )
         RoomAttachmentAction.Ping -> ListItem(
-            onClick = {},
+            onClick = { state.eventSink(MessageComposerEvent.SendPing) },
             leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.Mention())),
             headlineContent = { Text(stringResource(R.string.screen_room_attachment_source_ping)) },
         )
@@ -204,7 +204,7 @@ internal fun AttachmentSourcePickerMenuPreview() = ElementPreview {
             canShareLocation = true,
         ),
         attachmentActions = RoomAttachmentAction.entries.map { action ->
-            RoomAttachmentActionEntry(action = action, isAvailable = action != RoomAttachmentAction.Ping && action != RoomAttachmentAction.Sketch)
+            RoomAttachmentActionEntry(action = action, isAvailable = action != RoomAttachmentAction.Sketch)
         },
         onSendLocationClick = {},
         onCreatePollClick = {},

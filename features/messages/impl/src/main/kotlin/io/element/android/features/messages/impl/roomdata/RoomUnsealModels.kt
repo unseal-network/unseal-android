@@ -47,8 +47,11 @@ data class RoomUnsealContext(
     companion object {
         fun from(roomId: RoomId, members: List<RoomMember>, snapshot: RoomUnsealDataSnapshot): RoomUnsealContext {
             val enrichedMembers = RoomAgentMemberEnricher.enrich(members, snapshot.roomAgents.value)
-            val joinedMemberIds = enrichedMembers.filter { it.membership == RoomMembershipState.JOIN }.map { it.userId.value }.toSet()
-            val agentsInRoom = snapshot.allAgents.value.toAgentsInRoom(joinedMemberIds)
+            val joinedMembers = enrichedMembers.filter { it.membership == RoomMembershipState.JOIN }
+            val agentsInRoom = mergeAgentsInRoom(
+                roomAgents = joinedMembers.toRoomAgentsInRoom(),
+                globalAgents = snapshot.allAgents.value.toAgentsInRoom(joinedMembers),
+            )
             val agentSkillTargets = mergeAgentSkillTargets(
                 roomTargets = enrichedMembers.toMemberAgentSkillTargetCandidates(),
                 globalTargets = agentsInRoom.map { it.toSkillTargetCandidate() },
@@ -216,9 +219,12 @@ internal fun RoomMembersState.roomUnsealMemberSignature(): String? {
 
 private val AGENT_USER_TYPES = setOf("agent", "bot", "external_bot", "trusted_external_bot")
 
-private fun List<AgentAccountDescriptor>.toAgentsInRoom(activeMemberIds: Set<String>): List<RoomAgentInRoomDescriptor> {
+private fun List<AgentAccountDescriptor>.toAgentsInRoom(activeMembers: List<RoomMemberRender>): List<RoomAgentInRoomDescriptor> {
+    val activeMemberIds = activeMembers.map { it.userId.value }.toSet()
     return mapNotNull { agent ->
-        val mxid = agent.matrixUserId?.takeIf { it in activeMemberIds } ?: return@mapNotNull null
+        val mxid = agent.matrixUserId?.takeIf { it in activeMemberIds }
+            ?: agent.findActiveMemberMxid(activeMembers)
+            ?: return@mapNotNull null
         RoomAgentInRoomDescriptor(
             agentId = mxid,
             mxid = mxid,
@@ -228,6 +234,70 @@ private fun List<AgentAccountDescriptor>.toAgentsInRoom(activeMemberIds: Set<Str
             boundDeviceId = agent.boundDeviceId,
         )
     }.sortedWith(compareBy<RoomAgentInRoomDescriptor> { it.label }.thenBy { it.mxid })
+}
+
+private fun List<RoomMemberRender>.toRoomAgentsInRoom(): List<RoomAgentInRoomDescriptor> {
+    return filter { it.membership == RoomMembershipState.JOIN && it.isAgent }
+        .map { member ->
+            RoomAgentInRoomDescriptor(
+                agentId = member.userId.value,
+                mxid = member.userId.value,
+                label = member.displayName ?: member.userId.value,
+                avatarUrl = member.avatarUrl,
+                isDeviceAgent = false,
+                boundDeviceId = null,
+            )
+        }
+        .sortedWith(compareBy<RoomAgentInRoomDescriptor> { it.label }.thenBy { it.mxid })
+}
+
+private fun mergeAgentsInRoom(
+    roomAgents: List<RoomAgentInRoomDescriptor>,
+    globalAgents: List<RoomAgentInRoomDescriptor>,
+): List<RoomAgentInRoomDescriptor> {
+    val roomByMxid = roomAgents.associateBy { it.mxid }
+    val globalByMxid = globalAgents.associateBy { it.mxid }
+    return (roomAgents.map { it.mxid } + globalAgents.map { it.mxid })
+        .distinct()
+        .mapNotNull { mxid ->
+            val roomAgent = roomByMxid[mxid]
+            val globalAgent = globalByMxid[mxid]
+            when {
+                roomAgent == null -> globalAgent
+                globalAgent == null -> roomAgent
+                else -> globalAgent.copy(
+                    agentId = roomAgent.agentId,
+                    label = roomAgent.label,
+                    avatarUrl = roomAgent.avatarUrl ?: globalAgent.avatarUrl,
+                )
+            }
+        }
+        .sortedWith(compareBy<RoomAgentInRoomDescriptor> { it.label }.thenBy { it.mxid })
+}
+
+private fun AgentAccountDescriptor.findActiveMemberMxid(activeMembers: List<RoomMemberRender>): String? {
+    val agentAliases = listOfNotNull(localpart, botName, displayName)
+        .mapNotNull { it.normalizedAgentAlias() }
+        .toSet()
+        .takeIf { it.isNotEmpty() }
+        ?: return null
+    return activeMembers
+        .filter { member ->
+            val memberAliases = listOfNotNull(
+                member.userId.value.substringAfter("@").substringBefore(":"),
+                member.displayName,
+            ).mapNotNull { it.normalizedAgentAlias() }
+            memberAliases.any { it in agentAliases }
+        }
+        .singleOrNull()
+        ?.userId
+        ?.value
+}
+
+private fun String.normalizedAgentAlias(): String? {
+    return trim()
+        .lowercase()
+        .takeIf { it.isNotBlank() }
 }
 
 private fun mergeAgentSkillTargets(

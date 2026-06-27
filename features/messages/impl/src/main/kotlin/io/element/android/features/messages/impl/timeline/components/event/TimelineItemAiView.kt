@@ -90,11 +90,13 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import io.element.android.compound.theme.ElementTheme
+import io.element.android.features.messages.impl.R
 import io.element.android.features.messages.impl.components.SelectedStatePill
 import io.element.android.features.messages.impl.components.ShapedClickableSurface
 import io.element.android.features.messages.impl.timeline.model.event.AiCustomStreamPart
@@ -400,12 +402,12 @@ private fun AiUnavailableCard() {
             )
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = "消息内容加载失败",
+                    text = stringResource(R.string.screen_room_timeline_ai_unavailable_title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = "该回复没有可显示的内容，请稍后重试。",
+                    text = stringResource(R.string.screen_room_timeline_ai_unavailable_description),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -453,7 +455,11 @@ private fun ReasoningPart(part: AiReasoningStreamPart) {
                 contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
             ) {
                 Text(
-                    text = (if (expanded) "▾ " else "▸ ") + if (isStreaming) "思考中" else "思考",
+                    text = (if (expanded) "▾ " else "▸ ") + if (isStreaming) {
+                        stringResource(R.string.screen_room_timeline_ai_reasoning_in_progress)
+                    } else {
+                        stringResource(R.string.screen_room_timeline_ai_reasoning)
+                    },
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1885,7 +1891,7 @@ private fun ThinkingSection(steps: List<AiThinkingStep>) {
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
-                text = (if (expanded) "▾ " else "▸ ") + "思考 (${steps.size})",
+                text = (if (expanded) "▾ " else "▸ ") + stringResource(R.string.screen_room_timeline_ai_reasoning) + " (${steps.size})",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier

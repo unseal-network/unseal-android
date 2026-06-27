@@ -1105,7 +1105,7 @@ private fun RoomComposerChrome(
             .padding(start = 12.dp, end = 12.dp, bottom = 10.dp),
     ) {
         // Transparent top zone the timeline overlaps into; the gradient fades the last message out
-        // here, above the opaque input pill, so it reads as a soft "渐变透明" edge without the pill
+        // here, above the opaque input pill, so it reads as a soft fade edge without the pill
         // ever covering content.
         Spacer(Modifier.height(ComposerFadeZone))
         Column(
@@ -1120,7 +1120,7 @@ private fun RoomComposerChrome(
 private val ComposerFadeZone = 36.dp
 
 // Vertical gradient that fades timeline content from fully visible (top) to the solid canvas colour
-// (bottom) as it reaches the composer, giving a soft "渐变透明" transition instead of a hard edge.
+// (bottom) as it reaches the composer, giving a soft fade transition instead of a hard edge.
 // Pure Compose gradient — drawn over the timeline, never causing AndroidView-over-AndroidView cost.
 @Composable
 private fun ComposerChromeBackdrop(

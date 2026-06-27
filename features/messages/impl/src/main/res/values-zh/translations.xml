@@ -90,4 +90,23 @@
   <string name="screen_room_topbar_webhooks">"Webhook 触发器"</string>
   <string name="screen_room_topbar_ai_config">"房间 AI 配置"</string>
   <string name="screen_room_topbar_close_remote_terminal">"关闭远程终端"</string>
+  <string name="screen_room_timeline_ai_unavailable_title">"消息内容加载失败"</string>
+  <string name="screen_room_timeline_ai_unavailable_description">"该回复没有可显示的内容，请稍后重试。"</string>
+  <string name="screen_room_timeline_ai_reasoning">"思考"</string>
+  <string name="screen_room_timeline_ai_reasoning_in_progress">"思考中…"</string>
+  <string name="screen_room_timeline_ppt_total_pages">"共 %1$d 页"</string>
+  <string name="screen_room_timeline_ppt_completed">"生成完成"</string>
+  <string name="screen_room_timeline_ppt_failed">"生成失败"</string>
+  <string name="screen_room_timeline_ppt_default_title">"演示文稿"</string>
+  <string name="screen_room_timeline_ppt_slide_type_cover">"封面"</string>
+  <string name="screen_room_timeline_ppt_slide_type_content">"内容"</string>
+  <string name="screen_room_timeline_ppt_slide_type_end">"结尾"</string>
+  <string name="screen_room_timeline_ppt_edit">"编辑"</string>
+  <string name="screen_room_timeline_ppt_continue">"继续"</string>
+  <string name="screen_room_timeline_ppt_generating">"正在生成演示文稿"</string>
+  <string name="screen_room_timeline_ppt_generated">"演示文稿已生成"</string>
+  <string name="screen_room_timeline_link_preview_sign_in">"登录"</string>
+  <plurals name="game_picker_room_count">
+    <item quantity="other">"%1$d 个房间"</item>
+  </plurals>
 </resources>

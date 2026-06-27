@@ -212,6 +212,27 @@ import kotlin.time.Duration.Companion.minutes
     }
 
     @Test
+    fun `test create TextMessageType excludes parsed matrix permalinks from preview`() = runTest {
+        val matrixPermalink = "https://app.element.io/#/user/@alice:matrix.org"
+        val permalinkParser = FakePermalinkParser { url ->
+            if (url == matrixPermalink) {
+                PermalinkData.UserLink(A_USER_ID)
+            } else {
+                PermalinkData.FallbackLink(Uri.parse(url))
+            }
+        }
+        val sut = createTimelineItemContentMessageFactory(permalinkParser = permalinkParser)
+        val result = sut.create(
+            content = createMessageContent(type = TextMessageType("https://www.example.org and $matrixPermalink", null)),
+            senderId = A_USER_ID,
+            senderProfile = aProfileDetails(),
+            eventId = AN_EVENT_ID,
+        ) as TimelineItemTextContent
+
+        assertThat(result.linkPreviewUrls).containsExactly("https://www.example.org")
+    }
+
+    @Test
     fun `test create TextMessageType with HTML formatted body`() = runTest {
         val expected = buildSpannedString {
             append("link to ")

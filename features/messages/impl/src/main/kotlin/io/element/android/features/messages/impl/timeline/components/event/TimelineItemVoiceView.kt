@@ -9,10 +9,12 @@
 package io.element.android.features.messages.impl.timeline.components.event
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -39,6 +41,7 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
@@ -59,6 +62,17 @@ import io.element.android.libraries.voiceplayer.api.VoiceMessageEvent
 import io.element.android.libraries.voiceplayer.api.VoiceMessageState
 import io.element.android.libraries.voiceplayer.api.VoiceMessageStateProvider
 import kotlinx.coroutines.delay
+
+internal object TimelineItemVoiceLayoutSpec {
+    val minWidth: Dp = 260.dp
+    val maxWidth: Dp = 360.dp
+    val outerHeight: Dp = 64.dp
+    val innerHeight: Dp = 48.dp
+    val outerCornerRadius: Dp = 18.dp
+    val innerCornerRadius: Dp = 24.dp
+    val horizontalPadding: Dp = 8.dp
+    val trailingPadding: Dp = 10.dp
+}
 
 @Composable
 fun TimelineItemVoiceView(
@@ -83,13 +97,16 @@ fun TimelineItemVoiceView(
     )
     Row(
         modifier = modifier
-            .widthIn(min = 280.dp, max = 400.dp)
-            .height(64.dp)
+            .widthIn(min = TimelineItemVoiceLayoutSpec.minWidth, max = TimelineItemVoiceLayoutSpec.maxWidth)
+            .height(TimelineItemVoiceLayoutSpec.outerHeight)
             .background(
                 color = ElementTheme.colors.bgSubtleSecondary,
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(TimelineItemVoiceLayoutSpec.outerCornerRadius),
             )
-            .padding(start = 14.dp, end = 14.dp)
+            .padding(
+                start = TimelineItemVoiceLayoutSpec.horizontalPadding,
+                end = TimelineItemVoiceLayoutSpec.trailingPadding,
+            )
             .clearAndSetSemantics {
                 contentDescription = a11y
                 if (state.buttonType == VoiceMessageState.ButtonType.Disabled) {
@@ -111,43 +128,59 @@ fun TimelineItemVoiceView(
             },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (!isTalkbackActive()) {
-            when (state.buttonType) {
-                VoiceMessageState.ButtonType.Play -> PlayButton(onClick = ::playPause)
-                VoiceMessageState.ButtonType.Pause -> PauseButton(onClick = ::playPause)
-                VoiceMessageState.ButtonType.Downloading -> ProgressButton()
-                VoiceMessageState.ButtonType.Retry -> RetryButton(onClick = ::playPause)
-                VoiceMessageState.ButtonType.Disabled -> PlayButton(onClick = {}, enabled = false)
-            }
-        }
-        Spacer(Modifier.width(10.dp))
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            PlaybackSpeedButton(
-                speed = state.playbackSpeed,
-                onClick = { state.eventSink(VoiceMessageEvent.ChangePlaybackSpeed) },
-            )
-            Text(
-                text = state.time,
-                color = ElementTheme.colors.textSecondary,
-                style = ElementTheme.typography.fontBodySmMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Spacer(Modifier.width(12.dp))
-        WaveformPlaybackView(
-            showCursor = state.showCursor,
-            playbackProgress = state.progress,
-            waveform = content.waveform,
+        Box(
             modifier = Modifier
                 .weight(1f)
-                .height(34.dp),
-            seekEnabled = !isTalkbackActive(),
-            onSeek = { state.eventSink(VoiceMessageEvent.Seek(it)) },
-        )
+                .height(TimelineItemVoiceLayoutSpec.innerHeight)
+                .background(
+                    color = ElementTheme.colors.bgCanvasDefault,
+                    shape = RoundedCornerShape(TimelineItemVoiceLayoutSpec.innerCornerRadius),
+                )
+                .padding(start = 6.dp, end = 10.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxHeight(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (!isTalkbackActive()) {
+                    when (state.buttonType) {
+                        VoiceMessageState.ButtonType.Play -> PlayButton(onClick = ::playPause)
+                        VoiceMessageState.ButtonType.Pause -> PauseButton(onClick = ::playPause)
+                        VoiceMessageState.ButtonType.Downloading -> ProgressButton()
+                        VoiceMessageState.ButtonType.Retry -> RetryButton(onClick = ::playPause)
+                        VoiceMessageState.ButtonType.Disabled -> PlayButton(onClick = {}, enabled = false)
+                    }
+                }
+                Spacer(Modifier.width(10.dp))
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    PlaybackSpeedButton(
+                        speed = state.playbackSpeed,
+                        onClick = { state.eventSink(VoiceMessageEvent.ChangePlaybackSpeed) },
+                    )
+                    Text(
+                        text = state.time,
+                        color = ElementTheme.colors.textSecondary,
+                        style = ElementTheme.typography.fontBodySmMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                WaveformPlaybackView(
+                    showCursor = state.showCursor,
+                    playbackProgress = state.progress,
+                    waveform = content.waveform,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(34.dp),
+                    seekEnabled = !isTalkbackActive(),
+                    onSeek = { state.eventSink(VoiceMessageEvent.Seek(it)) },
+                )
+            }
+        }
     }
 }
 
