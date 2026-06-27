@@ -13,9 +13,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import io.element.android.features.agentmanagement.impl.R
 import io.element.android.features.agentmanagement.impl.shared.AgentDirectChatService
 import io.element.android.features.agentmanagement.impl.shared.agentMatrixUserId
 import io.element.android.features.agentmanagement.impl.shared.copyableAgentId
@@ -49,6 +51,7 @@ class AgentDetailPresenter(
 
     @Composable
     override fun present(): AgentDetailState {
+        val context = LocalContext.current
         val coroutineScope = rememberCoroutineScope()
         var agent by remember { mutableStateOf<ChatbotAgent?>(null) }
         var rooms by remember { mutableStateOf(emptyList<ChatbotAgentRoom>()) }
@@ -61,6 +64,9 @@ class AgentDetailPresenter(
         var error by remember { mutableStateOf<String?>(null) }
         var copiedAgentId by remember { mutableStateOf<String?>(null) }
         var hasLoadedOnce by remember { mutableStateOf(false) }
+
+        fun string(resId: Int): String = context.getString(resId)
+        fun Throwable.messageOr(resId: Int): String = message?.takeIf { it.isNotBlank() } ?: string(resId)
 
         fun loadExtras(isInitial: Boolean) {
             if (isInitial && hasLoadedOnce) return
@@ -75,7 +81,7 @@ class AgentDetailPresenter(
                     }
                     .onFailure {
                         if (previousAgent == null) {
-                            error = it.message ?: it::class.simpleName ?: "Failed to load agent"
+                            error = it.messageOr(R.string.agent_detail_error_load)
                         }
                     }
                 // Ownership: only agents in the current user's own agent list are editable.
@@ -103,7 +109,7 @@ class AgentDetailPresenter(
         fun startChat() {
             val userId = agent?.agentMatrixUserId()
             if (userId == null) {
-                error = "Agent has no Matrix user ID"
+                error = string(R.string.agent_detail_error_no_matrix_user_id)
                 return
             }
             coroutineScope.launch {
@@ -116,13 +122,13 @@ class AgentDetailPresenter(
                             } else {
                                 directChatService.createDirectRoom(userId)
                                     .onSuccess { navigator.onOpenRoom(it.toRoomIdOrAlias()) }
-                                    .onFailure { error = it.message ?: it::class.simpleName ?: "Failed to start chat" }
+                                    .onFailure { error = it.messageOr(R.string.agent_detail_error_start_chat) }
                             }
                         },
                         onFailure = {
                             directChatService.createDirectRoom(userId)
                                 .onSuccess { navigator.onOpenRoom(it.toRoomIdOrAlias()) }
-                                .onFailure { createError -> error = createError.message ?: createError::class.simpleName ?: "Failed to start chat" }
+                                .onFailure { createError -> error = createError.messageOr(R.string.agent_detail_error_start_chat) }
                         }
                     )
                 isStartingChat = false
@@ -135,7 +141,7 @@ class AgentDetailPresenter(
                 chatbotApiServiceFactory.createForHomeserver(matrixClient)
                     .agentLeaveRoom(botName, roomId)
                     .onSuccess { loadExtras(isInitial = false) }
-                    .onFailure { error = it.message ?: it::class.simpleName ?: "Failed to leave room" }
+                    .onFailure { error = it.messageOr(R.string.agent_detail_error_leave_room) }
                 isLoading = false
             }
         }
@@ -155,7 +161,7 @@ class AgentDetailPresenter(
                 AgentDetailEvents.ManageChannels -> {
                     val agentId = agent?.agentMatrixUserId()
                     if (agentId == null) {
-                        error = "Agent has no Matrix user ID"
+                        error = string(R.string.agent_detail_error_no_matrix_user_id)
                     } else {
                         navigator.onManageChannels(agentId)
                     }
@@ -163,7 +169,7 @@ class AgentDetailPresenter(
                 AgentDetailEvents.StartChat -> startChat()
                 is AgentDetailEvents.OpenRoom -> RoomIdOrAlias.from(event.roomId)
                     ?.let(navigator::onOpenRoom)
-                    ?: run { error = "Invalid room id" }
+                    ?: run { error = string(R.string.agent_detail_error_invalid_room_id) }
                 is AgentDetailEvents.LeaveRoom -> leaveRoom(event.roomId)
                 AgentDetailEvents.ClearError -> error = null
             }

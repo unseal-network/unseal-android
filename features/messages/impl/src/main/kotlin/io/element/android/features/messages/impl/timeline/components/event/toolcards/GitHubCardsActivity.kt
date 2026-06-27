@@ -28,10 +28,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.element.android.features.messages.impl.R
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import org.json.JSONObject
@@ -71,7 +73,7 @@ private fun CheckRunsCard(data: JSONObject, onLinkClick: () -> Unit): Boolean {
     if (runs.isEmpty()) return false
     val summary = checkRunsSummary(runs)
     ToolCardSurface {
-        ToolCardHeader(title = "Check Runs")
+        ToolCardHeader(title = stringResource(R.string.screen_room_timeline_tool_card_check_runs))
         CardChip(text = summary.first, color = summary.second.copy(alpha = 0.12f), contentColor = summary.second)
         DividedList(runs.take(MAX_CARD_ITEMS)) { run -> CheckRunRow(run, onLinkClick) }
         MoreRow(runs.size)
@@ -103,7 +105,7 @@ private fun checkRunsSummary(runs: List<JSONObject>): Pair<String, Color> {
 
 @Composable
 private fun CheckRunRow(run: JSONObject, onLinkClick: () -> Unit) {
-    val name = run.cardString("name") ?: "Unknown"
+    val name = run.cardString("name") ?: stringResource(R.string.screen_room_timeline_tool_card_unknown)
     val appName = run.optJSONObject("app")?.cardString("name")
     val status = run.cardString("status")
     val conclusion = run.cardString("conclusion")
@@ -141,20 +143,20 @@ private fun CommitComparisonCard(data: JSONObject): Boolean {
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
     ToolCardSurface {
-        ToolCardHeader(title = "Commit Comparison")
+        ToolCardHeader(title = stringResource(R.string.screen_room_timeline_tool_card_commit_comparison))
         status?.let { CardChip(text = it.replaceFirstChar { c -> c.uppercase() }, color = statusColor.copy(alpha = 0.12f), contentColor = statusColor) }
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            if (aheadBy > 0) Text("$aheadBy ahead", style = MaterialTheme.typography.labelSmall, color = StatusSuccess)
-            if (behindBy > 0) Text("$behindBy behind", style = MaterialTheme.typography.labelSmall, color = StatusFailure)
+            if (aheadBy > 0) Text(stringResource(R.string.screen_room_timeline_tool_card_ahead, aheadBy), style = MaterialTheme.typography.labelSmall, color = StatusSuccess)
+            if (behindBy > 0) Text(stringResource(R.string.screen_room_timeline_tool_card_behind, behindBy), style = MaterialTheme.typography.labelSmall, color = StatusFailure)
         }
         if (commits.isNotEmpty()) {
-            SectionLabel("COMMITS")
+            SectionLabel(stringResource(R.string.screen_room_timeline_tool_card_commits).uppercase())
             commits.take(MAX_CARD_ITEMS).forEach { CommitRow(it) }
         }
         if (files.isNotEmpty()) {
-            SectionLabel("FILES CHANGED")
+            SectionLabel(stringResource(R.string.screen_room_timeline_tool_card_files_changed).uppercase())
             files.take(5).forEach { FileRow(it) }
-            if (files.size > 5) Subtle("+ ${files.size - 5} more")
+            if (files.size > 5) Subtle(stringResource(R.string.screen_room_timeline_tool_card_more_count, files.size - 5))
         }
     }
     return true
@@ -193,7 +195,7 @@ private fun DeploymentsCard(data: JSONObject): Boolean {
     val deployments = data.cardObjects("deployments", "items")
     if (deployments.isEmpty()) return false
     ToolCardSurface {
-        ToolCardHeader(title = "Deployments", count = deployments.size)
+        ToolCardHeader(title = stringResource(R.string.screen_room_timeline_tool_card_deployments), count = deployments.size)
         DividedList(deployments.take(MAX_CARD_ITEMS)) { DeploymentRow(it) }
         MoreRow(deployments.size)
     }
@@ -202,7 +204,7 @@ private fun DeploymentsCard(data: JSONObject): Boolean {
 
 @Composable
 private fun DeploymentRow(dep: JSONObject) {
-    val env = dep.cardString("environment") ?: "unknown"
+    val env = dep.cardString("environment") ?: stringResource(R.string.screen_room_timeline_tool_card_unknown_user)
     val ref = dep.cardString("ref")
     val login = dep.optJSONObject("creator")?.cardString("login")
     val isProd = dep.cardBool("productionEnvironment") ?: false
@@ -227,7 +229,7 @@ private fun NotificationsCard(data: JSONObject, onLinkClick: () -> Unit): Boolea
     val notifications = data.cardObjects("notifications", "items")
     if (notifications.isEmpty()) return false
     ToolCardSurface {
-        ToolCardHeader(title = "Notifications", count = notifications.size)
+        ToolCardHeader(title = stringResource(R.string.screen_room_timeline_tool_card_notifications), count = notifications.size)
         DividedList(notifications.take(MAX_CARD_ITEMS)) { NotificationRow(it, onLinkClick) }
         MoreRow(notifications.size)
     }
@@ -262,7 +264,7 @@ private fun SecretAlertsCard(data: JSONObject, onLinkClick: () -> Unit): Boolean
     val alerts = data.cardObjects("alerts", "secretAlerts", "secret_alerts", "items")
     if (alerts.isEmpty()) return false
     ToolCardSurface {
-        ToolCardHeader(title = "Secret Alerts", count = alerts.size)
+        ToolCardHeader(title = stringResource(R.string.screen_room_timeline_tool_card_secret_alerts), count = alerts.size)
         DividedList(alerts.take(MAX_CARD_ITEMS)) { SecretAlertRow(it, onLinkClick) }
         MoreRow(alerts.size)
     }
@@ -283,7 +285,7 @@ private fun SecretAlertRow(alert: JSONObject, onLinkClick: () -> Unit) {
             RowTitle(secretType)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(state.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall, color = color)
-                if (leaked) Text("Leaked", style = MaterialTheme.typography.labelSmall, color = StatusFailure)
+                if (leaked) Text(stringResource(R.string.screen_room_timeline_tool_card_leaked), style = MaterialTheme.typography.labelSmall, color = StatusFailure)
             }
         }
     }
@@ -296,7 +298,7 @@ private fun WorkflowsCard(data: JSONObject, onLinkClick: () -> Unit): Boolean {
     val workflows = data.cardObjects("workflows", "items")
     if (workflows.isEmpty()) return false
     ToolCardSurface {
-        ToolCardHeader(title = "Workflows", count = workflows.size)
+        ToolCardHeader(title = stringResource(R.string.screen_room_timeline_tool_card_workflows), count = workflows.size)
         DividedList(workflows.take(MAX_CARD_ITEMS)) { WorkflowRow(it, onLinkClick) }
         MoreRow(workflows.size)
     }
@@ -305,7 +307,7 @@ private fun WorkflowsCard(data: JSONObject, onLinkClick: () -> Unit): Boolean {
 
 @Composable
 private fun WorkflowRow(wf: JSONObject, onLinkClick: () -> Unit) {
-    val name = wf.cardString("name") ?: "Untitled"
+    val name = wf.cardString("name") ?: stringResource(R.string.screen_room_timeline_tool_card_untitled)
     val state = wf.cardString("state") ?: "active"
     val path = wf.cardString("path")
     val url = wf.cardString("htmlUrl", "html_url")
@@ -335,7 +337,7 @@ private fun CommentThreadCard(data: JSONObject): Boolean {
     val prNumber = data.cardInt("prNumber")
     val repo = data.cardString("repo")
     ToolCardSurface {
-        ToolCardHeader(title = "Comments", count = comments.size)
+        ToolCardHeader(title = stringResource(R.string.screen_room_timeline_tool_card_comments), count = comments.size)
         if (prTitle != null || prNumber != null) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 prTitle?.let {
@@ -354,7 +356,7 @@ private fun CommentThreadCard(data: JSONObject): Boolean {
 
 @Composable
 private fun CommentRow(comment: JSONObject) {
-    val author = comment.cardString("author") ?: "unknown"
+    val author = comment.cardString("author") ?: stringResource(R.string.screen_room_timeline_tool_card_unknown_user)
     val avatarUrl = comment.cardString("avatarUrl")
     val body = comment.cardString("body") ?: ""
     val createdAt = comment.cardString("createdAt")
@@ -456,7 +458,7 @@ private fun MonoTag(text: String) {
 private fun MoreRow(total: Int) {
     if (total > MAX_CARD_ITEMS) {
         Text(
-            text = "+${total - MAX_CARD_ITEMS} more",
+            text = stringResource(R.string.screen_room_timeline_tool_card_more_count, total - MAX_CARD_ITEMS),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

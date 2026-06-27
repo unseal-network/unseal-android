@@ -30,7 +30,7 @@ import io.element.android.libraries.matrix.ui.messages.reply.aProfileDetailsRead
  */
 private val aLongUrlReply: InReplyToDetails
     get() {
-        val body = "在 https://play.google.com/console/developers/app/create 创建 Android 应用"
+        val body = "Create an Android app at https://play.google.com/console/developers/app/create"
         return InReplyToDetails.Ready(
             eventId = EventId("\$repro-event"),
             senderId = UserId("@sender:domain"),

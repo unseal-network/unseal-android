@@ -27,11 +27,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import io.element.android.features.messages.impl.R
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import org.json.JSONObject
@@ -160,14 +163,18 @@ private fun GitHubIssueCardView(data: JSONObject, onLinkClick: () -> Unit) {
     ToolCardSurface {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = "Issue",
+                text = stringResource(R.string.screen_room_timeline_tool_card_issue),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
             )
             CardChip(
-                text = if (isClosed) "Closed" else "Open",
+                text = if (isClosed) {
+                    stringResource(R.string.screen_room_timeline_tool_card_closed)
+                } else {
+                    stringResource(R.string.screen_room_timeline_tool_card_open)
+                },
                 color = if (isClosed) Color(0xFF8250DF).copy(alpha = 0.12f) else Color(0xFF1A7F37).copy(alpha = 0.12f),
                 contentColor = if (isClosed) Color(0xFF8250DF) else Color(0xFF1A7F37),
             )
@@ -201,7 +208,7 @@ private fun GitHubIssueCardView(data: JSONObject, onLinkClick: () -> Unit) {
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MetaText(if (isClosed) "Closed" else "Opened")
+                MetaText(if (isClosed) stringResource(R.string.screen_room_timeline_tool_card_closed) else stringResource(R.string.screen_room_timeline_tool_card_opened))
                 createdAt?.let { MetaText(it) }
                 author?.let { MetaText(it) }
             }
@@ -255,17 +262,17 @@ private fun GitHubIssuesListCardView(data: JSONObject, onLinkClick: () -> Unit) 
     val open = rememberLinkOpener(onLinkClick)
 
     ToolCardSurface {
-        ToolCardHeader(title = "Issues", count = items.size)
+        ToolCardHeader(title = stringResource(R.string.screen_room_timeline_tool_card_issues), count = items.size)
         DividedList(shown) { issue -> IssueRow(issue, open) }
         if (items.size > shown.size) {
-            MetaText("+${items.size - shown.size} more")
+            MetaText(stringResource(R.string.screen_room_timeline_tool_card_more_count, items.size - shown.size))
         }
     }
 }
 
 @Composable
 private fun IssueRow(issue: JSONObject, open: (String?) -> Unit) {
-    val title = issue.cardString("title") ?: "Untitled"
+    val title = issue.cardString("title") ?: stringResource(R.string.screen_room_timeline_tool_card_untitled)
     val number = issue.cardInt("number")
     val author = issue.cardString("author")
     val updatedAt = issue.cardString("updatedAt")
@@ -315,10 +322,10 @@ private fun GitHubRepoListCardView(data: JSONObject, onLinkClick: () -> Unit) {
     val open = rememberLinkOpener(onLinkClick)
 
     ToolCardSurface {
-        ToolCardHeader(title = "Repositories", count = repos.size)
+        ToolCardHeader(title = stringResource(R.string.screen_room_timeline_tool_card_repositories), count = repos.size)
         DividedList(shown) { repo -> RepoRow(repo, open) }
         if (repos.size > shown.size) {
-            MetaText("+${repos.size - shown.size} more")
+            MetaText(stringResource(R.string.screen_room_timeline_tool_card_more_count, repos.size - shown.size))
         }
     }
 }
@@ -405,7 +412,7 @@ private fun GitHubReleaseCardView(data: JSONObject) {
     ToolCardSurface {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = "Release",
+                text = stringResource(R.string.screen_room_timeline_tool_card_release),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -430,8 +437,8 @@ private fun GitHubReleaseCardView(data: JSONObject) {
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface,
             )
-            if (draft) Text("Draft", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = Color(0xFFD29922))
-            if (prerelease) Text("Pre", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = Color(0xFFBF8700))
+            if (draft) Text(stringResource(R.string.screen_room_timeline_tool_card_draft), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = Color(0xFFD29922))
+            if (prerelease) Text(stringResource(R.string.screen_room_timeline_tool_card_pre_release), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = Color(0xFFBF8700))
         }
         if (!body.isNullOrBlank()) {
             Text(
@@ -443,7 +450,7 @@ private fun GitHubReleaseCardView(data: JSONObject) {
             )
         }
         if (assetCount > 0) {
-            MetaText("$assetCount asset${if (assetCount == 1) "" else "s"}")
+            MetaText(pluralStringResource(R.plurals.screen_room_timeline_tool_card_asset_count, assetCount, assetCount))
         }
     }
 }
@@ -458,17 +465,17 @@ private fun GitHubOrgsListCardView(data: JSONObject, onLinkClick: () -> Unit) {
     val open = rememberLinkOpener(onLinkClick)
 
     ToolCardSurface {
-        ToolCardHeader(title = "Organizations", count = orgs.size)
+        ToolCardHeader(title = stringResource(R.string.screen_room_timeline_tool_card_organizations), count = orgs.size)
         DividedList(shown) { org -> OrgRow(org, open) }
         if (orgs.size > shown.size) {
-            MetaText("+${orgs.size - shown.size} more")
+            MetaText(stringResource(R.string.screen_room_timeline_tool_card_more_count, orgs.size - shown.size))
         }
     }
 }
 
 @Composable
 private fun OrgRow(org: JSONObject, open: (String?) -> Unit) {
-    val login = org.cardString("login") ?: "unknown"
+    val login = org.cardString("login") ?: stringResource(R.string.screen_room_timeline_tool_card_unknown_user)
     val description = org.cardString("description")
     val avatarUrl = org.cardString("avatarUrl")
     val url = org.cardString("url", "html_url", "htmlUrl")
@@ -516,17 +523,17 @@ private fun GitHubContributorsCardView(data: JSONObject, onLinkClick: () -> Unit
     val open = rememberLinkOpener(onLinkClick)
 
     ToolCardSurface {
-        ToolCardHeader(title = "Contributors", count = contributors.size)
+        ToolCardHeader(title = stringResource(R.string.screen_room_timeline_tool_card_contributors), count = contributors.size)
         DividedList(shown) { c -> ContributorRow(c, open) }
         if (contributors.size > shown.size) {
-            MetaText("+${contributors.size - shown.size} more")
+            MetaText(stringResource(R.string.screen_room_timeline_tool_card_more_count, contributors.size - shown.size))
         }
     }
 }
 
 @Composable
 private fun ContributorRow(c: JSONObject, open: (String?) -> Unit) {
-    val login = c.cardString("login") ?: "unknown"
+    val login = c.cardString("login") ?: stringResource(R.string.screen_room_timeline_tool_card_unknown_user)
     val contributions = c.cardInt("contributions")
     val avatarUrl = c.cardString("avatarUrl")
     val url = c.cardString("htmlUrl", "html_url", "url")

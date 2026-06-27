@@ -16,4 +16,9 @@
   <string name="connectors_disconnect">"Disconnect"</string>
   <string name="connectors_connected">"Connected"</string>
   <string name="connectors_connected_status">"Connected · %1$s"</string>
+  <string name="connectors_error_load">"Failed to load connectors"</string>
+  <string name="connectors_error_load_more">"Failed to load more connectors"</string>
+  <string name="connectors_error_connect">"Failed to connect"</string>
+  <string name="connectors_error_load_accounts">"Failed to load connected accounts"</string>
+  <string name="connectors_error_disconnect">"Failed to disconnect account"</string>
 </resources>

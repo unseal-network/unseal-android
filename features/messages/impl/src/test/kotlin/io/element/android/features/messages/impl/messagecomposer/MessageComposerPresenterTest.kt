@@ -558,8 +558,9 @@ class MessageComposerPresenterTest {
             presenter.present()
         }.test {
             var state = awaitFirstItem()
+            state.eventSink(MessageComposerEvent.ShowAgentSkillPicker)
             repeat(8) {
-                if (state.agentSkillState.candidates.isNotEmpty()) return@repeat
+                if (state.agentSkillState.isPresented && state.agentSkillState.candidates.isNotEmpty()) return@repeat
                 state = awaitItem()
             }
             assertThat(state.agentSkillState.targets.map { it.mxid }).containsExactly(agentUserId.value)
@@ -1503,6 +1504,48 @@ class MessageComposerPresenterTest {
             assertThat(state.agentSkillState.isPresented).isTrue()
             assertThat(state.agentSkillState.targets.map { it.mxid }).containsExactly(agentUserId.value)
             assertThat(state.agentSkillState.candidates.single().skillName).isEqualTo("mail")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - explicit skill picker request waits for direct agent context and opens`() = runTest {
+        val agentUserId = UserId("@mail-agent:server.org")
+        val room = FakeJoinedRoom(
+            baseRoom = FakeBaseRoom(initialRoomInfo = aRoomInfo(isDm = true)),
+            typingNoticeResult = { Result.success(Unit) },
+        )
+        val roomUnsealContextStore = FakeRoomUnsealContextStore(initialContext = AsyncData.Uninitialized)
+        val roomUnsealDataClient = FakeRoomUnsealDataClient().apply {
+            roomAgentSkillsResult = { _, _, _ ->
+                Result.success(listOf(RoomAgentSkillDescriptor(id = "skill-mail", name = "mail", description = null, runtimeVisible = true)))
+            }
+        }
+        val presenter = createPresenter(
+            room = room,
+            isRichTextEditorEnabled = false,
+            roomUnsealContextStore = roomUnsealContextStore,
+            roomUnsealDataClient = roomUnsealDataClient,
+        )
+
+        presenter.test {
+            val initialState = awaitFirstItem()
+            initialState.eventSink(MessageComposerEvent.ShowAgentSkillPicker)
+            advanceUntilIdle()
+            assertThat(roomUnsealContextStore.refreshCount).isAtLeast(1)
+
+            roomUnsealContextStore.givenContext(roomUnsealContextWithAgent(agentUserId))
+
+            var state = awaitItem()
+            repeat(8) {
+                if (state.agentSkillState.isPresented && state.agentSkillState.candidates.isNotEmpty()) return@repeat
+                state = awaitItem()
+            }
+
+            assertThat(state.agentSkillState.isPresented).isTrue()
+            assertThat(state.agentSkillState.targets.map { it.mxid }).containsExactly(agentUserId.value)
+            assertThat(state.agentSkillState.candidates.single().skillName).isEqualTo("mail")
+            assertThat(roomUnsealDataClient.roomAgentSkillRequests.map { it.agentId }).containsExactly(agentUserId.value)
             cancelAndIgnoreRemainingEvents()
         }
     }

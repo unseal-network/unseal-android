@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
@@ -32,6 +33,7 @@ import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.libraries.designsystem.theme.components.Icon
 import io.element.android.libraries.designsystem.theme.components.Scaffold
 import io.element.android.libraries.designsystem.theme.components.Text
+import io.element.android.libraries.ui.strings.CommonStrings
 
 /**
  * Modal-sheet style screen used by the Agent management flow: a subtle page background with a
@@ -61,7 +63,7 @@ fun AgentModalScaffold(
                 CircleIconButton(
                     modifier = Modifier.align(Alignment.CenterStart),
                     imageVector = CompoundIcons.ChevronLeft(),
-                    contentDescription = "Back",
+                    contentDescription = stringResource(CommonStrings.action_go_back),
                     onClick = onBack,
                 )
                 Text(

@@ -69,7 +69,7 @@ object ComposerSuggestionReducer {
             listOf(
                 ComposerSuggestionRenderModel(
                     id = "@room",
-                    displayName = "Everyone",
+                    displayName = null,
                     subtitle = "@room",
                     avatarUrl = null,
                     kind = ComposerSuggestionKind.AllUsers,
@@ -90,7 +90,7 @@ object ComposerSuggestionReducer {
             when (suggestion) {
                 ResolvedSuggestion.AtRoom -> ComposerSuggestionRenderModel(
                     id = "@room",
-                    displayName = "Everyone",
+                    displayName = null,
                     subtitle = "@room",
                     avatarUrl = null,
                     kind = ComposerSuggestionKind.AllUsers,

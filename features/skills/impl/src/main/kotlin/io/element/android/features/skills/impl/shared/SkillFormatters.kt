@@ -14,6 +14,7 @@ import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.util.Locale
 
 fun ChatbotUserSkill.matchesSkillQuery(query: String): Boolean {
@@ -49,8 +50,10 @@ fun ChatbotUserSkill.createdDateLabel(): String? {
 fun List<ChatbotUserSkill>.sortedBySkillName(): List<ChatbotUserSkill> = sortedBy { it.name }
 
 private object SkillDateFormatter {
-    private val formatter = DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.US)
-        .withZone(ZoneId.systemDefault())
-
-    fun format(instant: Instant): String = formatter.format(instant)
+    fun format(instant: Instant): String {
+        return DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+            .withLocale(Locale.getDefault())
+            .withZone(ZoneId.systemDefault())
+            .format(instant)
+    }
 }

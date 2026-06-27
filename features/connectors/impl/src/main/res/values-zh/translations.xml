@@ -16,4 +16,9 @@
   <string name="connectors_disconnect">"断开连接"</string>
   <string name="connectors_connected">"已连接"</string>
   <string name="connectors_connected_status">"已连接 · %1$s"</string>
+  <string name="connectors_error_load">"加载连接器失败"</string>
+  <string name="connectors_error_load_more">"加载更多连接器失败"</string>
+  <string name="connectors_error_connect">"连接失败"</string>
+  <string name="connectors_error_load_accounts">"加载已连接账户失败"</string>
+  <string name="connectors_error_disconnect">"断开账户连接失败"</string>
 </resources>

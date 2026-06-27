@@ -31,10 +31,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.element.android.features.messages.impl.R
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import org.json.JSONObject
@@ -74,18 +76,18 @@ internal fun scheduleMoltbookCard(
 
 @Composable
 private fun CreateScheduleCardView(data: JSONObject) {
-    val name = data.cardString("name") ?: "Unnamed schedule"
+    val name = data.cardString("name") ?: stringResource(R.string.screen_room_timeline_tool_card_unnamed_schedule)
     val cadence = data.cardString("cadence") ?: ""
     val timezone = data.cardString("timezone") ?: ""
     val cadenceProvided = data.cardBool("cadenceProvided") ?: true
     val action = data.cardString("action")
 
     ToolCardSurface {
-        ToolCardHeader(title = "Create Schedule")
+        ToolCardHeader(title = stringResource(R.string.screen_room_timeline_tool_card_create_schedule))
         ScheduleName(name)
         ScheduleCadenceView(cadence = cadence, timezone = timezone, muted = !cadenceProvided)
         if (!action.isNullOrBlank()) {
-            ScheduleDetailRow(label = "Action", value = action)
+            ScheduleDetailRow(label = stringResource(R.string.screen_room_timeline_tool_card_action), value = action)
         }
     }
 }
@@ -94,18 +96,18 @@ private fun CreateScheduleCardView(data: JSONObject) {
 
 @Composable
 private fun UpdateScheduleCardView(data: JSONObject) {
-    val name = data.cardString("name") ?: "Unnamed schedule"
+    val name = data.cardString("name") ?: stringResource(R.string.screen_room_timeline_tool_card_unnamed_schedule)
     val changed = data.cardBool("cadenceChanged") ?: true
-    val cadence = if (changed) (data.cardString("cadence") ?: "") else "Schedule time unchanged"
+    val cadence = if (changed) (data.cardString("cadence") ?: "") else stringResource(R.string.screen_room_timeline_tool_card_schedule_time_unchanged)
     val timezone = data.cardString("timezone") ?: ""
     val action = data.cardString("action")
 
     ToolCardSurface {
-        ToolCardHeader(title = "Update Schedule")
+        ToolCardHeader(title = stringResource(R.string.screen_room_timeline_tool_card_update_schedule))
         ScheduleName(name)
         ScheduleCadenceView(cadence = cadence, timezone = timezone, muted = !changed)
         if (!action.isNullOrBlank()) {
-            ScheduleDetailRow(label = "New action", value = action)
+            ScheduleDetailRow(label = stringResource(R.string.screen_room_timeline_tool_card_new_action), value = action)
         }
     }
 }
@@ -118,7 +120,7 @@ private fun UpdateScheduleStatusCardView(data: JSONObject) {
     val names = data.cardStrings("names")
 
     ToolCardSurface {
-        ToolCardHeader(title = "Schedule Status")
+        ToolCardHeader(title = stringResource(R.string.screen_room_timeline_tool_card_schedule_status))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon(
                 imageVector = if (isEnable) Icons.Filled.PlayCircle else Icons.Filled.PauseCircle,
@@ -127,7 +129,7 @@ private fun UpdateScheduleStatusCardView(data: JSONObject) {
                 modifier = Modifier.size(14.dp),
             )
             Text(
-                text = if (isEnable) "Enable" else "Disable",
+                text = if (isEnable) stringResource(R.string.screen_room_timeline_tool_card_enable) else stringResource(R.string.screen_room_timeline_tool_card_disable),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -176,7 +178,8 @@ private fun ScheduleCadenceView(cadence: String, timezone: String, muted: Boolea
         )
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                text = cadence,
+                text = cadence.takeUnless { it == "No schedule rule" }
+                    ?: stringResource(R.string.screen_room_timeline_tool_card_no_schedule_rule),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = if (muted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
@@ -255,13 +258,13 @@ private fun MoltbookRegisterCardView(data: JSONObject) {
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = "Register on Moltbook",
+                    text = stringResource(R.string.screen_room_timeline_tool_card_register_on_moltbook),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text = "This will register the agent from your device",
+                    text = stringResource(R.string.screen_room_timeline_tool_card_will_register_agent),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -271,13 +274,13 @@ private fun MoltbookRegisterCardView(data: JSONObject) {
         // Name field (read-only): small-caps label over the chosen name.
         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
-                text = "MOLTBOOK NAME",
+                text = stringResource(R.string.screen_room_timeline_tool_card_moltbook_name).uppercase(),
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                text = name ?: "Choose a name",
+                text = name ?: stringResource(R.string.screen_room_timeline_tool_card_choose_name),
                 style = MaterialTheme.typography.bodyMedium,
                 fontFamily = FontFamily.Monospace,
                 color = if (name.isNullOrBlank()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
@@ -300,12 +303,12 @@ private fun MoltbookRegisterCardView(data: JSONObject) {
         when (state) {
             "error" -> StatusBanner(
                 icon = { tint -> Icon(Icons.Filled.PauseCircle, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp)) },
-                text = errorMessage ?: "Registration failed. Please try again.",
+                text = errorMessage ?: stringResource(R.string.screen_room_timeline_tool_card_registration_failed),
                 color = MaterialTheme.colorScheme.error,
             )
             "done" -> StatusBanner(
                 icon = { tint -> Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp)) },
-                text = "Registered as ${registeredName ?: name.orEmpty()}",
+                text = stringResource(R.string.screen_room_timeline_tool_card_registered_as, registeredName ?: name.orEmpty()),
                 color = Color(0xFF1A7F37),
             )
             else -> Unit

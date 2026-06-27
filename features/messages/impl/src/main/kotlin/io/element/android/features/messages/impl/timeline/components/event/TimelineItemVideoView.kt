@@ -46,8 +46,6 @@ import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.messages.impl.timeline.aTimelineItemEvent
 import io.element.android.features.messages.impl.timeline.components.ATimelineItemEventRow
-import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayout
-import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
 import io.element.android.features.messages.impl.timeline.model.TimelineItemGroupPosition
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVideoContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVideoContentProvider
@@ -77,7 +75,6 @@ fun TimelineItemVideoView(
     onShowContentClick: () -> Unit,
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
-    onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val isTalkbackActive = isTalkbackActive()
@@ -165,7 +162,6 @@ fun TimelineItemVideoView(
                     onLinkLongClickedListener = onLinkLongClick,
                     style = ElementRichTextEditorStyle.textStyle(),
                     releaseOnDetach = false,
-                    onTextLayout = ContentAvoidingLayout.measureLegacyLastTextLine(onContentLayoutChange = onContentLayoutChange),
                 )
             }
         }
@@ -183,7 +179,6 @@ internal fun TimelineItemVideoViewPreview(@PreviewParameter(TimelineItemVideoCon
         onLongClick = {},
         onLinkClick = {},
         onLinkLongClick = {},
-        onContentLayoutChange = {},
     )
 }
 
@@ -198,7 +193,6 @@ internal fun TimelineItemVideoViewHideMediaContentPreview() = ElementPreview {
         onLongClick = {},
         onLinkClick = {},
         onLinkLongClick = {},
-        onContentLayoutChange = {},
     )
 }
 

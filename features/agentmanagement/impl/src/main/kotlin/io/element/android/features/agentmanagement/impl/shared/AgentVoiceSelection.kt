@@ -57,13 +57,16 @@ object AgentVoiceSelection {
         token: String,
         profiles: List<ChatbotVoiceProfile>,
         providerVoices: List<ChatbotProviderVoice>,
+        defaultLabel: String = "Use server default",
+        personalVoiceLabel: String = "Personal voice",
+        providerVoiceLabel: String = "Provider voice",
     ): String {
-        val request = request(token) ?: return "Use server default"
+        val request = request(token) ?: return defaultLabel
         return if (request.sourceType == "personal_library") {
-            profiles.firstOrNull { it.id == request.voiceProfileId }?.displayName ?: "Personal voice"
+            profiles.firstOrNull { it.id == request.voiceProfileId }?.displayName ?: personalVoiceLabel
         } else {
             providerVoices.firstOrNull { it.provider == request.provider && it.providerVoiceId == request.providerVoiceId }?.displayName
-                ?: "Provider voice"
+                ?: providerVoiceLabel
         }
     }
 }

@@ -13,7 +13,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import io.element.android.compound.tokens.generated.CompoundIcons
-import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemFileContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemFileContentProvider
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
@@ -25,7 +24,6 @@ import io.element.android.libraries.ui.strings.CommonStrings
 @Composable
 fun TimelineItemFileView(
     content: TimelineItemFileContent,
-    onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     TimelineItemAttachmentView(
@@ -34,7 +32,6 @@ fun TimelineItemFileView(
         filename = content.filename,
         fileExtensionAndSize = content.fileExtensionAndSize,
         caption = content.caption,
-        onContentLayoutChange = onContentLayoutChange,
         modifier = modifier,
     )
 }
@@ -45,7 +42,6 @@ internal fun TimelineItemFileViewPreview(@PreviewParameter(TimelineItemFileConte
     ElementTimelineItemPreview {
         TimelineItemFileView(
             content,
-            onContentLayoutChange = {},
         )
     }
 }

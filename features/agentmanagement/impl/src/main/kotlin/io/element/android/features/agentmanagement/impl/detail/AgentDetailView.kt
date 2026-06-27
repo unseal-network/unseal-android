@@ -279,9 +279,9 @@ private fun ChannelsSection(state: AgentDetailState) {
     val channels = state.channels
     Column {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            SectionLabel("Channels")
+            SectionLabel(stringResource(R.string.agent_detail_channels))
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = { state.eventSink(AgentDetailEvents.ManageChannels) }) { Text("Manage") }
+            TextButton(onClick = { state.eventSink(AgentDetailEvents.ManageChannels) }) { Text(stringResource(R.string.agent_detail_manage)) }
             Spacer(Modifier.size(8.dp))
         }
         if (channels.isEmpty()) {
@@ -291,7 +291,7 @@ private fun ChannelsSection(state: AgentDetailState) {
             ) {
                 Icon(CompoundIcons.Plus(), null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.size(8.dp))
-                Text("Connect a channel")
+                Text(stringResource(R.string.agent_detail_connect_channel))
             }
         } else {
             Row(
@@ -315,12 +315,14 @@ private fun ChannelChip(channel: ChatbotChannelSummary, onClick: () -> Unit) {
         ChatbotChannelPlatform.Discord -> Color(0xFF5865F2)
     }
     val icon = if (channel.platform == ChatbotChannelPlatform.Telegram) CompoundIcons.Send() else CompoundIcons.Chat()
-    val platformName = when (channel.platform) {
-        ChatbotChannelPlatform.Telegram -> "Telegram"
-        ChatbotChannelPlatform.WeCom -> "WeCom"
-        ChatbotChannelPlatform.Feishu -> "Feishu"
-        ChatbotChannelPlatform.Discord -> "Discord"
-    }
+    val platformName = stringResource(
+        when (channel.platform) {
+            ChatbotChannelPlatform.Telegram -> R.string.agent_channels_platform_telegram
+            ChatbotChannelPlatform.WeCom -> R.string.agent_channels_platform_wecom
+            ChatbotChannelPlatform.Feishu -> R.string.agent_channels_platform_feishu
+            ChatbotChannelPlatform.Discord -> R.string.agent_channels_platform_discord
+        }
+    )
     Row(
         modifier = Modifier
             .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp))

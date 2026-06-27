@@ -68,12 +68,13 @@ class ConnectorListPresenter(
         var error by remember { mutableStateOf<String?>(null) }
         var successMessage by remember { mutableStateOf<String?>(null) }
         val connectedSuccessTemplate = stringResource(R.string.connectors_connected_success)
+        val loadError = stringResource(R.string.connectors_error_load)
+        val loadMoreError = stringResource(R.string.connectors_error_load_more)
+        val connectError = stringResource(R.string.connectors_error_connect)
 
         suspend fun api() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
 
-        fun errorMessage(throwable: Throwable, fallback: String): String {
-            return throwable.message ?: throwable::class.simpleName ?: fallback
-        }
+        fun errorMessage(fallback: String): String = fallback
 
         // Mirror iOS: only send the search term once it reaches the minimum length, otherwise null.
         fun searchParam(): String? {
@@ -114,7 +115,7 @@ class ConnectorListPresenter(
                     error = null
                 }
                 .onFailure {
-                    error = errorMessage(it, "Failed to load connectors")
+                    error = errorMessage(loadError)
                 }
             isLoading = false
         }
@@ -135,7 +136,7 @@ class ConnectorListPresenter(
                     error = null
                 }
                 .onFailure {
-                    error = errorMessage(it, "Failed to load more connectors")
+                    error = errorMessage(loadMoreError)
                 }
             isLoadingMore = false
         }
@@ -149,7 +150,7 @@ class ConnectorListPresenter(
                     error = null
                 }
                 .onFailure {
-                    error = errorMessage(it, "Failed to connect")
+                    error = errorMessage(connectError)
                 }
             connectingSlug = null
         }

@@ -106,6 +106,7 @@ object TestTags {
     /**
      * Timeline item.
      */
+    val timelineItemEventContent = TestTag("timeline_item-event_content")
     val timelineItemSenderAvatar = TestTag("timeline_item-sender_avatar")
     val timelineItemSenderName = TestTag("timeline_item-sender_name")
 

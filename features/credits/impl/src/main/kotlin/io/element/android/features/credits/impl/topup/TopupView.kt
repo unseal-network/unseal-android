@@ -88,7 +88,7 @@ fun TopupView(
         val params = awaiting.params
         val publishableKey = params.publishableKey.orEmpty()
         if (publishableKey.isBlank()) {
-            state.eventSink(TopupEvents.PaymentSheetFailed("Stripe publishable key is missing."))
+            state.eventSink(TopupEvents.PaymentSheetFailed(context.getString(R.string.topup_error_missing_stripe_key)))
             return@LaunchedEffect
         }
 
@@ -208,7 +208,7 @@ private fun PresetGrid(state: TopupState) {
                         )
                         if (preset.isPopular) {
                             Text(
-                                text = "Popular",
+                                text = stringResource(R.string.topup_popular),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
                             )
@@ -232,7 +232,7 @@ private fun CustomAmountField(state: TopupState) {
         value = state.customAmount,
         onValueChange = { state.eventSink(TopupEvents.SelectCustomAmount(it)) },
         label = { Text(stringResource(R.string.topup_custom_amount)) },
-        placeholder = { Text("1 - 500 USD") },
+        placeholder = { Text(stringResource(R.string.topup_amount_placeholder)) },
         prefix = { Text("$") },
         isError = state.customAmountInvalid,
         supportingText = {

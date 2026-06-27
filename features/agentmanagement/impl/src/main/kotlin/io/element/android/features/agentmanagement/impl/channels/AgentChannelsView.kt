@@ -9,6 +9,7 @@
 
 package io.element.android.features.agentmanagement.impl.channels
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -54,15 +55,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.agentmanagement.impl.R
 import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelPlatform
 import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelSummary
 import io.element.android.libraries.qrcode.QrCodeImage
+import io.element.android.libraries.ui.strings.CommonStrings
 import java.net.URLEncoder
 
 private val TelegramBrand = Color(0xFF229ED9)
@@ -79,11 +83,12 @@ private fun ChatbotChannelPlatform.brandColor(): Color = when (this) {
     ChatbotChannelPlatform.Discord -> DiscordBrand
 }
 
-private fun ChatbotChannelPlatform.displayName(): String = when (this) {
-    ChatbotChannelPlatform.Telegram -> "Telegram"
-    ChatbotChannelPlatform.WeCom -> "WeCom"
-    ChatbotChannelPlatform.Feishu -> "Feishu"
-    ChatbotChannelPlatform.Discord -> "Discord"
+@StringRes
+private fun ChatbotChannelPlatform.displayNameRes(): Int = when (this) {
+    ChatbotChannelPlatform.Telegram -> R.string.agent_channels_platform_telegram
+    ChatbotChannelPlatform.WeCom -> R.string.agent_channels_platform_wecom
+    ChatbotChannelPlatform.Feishu -> R.string.agent_channels_platform_feishu
+    ChatbotChannelPlatform.Discord -> R.string.agent_channels_platform_discord
 }
 
 private fun feishuAppLink(verificationUrl: String): String {
@@ -104,9 +109,11 @@ fun AgentChannelsView(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Channels") },
+                title = { Text(stringResource(R.string.agent_channels_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) { Icon(CompoundIcons.ChevronLeft(), "Back") }
+                    IconButton(onClick = onBackClick) {
+                        Icon(CompoundIcons.ChevronLeft(), stringResource(CommonStrings.action_go_back))
+                    }
                 },
             )
         },
@@ -145,15 +152,15 @@ fun AgentChannelsView(
     state.pendingDelete?.let { target ->
         AlertDialog(
             onDismissRequest = { state.eventSink(AgentChannelsEvents.CancelDelete) },
-            title = { Text("Remove channel") },
-            text = { Text("Remove \"${target.label}\"? Inbound messages from this channel will stop.") },
+            title = { Text(stringResource(R.string.agent_channels_remove_title)) },
+            text = { Text(stringResource(R.string.agent_channels_remove_message, target.label)) },
             confirmButton = {
                 TextButton(onClick = { state.eventSink(AgentChannelsEvents.ConfirmDelete(target.installationId)) }) {
-                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.agent_channels_remove), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { state.eventSink(AgentChannelsEvents.CancelDelete) }) { Text("Cancel") }
+                TextButton(onClick = { state.eventSink(AgentChannelsEvents.CancelDelete) }) { Text(stringResource(CommonStrings.action_cancel)) }
             },
         )
     }
@@ -177,16 +184,16 @@ private fun ChannelRow(channel: ChatbotChannelSummary, eventSink: (AgentChannels
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surface),
         leadingContent = { PlatformBadge(channel.platform) },
         headlineContent = { Text(channel.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        supportingContent = { Text(channel.platform.displayName(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        supportingContent = { Text(stringResource(channel.platform.displayNameRes()), maxLines = 1, overflow = TextOverflow.Ellipsis) },
         trailingContent = {
             Box {
                 IconButton(onClick = { menuExpanded = true }) {
-                    Icon(CompoundIcons.OverflowVertical(), "Manage", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(CompoundIcons.OverflowVertical(), stringResource(R.string.agent_channels_manage), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                     if (channel.platform == ChatbotChannelPlatform.WeCom) {
                         DropdownMenuItem(
-                            text = { Text("Edit credentials") },
+                            text = { Text(stringResource(R.string.agent_channels_edit_credentials)) },
                             leadingIcon = { Icon(CompoundIcons.Edit(), null) },
                             onClick = {
                                 menuExpanded = false
@@ -195,7 +202,7 @@ private fun ChannelRow(channel: ChatbotChannelSummary, eventSink: (AgentChannels
                         )
                     }
                     DropdownMenuItem(
-                        text = { Text("Remove channel", color = MaterialTheme.colorScheme.error) },
+                        text = { Text(stringResource(R.string.agent_channels_remove_action), color = MaterialTheme.colorScheme.error) },
                         leadingIcon = { Icon(CompoundIcons.Delete(), null, tint = MaterialTheme.colorScheme.error) },
                         onClick = {
                             menuExpanded = false
@@ -221,9 +228,9 @@ private fun EmptyState() {
         ) {
             Icon(CompoundIcons.Link(), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(26.dp))
         }
-        Text("No channels bound yet", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+        Text(stringResource(R.string.agent_channels_empty_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
         Text(
-            "Connect a channel so this agent can reply there.",
+            stringResource(R.string.agent_channels_empty_description),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -239,7 +246,7 @@ private fun AddChannelButton(onClick: () -> Unit) {
     ) {
         Icon(CompoundIcons.Plus(), null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.size(8.dp))
-        Text("Add channel")
+        Text(stringResource(R.string.agent_channels_add))
     }
 }
 
@@ -255,10 +262,10 @@ private fun AddChannelSheet(sheet: ChannelSheetState, eventSink: (AgentChannelsE
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             val title = when {
-                sheet.isFeishuPanel -> "Authorize in Feishu"
-                sheet.isEditMode -> "Edit WeCom channel"
-                sheet.callbackUrl != null -> "Finish WeCom setup"
-                else -> "Add a channel"
+                sheet.isFeishuPanel -> stringResource(R.string.agent_channels_sheet_authorize_feishu)
+                sheet.isEditMode -> stringResource(R.string.agent_channels_sheet_edit_wecom)
+                sheet.callbackUrl != null -> stringResource(R.string.agent_channels_sheet_finish_wecom)
+                else -> stringResource(R.string.agent_channels_sheet_add)
             }
             Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
 
@@ -282,7 +289,7 @@ private fun AddChannelSheet(sheet: ChannelSheetState, eventSink: (AgentChannelsE
 
 @Composable
 private fun AddForm(sheet: ChannelSheetState, eventSink: (AgentChannelsEvents) -> Unit) {
-    SectionLabel("Platform")
+    SectionLabel(stringResource(R.string.agent_channels_platform))
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         PlatformCard(ChatbotChannelPlatform.Telegram, sheet.platform == ChatbotChannelPlatform.Telegram) {
             eventSink(AgentChannelsEvents.SetPlatform(ChatbotChannelPlatform.Telegram))
@@ -304,23 +311,23 @@ private fun AddForm(sheet: ChannelSheetState, eventSink: (AgentChannelsEvents) -
                 modifier = Modifier.fillMaxWidth(),
                 value = sheet.botToken,
                 onValueChange = { eventSink(AgentChannelsEvents.SetBotToken(it)) },
-                label = { Text("Bot Token") },
+                label = { Text(stringResource(R.string.agent_channels_bot_token)) },
                 placeholder = { Text("123456:ABC-DEF…") },
                 singleLine = true,
             )
-            Text("Get this from @BotFather in Telegram.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.agent_channels_telegram_token_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         ChatbotChannelPlatform.WeCom -> {
-            GeneratableField("Token", sheet.wecomToken, { eventSink(AgentChannelsEvents.SetWecomToken(it)) }) {
+            GeneratableField(stringResource(R.string.agent_channels_token), sheet.wecomToken, { eventSink(AgentChannelsEvents.SetWecomToken(it)) }) {
                 eventSink(AgentChannelsEvents.GenerateToken)
             }
-            GeneratableField("EncodingAESKey", sheet.wecomAesKey, { eventSink(AgentChannelsEvents.SetWecomAesKey(it)) }) {
+            GeneratableField(stringResource(R.string.agent_channels_encoding_aes_key), sheet.wecomAesKey, { eventSink(AgentChannelsEvents.SetWecomAesKey(it)) }) {
                 eventSink(AgentChannelsEvents.GenerateAesKey)
             }
         }
         ChatbotChannelPlatform.Feishu -> {
             Text(
-                "Feishu needs no keys — tap Connect, then approve in the Feishu app.",
+                stringResource(R.string.agent_channels_feishu_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -330,7 +337,7 @@ private fun AddForm(sheet: ChannelSheetState, eventSink: (AgentChannelsEvents) -
                 modifier = Modifier.fillMaxWidth(),
                 value = sheet.discordBotToken,
                 onValueChange = { eventSink(AgentChannelsEvents.SetDiscordBotToken(it)) },
-                label = { Text("Bot Token") },
+                label = { Text(stringResource(R.string.agent_channels_bot_token)) },
                 placeholder = { Text("MTA1…") },
                 singleLine = true,
             )
@@ -338,18 +345,18 @@ private fun AddForm(sheet: ChannelSheetState, eventSink: (AgentChannelsEvents) -
                 modifier = Modifier.fillMaxWidth(),
                 value = sheet.discordPublicKey,
                 onValueChange = { eventSink(AgentChannelsEvents.SetDiscordPublicKey(it)) },
-                label = { Text("Public Key") },
+                label = { Text(stringResource(R.string.agent_channels_public_key)) },
                 singleLine = true,
             )
             OutlinedTextField(
                 modifier = Modifier.fillMaxWidth(),
                 value = sheet.discordApplicationId,
                 onValueChange = { eventSink(AgentChannelsEvents.SetDiscordApplicationId(it)) },
-                label = { Text("Application ID") },
+                label = { Text(stringResource(R.string.agent_channels_application_id)) },
                 singleLine = true,
             )
             Text(
-                "From the Discord Developer Portal: create an app, enable Message Content Intent on the Bot tab, then paste the three values.",
+                stringResource(R.string.agent_channels_discord_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -360,10 +367,10 @@ private fun AddForm(sheet: ChannelSheetState, eventSink: (AgentChannelsEvents) -
 
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedButton(modifier = Modifier.weight(1f), enabled = !sheet.busy, onClick = { eventSink(AgentChannelsEvents.CloseSheet) }) {
-            Text("Cancel")
+            Text(stringResource(CommonStrings.action_cancel))
         }
         Button(modifier = Modifier.weight(1f), enabled = !sheet.busy && sheet.canConnect, onClick = { eventSink(AgentChannelsEvents.Connect) }) {
-            Text(if (sheet.busy) "Connecting…" else "Connect")
+            Text(stringResource(if (sheet.busy) R.string.agent_channels_connecting else R.string.agent_channels_connect))
         }
     }
 }
@@ -376,14 +383,14 @@ private fun CallbackPanel(sheet: ChannelSheetState, eventSink: (AgentChannelsEve
     ) {
         Icon(CompoundIcons.Link(), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
         Text(
-            "Paste these three values into the WeCom admin console (Bot > Receive messages), then verify there. Updating credentials keeps the same Callback URL.",
+            stringResource(R.string.agent_channels_wecom_callback_hint),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSecondaryContainer,
         )
     }
 
     sheet.callbackUrl?.let { url ->
-        SectionLabel("Callback URL")
+        SectionLabel(stringResource(R.string.agent_channels_callback_url))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp)).padding(10.dp),
@@ -395,7 +402,7 @@ private fun CallbackPanel(sheet: ChannelSheetState, eventSink: (AgentChannelsEve
         }
     }
 
-    SectionLabel("Token")
+    SectionLabel(stringResource(R.string.agent_channels_token))
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
             modifier = Modifier.weight(1f),
@@ -406,7 +413,7 @@ private fun CallbackPanel(sheet: ChannelSheetState, eventSink: (AgentChannelsEve
         CopyButton { eventSink(AgentChannelsEvents.Copy(sheet.wecomToken)) }
     }
 
-    SectionLabel("EncodingAESKey")
+    SectionLabel(stringResource(R.string.agent_channels_encoding_aes_key))
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
             modifier = Modifier.weight(1f),
@@ -421,11 +428,11 @@ private fun CallbackPanel(sheet: ChannelSheetState, eventSink: (AgentChannelsEve
 
     if (sheet.credsChanged) {
         Button(modifier = Modifier.fillMaxWidth(), enabled = !sheet.busy, onClick = { eventSink(AgentChannelsEvents.UpdateCreds) }) {
-            Text(if (sheet.busy) "Updating…" else "Update")
+            Text(stringResource(if (sheet.busy) R.string.agent_channels_updating else R.string.agent_channels_update))
         }
     } else {
         Button(modifier = Modifier.fillMaxWidth(), enabled = !sheet.busy, onClick = { eventSink(AgentChannelsEvents.FinishSheet) }) {
-            Text("Done")
+            Text(stringResource(R.string.agent_channels_done))
         }
     }
 }
@@ -440,9 +447,9 @@ private fun FeishuPanel(sheet: ChannelSheetState) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         PlatformBadge(ChatbotChannelPlatform.Feishu, 60.dp)
-        Text("Authorize in Feishu", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+        Text(stringResource(R.string.agent_channels_sheet_authorize_feishu), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
         Text(
-            "Open Feishu as a workspace admin and approve — it connects automatically in a few seconds.",
+            stringResource(R.string.agent_channels_feishu_description),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -450,7 +457,7 @@ private fun FeishuPanel(sheet: ChannelSheetState) {
         when {
             sheet.feishuExpired -> {
                 Text(
-                    "This link has expired. Close and try again.",
+                    stringResource(R.string.agent_channels_feishu_expired),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error,
                     textAlign = TextAlign.Center,
@@ -463,9 +470,9 @@ private fun FeishuPanel(sheet: ChannelSheetState) {
                     modifier = Modifier.fillMaxWidth(),
                     onClick = { uriHandler.openUri(feishuAppLink(qrUrl)) },
                 ) {
-                    Text("Open in Feishu to authorize")
+                    Text(stringResource(R.string.agent_channels_feishu_open))
                 }
-                TextButton(onClick = { showQr = !showQr }) { Text("Scan with another device") }
+                TextButton(onClick = { showQr = !showQr }) { Text(stringResource(R.string.agent_channels_feishu_scan_other_device)) }
                 if (showQr) {
                     Box(
                         modifier = Modifier
@@ -478,12 +485,12 @@ private fun FeishuPanel(sheet: ChannelSheetState) {
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
-                    Text("Waiting for you to approve…", style = MaterialTheme.typography.bodySmall, color = FeishuBrand)
+                    Text(stringResource(R.string.agent_channels_feishu_waiting), style = MaterialTheme.typography.bodySmall, color = FeishuBrand)
                 }
             }
             else -> {
                 CircularProgressIndicator()
-                Text("Generating a secure link…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.agent_channels_feishu_generating_link), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -499,14 +506,14 @@ private fun GeneratableField(label: String, value: String, onValueChange: (Strin
             label = { Text(label) },
             singleLine = true,
         )
-        TextButton(onClick = onGenerate) { Text("Generate") }
+        TextButton(onClick = onGenerate) { Text(stringResource(R.string.agent_channels_generate)) }
     }
 }
 
 @Composable
 private fun CopyButton(onClick: () -> Unit) {
     IconButton(onClick = onClick) {
-        Icon(CompoundIcons.Copy(), "Copy", tint = MaterialTheme.colorScheme.primary)
+        Icon(CompoundIcons.Copy(), stringResource(R.string.agent_channels_copy), tint = MaterialTheme.colorScheme.primary)
     }
 }
 
@@ -523,7 +530,7 @@ private fun RowScope.PlatformCard(platform: ChatbotChannelPlatform, selected: Bo
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         PlatformBadge(platform, 44.dp)
-        Text(platform.displayName(), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+        Text(stringResource(platform.displayNameRes()), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 

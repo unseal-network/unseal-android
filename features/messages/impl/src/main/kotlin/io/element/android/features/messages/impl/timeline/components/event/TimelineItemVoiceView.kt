@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,7 +33,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -45,7 +45,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
-import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVoiceContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVoiceContentProvider
 import io.element.android.libraries.designsystem.atomic.atoms.PlaybackSpeedButton
@@ -64,7 +63,6 @@ import io.element.android.libraries.voiceplayer.api.VoiceMessageStateProvider
 import kotlinx.coroutines.delay
 
 internal object TimelineItemVoiceLayoutSpec {
-    val minWidth: Dp = 260.dp
     val maxWidth: Dp = 360.dp
     val outerHeight: Dp = 64.dp
     val innerHeight: Dp = 48.dp
@@ -78,7 +76,6 @@ internal object TimelineItemVoiceLayoutSpec {
 fun TimelineItemVoiceView(
     state: VoiceMessageState,
     content: TimelineItemVoiceContent,
-    onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     fun playPause() {
@@ -97,7 +94,8 @@ fun TimelineItemVoiceView(
     )
     Row(
         modifier = modifier
-            .widthIn(min = TimelineItemVoiceLayoutSpec.minWidth, max = TimelineItemVoiceLayoutSpec.maxWidth)
+            .widthIn(max = TimelineItemVoiceLayoutSpec.maxWidth)
+            .fillMaxWidth()
             .height(TimelineItemVoiceLayoutSpec.outerHeight)
             .background(
                 color = ElementTheme.colors.bgSubtleSecondary,
@@ -117,14 +115,6 @@ fun TimelineItemVoiceView(
                         true
                     }
                 }
-            }
-            .onSizeChanged {
-                onContentLayoutChange(
-                    ContentAvoidingLayoutData(
-                        contentWidth = it.width,
-                        contentHeight = it.height,
-                    )
-                )
             },
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -324,7 +314,6 @@ internal fun TimelineItemVoiceViewPreview(
     TimelineItemVoiceView(
         state = timelineItemVoiceViewParameters.state,
         content = timelineItemVoiceViewParameters.content,
-        onContentLayoutChange = {},
     )
 }
 
@@ -337,7 +326,6 @@ internal fun TimelineItemVoiceViewUnifiedPreview() = ElementPreview {
             TimelineItemVoiceView(
                 state = it.state,
                 content = it.content,
-                onContentLayoutChange = {},
             )
         }
     }

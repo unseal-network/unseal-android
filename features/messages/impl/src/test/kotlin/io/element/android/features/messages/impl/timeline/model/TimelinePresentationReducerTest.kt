@@ -14,15 +14,19 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemGameContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRoomKeyRecovery
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRoomKeyRecoveryState
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRtcNotificationContent
 import io.element.android.features.messages.impl.timeline.model.event.aStaticLocationMode
 import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemAudioContent
 import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemFileContent
 import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemLocationContent
+import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemStateEventContent
 import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemTextContent
 import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemVoiceContent
+import io.element.android.features.messages.impl.timeline.model.event.RtcNotificationState
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryRequest
+import io.element.android.libraries.matrix.api.notification.CallIntent
 import io.element.android.libraries.matrix.api.timeline.item.event.UnableToDecryptContent
 import kotlinx.collections.immutable.persistentListOf
 import org.junit.Test
@@ -32,130 +36,80 @@ class TimelinePresentationReducerTest {
     fun `reduce renders AI stream as standalone content with sender in direct room`() {
         val model = TimelinePresentationReducer.reduce(
             content = aTimelineItemAiContent(),
-            isMine = false,
             groupPosition = TimelineItemGroupPosition.None,
-            isDirectRoom = true,
         )
 
-        assertThat(model.alignment).isEqualTo(TimelineItemAlignment.Start)
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
         assertThat(model.contentKind).isEqualTo(TimelineContentKind.AiStream)
-        assertThat(model.avatarPolicy).isEqualTo(TimelineAvatarPolicy.Show)
-        assertThat(model.senderLabelPolicy).isEqualTo(TimelineSenderLabelPolicy.Show)
-        assertThat(model.timestampPolicy).isEqualTo(TimelineTimestampPolicy.Hidden)
+        assertThat(model.contentPaddingPolicy).isEqualTo(TimelineContentPaddingPolicy.Media)
         assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.Hide)
-        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Disabled)
-        assertThat(model.contentWidthPolicy).isEqualTo(TimelineContentWidthPolicy.StandaloneAdaptive)
-        assertThat(model.rightGutterPolicy).isEqualTo(TimelineRightGutterPolicy.Standalone)
-        assertThat(model.supplementaryPolicy).isEqualTo(TimelineSupplementaryPolicy.None)
         assertThat(model.showSenderInformation).isTrue()
-        assertThat(model.reserveAvatarColumn).isTrue()
     }
 
     @Test
     fun `reduce renders regular direct-room text as standalone content with sender row`() {
         val model = TimelinePresentationReducer.reduce(
             content = aTimelineItemTextContent(),
-            isMine = false,
             groupPosition = TimelineItemGroupPosition.None,
-            isDirectRoom = true,
         )
 
-        assertThat(model.alignment).isEqualTo(TimelineItemAlignment.Start)
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
         assertThat(model.contentKind).isEqualTo(TimelineContentKind.PlainText)
-        assertThat(model.timestampPolicy).isEqualTo(TimelineTimestampPolicy.Below)
+        assertThat(model.contentPaddingPolicy).isEqualTo(TimelineContentPaddingPolicy.Textual)
         assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.ShowWhenEdited)
-        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Disabled)
         assertThat(model.showSenderInformation).isTrue()
-        assertThat(model.reserveAvatarColumn).isTrue()
     }
 
     @Test
-    fun `reduce renders own direct-room plain-text message as outgoing without avatar reservation`() {
+    fun `reduce renders grouped plain-text message without a repeated sender row`() {
         val model = TimelinePresentationReducer.reduce(
             content = aTimelineItemTextContent(),
-            isMine = true,
-            groupPosition = TimelineItemGroupPosition.None,
-            isDirectRoom = true,
+            groupPosition = TimelineItemGroupPosition.Middle,
         )
 
-        assertThat(model.alignment).isEqualTo(TimelineItemAlignment.End)
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
         assertThat(model.contentKind).isEqualTo(TimelineContentKind.PlainText)
+        assertThat(model.contentPaddingPolicy).isEqualTo(TimelineContentPaddingPolicy.Textual)
         assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.ShowWhenEdited)
-        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Disabled)
         assertThat(model.showSenderInformation).isFalse()
-        assertThat(model.reserveAvatarColumn).isFalse()
-    }
-
-    @Test
-    fun `reduce renders own non-direct-room plain-text message as outgoing with sender info`() {
-        val model = TimelinePresentationReducer.reduce(
-            content = aTimelineItemTextContent(),
-            isMine = true,
-            groupPosition = TimelineItemGroupPosition.None,
-            isDirectRoom = false,
-        )
-
-        assertThat(model.alignment).isEqualTo(TimelineItemAlignment.End)
-        assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
-        assertThat(model.contentKind).isEqualTo(TimelineContentKind.PlainText)
-        assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.ShowWhenEdited)
-        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Disabled)
-        assertThat(model.showSenderInformation).isTrue()
-        assertThat(model.reserveAvatarColumn).isTrue()
     }
 
     @Test
     fun `reduce renders room key recovery as standalone content`() {
         val model = TimelinePresentationReducer.reduce(
             content = aTimelineItemEncryptedRecoveryContent(),
-            isMine = false,
             groupPosition = TimelineItemGroupPosition.None,
-            isDirectRoom = true,
         )
 
-        assertThat(model.alignment).isEqualTo(TimelineItemAlignment.Start)
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
         assertThat(model.contentKind).isEqualTo(TimelineContentKind.RoomKeyRecovery)
+        assertThat(model.contentPaddingPolicy).isEqualTo(TimelineContentPaddingPolicy.Media)
         assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.ShowWhenEdited)
-        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Disabled)
         assertThat(model.showSenderInformation).isTrue()
-        assertThat(model.reserveAvatarColumn).isTrue()
     }
 
     @Test
     fun `reduce keeps ordinary encrypted events in the standard bubble`() {
         val model = TimelinePresentationReducer.reduce(
             content = TimelineItemEncryptedContent(data = UnableToDecryptContent.Data.Unknown),
-            isMine = true,
             groupPosition = TimelineItemGroupPosition.None,
-            isDirectRoom = true,
         )
 
-        assertThat(model.alignment).isEqualTo(TimelineItemAlignment.End)
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.StandardBubble)
         assertThat(model.contentKind).isEqualTo(TimelineContentKind.RichEvent)
-        assertThat(model.contentWidthPolicy).isEqualTo(TimelineContentWidthPolicy.StandardBubble)
-        assertThat(model.rightGutterPolicy).isEqualTo(TimelineRightGutterPolicy.Standard)
-        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Enabled)
+        assertThat(model.contentPaddingPolicy).isEqualTo(TimelineContentPaddingPolicy.Textual)
     }
 
     @Test
     fun `reduce renders game invites as standalone card content`() {
         val model = TimelinePresentationReducer.reduce(
             content = aTimelineItemGameContent(),
-            isMine = false,
             groupPosition = TimelineItemGroupPosition.None,
-            isDirectRoom = true,
         )
 
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
         assertThat(model.contentKind).isEqualTo(TimelineContentKind.Media)
-        assertThat(model.timestampPolicy).isEqualTo(TimelineTimestampPolicy.ContentManaged)
-        assertThat(model.contentWidthPolicy).isEqualTo(TimelineContentWidthPolicy.StandaloneAdaptive)
-        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Disabled)
+        assertThat(model.contentPaddingPolicy).isEqualTo(TimelineContentPaddingPolicy.Media)
     }
 
     @Test
@@ -167,15 +121,12 @@ class TimelinePresentationReducerTest {
         ).forEach { content ->
             val model = TimelinePresentationReducer.reduce(
                 content = content,
-                isMine = false,
                 groupPosition = TimelineItemGroupPosition.None,
-                isDirectRoom = true,
             )
 
             assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
             assertThat(model.contentKind).isEqualTo(TimelineContentKind.Media)
-            assertThat(model.contentWidthPolicy).isEqualTo(TimelineContentWidthPolicy.StandaloneAdaptive)
-            assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Disabled)
+            assertThat(model.contentPaddingPolicy).isEqualTo(TimelineContentPaddingPolicy.Media)
         }
     }
 
@@ -183,47 +134,58 @@ class TimelinePresentationReducerTest {
     fun `reduce renders voice messages as standalone media content`() {
         val model = TimelinePresentationReducer.reduce(
             content = aTimelineItemVoiceContent(),
-            isMine = false,
             groupPosition = TimelineItemGroupPosition.None,
-            isDirectRoom = true,
         )
 
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
         assertThat(model.contentKind).isEqualTo(TimelineContentKind.Media)
-        assertThat(model.timestampPolicy).isEqualTo(TimelineTimestampPolicy.ContentManaged)
-        assertThat(model.contentWidthPolicy).isEqualTo(TimelineContentWidthPolicy.StandaloneAdaptive)
-        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Disabled)
+        assertThat(model.contentPaddingPolicy).isEqualTo(TimelineContentPaddingPolicy.Media)
     }
 
     @Test
-    fun `reduce keeps room key recovery standalone even with supplementary UI`() {
+    fun `reduce keeps room key recovery standalone`() {
         val model = TimelinePresentationReducer.reduce(
             content = aTimelineItemEncryptedRecoveryContent(),
-            isMine = false,
             groupPosition = TimelineItemGroupPosition.None,
-            isDirectRoom = true,
-            hasReply = true,
-            hasReactions = true,
-            isPinned = true,
-            hasThreadSummary = true,
         )
 
-        assertThat(model.alignment).isEqualTo(TimelineItemAlignment.Start)
         assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
         assertThat(model.contentKind).isEqualTo(TimelineContentKind.RoomKeyRecovery)
-        assertThat(model.contentWidthPolicy).isEqualTo(TimelineContentWidthPolicy.StandaloneAdaptive)
-        assertThat(model.rightGutterPolicy).isEqualTo(TimelineRightGutterPolicy.Standalone)
-        assertThat(model.supplementaryPolicy).isEqualTo(TimelineSupplementaryPolicy.Decorated)
-        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Disabled)
+        assertThat(model.contentPaddingPolicy).isEqualTo(TimelineContentPaddingPolicy.Media)
+    }
+
+    @Test
+    fun `reduce renders state events through the plain text timeline layout`() {
+        val model = TimelinePresentationReducer.reduce(
+            content = aTimelineItemStateEventContent(),
+            groupPosition = TimelineItemGroupPosition.None,
+        )
+
+        assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
+        assertThat(model.contentKind).isEqualTo(TimelineContentKind.PlainText)
+        assertThat(model.contentPaddingPolicy).isEqualTo(TimelineContentPaddingPolicy.Textual)
+    }
+
+    @Test
+    fun `reduce renders call notifications as standalone media content`() {
+        val model = TimelinePresentationReducer.reduce(
+            content = TimelineItemRtcNotificationContent(
+                callIntent = CallIntent.VIDEO,
+                state = RtcNotificationState.Started,
+            ),
+            groupPosition = TimelineItemGroupPosition.None,
+        )
+
+        assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
+        assertThat(model.contentKind).isEqualTo(TimelineContentKind.Media)
+        assertThat(model.contentPaddingPolicy).isEqualTo(TimelineContentPaddingPolicy.Media)
     }
 
     @Test
     fun `edited policy still shows edited for inline AI content without stream parts`() {
         val model = TimelinePresentationReducer.reduce(
             content = aTimelineItemAiContent(streamId = null),
-            isMine = false,
             groupPosition = TimelineItemGroupPosition.None,
-            isDirectRoom = true,
         )
 
         assertThat(model.editedPolicy).isEqualTo(TimelineEditedPolicy.ShowWhenEdited)

@@ -11,9 +11,11 @@ package io.element.android.features.messages.impl.timeline.components
 import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,72 +30,51 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import androidx.constraintlayout.compose.ConstrainScope
-import androidx.constraintlayout.compose.ConstraintLayout
-import androidx.constraintlayout.compose.Dimension
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.messages.impl.timeline.TimelineEvent
 import io.element.android.features.messages.impl.timeline.TimelineRoomInfo
 import io.element.android.features.messages.impl.timeline.aTimelineItemEvent
 import io.element.android.features.messages.impl.timeline.components.event.TimelineItemEventContentView
-import io.element.android.features.messages.impl.timeline.components.event.LocalTimelineTextLayoutMeasurementEnabled
-import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayout
-import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
 import io.element.android.features.messages.impl.timeline.components.receipt.InlineReadReceiptView
 import io.element.android.features.messages.impl.timeline.components.receipt.ReadReceiptViewState
-import io.element.android.features.messages.impl.timeline.components.receipt.TimelineItemReadReceiptView
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.timeline.model.TimelineItemGroupPosition
 import io.element.android.features.messages.impl.timeline.model.TimelineItemThreadInfo
-import io.element.android.features.messages.impl.timeline.model.TimelineItemAlignment
+import io.element.android.features.messages.impl.timeline.model.TimelineContentPaddingPolicy
 import io.element.android.features.messages.impl.timeline.model.TimelinePresentationModel
 import io.element.android.features.messages.impl.timeline.model.TimelinePresentationReducer
-import io.element.android.features.messages.impl.timeline.model.TimelineReplySwipePolicy
-import io.element.android.features.messages.impl.timeline.model.TimelineSupplementaryPolicy
 import io.element.android.features.messages.impl.timeline.model.bubble.BubbleState
-import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
-import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContent
-import io.element.android.features.messages.impl.timeline.model.event.TimelineItemGameContent
-import io.element.android.features.messages.impl.timeline.model.event.TimelineItemImageContent
-import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
-import io.element.android.features.messages.impl.timeline.model.event.TimelineItemPollContent
-import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextBasedContent
-import io.element.android.features.messages.impl.timeline.model.event.TimelineItemStickerContent
-import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVideoContent
-import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVoiceContent
 import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemImageContent
 import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemTextContent
-import io.element.android.features.messages.impl.timeline.model.event.ensureActiveLiveLocation
 import io.element.android.features.messages.impl.timeline.protection.TimelineProtectionEvent
 import io.element.android.features.messages.impl.timeline.protection.TimelineProtectionState
 import io.element.android.features.messages.impl.timeline.protection.mustBeProtected
@@ -105,6 +86,7 @@ import io.element.android.libraries.designsystem.components.avatar.AvatarData
 import io.element.android.libraries.designsystem.components.avatar.AvatarSize
 import io.element.android.libraries.designsystem.components.avatar.AvatarType
 import io.element.android.libraries.designsystem.modifiers.niceClickable
+import io.element.android.libraries.designsystem.modifiers.onKeyboardContextMenuAction
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import io.element.android.libraries.designsystem.preview.USER_NAME_ALICE
@@ -140,19 +122,11 @@ import io.element.android.libraries.ui.strings.CommonStrings
 import io.element.android.libraries.ui.utils.a11y.isTalkbackActive
 import io.element.android.wysiwyg.link.Link
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-// The bubble has a negative margin to be placed a bit upper regarding the sender
-// information and overlap the avatar.
-val NEGATIVE_MARGIN_FOR_BUBBLE = (-8).dp
-
-// Width of the transparent border around the sender avatar
-val SENDER_AVATAR_BORDER_WIDTH = 3.dp
-
-private val BUBBLE_INCOMING_OFFSET = 16.dp
 private val TIMELINE_ROW_HORIZONTAL_PADDING = 16.dp
-private val AI_INCOMING_CONTENT_END = 16.dp
 
 // Content axis for incoming messages: aligns message content under the sender label.
 // Matches MessageSenderInformation layout: horizontal padding + avatar width + avatar→name gap.
@@ -185,12 +159,13 @@ fun TimelineItemEventRow(
     onSwipeToReply: () -> Unit,
     eventSink: (TimelineEvent.TimelineItemEvent) -> Unit,
     modifier: Modifier = Modifier,
-    eventContentView: @Composable (Modifier, (ContentAvoidingLayoutData) -> Unit) -> Unit = { contentModifier, onContentLayoutChange ->
+    eventContentView: @Composable (Modifier) -> Unit = { contentModifier ->
         // Only pass down a custom clickable lambda if the content can be clicked separately
         val onContentClick = onEventClick.takeUnless { event.isWholeContentClickable }
 
         TimelineItemEventContentView(
             content = event.content,
+            timelineRoomInfo = timelineRoomInfo,
             hideMediaContent = timelineProtectionState.hideMediaContent(event.eventId),
             onContentClick = onContentClick,
             onLongClick = onLongClick,
@@ -199,7 +174,6 @@ fun TimelineItemEventRow(
             onLinkLongClick = onLinkLongClick,
             eventSink = eventSink,
             modifier = contentModifier,
-            onContentLayoutChange = onContentLayoutChange,
         )
     },
 ) {
@@ -234,32 +208,16 @@ fun TimelineItemEventRow(
             Spacer(modifier = Modifier.height(2.dp))
         }
 
-        val isEventPinned = timelineRoomInfo.pinnedEventIds.contains(event.eventId)
-        val hasThreadSummary = displayThreadSummaries && timelineMode !is Timeline.Mode.Thread && event.threadInfo is TimelineItemThreadInfo.ThreadRoot
         val presentation = remember(
             event.content,
-            event.isMine,
             event.groupPosition,
-            timelineRoomInfo.isDm,
-            event.inReplyTo,
-            event.reactionsState.reactions,
-            isEventPinned,
-            hasThreadSummary,
         ) {
             TimelinePresentationReducer.reduce(
                 content = event.content,
-                isMine = event.isMine,
                 groupPosition = event.groupPosition,
-                isDirectRoom = timelineRoomInfo.isDm,
-                hasReply = event.inReplyTo != null,
-                hasReactions = event.reactionsState.reactions.isNotEmpty(),
-                isPinned = isEventPinned,
-                hasThreadSummary = hasThreadSummary,
             )
         }
-        val canReply = timelineRoomInfo.userHasPermissionToSendMessage &&
-            event.canBeRepliedTo &&
-            presentation.replySwipePolicy == TimelineReplySwipePolicy.Enabled
+        val canReply = timelineRoomInfo.userHasPermissionToSendMessage && event.canBeRepliedTo
         if (canReply) {
             val state: SwipeableActionsState = rememberSwipeableActionsState()
             val offset = state.offset.floatValue
@@ -283,8 +241,10 @@ fun TimelineItemEventRow(
                         onReactionClick = { emoji -> onReactionClick(emoji, event) },
                         onReactionLongClick = { emoji -> onReactionLongClick(emoji, event) },
                         onMoreReactionsClick = { onMoreReactionsClick(event) },
+                        presentation = presentation,
                         renderReadReceipts = renderReadReceipts,
                         isLastOutgoingMessage = isLastOutgoingMessage,
+                        displayThreadSummaries = displayThreadSummaries,
                         onReadReceiptsClick = { onReadReceiptClick(event) },
                         modifier = Modifier
                             .absoluteOffset { IntOffset(x = offset.roundToInt(), y = 0) }
@@ -320,58 +280,52 @@ fun TimelineItemEventRow(
                 onReactionClick = { emoji -> onReactionClick(emoji, event) },
                 onReactionLongClick = { emoji -> onReactionLongClick(emoji, event) },
                 onMoreReactionsClick = { onMoreReactionsClick(event) },
+                presentation = presentation,
                 renderReadReceipts = renderReadReceipts,
                 isLastOutgoingMessage = isLastOutgoingMessage,
+                displayThreadSummaries = displayThreadSummaries,
                 onReadReceiptsClick = { onReadReceiptClick(event) },
                 eventSink = eventSink,
                 eventContentView = eventContentView,
             )
         }
 
-        if (hasThreadSummary) {
-            ThreadSummaryView(
-                modifier = if (event.isMine) {
-                    Modifier
-                        .align(Alignment.End)
-                        .padding(end = 16.dp)
-                } else {
-                    if (timelineRoomInfo.isDm) Modifier else Modifier.padding(start = 16.dp)
-                }.padding(top = 2.dp),
-                threadSummary = event.threadInfo.summary,
-                latestEventText = event.threadInfo.latestEventText,
-                isOutgoing = event.isMine,
-                onClick = {
-                    event.eventId?.let {
-                        eventSink(TimelineEvent.OpenThread(it.toThreadId(), null))
-                    }
+    }
+}
+
+private fun Modifier.standaloneContentGestures(
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+): Modifier = pointerInput(onClick, onLongClick) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = true)
+        val touchSlop = viewConfiguration.touchSlop
+        var movedPastSlop = false
+        var childConsumedGesture = false
+        val finishedBeforeLongPress = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Main)
+                val change = event.changes.firstOrNull { it.id == down.id } ?: continue
+                if (event.changes.any { it.isConsumed }) {
+                    childConsumedGesture = true
                 }
-            )
+                if ((change.position - down.position).getDistance() > touchSlop) {
+                    movedPastSlop = true
+                }
+                if (!change.pressed) {
+                    if (!movedPastSlop && !childConsumedGesture) {
+                        onClick()
+                    }
+                    return@withTimeoutOrNull true
+                }
+            }
         }
 
-        // Read receipts / Send state
-        // Self messages show the receipt inline next to the timestamp for every content type that
-        // renders an inline timestamp: text/poll (below), image/video/sticker (overlay/aligned).
-        // Content whose timestamp is hidden or embedded elsewhere (AI streams, game cards) and
-        // location messages keep the separate below-row.
-        val receiptShownInline = event.isMine && when (event.content) {
-            is TimelineItemTextBasedContent,
-            is TimelineItemPollContent,
-            is TimelineItemImageContent,
-            is TimelineItemVideoContent,
-            is TimelineItemStickerContent -> true
-            else -> false
-        }
-        if (!receiptShownInline) {
-            TimelineItemReadReceiptView(
-                state = ReadReceiptViewState(
-                    sendState = event.localSendState,
-                    isLastOutgoingMessage = isLastOutgoingMessage,
-                    receipts = event.readReceiptState.receipts,
-                ),
-                renderReadReceipts = renderReadReceipts && event.content !is TimelineItemAiContent,
-                onReadReceiptsClick = { onReadReceiptClick(event) },
-                modifier = Modifier.padding(top = 4.dp)
-            )
+        if (finishedBeforeLongPress == null) {
+            if (!movedPastSlop && !childConsumedGesture) {
+                onLongClick()
+            }
+            waitForUpOrCancellation()
         }
     }
 }
@@ -380,22 +334,20 @@ fun TimelineItemEventRow(
 private fun ThreadSummaryView(
     threadSummary: ThreadSummary,
     latestEventText: String?,
-    isOutgoing: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier = modifier) {
         Row(
             modifier = Modifier
-                .then(if (!isOutgoing) Modifier.padding(start = 16.dp) else Modifier)
                 .graphicsLayer {
                     shape = RoundedCornerShape(8.dp)
                     clip = true
                 }
-                .background(MessageEventBubbleDefaults.backgroundBubbleColor(isOutgoing))
+                .background(ElementTheme.colors.bgSubtleSecondary)
                 .niceClickable(onClick)
                 .padding(horizontal = 12.dp, vertical = 10.dp)
-                .widthIn(max = (maxWidth - 24.dp) * MessageEventBubbleDefaults.BUBBLE_WIDTH_RATIO),
+                .widthIn(max = maxWidth * MessageEventBubbleDefaults.BUBBLE_WIDTH_RATIO),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -489,72 +441,27 @@ private fun TimelineItemEventRowContent(
     onReactionLongClick: (emoji: String) -> Unit,
     onMoreReactionsClick: (event: TimelineItem.Event) -> Unit,
     eventSink: (TimelineEvent.TimelineItemEvent) -> Unit,
+    presentation: TimelinePresentationModel,
     renderReadReceipts: Boolean,
     isLastOutgoingMessage: Boolean,
+    displayThreadSummaries: Boolean,
     onReadReceiptsClick: () -> Unit,
     modifier: Modifier = Modifier,
-    eventContentView: @Composable (Modifier, (ContentAvoidingLayoutData) -> Unit) -> Unit,
+    eventContentView: @Composable (Modifier) -> Unit,
 ) {
-    fun ConstrainScope.linkStartOrEnd(event: TimelineItem.Event) = if (event.isMine) {
-        end.linkTo(parent.end)
-    } else {
-        start.linkTo(parent.start)
-    }
-
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
-    Box(
+    Column(
         modifier = modifier
             .wrapContentHeight()
             .fillMaxWidth(),
     ) {
         val isEventPinned = timelineRoomInfo.pinnedEventIds.contains(event.eventId)
-        val presentation = remember(
-            event.content,
-            event.isMine,
-            event.groupPosition,
-            timelineRoomInfo.isDm,
-            event.inReplyTo,
-            event.reactionsState.reactions,
-            isEventPinned,
-        ) {
-            TimelinePresentationReducer.reduce(
-                content = event.content,
-                isMine = event.isMine,
-                groupPosition = event.groupPosition,
-                isDirectRoom = timelineRoomInfo.isDm,
-                hasReply = event.inReplyTo != null,
-                hasReactions = event.reactionsState.reactions.isNotEmpty(),
-                isPinned = isEventPinned,
-            )
-        }
         val rowMetrics = TimelineRowMetrics(
-            contentStart = when {
-                presentation.reserveAvatarColumn && screenWidth < 360.dp -> TIMELINE_INCOMING_CONTENT_START - 8.dp
-                presentation.reserveAvatarColumn -> TIMELINE_INCOMING_CONTENT_START
-                timelineRoomInfo.isDm -> TIMELINE_ROW_HORIZONTAL_PADDING
-                else -> TIMELINE_ROW_HORIZONTAL_PADDING + BUBBLE_INCOMING_OFFSET
-            },
-            contentEnd = when {
-                presentation.isStandalone && screenWidth < 390.dp -> 32.dp
-                presentation.isStandalone && screenWidth < 600.dp -> 48.dp
-                presentation.isStandalone -> 64.dp
-                else -> TIMELINE_ROW_HORIZONTAL_PADDING
-            },
+            contentStart = if (screenWidth < 360.dp) TIMELINE_INCOMING_CONTENT_START - 8.dp else TIMELINE_INCOMING_CONTENT_START,
+            contentEnd = TIMELINE_ROW_HORIZONTAL_PADDING,
         )
+        val hasThreadSummary = displayThreadSummaries && timelineMode !is Timeline.Mode.Thread && event.threadInfo is TimelineItemThreadInfo.ThreadRoot
 
-        ConstraintLayout(
-            modifier = Modifier
-                .wrapContentHeight()
-                .fillMaxWidth(),
-        ) {
-        val (
-            sender,
-            message,
-            reactions,
-            pinIcon,
-        ) = createRefs()
-
-        // Sender
         if (presentation.showSenderInformation) {
             MessageSenderInformation(
                 event.senderId,
@@ -562,134 +469,161 @@ private fun TimelineItemEventRowContent(
                 event.senderAvatar,
                 onUserDataClick,
                 Modifier
-                    .constrainAs(sender) {
-                        top.linkTo(parent.top)
-                        // Required for correct RTL layout
-                        start.linkTo(parent.start)
-                        end.linkTo(parent.end)
-                        width = Dimension.fillToConstraints
-                    }
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = TIMELINE_ROW_HORIZONTAL_PADDING)
                     .zIndex(1f),
             )
         }
 
-        // Message bubble
-        val bubbleState = BubbleState(
-            groupPosition = event.groupPosition,
-            isMine = event.isMine,
-            timelineRoomInfo = timelineRoomInfo,
-        )
-        val messageModifier = Modifier
-            .constrainAs(message) {
-                val topMargin = if (!presentation.isStandalone && bubbleState.cutTopStart) {
-                    NEGATIVE_MARGIN_FOR_BUBBLE
-                } else {
-                    0.dp
-                }
-                top.linkTo(sender.bottom, margin = topMargin)
-                start.linkTo(parent.start, margin = rowMetrics.contentStart)
-                end.linkTo(parent.end, margin = rowMetrics.contentEnd)
-                width = Dimension.fillToConstraints
-            }
-        if (presentation.isStandalone) {
+        Column(
+            modifier = Modifier
+                .wrapContentHeight()
+                .fillMaxWidth()
+                .padding(start = rowMetrics.contentStart, end = rowMetrics.contentEnd),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            val bubbleState = BubbleState(
+                groupPosition = event.groupPosition,
+                isMine = event.isMine,
+                timelineRoomInfo = timelineRoomInfo,
+            )
             Box(
-                modifier = messageModifier,
-                contentAlignment = if (presentation.alignment == TimelineItemAlignment.End) Alignment.CenterEnd else Alignment.CenterStart,
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.CenterStart,
             ) {
-                Box(
-                    modifier = if (presentation.alignment == TimelineItemAlignment.End) {
-                        Modifier.wrapContentWidth(align = Alignment.End)
-                    } else {
-                        Modifier.fillMaxWidth()
-                    },
-                ) {
-                    MessageEventBubbleContent(
-                        event = event,
-                        timelineMode = timelineMode,
-                        timelineProtectionState = timelineProtectionState,
-                        onMessageLongClick = onLongClick,
-                        inReplyToClick = inReplyToClick,
-                        eventSink = eventSink,
-                        renderReadReceipts = renderReadReceipts,
-                        isLastOutgoingMessage = isLastOutgoingMessage,
-                        onReadReceiptsClick = onReadReceiptsClick,
-                        alignContentToStart = true,
-                        eventContentView = eventContentView,
-                    )
+                if (presentation.isStandalone) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag(TestTags.timelineItemEventContent)
+                            .standaloneContentGestures(
+                                onClick = onContentClick,
+                                onLongClick = onLongClick,
+                            )
+                            .onKeyboardContextMenuAction { onLongClick() }
+                            .semantics {
+                                onClick {
+                                    onContentClick()
+                                    true
+                                }
+                            },
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        MessageEventBubbleContent(
+                            event = event,
+                            timelineMode = timelineMode,
+                            timelineProtectionState = timelineProtectionState,
+                            onMessageLongClick = onLongClick,
+                            inReplyToClick = inReplyToClick,
+                            eventSink = eventSink,
+                            alignContentToStart = true,
+                            contentPaddingPolicy = presentation.contentPaddingPolicy,
+                            eventContentView = eventContentView,
+                        )
+                    }
+                } else {
+                    MessageEventBubble(
+                        modifier = Modifier.fillMaxWidth(),
+                        state = bubbleState,
+                        interactionSource = interactionSource,
+                        onClick = onContentClick,
+                        onLongClick = onLongClick,
+                    ) {
+                        MessageEventBubbleContent(
+                            event = event,
+                            timelineMode = timelineMode,
+                            timelineProtectionState = timelineProtectionState,
+                            onMessageLongClick = onLongClick,
+                            inReplyToClick = inReplyToClick,
+                            eventSink = eventSink,
+                            contentPaddingPolicy = presentation.contentPaddingPolicy,
+                            eventContentView = eventContentView,
+                        )
+                    }
                 }
             }
-        } else {
-            MessageEventBubble(
-                modifier = messageModifier,
-                state = bubbleState,
-                interactionSource = interactionSource,
-                onClick = onContentClick,
-                onLongClick = onLongClick,
-            ) {
-                MessageEventBubbleContent(
-                    event = event,
-                    timelineMode = timelineMode,
-                    timelineProtectionState = timelineProtectionState,
-                    onMessageLongClick = onLongClick,
-                    inReplyToClick = inReplyToClick,
-                    eventSink = eventSink,
-                    renderReadReceipts = renderReadReceipts,
-                    isLastOutgoingMessage = isLastOutgoingMessage,
-                    onReadReceiptsClick = onReadReceiptsClick,
-                    eventContentView = eventContentView,
+
+            TimelineEventMetadataRow(
+                event = event,
+                renderReadReceipts = renderReadReceipts,
+                isLastOutgoingMessage = isLastOutgoingMessage,
+                onReadReceiptsClick = onReadReceiptsClick,
+                eventSink = eventSink,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            if (isEventPinned || event.reactionsState.reactions.isNotEmpty()) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    if (event.reactionsState.reactions.isNotEmpty()) {
+                        TimelineItemReactionsView(
+                            reactionsState = event.reactionsState,
+                            userCanSendReaction = timelineRoomInfo.userHasPermissionToSendReaction,
+                            isOutgoing = event.isMine,
+                            onReactionClick = onReactionClick,
+                            onReactionLongClick = onReactionLongClick,
+                            onMoreReactionsClick = { onMoreReactionsClick(event) },
+                            modifier = Modifier
+                                .align(Alignment.CenterStart)
+                                .zIndex(1f)
+                        )
+                    }
+                    if (isEventPinned) {
+                        Icon(
+                            imageVector = CompoundIcons.PinSolid(),
+                            contentDescription = stringResource(CommonStrings.common_pinned),
+                            tint = ElementTheme.colors.iconTertiary,
+                            modifier = Modifier
+                                .padding(1.dp)
+                                .size(16.dp)
+                                .align(Alignment.CenterEnd)
+                        )
+                    }
+                }
+            }
+
+            if (hasThreadSummary) {
+                ThreadSummaryView(
+                    modifier = Modifier.fillMaxWidth(),
+                    threadSummary = event.threadInfo.summary,
+                    latestEventText = event.threadInfo.latestEventText,
+                    onClick = {
+                        event.eventId?.let {
+                            eventSink(TimelineEvent.OpenThread(it.toThreadId(), null))
+                        }
+                    }
                 )
             }
         }
-
-        // Pin icon
-        if (isEventPinned) {
-            Icon(
-                imageVector = CompoundIcons.PinSolid(),
-                contentDescription = stringResource(CommonStrings.common_pinned),
-                tint = ElementTheme.colors.iconTertiary,
-                modifier = Modifier
-                    .padding(1.dp)
-                    .size(16.dp)
-                    .constrainAs(pinIcon) {
-                        top.linkTo(message.top)
-                        if (event.isMine) {
-                            end.linkTo(message.start, margin = 8.dp)
-                        } else {
-                            start.linkTo(message.end, margin = 8.dp)
-                        }
-                    }
-            )
-        }
-
-        // Reactions
-        if (event.reactionsState.reactions.isNotEmpty()) {
-            TimelineItemReactionsView(
-                reactionsState = event.reactionsState,
-                userCanSendReaction = timelineRoomInfo.userHasPermissionToSendReaction,
-                isOutgoing = event.isMine,
-                onReactionClick = onReactionClick,
-                onReactionLongClick = onReactionLongClick,
-                onMoreReactionsClick = { onMoreReactionsClick(event) },
-                modifier = Modifier
-                    .constrainAs(reactions) {
-                        top.linkTo(message.bottom, margin = (-8).dp)
-                        linkStartOrEnd(event)
-                    }
-                    .zIndex(1f)
-                    .padding(
-                        // Note: due to the applied constraints, start is left for other's message and right for mine
-                        // In design we want a offset of 6.dp compare to the bubble, so start is 22.dp (16 + 6)
-                        start = when {
-                            event.isMine -> 22.dp
-                            timelineRoomInfo.isDm -> 22.dp
-                            else -> 22.dp + BUBBLE_INCOMING_OFFSET
-                        },
-                        end = 16.dp
-                    )
-            )
-        }
     }
+}
+
+@Composable
+private fun TimelineEventMetadataRow(
+    event: TimelineItem.Event,
+    renderReadReceipts: Boolean,
+    isLastOutgoingMessage: Boolean,
+    onReadReceiptsClick: () -> Unit,
+    eventSink: (TimelineEvent.TimelineItemEvent) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.padding(top = 1.dp),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        InlineReadReceiptView(
+            state = ReadReceiptViewState(
+                sendState = if (event.isMine) event.localSendState else null,
+                isLastOutgoingMessage = event.isMine && isLastOutgoingMessage,
+                receipts = event.readReceiptState.receipts,
+            ),
+            renderReadReceipts = renderReadReceipts,
+            onReadReceiptsClick = onReadReceiptsClick,
+            modifier = Modifier.padding(end = 4.dp),
+        )
+        TimelineEventTimestampView(
+            event = event,
+            eventSink = eventSink,
+        )
     }
 }
 
@@ -739,40 +673,17 @@ private fun MessageEventBubbleContent(
     onMessageLongClick: () -> Unit,
     inReplyToClick: () -> Unit,
     eventSink: (TimelineEvent.TimelineItemEvent) -> Unit,
-    renderReadReceipts: Boolean,
-    isLastOutgoingMessage: Boolean,
-    onReadReceiptsClick: () -> Unit,
+    contentPaddingPolicy: TimelineContentPaddingPolicy,
     // When true the content has no surrounding bubble, so the bubble's internal left padding is
     // dropped from the reply preview and the textual body. This lines their left edge up with the
-    // message-box start, matching the standalone fast-path content column (see TimelineItemStandaloneRow).
+    // shared timeline content column.
     alignContentToStart: Boolean = false,
     @SuppressLint("ModifierParameter")
     // need to rename this modifier to prevent linter false positives
     @Suppress("ModifierNaming")
     bubbleModifier: Modifier = Modifier,
-    eventContentView: @Composable (Modifier, (ContentAvoidingLayoutData) -> Unit) -> Unit,
+    eventContentView: @Composable (Modifier) -> Unit,
 ) {
-    // Long clicks are not not automatically propagated from a `clickable`
-    // to its `combinedClickable` parent so we do it manually
-    fun onTimestampLongClick() = onMessageLongClick()
-
-    // Receipt / send-state shown inline next to the timestamp, for self messages only.
-    @Composable
-    fun InlineReceiptIfMine(modifier: Modifier = Modifier) {
-        if (event.isMine && event.content !is TimelineItemAiContent) {
-            InlineReadReceiptView(
-                state = ReadReceiptViewState(
-                    sendState = event.localSendState,
-                    isLastOutgoingMessage = isLastOutgoingMessage,
-                    receipts = event.readReceiptState.receipts,
-                ),
-                renderReadReceipts = renderReadReceipts,
-                onReadReceiptsClick = onReadReceiptsClick,
-                modifier = modifier,
-            )
-        }
-    }
-
     @Composable
     fun ThreadDecoration(
         modifier: Modifier = Modifier
@@ -798,95 +709,13 @@ private fun MessageEventBubbleContent(
     }
 
     @Composable
-    fun WithTimestampLayout(
-        timestampPosition: TimestampPosition,
-        eventSink: (TimelineEvent.TimelineItemEvent) -> Unit,
-        modifier: Modifier = Modifier,
-        canShrinkContent: Boolean = false,
-        content: @Composable (onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit) -> Unit,
-    ) {
-        @Suppress("NAME_SHADOWING")
-        val content = remember { movableContentOf(content) }
-        when (timestampPosition) {
-            TimestampPosition.Overlay ->
-                Box(modifier, contentAlignment = Alignment.Center) {
-                    content {}
-                    Row(
-                        modifier = Modifier
-                            // Outer padding
-                            .padding(horizontal = 4.dp, vertical = 4.dp)
-                            .background(ElementTheme.colors.bgSubtleSecondary, RoundedCornerShape(10.0.dp))
-                            .align(Alignment.BottomEnd)
-                            // Inner padding
-                            .padding(horizontal = 4.dp, vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        InlineReceiptIfMine(modifier = Modifier.padding(end = 4.dp))
-                        TimelineEventTimestampView(
-                            event = event,
-                            eventSink = eventSink,
-                        )
-                    }
-                }
-            TimestampPosition.Aligned ->
-                ContentAvoidingLayout(
-                    modifier = modifier,
-                    // The spacing is negative to make the content overlap the empty space at the start of the timestamp
-                    spacing = (-4).dp,
-                    overlayOffset = DpOffset(0.dp, -1.dp),
-                    shrinkContent = canShrinkContent,
-                    content = { content(this::onContentLayoutChange) },
-                    overlay = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            InlineReceiptIfMine(modifier = Modifier.padding(start = 8.dp))
-                            TimelineEventTimestampView(
-                                event = event,
-                                eventSink = eventSink,
-                                modifier = Modifier
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
-                )
-            TimestampPosition.Below ->
-                Column(modifier) {
-                    content {}
-                    Row(
-                        modifier = Modifier.align(Alignment.End),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        InlineReceiptIfMine(modifier = Modifier.padding(start = 8.dp))
-                        TimelineEventTimestampView(
-                            event = event,
-                            eventSink = eventSink,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-            TimestampPosition.Hidden -> Box(modifier) { content {} }
-        }
-    }
-
-    /** Groups the different components in a Column with some space between them. */
-    @Composable
     fun CommonLayout(
-        timestampPosition: TimestampPosition,
         showThreadDecoration: Boolean,
         paddingBehaviour: ContentPadding,
         inReplyToDetails: InReplyToDetails?,
         modifier: Modifier = Modifier,
-        canShrinkContent: Boolean = false,
     ) {
-        val timestampLayoutModifier =
-            if (inReplyToDetails != null && timestampPosition == TimestampPosition.Overlay) {
-                Modifier.padding(start = 8.dp, end = 8.dp, bottom = 8.dp)
-            } else {
-                Modifier
-            }
-
         val topPadding = if (inReplyToDetails != null) 0.dp else 8.dp
-        // Standalone (no-bubble) content aligns its left edge with the message-box start so it shares
-        // the same content column as regular fast-path messages; bubble content keeps the inset.
         val textualStartPadding = if (alignContentToStart) 0.dp else 12.dp
         val contentModifier = when (paddingBehaviour) {
             ContentPadding.Textual ->
@@ -907,19 +736,15 @@ private fun MessageEventBubbleContent(
                 ThreadDecoration(modifier = Modifier.padding(top = 8.dp, start = 12.dp, end = 12.dp))
             }
         }
-        val contentWithTimestamp = @Composable {
-            WithTimestampLayout(
-                timestampPosition = timestampPosition,
-                eventSink = eventSink,
-                canShrinkContent = canShrinkContent,
-                modifier = timestampLayoutModifier.semantics(mergeDescendants = false) {
+        val eventContent = @Composable {
+            Box(
+                modifier = Modifier.semantics(mergeDescendants = false) {
                     isTraversalGroup = true
                     traversalIndex = -1f
-                },
-                content = { onContentLayoutChange ->
-                    eventContentView(contentModifier, onContentLayoutChange)
                 }
-            )
+            ) {
+                eventContentView(contentModifier)
+            }
         }
 
         val inReplyTo = @Composable { inReplyTo: InReplyToDetails ->
@@ -946,57 +771,28 @@ private fun MessageEventBubbleContent(
             }
         }
         if (inReplyToDetails != null) {
-            // Use SubComposeLayout only if necessary as it can have consequences on the performance.
             EqualWidthColumn(spacing = 8.dp) {
                 threadDecoration()
                 inReplyTo(inReplyToDetails)
-                contentWithTimestamp()
+                eventContent()
             }
         } else {
             Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 threadDecoration()
-                contentWithTimestamp()
+                eventContent()
             }
         }
     }
 
-    val timestampPosition = when (val content = event.content) {
-        is TimelineItemImageContent -> if (content.showCaption) TimestampPosition.Aligned else TimestampPosition.Overlay
-        is TimelineItemVideoContent -> if (content.showCaption) TimestampPosition.Aligned else TimestampPosition.Overlay
-        is TimelineItemStickerContent -> TimestampPosition.Overlay
-        is TimelineItemLocationContent -> {
-            val content = content.ensureActiveLiveLocation()
-            val shouldHide = content.mode is TimelineItemLocationContent.Mode.Live &&
-                content.mode.isActive &&
-                content.mode.isOwnUser
-            if (shouldHide) TimestampPosition.Hidden else TimestampPosition.Overlay
-        }
-        is TimelineItemPollContent,
-        is TimelineItemTextBasedContent -> TimestampPosition.Below
-        // AI stream messages mirror iOS: cards + markdown are standalone timeline content and
-        // should not pay the normal bubble/timestamp avoidance layout cost.
-        is TimelineItemAiContent -> TimestampPosition.Hidden
-        is TimelineItemGameContent -> TimestampPosition.Below
-        else -> TimestampPosition.Default
-    }
-    val paddingBehaviour = when (event.content) {
-        is TimelineItemImageContent -> if (event.content.showCaption) ContentPadding.CaptionedMedia else ContentPadding.Media
-        is TimelineItemVideoContent -> if (event.content.showCaption) ContentPadding.CaptionedMedia else ContentPadding.Media
-        is TimelineItemStickerContent,
-        is TimelineItemLocationContent,
-        is TimelineItemVoiceContent,
-        // Game card has its own internal padding — no extra bubble padding needed
-        is TimelineItemGameContent,
-        is TimelineItemAiContent -> ContentPadding.Media
-        is TimelineItemEncryptedContent -> if (event.content.recovery != null) ContentPadding.Media else ContentPadding.Textual
-        else -> ContentPadding.Textual
+    val paddingBehaviour = when (contentPaddingPolicy) {
+        TimelineContentPaddingPolicy.Textual -> ContentPadding.Textual
+        TimelineContentPaddingPolicy.Media -> ContentPadding.Media
+        TimelineContentPaddingPolicy.CaptionedMedia -> ContentPadding.CaptionedMedia
     }
     CommonLayout(
         showThreadDecoration = timelineMode !is Timeline.Mode.Thread && event.threadInfo is TimelineItemThreadInfo.ThreadResponse,
-        timestampPosition = timestampPosition,
         paddingBehaviour = paddingBehaviour,
         inReplyToDetails = event.inReplyTo,
-        canShrinkContent = event.content is TimelineItemVoiceContent,
         modifier = bubbleModifier,
     )
 }
@@ -1107,7 +903,6 @@ internal fun ThreadSummaryViewPreview() {
         ThreadSummaryView(
             threadSummary = threadSummary,
             latestEventText = "Some event with a very long text that should get clipped",
-            isOutgoing = true,
             onClick = {},
         )
     }

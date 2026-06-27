@@ -10,6 +10,7 @@
 package io.element.android.features.credits.impl
 
 import androidx.activity.ComponentActivity
+import android.content.Context
 import androidx.compose.ui.test.AndroidComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
@@ -19,6 +20,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.v2.runAndroidComposeUiTest
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.element.android.features.credits.api.CreditsEntryPoint
 import io.element.android.features.credits.impl.model.CreditsPeriod
@@ -43,10 +45,10 @@ class CreditsViewTest {
     fun `view - shows title and top level tabs`() = runAndroidComposeUiTest {
         setView()
 
-        onNodeWithText("积分与账单").assertIsDisplayed()
-        onNodeWithText("余额").assertIsDisplayed()
-        onNodeWithText("每日用量").assertIsDisplayed()
-        onNodeWithText("用量").assertIsDisplayed()
+        onNodeWithText(testString(R.string.credits_title)).assertIsDisplayed()
+        onNodeWithText(testString(R.string.credits_tab_balance)).assertIsDisplayed()
+        onNodeWithText(testString(R.string.credits_tab_daily_usage)).assertIsDisplayed()
+        onNodeWithText(testString(R.string.credits_tab_usage)).assertIsDisplayed()
     }
 
     @Test
@@ -58,13 +60,13 @@ class CreditsViewTest {
                     balanceMicros = "12500000",
                     balanceUsd = "12.50",
                 ),
-                transactions = listOf(ledger("txn-1", title = "Top up", deltaMicros = "5000000")),
+                transactions = listOf(ledger("txn-1", title = "Credit purchase", deltaMicros = "5000000")),
             )
         )
 
         onNodeWithText("$12.50").assertIsDisplayed()
         onNodeWithText("@alice:server.org").assertIsDisplayed()
-        onNodeWithText("Top up").assertIsDisplayed()
+        onNodeWithText("Credit purchase").assertIsDisplayed()
         onNodeWithText("+$5.00").assertIsDisplayed()
     }
 
@@ -78,8 +80,8 @@ class CreditsViewTest {
             )
         )
 
-        onNodeWithText("暂无交易记录").performScrollTo().assertIsDisplayed()
-        onNodeWithText("载入更多").performScrollTo().assertIsDisplayed()
+        onNodeWithText(testString(R.string.credits_no_transactions)).performScrollTo().assertIsDisplayed()
+        onNodeWithText(testString(R.string.credits_load_more)).performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -96,9 +98,9 @@ class CreditsViewTest {
             )
         )
 
-        onNodeWithText("7天").assertIsDisplayed()
-        onNodeWithText("30天").assertIsDisplayed()
-        onNodeWithText("累计消费").assertIsDisplayed()
+        onNodeWithText(testString(R.string.credits_seven_days)).assertIsDisplayed()
+        onNodeWithText(testString(R.string.credits_thirty_days)).assertIsDisplayed()
+        onNodeWithText(testString(R.string.credits_total_spend)).assertIsDisplayed()
         onAllNodesWithText("$0.25").assertCountEquals(1)
     }
 
@@ -114,9 +116,9 @@ class CreditsViewTest {
 
         onNodeWithText("Agent").performScrollTo().assertIsDisplayed()
         onNodeWithText("Model").performScrollTo().assertIsDisplayed()
-        onNodeWithText("7天").performScrollTo().assertIsDisplayed()
-        onNodeWithText("30天").performScrollTo().assertIsDisplayed()
-        onNodeWithText("全部").performScrollTo().assertIsDisplayed()
+        onNodeWithText(testString(R.string.credits_seven_days)).performScrollTo().assertIsDisplayed()
+        onNodeWithText(testString(R.string.credits_thirty_days)).performScrollTo().assertIsDisplayed()
+        onNodeWithText(testString(R.string.credits_all)).performScrollTo().assertIsDisplayed()
         onNodeWithText("Alice Bot").performScrollTo().assertIsDisplayed()
     }
 
@@ -127,10 +129,27 @@ class CreditsViewTest {
         waitForIdle()
         eventsRecorder.clear()
 
-        onNodeWithText("充值").performClick()
+        onNodeWithText(testString(R.string.credits_top_up)).performClick()
 
         eventsRecorder.assertSingle(CreditsEvents.RequestTopUp)
     }
+
+    @Test
+    fun `view - scoped error does not expose raw exception text`() = runAndroidComposeUiTest {
+        setView(
+            state = aCreditsState(
+                balance = null,
+                balanceError = "HTTP 500 internal service error",
+            )
+        )
+
+        onNodeWithText(testString(R.string.credits_error_balance_unavailable)).assertIsDisplayed()
+        onNodeWithText("HTTP 500 internal service error").assertDoesNotExist()
+    }
+}
+
+private fun testString(resId: Int): String {
+    return ApplicationProvider.getApplicationContext<Context>().getString(resId)
 }
 
 private fun AndroidComposeUiTest<ComponentActivity>.setView(
@@ -155,6 +174,10 @@ private fun aCreditsState(
     dailyUsageRange: DailyUsageRange = DailyUsageRange.SevenDays,
     usageRankingTab: UsageRankingTab = UsageRankingTab.Agent,
     analyticsPeriod: CreditsPeriod = CreditsPeriod.ThirtyDays,
+    balanceError: String? = null,
+    transactionsError: String? = null,
+    dailyUsageError: String? = null,
+    analyticsError: String? = null,
     eventSink: (CreditsEvents) -> Unit = EventsRecorder(),
 ) = CreditsState(
     selectedTab = selectedTab,
@@ -171,7 +194,10 @@ private fun aCreditsState(
     isDailyUsageLoading = false,
     isAnalyticsLoading = false,
     isLoadingMoreTransactions = false,
-    error = null,
+    balanceError = balanceError,
+    transactionsError = transactionsError,
+    dailyUsageError = dailyUsageError,
+    analyticsError = analyticsError,
     eventSink = eventSink,
 )
 

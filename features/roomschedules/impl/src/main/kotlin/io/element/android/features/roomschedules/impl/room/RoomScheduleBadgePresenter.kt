@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
@@ -20,6 +21,7 @@ import dev.zacsweers.metro.ContributesBinding
 import io.element.android.features.roomschedules.api.room.RoomScheduleBadgeEvents
 import io.element.android.features.roomschedules.api.room.RoomScheduleBadgePresenter
 import io.element.android.features.roomschedules.api.room.RoomScheduleBadgeState
+import io.element.android.features.roomschedules.impl.R
 import io.element.android.features.roomschedules.impl.model.isEnabled
 import io.element.android.features.roomschedules.impl.model.matrixUserId
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
@@ -52,9 +54,10 @@ class DefaultRoomScheduleBadgePresenter(
         var isVisible by remember { mutableStateOf(false) }
         var activeScheduleCount by remember { mutableStateOf(0) }
         var error by remember { mutableStateOf<String?>(null) }
+        val loadError = stringResource(R.string.schedule_edit_error_load)
 
         fun errorMessage(throwable: Throwable): String {
-            return throwable.message ?: throwable::class.simpleName ?: throwable.toString()
+            return throwable.message?.takeIf { it.isNotBlank() } ?: loadError
         }
 
         fun load(isInitial: Boolean) {
@@ -67,7 +70,7 @@ class DefaultRoomScheduleBadgePresenter(
                 if (agentsResult.isFailure || schedulesResult.isFailure) {
                     isVisible = false
                     activeScheduleCount = 0
-                    error = errorMessage(agentsResult.exceptionOrNull() ?: schedulesResult.exceptionOrNull() ?: RuntimeException("Failed to load schedules"))
+                    error = errorMessage(agentsResult.exceptionOrNull() ?: schedulesResult.exceptionOrNull() ?: RuntimeException())
                     isLoading = false
                     hasLoadedOnce = true
                     return@launch

@@ -70,7 +70,14 @@ class CreditsPresenter(
         var isDailyUsageLoading by remember { mutableStateOf(false) }
         var isAnalyticsLoading by remember { mutableStateOf(false) }
         var isLoadingMoreTransactions by remember { mutableStateOf(false) }
-        var error by remember { mutableStateOf<String?>(null) }
+        var balanceError by remember { mutableStateOf<String?>(null) }
+        var transactionsError by remember { mutableStateOf<String?>(null) }
+        var dailyUsageError by remember { mutableStateOf<String?>(null) }
+        var analyticsError by remember { mutableStateOf<String?>(null) }
+        var hasBalanceLoaded by remember { mutableStateOf(false) }
+        var hasLedgerLoaded by remember { mutableStateOf(false) }
+        var hasDailyUsageLoaded by remember { mutableStateOf(false) }
+        var hasAnalyticsLoaded by remember { mutableStateOf(false) }
 
         fun errorMessage(throwable: Throwable): String {
             return throwable.message ?: throwable::class.simpleName ?: throwable.toString()
@@ -87,10 +94,11 @@ class CreditsPresenter(
             service.getBalance()
                 .onSuccess {
                     balance = it
-                    error = null
+                    balanceError = null
+                    hasBalanceLoaded = true
                 }
                 .onFailure {
-                    error = errorMessage(it)
+                    balanceError = errorMessage(it)
                 }
             isBalanceLoading = false
         }
@@ -101,10 +109,11 @@ class CreditsPresenter(
                 .onSuccess {
                     transactions = it.items
                     transactionsCursor = it.nextCursor
-                    error = null
+                    transactionsError = null
+                    hasLedgerLoaded = true
                 }
                 .onFailure {
-                    error = errorMessage(it)
+                    transactionsError = errorMessage(it)
                 }
             isLedgerLoading = false
         }
@@ -115,10 +124,13 @@ class CreditsPresenter(
             service.getDailyUsage(start = dayRange.start, end = dayRange.end)
                 .onSuccess {
                     dailyUsage = it
-                    error = null
+                    dailyUsageError = null
+                    hasDailyUsageLoaded = true
                 }
                 .onFailure {
-                    error = errorMessage(it)
+                    dailyUsage = null
+                    dailyUsageError = errorMessage(it)
+                    hasDailyUsageLoaded = false
                 }
             isDailyUsageLoading = false
         }
@@ -128,38 +140,69 @@ class CreditsPresenter(
             service.getAnalyticsTokens(period.apiValue)
                 .onSuccess {
                     analytics = it
-                    error = null
+                    analyticsError = null
+                    hasAnalyticsLoaded = true
                 }
                 .onFailure {
-                    error = errorMessage(it)
+                    analytics = null
+                    analyticsError = errorMessage(it)
+                    hasAnalyticsLoaded = false
                 }
             isAnalyticsLoading = false
         }
 
-        fun loadAll() = coroutineScope.launch {
-            isBalanceLoading = true
-            isLedgerLoading = true
-            isDailyUsageLoading = true
-            isAnalyticsLoading = true
+        fun loadBalanceTab(force: Boolean = false) = coroutineScope.launch {
+            if (!force && hasBalanceLoaded && hasLedgerLoaded && hasDailyUsageLoaded) return@launch
+            if (!hasBalanceLoaded || force) isBalanceLoading = true
+            if (!hasLedgerLoaded || force) isLedgerLoading = true
+            if (!hasDailyUsageLoaded || force) isDailyUsageLoading = true
             val service = runCatching { api() }
                 .onFailure {
-                    error = errorMessage(it)
+                    val message = errorMessage(it)
+                    if (!hasBalanceLoaded || force) balanceError = message
+                    if (!hasLedgerLoaded || force) transactionsError = message
+                    if (!hasDailyUsageLoaded || force) dailyUsageError = message
                     isBalanceLoading = false
                     isLedgerLoading = false
                     isDailyUsageLoading = false
                 }
                 .getOrNull() ?: return@launch
-            coroutineScope.launch { loadBalance(service) }
-            coroutineScope.launch { loadLedger(service) }
-            coroutineScope.launch { loadDailyUsage(service, dailyUsageRange) }
-            coroutineScope.launch {
-                val homeserver = runCatching { homeserverApi() }
-                    .onFailure {
-                        error = errorMessage(it)
-                        isAnalyticsLoading = false
-                    }
-                    .getOrNull() ?: return@launch
-                loadAnalytics(homeserver, analyticsPeriod)
+            if (!hasBalanceLoaded || force) coroutineScope.launch { loadBalance(service) }
+            if (!hasLedgerLoaded || force) coroutineScope.launch { loadLedger(service) }
+            if (!hasDailyUsageLoaded || force) coroutineScope.launch { loadDailyUsage(service, dailyUsageRange) }
+        }
+
+        fun loadDailyUsageTab(force: Boolean = false) = coroutineScope.launch {
+            if (!force && hasDailyUsageLoaded) return@launch
+            isDailyUsageLoading = true
+            val service = runCatching { api() }
+                .onFailure {
+                    dailyUsage = null
+                    dailyUsageError = errorMessage(it)
+                    isDailyUsageLoading = false
+                }
+                .getOrNull() ?: return@launch
+            loadDailyUsage(service, dailyUsageRange)
+        }
+
+        fun loadUsageTab(force: Boolean = false) = coroutineScope.launch {
+            if (!force && hasAnalyticsLoaded) return@launch
+            isAnalyticsLoading = true
+            val homeserver = runCatching { homeserverApi() }
+                .onFailure {
+                    analytics = null
+                    analyticsError = errorMessage(it)
+                    isAnalyticsLoading = false
+                }
+                .getOrNull() ?: return@launch
+            loadAnalytics(homeserver, analyticsPeriod)
+        }
+
+        fun ensureTabLoaded(tab: CreditsEntryPoint.CreditsTab, force: Boolean = false) {
+            when (tab) {
+                CreditsEntryPoint.CreditsTab.Balance -> loadBalanceTab(force)
+                CreditsEntryPoint.CreditsTab.DailyUsage -> loadDailyUsageTab(force)
+                CreditsEntryPoint.CreditsTab.Usage -> loadUsageTab(force)
             }
         }
 
@@ -167,14 +210,21 @@ class CreditsPresenter(
             val cursor = transactionsCursor ?: return@launch
             if (isLoadingMoreTransactions) return@launch
             isLoadingMoreTransactions = true
-            api().getLedger(limit = 10, cursor = cursor)
+            val service = runCatching { api() }
+                .onFailure {
+                    transactionsError = errorMessage(it)
+                    isLoadingMoreTransactions = false
+                }
+                .getOrNull() ?: return@launch
+            service.getLedger(limit = 10, cursor = cursor)
                 .onSuccess {
                     transactions = transactions + it.items
                     transactionsCursor = it.nextCursor
-                    error = null
+                    transactionsError = null
+                    hasLedgerLoaded = true
                 }
                 .onFailure {
-                    error = errorMessage(it)
+                    transactionsError = errorMessage(it)
                 }
             isLoadingMoreTransactions = false
         }
@@ -183,26 +233,34 @@ class CreditsPresenter(
             when (event) {
                 CreditsEvents.OnAppear -> if (!hasAppeared) {
                     hasAppeared = true
-                    loadAll()
+                    ensureTabLoaded(selectedTab)
                 }
-                is CreditsEvents.SelectTab -> selectedTab = event.tab
+                is CreditsEvents.SelectTab -> {
+                    selectedTab = event.tab
+                    ensureTabLoaded(event.tab)
+                }
                 is CreditsEvents.SelectDailyUsageRange -> {
                     if (dailyUsageRange != event.range) {
                         dailyUsageRange = event.range
-                        isDailyUsageLoading = true
-                        coroutineScope.launch { loadDailyUsage(api(), event.range) }
+                        hasDailyUsageLoaded = false
+                        loadDailyUsageTab(force = true)
                     }
                 }
                 is CreditsEvents.SelectUsageRankingTab -> usageRankingTab = event.tab
                 is CreditsEvents.SelectAnalyticsPeriod -> {
                     if (analyticsPeriod != event.period) {
                         analyticsPeriod = event.period
-                        isAnalyticsLoading = true
-                        coroutineScope.launch { loadAnalytics(homeserverApi(), event.period) }
+                        hasAnalyticsLoaded = false
+                        loadUsageTab(force = true)
                     }
                 }
                 CreditsEvents.LoadMoreTransactions -> loadMoreTransactions()
-                CreditsEvents.ClearError -> error = null
+                CreditsEvents.ClearError -> {
+                    balanceError = null
+                    transactionsError = null
+                    dailyUsageError = null
+                    analyticsError = null
+                }
                 CreditsEvents.Dismiss -> navigator.onDone()
                 CreditsEvents.RequestTopUp -> navigator.onTopUpRequested(balance)
             }
@@ -223,7 +281,10 @@ class CreditsPresenter(
             isDailyUsageLoading = isDailyUsageLoading,
             isAnalyticsLoading = isAnalyticsLoading,
             isLoadingMoreTransactions = isLoadingMoreTransactions,
-            error = error,
+            balanceError = balanceError,
+            transactionsError = transactionsError,
+            dailyUsageError = dailyUsageError,
+            analyticsError = analyticsError,
             eventSink = ::handleEvent,
         )
     }

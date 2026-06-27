@@ -170,8 +170,8 @@ class MessagesViewTest {
             state = state,
             onEventClick = callback,
         )
-        // Cannot perform click on "Text", it's not detected. Use tag instead
-        onAllNodesWithTag(TestTags.messageBubble.value).onFirst().performClick()
+        // Cannot perform click on "Text", it's not detected. Use the shared timeline content tag instead.
+        onAllNodesWithTag(TestTags.timelineItemEventContent.value, useUnmergedTree = true).onFirst().performClick()
         callback.assertSuccess()
     }
 
@@ -222,8 +222,8 @@ class MessagesViewTest {
         setMessagesView(
             state = state,
         )
-        // Cannot perform click on "Text", it's not detected. Use tag instead
-        onAllNodesWithTag(TestTags.messageBubble.value).onFirst().performTouchInput { longClick() }
+        // Cannot perform click on "Text", it's not detected. Use the shared timeline content tag instead.
+        onAllNodesWithTag(TestTags.timelineItemEventContent.value, useUnmergedTree = true).onFirst().performTouchInput { longClick() }
         eventsRecorder.assertSingle(
             ActionListEvent.ComputeForMessage(
                 event = timelineItem,
@@ -287,7 +287,7 @@ class MessagesViewTest {
         setMessagesView(
             state = state,
         )
-        onAllNodesWithTag(TestTags.messageBubble.value).apply {
+        onAllNodesWithTag(TestTags.timelineItemEventContent.value, useUnmergedTree = true).apply {
             onFirst().performTouchInput { swipeRight(endX = 200f) }
             onLast().performTouchInput { swipeRight(endX = 200f) }
         }
@@ -361,7 +361,7 @@ class MessagesViewTest {
         )
         val timelineEvent = state.timelineState.timelineItems.filterIsInstance<TimelineItem.Event>().first()
         setMessagesView(state = state)
-        onNodeWithTag(TestTags.timelineItemSenderAvatar.value, useUnmergedTree = true).performClick()
+        onAllNodesWithTag(TestTags.timelineItemSenderAvatar.value, useUnmergedTree = true).onFirst().performClick()
         eventsRecorder.assertSingle(
             MessagesEvent.OnUserClicked(
                 MatrixUser(
@@ -380,7 +380,7 @@ class MessagesViewTest {
         val state = aMessagesState(eventSink = eventsRecorder)
         val timelineEvent = state.timelineState.timelineItems.filterIsInstance<TimelineItem.Event>().first()
         setMessagesView(state = state)
-        onNodeWithTag(TestTags.timelineItemSenderAvatar.value, useUnmergedTree = true).performClick()
+        onAllNodesWithTag(TestTags.timelineItemSenderName.value, useUnmergedTree = true).onFirst().performClick()
         eventsRecorder.assertSingle(
             MessagesEvent.OnUserClicked(
                 MatrixUser(

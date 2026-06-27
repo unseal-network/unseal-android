@@ -7,11 +7,13 @@
 
 package io.element.android.features.messages.impl.messagecomposer.gamepicker
 
+import android.content.Context
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import io.element.android.libraries.chatbot.api.ChatbotBaseUrlResolver
 import io.element.android.libraries.di.RoomScope
+import io.element.android.libraries.di.annotations.ApplicationContext
 import io.element.android.libraries.gameapi.api.GameApiService
 import io.element.android.libraries.gameapi.impl.DefaultGameApiService
 import io.element.android.libraries.matrix.api.MatrixClient
@@ -30,6 +32,7 @@ data class RoomGameApiServiceHandle(
 @ContributesBinding(RoomScope::class)
 @Inject
 class DefaultRoomGameApiServiceProvider(
+    @ApplicationContext private val context: Context,
     private val matrixClient: MatrixClient,
     private val baseUrlResolver: ChatbotBaseUrlResolver,
     private val okHttpClient: () -> OkHttpClient,
@@ -41,6 +44,7 @@ class DefaultRoomGameApiServiceProvider(
                 homeserverUrl = homeserverUrl,
                 matrixClient = matrixClient,
                 okHttpClient = okHttpClient(),
+                context = context,
             ),
             homeserverHost = homeserverUrl
                 .removePrefix("https://")

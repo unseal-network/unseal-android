@@ -11,7 +11,8 @@ package io.element.android.features.messages.impl.timeline.components.event
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import io.element.android.features.messages.impl.timeline.TimelineEvent
-import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
+import io.element.android.features.messages.impl.timeline.TimelineRoomInfo
+import io.element.android.features.messages.impl.timeline.components.TimelineItemCallNotifyView
 import io.element.android.features.messages.impl.timeline.di.LocalTimelineItemPresenterFactories
 import io.element.android.features.messages.impl.timeline.di.rememberPresenter
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
@@ -41,6 +42,7 @@ import io.element.android.wysiwyg.link.Link
 @Composable
 fun TimelineItemEventContentView(
     content: TimelineItemEventContent,
+    timelineRoomInfo: TimelineRoomInfo,
     hideMediaContent: Boolean,
     onContentClick: (() -> Unit)?,
     onLongClick: (() -> Unit)?,
@@ -49,20 +51,17 @@ fun TimelineItemEventContentView(
     onLinkLongClick: (Link) -> Unit,
     eventSink: (TimelineEvent.TimelineItemEvent) -> Unit,
     modifier: Modifier = Modifier,
-    onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit = {},
 ) {
     val presenterFactories = LocalTimelineItemPresenterFactories.current
     when (content) {
         is TimelineItemEncryptedContent -> TimelineItemEncryptedView(
             content = content,
-            onContentLayoutChange = onContentLayoutChange,
             onVerifyDeviceClick = { eventSink(TimelineEvent.VerifyDeviceForRoomKeyRecovery) },
             onRetryClick = { recoveryRequest -> eventSink(TimelineEvent.RetryRoomKeyRecovery(recoveryRequest)) },
             modifier = modifier
         )
         is TimelineItemRedactedContent -> TimelineItemRedactedView(
             content = content,
-            onContentLayoutChange = onContentLayoutChange,
             modifier = modifier
         )
         is TimelineItemTextBasedContent -> TimelineItemTextView(
@@ -72,7 +71,6 @@ fun TimelineItemEventContentView(
             onLinkLongClick = onLinkLongClick,
             onLongClick = onLongClick,
             renderLinkPreviews = !hideMediaContent,
-            onContentLayoutChange = onContentLayoutChange
         )
         is TimelineItemAiContent -> {
             val presenter: Presenter<TimelineItemAiState> = presenterFactories.rememberPresenter(content)
@@ -84,7 +82,6 @@ fun TimelineItemEventContentView(
                 onLinkLongClick = onLinkLongClick,
                 onLongClick = onLongClick,
                 modifier = modifier,
-                onContentLayoutChange = onContentLayoutChange,
             )
         }
         is TimelineItemGameContent -> TimelineItemGameView(
@@ -94,12 +91,10 @@ fun TimelineItemEventContentView(
         )
         is TimelineItemPingContent -> TimelineItemPingView(
             content = content,
-            onContentLayoutChange = onContentLayoutChange,
             modifier = modifier
         )
         is TimelineItemUnknownContent -> TimelineItemUnknownView(
             content = content,
-            onContentLayoutChange = onContentLayoutChange,
             modifier = modifier
         )
         is TimelineItemLocationContent -> {
@@ -117,7 +112,6 @@ fun TimelineItemEventContentView(
             onShowContentClick = onShowContentClick,
             onLinkClick = onLinkClick,
             onLinkLongClick = onLinkLongClick,
-            onContentLayoutChange = onContentLayoutChange,
             modifier = modifier,
         )
         is TimelineItemStickerContent -> TimelineItemStickerView(
@@ -136,17 +130,14 @@ fun TimelineItemEventContentView(
             onShowContentClick = onShowContentClick,
             onLinkClick = onLinkClick,
             onLinkLongClick = onLinkLongClick,
-            onContentLayoutChange = onContentLayoutChange,
             modifier = modifier
         )
         is TimelineItemFileContent -> TimelineItemFileView(
             content = content,
-            onContentLayoutChange = onContentLayoutChange,
             modifier = modifier
         )
         is TimelineItemAudioContent -> TimelineItemAudioView(
             content = content,
-            onContentLayoutChange = onContentLayoutChange,
             modifier = modifier
         )
         is TimelineItemLegacyCallInviteContent -> TimelineItemLegacyCallInviteView(modifier = modifier)
@@ -164,10 +155,14 @@ fun TimelineItemEventContentView(
             TimelineItemVoiceView(
                 state = presenter.present(),
                 content = content,
-                onContentLayoutChange = onContentLayoutChange,
                 modifier = modifier
             )
         }
-        is TimelineItemRtcNotificationContent -> error("This shouldn't be rendered as the content of a bubble")
+        is TimelineItemRtcNotificationContent -> TimelineItemCallNotifyView(
+            timelineRoomInfo = timelineRoomInfo,
+            content = content,
+            onLongClick = onLongClick,
+            modifier = modifier,
+        )
     }
 }

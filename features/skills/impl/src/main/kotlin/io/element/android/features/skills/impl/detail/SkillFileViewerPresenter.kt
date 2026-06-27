@@ -13,9 +13,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import io.element.android.features.skills.impl.R
 import io.element.android.libraries.architecture.Presenter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -43,10 +45,10 @@ class SkillFileViewerPresenter(
         var saveError by remember { mutableStateOf<String?>(null) }
         var showSavedToast by remember { mutableStateOf(false) }
         var loadRequestId by remember { mutableStateOf(0) }
+        val loadFileError = stringResource(R.string.skill_file_load_failed)
+        val saveFileError = stringResource(R.string.skill_file_save_failed_full)
 
-        fun errorMessage(throwable: Throwable, fallback: String): String {
-            return throwable.message ?: throwable::class.simpleName ?: fallback
-        }
+        fun errorMessage(fallback: String): String = fallback
 
         fun load(force: Boolean = false) {
             if (hasLoadedOnce && !force) return
@@ -62,7 +64,7 @@ class SkillFileViewerPresenter(
                         hasLoadedOnce = true
                     }
                     .onFailure {
-                        loadError = errorMessage(it, "Failed to load file")
+                        loadError = errorMessage(loadFileError)
                     }
                 isLoading = false
             }
@@ -83,7 +85,7 @@ class SkillFileViewerPresenter(
                         }
                     }
                     .onFailure {
-                        saveError = errorMessage(it, "Failed to save file")
+                        saveError = errorMessage(saveFileError)
                     }
                 isSaving = false
             }

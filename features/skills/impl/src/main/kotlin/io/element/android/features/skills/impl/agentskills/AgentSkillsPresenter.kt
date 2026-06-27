@@ -13,9 +13,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import io.element.android.features.skills.impl.R
 import io.element.android.features.skills.impl.shared.sortedBySkillName
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
@@ -41,6 +44,7 @@ class AgentSkillsPresenter(
 
     @Composable
     override fun present(): AgentSkillsState {
+        val context = LocalContext.current
         val coroutineScope = rememberCoroutineScope()
         var attachedSkills by remember { mutableStateOf(emptyList<ChatbotUserSkill>()) }
         var userSkills by remember { mutableStateOf(emptyList<ChatbotUserSkill>()) }
@@ -61,13 +65,15 @@ class AgentSkillsPresenter(
         var error by remember { mutableStateOf<String?>(null) }
         var hasLoadedOnce by remember { mutableStateOf(false) }
         var publicSearchJob by remember { mutableStateOf<Job?>(null) }
+        val loadAgentSkillsError = stringResource(R.string.agent_skills_error_load_agent_skills)
+        val loadSkillsError = stringResource(R.string.agent_skills_error_load_skills)
+        val loadPublicSkillsError = stringResource(R.string.agent_skills_error_load_public_skills)
+        val addSkillError = stringResource(R.string.agent_skills_error_add_skill)
 
         suspend fun homeserverApi() = chatbotApiServiceFactory.createForHomeserver(matrixClient)
         suspend fun unsealApi() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
 
-        fun errorMessage(throwable: Throwable, fallback: String): String {
-            return throwable.message ?: throwable::class.simpleName ?: fallback
-        }
+        fun errorMessage(fallback: String): String = fallback
 
         fun publicHasMore(): Boolean {
             return publicTotal?.let { publicSkills.size < it }
@@ -89,13 +95,13 @@ class AgentSkillsPresenter(
                         selectedSkillIds = selectedSkillIds + attachedIds
                         selectedSkills = (selectedSkills + skills).distinctBy { it.id }.sortedBySkillName()
                     }
-                    .onFailure { nextError = errorMessage(it, "Failed to load agent skills") }
+                    .onFailure { nextError = errorMessage(loadAgentSkillsError) }
 
                 service.listUserSkills(visibility = null)
                     .onSuccess { skills ->
                         userSkills = skills.sortedBySkillName()
                     }
-                    .onFailure { nextError = errorMessage(it, "Failed to load skills") }
+                    .onFailure { nextError = errorMessage(loadSkillsError) }
                 error = nextError
                 isLoading = false
                 hasLoadedOnce = true
@@ -122,7 +128,7 @@ class AgentSkillsPresenter(
                         }
                         error = null
                     }
-                    .onFailure { error = errorMessage(it, "Failed to load public skills") }
+                .onFailure { error = errorMessage(loadPublicSkillsError) }
                 if (replacing) {
                     isLoadingPublic = false
                 } else {
@@ -181,12 +187,14 @@ class AgentSkillsPresenter(
                         .onFailure {
                             failures += AgentSkillSaveFailure(
                                 skillId = skillId,
-                                message = errorMessage(it, "Failed to add skill"),
+                                message = errorMessage(addSkillError),
                             )
                         }
                 }
                 saveFailures = failures
-                error = failures.takeIf { it.isNotEmpty() }?.let { "Failed to add ${it.size} skill${if (it.size == 1) "" else "s"}" }
+                error = failures.takeIf { it.isNotEmpty() }?.let {
+                    context.getString(R.string.agent_skills_error_add_skill_count, it.size)
+                }
                 isSaving = false
                 if (failures.isEmpty()) {
                     navigator.onSaved()

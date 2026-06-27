@@ -91,7 +91,7 @@ fun CreditsView(
 
     Scaffold(
         modifier = modifier,
-        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -118,13 +118,6 @@ fun CreditsView(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             TopLevelTabs(state)
-            state.error?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
             when (state.selectedTab) {
                 CreditsEntryPoint.CreditsTab.Balance -> BalanceCard(state)
                 CreditsEntryPoint.CreditsTab.DailyUsage -> DailyUsageCard(state)
@@ -161,14 +154,50 @@ private fun TopLevelTabs(state: CreditsState) {
 private fun Card(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(12.dp),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             content = content,
         )
+    }
+}
+
+@Composable
+private fun SectionError(
+    title: String,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(10.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = CompoundIcons.Error(),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        Text(
+            text = title,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(onClick = onRetry) {
+            Text(stringResource(CommonStrings.action_retry))
+        }
     }
 }
 
@@ -182,6 +211,13 @@ private fun BalanceCard(state: CreditsState) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (!state.isBalanceLoading && state.balance == null && state.balanceError != null) {
+            SectionError(
+                title = stringResource(R.string.credits_error_balance_unavailable),
+                onRetry = { state.eventSink(CreditsEvents.SelectTab(CreditsEntryPoint.CreditsTab.Balance)) },
+            )
+            return@Card
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "USD",
@@ -241,6 +277,10 @@ private fun TransactionsCard(state: CreditsState) {
         )
         when {
             state.isLedgerLoading -> CircularProgressIndicator(modifier = Modifier.size(28.dp))
+            state.transactionsError != null && state.transactions.isEmpty() -> SectionError(
+                title = stringResource(R.string.credits_error_transactions_unavailable),
+                onRetry = { state.eventSink(CreditsEvents.SelectTab(CreditsEntryPoint.CreditsTab.Balance)) },
+            )
             state.transactions.isEmpty() -> Text(
                 text = stringResource(R.string.credits_no_transactions),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -356,6 +396,15 @@ private fun DailyUsageCard(state: CreditsState) {
                 modifier = Modifier.fillMaxWidth().height(180.dp),
                 contentAlignment = Alignment.Center,
             ) { CircularProgressIndicator(modifier = Modifier.size(28.dp)) }
+            state.dailyUsageError != null && dailyUsage == null -> Box(
+                modifier = Modifier.fillMaxWidth().height(180.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                SectionError(
+                    title = stringResource(R.string.credits_error_daily_usage_unavailable),
+                    onRetry = { state.eventSink(CreditsEvents.SelectTab(CreditsEntryPoint.CreditsTab.DailyUsage)) },
+                )
+            }
             buckets.isEmpty() -> Box(
                 modifier = Modifier.fillMaxWidth().height(180.dp),
                 contentAlignment = Alignment.Center,
@@ -424,6 +473,13 @@ private fun UsageRankingCard(state: CreditsState) {
             CircularProgressIndicator(modifier = Modifier.size(28.dp))
         }
         val analytics = state.analytics
+        if (!state.isAnalyticsLoading && analytics == null && state.analyticsError != null) {
+            SectionError(
+                title = stringResource(R.string.credits_error_usage_unavailable),
+                onRetry = { state.eventSink(CreditsEvents.SelectTab(CreditsEntryPoint.CreditsTab.Usage)) },
+            )
+            return@Card
+        }
         if (!state.isAnalyticsLoading && analytics == null) {
             Text(
                 text = stringResource(R.string.credits_no_data),
@@ -465,8 +521,8 @@ private fun RankingTabSelector(state: CreditsState) {
     // iOS keeps "Agent"/"Model" untranslated in zh-Hans (credits_ranking_tab_agent/model).
     CreditPillPicker(
         options = listOf(
-            UsageRankingTab.Agent to "Agent",
-            UsageRankingTab.Model to "Model",
+            UsageRankingTab.Agent to stringResource(R.string.credits_ranking_tab_agent),
+            UsageRankingTab.Model to stringResource(R.string.credits_ranking_tab_model),
         ),
         selected = state.usageRankingTab,
         onSelect = { state.eventSink(CreditsEvents.SelectUsageRankingTab(it)) },
@@ -609,7 +665,10 @@ private fun aCreditsState(
     isDailyUsageLoading = false,
     isAnalyticsLoading = false,
     isLoadingMoreTransactions = false,
-    error = null,
+    balanceError = null,
+    transactionsError = null,
+    dailyUsageError = null,
+    analyticsError = null,
     eventSink = {},
 )
 

@@ -165,7 +165,7 @@ private fun SkillReadOnlyContent(state: SkillDetailState) {
     state.skill?.createdAt?.let { InfoRow(stringResource(R.string.skill_detail_created_at), it) }
 
     state.skill?.takeIf { it.hasDiscoveryMetadata() }?.let { skill ->
-        SectionHeader("Discovery")
+        SectionHeader(stringResource(R.string.skill_detail_discovery))
         SkillMetadataChips(
             skill = skill,
             maxTags = 20,
@@ -175,13 +175,22 @@ private fun SkillReadOnlyContent(state: SkillDetailState) {
                 null
             },
         )
-        skill.source?.repository?.takeIf { it.isNotBlank() }?.let { InfoRow("Repository", it) }
-        skill.source?.path?.takeIf { it.isNotBlank() }?.let { InfoRow("Path", it) }
-        skill.source?.ref?.takeIf { it.isNotBlank() }?.let { InfoRow("Ref", it) }
-        skill.source?.trustTier?.takeIf { it.isNotBlank() }?.let { InfoRow("Trust", it) }
+        skill.source?.repository?.takeIf { it.isNotBlank() }?.let { InfoRow(stringResource(R.string.skill_detail_repository), it) }
+        skill.source?.path?.takeIf { it.isNotBlank() }?.let { InfoRow(stringResource(R.string.skill_detail_path), it) }
+        skill.source?.ref?.takeIf { it.isNotBlank() }?.let { InfoRow(stringResource(R.string.skill_detail_ref), it) }
+        skill.source?.trustTier?.takeIf { it.isNotBlank() }?.let { InfoRow(stringResource(R.string.skill_detail_trust), it) }
     }
 
-    val files = state.fileItems
+    val presignedUrls = state.response?.presignedUrls.orEmpty()
+    val fileFallbacks = presignedUrls.indices.map { index ->
+        stringResource(R.string.skill_file_fallback, index + 1)
+    }
+    val files = buildSkillFileRenderModels(
+        skillId = state.id,
+        presignedUrls = presignedUrls,
+        preuploadUrls = state.response?.preuploadUrls.orEmpty(),
+        fallbackForIndex = { index -> fileFallbacks.getOrElse(index) { (index + 1).toString() } },
+    )
     if (files.isNotEmpty()) {
         FilesSectionHeader(count = files.size)
         files.forEach { file ->

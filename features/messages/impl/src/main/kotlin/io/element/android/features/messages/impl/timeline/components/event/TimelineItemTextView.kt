@@ -18,18 +18,14 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
-import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayout
-import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextBasedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextBasedContentProvider
 import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemTextContent
@@ -42,8 +38,6 @@ import io.element.android.libraries.textcomposer.mentions.LocalMentionSpanUpdate
 import io.element.android.wysiwyg.compose.EditorStyledText
 import io.element.android.wysiwyg.link.Link
 
-val LocalTimelineTextLayoutMeasurementEnabled = compositionLocalOf { true }
-
 @Composable
 fun TimelineItemTextView(
     content: TimelineItemTextBasedContent,
@@ -52,7 +46,6 @@ fun TimelineItemTextView(
     onLongClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
     renderLinkPreviews: Boolean = true,
-    onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit = {},
 ) {
     val htmlTables = remember(content.htmlDocument) {
         content.htmlDocument?.extractHtmlTables().orEmpty()
@@ -67,16 +60,6 @@ fun TimelineItemTextView(
                 Box(
                     Modifier
                         .fillMaxWidth()
-                        .onSizeChanged { size ->
-                            onContentLayoutChange(
-                                ContentAvoidingLayoutData(
-                                    contentWidth = size.width,
-                                    contentHeight = size.height,
-                                    nonOverlappingContentWidth = size.width,
-                                    nonOverlappingContentHeight = size.height,
-                                )
-                            )
-                        }
                         .semantics { contentDescription = content.plainText }
                 ) {
                     HtmlTableBody(tables = htmlTables)
@@ -86,16 +69,6 @@ fun TimelineItemTextView(
                 Box(
                     Modifier
                         .fillMaxWidth()
-                        .onSizeChanged { size ->
-                            onContentLayoutChange(
-                                ContentAvoidingLayoutData(
-                                    contentWidth = size.width,
-                                    contentHeight = size.height,
-                                    nonOverlappingContentWidth = size.width,
-                                    nonOverlappingContentHeight = size.height,
-                                )
-                            )
-                        }
                         .semantics { contentDescription = content.plainText }
                 ) {
                     MarkdownBody(
@@ -119,18 +92,12 @@ fun TimelineItemTextView(
                     LocalTextStyle provides textStyle
                 ) {
                     val text = getTextWithResolvedMentions(content)
-                    val measureTextLayout = LocalTimelineTextLayoutMeasurementEnabled.current
                     Box(Modifier.semantics { contentDescription = content.plainText }) {
                         EditorStyledText(
                             text = text,
                             onLinkClickedListener = onLinkClick,
                             onLinkLongClickedListener = onLinkLongClick,
                             style = ElementRichTextEditorStyle.textStyle(),
-                            onTextLayout = if (measureTextLayout) {
-                                ContentAvoidingLayout.measureLegacyLastTextLine(onContentLayoutChange = onContentLayoutChange)
-                            } else {
-                                {}
-                            },
                             releaseOnDetach = false,
                         )
                     }

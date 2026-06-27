@@ -13,9 +13,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import io.element.android.features.connectors.impl.R
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotConnectedAccount
@@ -50,12 +52,13 @@ class ConnectorManagePresenter(
         var disconnectingId by remember { mutableStateOf<String?>(null) }
         var confirmingDisconnectId by remember { mutableStateOf<String?>(null) }
         var error by remember { mutableStateOf<String?>(null) }
+        val loadAccountsError = stringResource(R.string.connectors_error_load_accounts)
+        val disconnectError = stringResource(R.string.connectors_error_disconnect)
+        val connectError = stringResource(R.string.connectors_error_connect)
 
         suspend fun api() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
 
-        fun errorMessage(throwable: Throwable, fallback: String): String {
-            return throwable.message ?: throwable::class.simpleName ?: fallback
-        }
+        fun errorMessage(fallback: String): String = fallback
 
         fun loadAccounts() = coroutineScope.launch {
             isLoading = true
@@ -65,7 +68,7 @@ class ConnectorManagePresenter(
                     error = null
                 }
                 .onFailure {
-                    error = errorMessage(it, "Failed to load connected accounts")
+                    error = errorMessage(loadAccountsError)
                 }
             isLoading = false
         }
@@ -79,7 +82,7 @@ class ConnectorManagePresenter(
                     error = null
                 }
                 .onFailure {
-                    error = errorMessage(it, "Failed to disconnect account")
+                    error = errorMessage(disconnectError)
                 }
             disconnectingId = null
         }
@@ -93,7 +96,7 @@ class ConnectorManagePresenter(
                     error = null
                 }
                 .onFailure {
-                    error = errorMessage(it, "Failed to connect")
+                    error = errorMessage(connectError)
                 }
             connecting = false
         }

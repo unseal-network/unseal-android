@@ -104,7 +104,7 @@ sealed interface TimelineItem {
         /** If [forwarder] is set, the profile of the forwarding user, if it was cached at the time the `EventTimelineItem` was created. */
         val forwarderProfile: ProfileDetails?,
     ) : TimelineItem {
-        val showSenderInformation = groupPosition.isNew() && !isMine
+        val showSenderInformation = groupPosition.isNew()
 
         val safeSenderName: String = senderProfile.getDisambiguatedDisplayName(senderId)
 

@@ -24,13 +24,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryDisplayStage
-import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContentProvider
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRoomKeyRecovery
@@ -52,7 +50,6 @@ import kotlin.time.Duration
 @Composable
 fun TimelineItemEncryptedView(
     content: TimelineItemEncryptedContent,
-    onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit,
     onVerifyDeviceClick: () -> Unit = {},
     onRetryClick: (RoomKeyRecoveryRequest) -> Unit = {},
     modifier: Modifier = Modifier
@@ -63,7 +60,6 @@ fun TimelineItemEncryptedView(
             recovery = recovery,
             onVerifyDeviceClick = onVerifyDeviceClick,
             onRetryClick = onRetryClick,
-            onContentLayoutChange = onContentLayoutChange,
             modifier = modifier,
         )
         return
@@ -71,7 +67,6 @@ fun TimelineItemEncryptedView(
 
     TimelineItemEncryptedFallbackView(
         content = content,
-        onContentLayoutChange = onContentLayoutChange,
         modifier = modifier,
     )
 }
@@ -79,7 +74,6 @@ fun TimelineItemEncryptedView(
 @Composable
 private fun TimelineItemEncryptedFallbackView(
     content: TimelineItemEncryptedContent,
-    onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val (textId, iconId) = when (content.data) {
@@ -121,7 +115,6 @@ private fun TimelineItemEncryptedFallbackView(
         text = stringResource(id = textId),
         iconDescription = stringResource(id = CommonStrings.dialog_title_warning),
         iconResourceId = iconId,
-        onContentLayoutChange = onContentLayoutChange,
         modifier = modifier
     )
 }
@@ -131,21 +124,11 @@ private fun TimelineItemRoomKeyRecoveryView(
     recovery: TimelineItemRoomKeyRecovery,
     onVerifyDeviceClick: () -> Unit,
     onRetryClick: (RoomKeyRecoveryRequest) -> Unit,
-    onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val display = recovery.display()
     Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .onSizeChanged { size ->
-                onContentLayoutChange(
-                    ContentAvoidingLayoutData(
-                        contentWidth = size.width,
-                        contentHeight = size.height,
-                    )
-                )
-            },
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         color = ElementTheme.colors.bgSubtleSecondary.copy(alpha = 0.72f),
         border = BorderStroke(1.dp, ElementTheme.colors.borderDisabled.copy(alpha = 0.42f)),
@@ -364,6 +347,5 @@ internal fun TimelineItemEncryptedViewPreview(
 ) = ElementPreview {
     TimelineItemEncryptedView(
         content = content,
-        onContentLayoutChange = {},
     )
 }

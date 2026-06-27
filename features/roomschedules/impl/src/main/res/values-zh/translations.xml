@@ -25,4 +25,10 @@
   <string name="schedule_edit_no_agents">"暂无可用 Agent"</string>
   <string name="schedule_edit_hour">"小时"</string>
   <string name="schedule_edit_minute">"分钟"</string>
+  <string name="schedule_edit_error_load">"加载定时任务失败"</string>
+  <string name="schedule_edit_error_save">"保存定时任务失败"</string>
+  <string name="schedule_edit_error_empty_name">"定时任务名称不能为空"</string>
+  <string name="schedule_edit_error_empty_action">"动作不能为空"</string>
+  <string name="schedule_edit_error_empty_agent">"Agent 不能为空"</string>
+  <string name="schedule_edit_error_agent_not_in_room">"Agent 不在房间内"</string>
 </resources>

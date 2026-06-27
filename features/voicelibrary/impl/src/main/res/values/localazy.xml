@@ -42,4 +42,15 @@
   <string name="voice_library_error_share">"Failed to create share link"</string>
   <string name="voice_library_error_import">"Failed to import shared voice"</string>
   <string name="voice_library_error_upload">"Failed to upload recording"</string>
+  <string name="voice_library_default_recorded_voice">"Recorded voice"</string>
+  <string name="voice_library_deleted_voice">"Deleted voice."</string>
+  <string name="voice_library_deleted_voice_with_bindings">"Deleted voice and cleared %1$d agent voice binding(s)."</string>
+  <string name="voice_library_error_recording_empty">"Recording was empty. Please try again."</string>
+  <string name="voice_library_error_recording_preview_unavailable">"Recording preview is not available. Please record again."</string>
+  <string name="voice_library_error_enter_name">"Enter a name to enable upload"</string>
+  <string name="voice_library_error_no_preview_audio">"No preview audio is available for this voice."</string>
+  <string name="voice_library_error_preview_load">"Could not load the preview audio."</string>
+  <string name="voice_library_error_microphone_start">"Unable to start microphone recording."</string>
+  <string name="voice_library_error_microphone_stop">"Unable to stop microphone recording."</string>
+  <string name="voice_library_error_microphone_permission">"Microphone permission is required to record a voice."</string>
 </resources>

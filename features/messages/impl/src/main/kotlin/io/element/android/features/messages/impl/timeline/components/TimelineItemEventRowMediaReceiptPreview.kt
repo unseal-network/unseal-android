@@ -21,17 +21,16 @@ import io.element.android.libraries.matrix.api.core.EventId
 import kotlinx.collections.immutable.toImmutableList
 
 /**
- * Verification preview for "receipts inline with the timestamp" on self media messages:
- * an uncaptioned image (overlay timestamp) and a captioned image (aligned timestamp), both
- * with read receipts. The receipt avatars should sit next to the timestamp, not on a separate
- * row below the bubble.
+ * Verification preview for the shared metadata row on self media messages:
+ * an uncaptioned image and a captioned image, both with read receipts. Receipt avatars should
+ * sit next to the timestamp in the row metadata, not inside the media card.
  */
 @PreviewsDayNight
 @Composable
 internal fun TimelineItemEventRowMediaReceiptPreview() = ElementPreview {
     val receipts = TimelineItemReadReceipts(List(3) { aReadReceiptData(it) }.toImmutableList())
     Column {
-        // Uncaptioned image from me -> overlay timestamp + inline receipt.
+        // Uncaptioned image from me -> shared metadata row with inline receipt.
         ATimelineItemEventRow(
             event = aTimelineItemEvent(
                 isMine = true,
@@ -43,7 +42,7 @@ internal fun TimelineItemEventRowMediaReceiptPreview() = ElementPreview {
             renderReadReceipts = true,
             isLastOutgoingMessage = true,
         )
-        // Captioned image from me -> aligned timestamp + inline receipt.
+        // Captioned image from me -> shared metadata row with inline receipt.
         ATimelineItemEventRow(
             event = aTimelineItemEvent(
                 isMine = true,

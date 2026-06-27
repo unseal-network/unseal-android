@@ -251,14 +251,14 @@ internal fun HtmlTableBodyPreview() = ElementPreview {
                         listOf(
                             HtmlTableCell("15:21:26", isHeader = false),
                             HtmlTableCell("@rayson:topsecret.network", isHeader = false),
-                            HtmlTableCell("我们再瞧一下，因为我们现在的逻辑是这样的。", isHeader = false),
+                            HtmlTableCell("Let's check again because the current logic works like this.", isHeader = false),
                         )
                     ),
                     HtmlTableRow(
                         listOf(
                             HtmlTableCell("15:21:27", isHeader = false),
                             HtmlTableCell("@rayson:topsecret.network", isHeader = false),
-                            HtmlTableCell("嗯。", isHeader = false),
+                            HtmlTableCell("Got it.", isHeader = false),
                         )
                     ),
                 )

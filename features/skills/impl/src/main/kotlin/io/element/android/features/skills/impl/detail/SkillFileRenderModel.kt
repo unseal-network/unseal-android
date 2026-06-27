@@ -35,15 +35,16 @@ internal fun buildSkillFileRenderModels(
     skillId: String,
     presignedUrls: List<String>,
     preuploadUrls: List<String> = emptyList(),
+    fallbackForIndex: (Int) -> String = { index -> (index + 1).toString() },
 ): List<SkillFileRenderModel> {
     val rawPaths = presignedUrls.mapIndexed { index, url ->
-        filePathFromUrl(url) ?: fileNameFromUrl(url, fallback = "File ${index + 1}")
+        filePathFromUrl(url) ?: fileNameFromUrl(url, fallback = fallbackForIndex(index))
     }
     val scopedPaths = rawPaths.map { it.scopeToSkillDirectory(skillId) }
     val trimmedPaths = scopedPaths.trimCommonDirectoryPrefix()
     return presignedUrls.mapIndexed { index, url ->
         val displayPath = trimmedPaths.getOrNull(index)
-            ?: fileNameFromUrl(url, fallback = "File ${index + 1}")
+            ?: fileNameFromUrl(url, fallback = fallbackForIndex(index))
         SkillFileRenderModel(
             id = index,
             displayPath = displayPath,

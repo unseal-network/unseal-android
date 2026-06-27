@@ -7,6 +7,7 @@
 
 package io.element.android.libraries.gameapi.impl
 
+import android.content.Context
 import io.element.android.libraries.gameapi.api.AppBundleInfo
 import io.element.android.libraries.gameapi.api.CreateGameRoomResult
 import io.element.android.libraries.gameapi.api.GameApiService
@@ -41,6 +42,7 @@ class DefaultGameApiService(
     private val homeserverUrl: String,
     private val matrixClient: MatrixClient,
     private val okHttpClient: OkHttpClient,
+    private val context: Context,
 ) : GameApiService {
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -246,7 +248,7 @@ class DefaultGameApiService(
         val content = buildJsonObject {
             put("msgtype", "m.game.v1")
             put("type", "tool-output-available")
-            put("body", "邀请大家开始一局 ${gameInfo.name} 游戏")
+            put("body", gameInviteBody(gameInfo.name))
             put("m.game.info", gameInfoJson)
             put("m.game.roomid", gameRoomId)
             put("m.game.creator", creatorUserId)
@@ -262,6 +264,10 @@ class DefaultGameApiService(
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private fun gameInviteBody(gameName: String): String {
+        return context.getString(R.string.game_invite_body, gameName)
+    }
 
     private suspend fun executeRequest(request: Request): String = withContext(Dispatchers.IO) {
         val response = okHttpClient.newCall(request).execute()

@@ -168,6 +168,8 @@ import kotlinx.collections.immutable.persistentListOf
 import timber.log.Timber
 import kotlin.time.Duration.Companion.milliseconds
 
+private val DefaultTimelineTopChromeInset = 132.dp
+
 @Composable
 fun MessagesView(
     state: MessagesState,
@@ -203,7 +205,7 @@ fun MessagesView(
 
     val density = LocalDensity.current
     var composerHeightDp by remember { mutableStateOf(80.dp) }
-    var topBarHeightDp by remember { mutableStateOf(0.dp) }
+    var topBarHeightDp by remember { mutableStateOf(DefaultTimelineTopChromeInset) }
 
     // This is needed because the composer is inside an AndroidView that can't be affected by the FocusManager in Compose
     val localView = LocalView.current
@@ -589,6 +591,18 @@ private fun RoomCallButton(
     when (roomCallState) {
         RoomCallState.Unavailable -> Unit
         is RoomCallState.StandBy -> {
+            if (roomCallState.isDM) {
+                ToolbarCircleButton(
+                    onClick = { onJoinCallClick(true) },
+                    enabled = roomCallState.canStartCall,
+                ) {
+                    Icon(
+                        modifier = Modifier.size(22.dp),
+                        imageVector = CompoundIcons.VoiceCallSolid(),
+                        contentDescription = stringResource(CommonStrings.a11y_start_voice_call),
+                    )
+                }
+            }
             ToolbarCircleButton(
                 onClick = { onJoinCallClick(false) },
                 enabled = roomCallState.canStartCall,

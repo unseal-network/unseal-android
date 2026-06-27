@@ -11,7 +11,6 @@ package io.element.android.features.messages.impl.timeline
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.Box
@@ -148,93 +147,88 @@ fun TimelineView(
         state.eventSink(TimelineEvent.LoadMore(Timeline.PaginationDirection.BACKWARDS))
     }
 
-    // Animate alpha when timeline is first displayed, to avoid flashes or glitching when viewing rooms
-    AnimatedVisibility(visible = true, enter = fadeIn()) {
-        Box(modifier) {
-            val renderReadReceipts = state.renderReadReceipts
-            LazyColumn(
-                // Two-layer floating chrome. The top bar stays visually floating, but the list
-                // viewport itself starts below it so dates/messages never render under the controls.
-                // The composer is an AndroidView (EditText); letting timeline message TextViews scroll
-                // behind it forces expensive AndroidView-over-AndroidView view-hierarchy invalidation
-                // every frame (measured p99 36ms -> 200ms). So we clip the list just above the composer
-                // with an outer bottom padding — the composer still floats, content rests right at its edge.
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = topChromeInset, bottom = composerBottomInset)
-                    .nestedScroll(nestedScrollConnection)
-                    .testTag(TestTags.timeline),
-                state = lazyListState,
-                reverseLayout = useReverseLayout,
-                contentPadding = PaddingValues(
-                    top = 8.dp,
-                    // At rest this is the breathing room between the last message and the composer
-                    // input field — the outer composerBottomInset already clips the list to the
-                    // composer's top edge, so this padding is exactly the visible bottom gap.
-                    bottom = bottomContentPadding,
-                ),
-            ) {
-                items(
-                    items = state.timelineItems,
-                    contentType = { timelineItem -> timelineItem.contentType() },
-                    key = { timelineItem -> timelineItem.identifier() },
-                ) { timelineItem ->
-                    TimelineItemRow(
-                        timelineItem = timelineItem,
-                        timelineMode = state.timelineMode,
-                        timelineRoomInfo = state.timelineRoomInfo,
-                        timelineProtectionState = timelineProtectionState,
-                        renderReadReceipts = renderReadReceipts,
-                        isLastOutgoingMessage = state.isLastOutgoingMessage(timelineItem.identifier()),
-                        focusedEventId = state.focusedEventId,
-                        displayThreadSummaries = state.displayThreadSummaries,
-                        onUserDataClick = onUserDataClick,
-                        onLinkClick = onLinkClick,
-                        onLinkLongClick = ::onLinkLongClick,
-                        onContentClick = onContentClick,
-                        onLongClick = onMessageLongClick,
-                        inReplyToClick = ::inReplyToClick,
-                        onReactionClick = onReactionClick,
-                        onReactionLongClick = onReactionLongClick,
-                        onMoreReactionsClick = onMoreReactionsClick,
-                        onReadReceiptClick = onReadReceiptClick,
-                        onSwipeToReply = onSwipeToReply,
-                        eventSink = state.eventSink,
-                    )
-                }
-            }
-
-            FocusRequestStateView(
-                focusRequestState = state.focusRequestState,
-                onClearFocusRequestState = ::clearFocusRequestState
-            )
-
-            TimelinePrefetchingHelper(
-                lazyListState = lazyListState,
-                prefetch = ::prefetchMoreItems
-            )
-
-            TimelineScrollHelper(
-                hasAnyEvent = state.hasAnyEvent,
-                lazyListState = lazyListState,
-                forceJumpToBottomVisibility = forceJumpToBottomVisibility,
-                newEventState = state.newEventState,
-                isLive = state.isLive,
-                focusRequestState = state.focusRequestState,
-                composerBottomInset = composerBottomInset,
-                onScrollFinishAt = ::onScrollFinishAt,
-                onJumpToLive = ::onJumpToLive,
-                onFocusEventRender = ::onFocusEventRender,
-            )
-
-            if (useReverseLayout) {
-                FloatingDateBadgeOverlay(
-                    lazyListState = lazyListState,
-                    timelineItems = state.timelineItems,
-                    isLive = state.isLive,
-                    topOffset = topChromeInset + floatingDateTopOffset,
+    Box(modifier) {
+        val renderReadReceipts = state.renderReadReceipts
+        LazyColumn(
+            // The top chrome is a real floating layer: timeline content is allowed to scroll behind it.
+            // Only overlay UI such as the floating date badge consumes topChromeInset. The composer is
+            // an AndroidView (EditText); letting timeline message TextViews scroll behind it forces
+            // expensive AndroidView-over-AndroidView invalidation, so we still clip above the composer.
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = composerBottomInset)
+                .nestedScroll(nestedScrollConnection)
+                .testTag(TestTags.timeline),
+            state = lazyListState,
+            reverseLayout = useReverseLayout,
+            contentPadding = PaddingValues(
+                top = 8.dp,
+                // At rest this is the breathing room between the last message and the composer
+                // input field — the outer composerBottomInset already clips the list to the
+                // composer's top edge, so this padding is exactly the visible bottom gap.
+                bottom = bottomContentPadding,
+            ),
+        ) {
+            items(
+                items = state.timelineItems,
+                contentType = { timelineItem -> timelineItem.contentType() },
+                key = { timelineItem -> timelineItem.identifier() },
+            ) { timelineItem ->
+                TimelineItemRow(
+                    timelineItem = timelineItem,
+                    timelineMode = state.timelineMode,
+                    timelineRoomInfo = state.timelineRoomInfo,
+                    timelineProtectionState = timelineProtectionState,
+                    renderReadReceipts = renderReadReceipts,
+                    isLastOutgoingMessage = state.isLastOutgoingMessage(timelineItem.identifier()),
+                    focusedEventId = state.focusedEventId,
+                    displayThreadSummaries = state.displayThreadSummaries,
+                    onUserDataClick = onUserDataClick,
+                    onLinkClick = onLinkClick,
+                    onLinkLongClick = ::onLinkLongClick,
+                    onContentClick = onContentClick,
+                    onLongClick = onMessageLongClick,
+                    inReplyToClick = ::inReplyToClick,
+                    onReactionClick = onReactionClick,
+                    onReactionLongClick = onReactionLongClick,
+                    onMoreReactionsClick = onMoreReactionsClick,
+                    onReadReceiptClick = onReadReceiptClick,
+                    onSwipeToReply = onSwipeToReply,
+                    eventSink = state.eventSink,
                 )
             }
+        }
+
+        FocusRequestStateView(
+            focusRequestState = state.focusRequestState,
+            onClearFocusRequestState = ::clearFocusRequestState
+        )
+
+        TimelinePrefetchingHelper(
+            lazyListState = lazyListState,
+            prefetch = ::prefetchMoreItems
+        )
+
+        TimelineScrollHelper(
+            hasAnyEvent = state.hasAnyEvent,
+            lazyListState = lazyListState,
+            forceJumpToBottomVisibility = forceJumpToBottomVisibility,
+            newEventState = state.newEventState,
+            isLive = state.isLive,
+            focusRequestState = state.focusRequestState,
+            composerBottomInset = composerBottomInset,
+            onScrollFinishAt = ::onScrollFinishAt,
+            onJumpToLive = ::onJumpToLive,
+            onFocusEventRender = ::onFocusEventRender,
+        )
+
+        if (useReverseLayout) {
+            FloatingDateBadgeOverlay(
+                lazyListState = lazyListState,
+                timelineItems = state.timelineItems,
+                isLive = state.isLive,
+                topOffset = topChromeInset + floatingDateTopOffset,
+            )
         }
     }
 
@@ -268,31 +262,57 @@ private fun TimelinePrefetchingHelper(
             }
     }
 
-    // Preload older history *while* the user is still scrolling up, well before they reach the top.
-    // This loads the next page ahead of the viewport so its (heavy) items compose gradually as they
-    // scroll into view, instead of arriving as a single batch when the fling settles at the top —
-    // which is what produced the load-more jank spike. The derivedStateOf only emits when the
-    // near-top boolean flips, so the actual paginate call fires once per approach, not per frame.
-    val isNearOldestLoaded by remember {
-        derivedStateOf {
+    var initialViewport by remember { mutableStateOf<PrefetchViewportSnapshot?>(null) }
+    var lastPrefetchedItemCount by remember { mutableStateOf<Int?>(null) }
+
+    // Preload older history after the user moves toward the oldest loaded item. The initial viewport
+    // is deliberately ignored: short rooms often start with every item visible, and eager pagination
+    // there competes with room-entry rendering. Once the viewport changes, short and long timelines
+    // can still prefetch normally when they approach the oldest loaded item.
+    LaunchedEffect(lazyListState) {
+        snapshotFlow {
             val layoutInfo = lazyListState.layoutInfo
-            val totalItemCount = layoutInfo.totalItemsCount
-            if (totalItemCount == 0) {
-                false
-            } else {
-                val lastVisibleIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-                lastVisibleIndex >= totalItemCount - PREFETCH_AHEAD_ITEMS
-            }
+            PrefetchViewportSnapshot(
+                totalItemCount = layoutInfo.totalItemsCount,
+                firstVisibleItemIndex = lazyListState.firstVisibleItemIndex,
+                firstVisibleItemScrollOffset = lazyListState.firstVisibleItemScrollOffset,
+                lastVisibleItemIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0,
+            )
         }
-    }
-    LaunchedEffect(Unit) {
-        snapshotFlow { isNearOldestLoaded }
             .distinctUntilChanged()
-            .filter { it }
-            .collectLatest {
-                latestPrefetch()
+            .filter { it.totalItemCount > 0 }
+            .collectLatest { viewport ->
+                val initial = initialViewport
+                if (initial == null || viewport.totalItemCount < initial.totalItemCount) {
+                    initialViewport = viewport
+                    lastPrefetchedItemCount = null
+                    return@collectLatest
+                }
+                if (
+                    viewport.isNearOldestLoaded &&
+                    viewport.hasMovedFrom(initial) &&
+                    lastPrefetchedItemCount != viewport.totalItemCount
+                ) {
+                    lastPrefetchedItemCount = viewport.totalItemCount
+                    latestPrefetch()
+                }
             }
     }
+}
+
+private data class PrefetchViewportSnapshot(
+    val totalItemCount: Int,
+    val firstVisibleItemIndex: Int,
+    val firstVisibleItemScrollOffset: Int,
+    val lastVisibleItemIndex: Int,
+) {
+    val isNearOldestLoaded: Boolean
+        get() = lastVisibleItemIndex >= totalItemCount - PREFETCH_AHEAD_ITEMS
+
+    fun hasMovedFrom(other: PrefetchViewportSnapshot): Boolean =
+        firstVisibleItemIndex != other.firstVisibleItemIndex ||
+            firstVisibleItemScrollOffset != other.firstVisibleItemScrollOffset ||
+            lastVisibleItemIndex != other.lastVisibleItemIndex
 }
 
 /**

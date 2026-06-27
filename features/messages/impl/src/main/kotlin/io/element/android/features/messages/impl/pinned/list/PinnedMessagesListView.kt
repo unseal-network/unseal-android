@@ -31,9 +31,9 @@ import io.element.android.features.messages.impl.actionlist.model.TimelineItemAc
 import io.element.android.features.messages.impl.link.LinkEvent
 import io.element.android.features.messages.impl.link.LinkView
 import io.element.android.features.messages.impl.timeline.TimelineEvent
+import io.element.android.features.messages.impl.timeline.TimelineRoomInfo
 import io.element.android.features.messages.impl.timeline.components.TimelineItemRow
 import io.element.android.features.messages.impl.timeline.components.event.TimelineItemEventContentView
-import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemPollContent
 import io.element.android.features.messages.impl.timeline.protection.TimelineProtectionEvent
@@ -241,10 +241,11 @@ private fun PinnedMessagesListLoaded(
                         else -> Unit
                     }
                 },
-                eventContentView = { event, contentModifier, onContentLayoutChange ->
+                eventContentView = { event, contentModifier ->
                     TimelineItemEventContentViewWrapper(
                         event = event,
                         timelineProtectionState = state.timelineProtectionState,
+                        timelineRoomInfo = state.timelineRoomInfo,
                         onContentClick = { onEventClick(event) },
                         onLongClick = { onMessageLongClick(event) },
                         onLinkClick = { link ->
@@ -252,7 +253,6 @@ private fun PinnedMessagesListLoaded(
                         },
                         onLinkLongClick = onLinkLongClick,
                         modifier = contentModifier,
-                        onContentLayoutChange = onContentLayoutChange
                     )
                 },
             )
@@ -268,11 +268,11 @@ private fun PinnedMessagesListLoaded(
 private fun TimelineItemEventContentViewWrapper(
     event: TimelineItem.Event,
     timelineProtectionState: TimelineProtectionState,
+    timelineRoomInfo: TimelineRoomInfo,
     onContentClick: () -> Unit,
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
     onLongClick: (() -> Unit)?,
-    onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (event.content is TimelineItemPollContent) {
@@ -284,6 +284,7 @@ private fun TimelineItemEventContentViewWrapper(
     } else {
         TimelineItemEventContentView(
             content = event.content,
+            timelineRoomInfo = timelineRoomInfo,
             hideMediaContent = timelineProtectionState.hideMediaContent(event.eventId, event.isMine),
             onShowContentClick = { timelineProtectionState.eventSink(TimelineProtectionEvent.ShowContent(event.eventId)) },
             onLinkClick = onLinkClick,
@@ -292,7 +293,6 @@ private fun TimelineItemEventContentViewWrapper(
             modifier = modifier,
             onContentClick = onContentClick,
             onLongClick = onLongClick,
-            onContentLayoutChange = onContentLayoutChange
         )
     }
 }

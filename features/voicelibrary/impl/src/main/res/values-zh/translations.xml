@@ -42,4 +42,15 @@
   <string name="voice_library_error_share">"创建分享链接失败"</string>
   <string name="voice_library_error_import">"导入分享语音失败"</string>
   <string name="voice_library_error_upload">"上传录音失败"</string>
+  <string name="voice_library_default_recorded_voice">"录制语音"</string>
+  <string name="voice_library_deleted_voice">"已删除语音。"</string>
+  <string name="voice_library_deleted_voice_with_bindings">"已删除语音，并清除了 %1$d 个 Agent 语音绑定。"</string>
+  <string name="voice_library_error_recording_empty">"录音为空，请重试。"</string>
+  <string name="voice_library_error_recording_preview_unavailable">"录音试听不可用，请重新录制。"</string>
+  <string name="voice_library_error_enter_name">"请输入名称后再上传"</string>
+  <string name="voice_library_error_no_preview_audio">"此语音没有可用的试听音频。"</string>
+  <string name="voice_library_error_preview_load">"无法加载试听音频。"</string>
+  <string name="voice_library_error_microphone_start">"无法启动麦克风录音。"</string>
+  <string name="voice_library_error_microphone_stop">"无法停止麦克风录音。"</string>
+  <string name="voice_library_error_microphone_permission">"需要麦克风权限才能录制语音。"</string>
 </resources>

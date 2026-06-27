@@ -113,6 +113,8 @@ fun VoiceLibraryView(
     val previewFileCache = remember(context) {
         VoicePreviewFileCache(File(context.cacheDir, "VoiceLibraryPreviews"))
     }
+    val noPreviewAudioError = stringResource(R.string.voice_library_error_no_preview_audio)
+    val previewLoadError = stringResource(R.string.voice_library_error_preview_load)
     val recordingController = remember(context) {
         VoiceLibraryRecordingController(context.applicationContext)
     }
@@ -127,6 +129,8 @@ fun VoiceLibraryView(
             previewController.play(
                 item = target,
                 fileCache = previewFileCache,
+                noPreviewMessage = noPreviewAudioError,
+                loadPreviewMessage = previewLoadError,
                 onPlaying = { state.eventSink(VoiceLibraryEvents.PreviewPlaying(it)) },
                 onStopped = { state.eventSink(VoiceLibraryEvents.PreviewStopped) },
                 onFailed = { itemId, reason -> state.eventSink(VoiceLibraryEvents.PreviewFailed(itemId, reason)) },
@@ -363,6 +367,10 @@ private fun CreateVoiceDialog(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val microphoneStartError = stringResource(R.string.voice_library_error_microphone_start)
+    val microphoneStopError = stringResource(R.string.voice_library_error_microphone_stop)
+    val microphonePermissionError = stringResource(R.string.voice_library_error_microphone_permission)
+    val recordingPreviewUnavailableError = stringResource(R.string.voice_library_error_recording_preview_unavailable)
 
     fun failRecording(reason: String) {
         recordingController.cancel()
@@ -376,7 +384,7 @@ private fun CreateVoiceDialog(
         }.onSuccess {
             state.eventSink(VoiceLibraryEvents.RecordingStarted)
         }.onFailure {
-            failRecording(it.message ?: "Unable to start microphone recording.")
+            failRecording(microphoneStartError)
         }
     }
 
@@ -386,7 +394,7 @@ private fun CreateVoiceDialog(
         if (granted) {
             startRecording()
         } else {
-            failRecording("Microphone permission is required to record a voice.")
+            failRecording(microphonePermissionError)
         }
     }
 
@@ -406,7 +414,7 @@ private fun CreateVoiceDialog(
             }.onSuccess { sample ->
                 state.eventSink(VoiceLibraryEvents.RecordingReady(sample))
             }.onFailure {
-                failRecording(it.message ?: "Unable to stop microphone recording.")
+                failRecording(microphoneStopError)
             }
         }
     }
@@ -423,6 +431,7 @@ private fun CreateVoiceDialog(
         } else {
             previewController.playLocalFile(
                 filePath = sample?.localFilePath.orEmpty(),
+                previewUnavailableMessage = recordingPreviewUnavailableError,
                 onPlaying = { state.eventSink(VoiceLibraryEvents.RecordingPreviewPlaying) },
                 onStopped = { state.eventSink(VoiceLibraryEvents.RecordingPreviewStopped) },
                 onFailed = { state.eventSink(VoiceLibraryEvents.RecordingPreviewFailed(it)) },

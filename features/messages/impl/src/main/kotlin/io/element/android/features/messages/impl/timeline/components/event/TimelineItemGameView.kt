@@ -183,7 +183,7 @@ internal fun TimelineItemGameViewPreview() = ElementPreview {
             gameId = 1,
             remoteUrl = null,
             creatorUserId = "@alice:matrix.example.com",
-            fallbackBody = "邀请大家开始一局 Chess 游戏",
+            fallbackBody = "Invite everyone to start a Chess game",
         ),
         eventSink = {},
     )
@@ -202,7 +202,7 @@ internal fun TimelineItemGameViewNoBriefPreview() = ElementPreview {
             gameId = 2,
             remoteUrl = null,
             creatorUserId = "@bob:matrix.example.com",
-            fallbackBody = "邀请大家开始一局 Poker 游戏",
+            fallbackBody = "Invite everyone to start a Poker game",
         ),
         eventSink = {},
     )

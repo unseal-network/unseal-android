@@ -25,4 +25,10 @@
   <string name="schedule_edit_no_agents">"No agents available"</string>
   <string name="schedule_edit_hour">"Hour"</string>
   <string name="schedule_edit_minute">"Minute"</string>
+  <string name="schedule_edit_error_load">"Failed to load schedules"</string>
+  <string name="schedule_edit_error_save">"Failed to save schedule"</string>
+  <string name="schedule_edit_error_empty_name">"Schedule name cannot be empty"</string>
+  <string name="schedule_edit_error_empty_action">"Action cannot be empty"</string>
+  <string name="schedule_edit_error_empty_agent">"Agent cannot be empty"</string>
+  <string name="schedule_edit_error_agent_not_in_room">"Agent not in room"</string>
 </resources>

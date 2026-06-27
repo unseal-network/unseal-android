@@ -33,18 +33,20 @@ internal class VoicePreviewController {
     suspend fun play(
         item: VoiceLibraryPreviewItem,
         fileCache: VoicePreviewFileCache,
+        noPreviewMessage: String,
+        loadPreviewMessage: String,
         onPlaying: (String) -> Unit,
         onStopped: () -> Unit,
         onFailed: (String, String) -> Unit,
     ) {
         if (!item.hasPreview) {
-            onFailed(item.id, "No preview audio is available for this voice.")
+            onFailed(item.id, noPreviewMessage)
             return
         }
         val localFile = runCatching { fileCache.get(item) }
             .onFailure {
                 stop()
-                onFailed(item.id, "Could not load the preview audio.")
+                onFailed(item.id, loadPreviewMessage)
             }
             .getOrNull() ?: return
         release()
@@ -65,7 +67,7 @@ internal class VoicePreviewController {
             }
             setOnErrorListener { _, _, _ ->
                 stop()
-                onFailed(item.id, "Could not load the preview audio.")
+                onFailed(item.id, loadPreviewMessage)
                 true
             }
             runCatching {
@@ -73,13 +75,14 @@ internal class VoicePreviewController {
                 prepareAsync()
             }.onFailure {
                 stop()
-                onFailed(item.id, "Could not load the preview audio.")
+                onFailed(item.id, loadPreviewMessage)
             }
         }
     }
 
     fun playLocalFile(
         filePath: String,
+        previewUnavailableMessage: String,
         onPlaying: () -> Unit,
         onStopped: () -> Unit,
         onFailed: (String) -> Unit,
@@ -87,7 +90,7 @@ internal class VoicePreviewController {
     ) {
         val localFile = File(filePath)
         if (!localFile.exists() || localFile.length() == 0L) {
-            onFailed("Recording preview is not available. Please record again.")
+            onFailed(previewUnavailableMessage)
             return
         }
         release()
@@ -109,7 +112,7 @@ internal class VoicePreviewController {
             }
             setOnErrorListener { _, _, _ ->
                 stop()
-                onFailed("Recording preview is not available. Please record again.")
+                onFailed(previewUnavailableMessage)
                 true
             }
             runCatching {
@@ -117,7 +120,7 @@ internal class VoicePreviewController {
                 prepareAsync()
             }.onFailure {
                 stop()
-                onFailed("Recording preview is not available. Please record again.")
+                onFailed(previewUnavailableMessage)
             }
         }
     }

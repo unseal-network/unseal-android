@@ -22,7 +22,6 @@ import io.element.android.features.messages.impl.timeline.aGroupedEvents
 import io.element.android.features.messages.impl.timeline.aTimelineRoomInfo
 import io.element.android.features.messages.impl.timeline.components.event.TimelineItemEventContentView
 import io.element.android.features.messages.impl.timeline.components.group.GroupHeaderView
-import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.timeline.protection.TimelineProtectionEvent
 import io.element.android.features.messages.impl.timeline.protection.TimelineProtectionState
@@ -57,10 +56,11 @@ fun TimelineItemGroupedEventsRow(
     onReadReceiptClick: (TimelineItem.Event) -> Unit,
     eventSink: (TimelineEvent.TimelineItemEvent) -> Unit,
     modifier: Modifier = Modifier,
-    eventContentView: @Composable (TimelineItem.Event, Modifier, (ContentAvoidingLayoutData) -> Unit) -> Unit =
-        { event, contentModifier, onContentLayoutChange ->
+    eventContentView: @Composable (TimelineItem.Event, Modifier) -> Unit =
+        { event, contentModifier ->
             TimelineItemEventContentView(
                 content = event.content,
+                timelineRoomInfo = timelineRoomInfo,
                 hideMediaContent = timelineProtectionState.hideMediaContent(event.eventId, event.isMine),
                 onShowContentClick = { timelineProtectionState.eventSink(TimelineProtectionEvent.ShowContent(event.eventId)) },
                 onLinkClick = onLinkClick,
@@ -69,7 +69,6 @@ fun TimelineItemGroupedEventsRow(
                 modifier = contentModifier,
                 onContentClick = null,
                 onLongClick = null,
-                onContentLayoutChange = onContentLayoutChange
             )
         },
 ) {
@@ -130,10 +129,11 @@ private fun TimelineItemGroupedEventsRowContent(
     onReadReceiptClick: (TimelineItem.Event) -> Unit,
     eventSink: (TimelineEvent.TimelineItemEvent) -> Unit,
     modifier: Modifier = Modifier,
-    eventContentView: @Composable (TimelineItem.Event, Modifier, (ContentAvoidingLayoutData) -> Unit) -> Unit =
-        { event, contentModifier, onContentLayoutChange ->
+    eventContentView: @Composable (TimelineItem.Event, Modifier) -> Unit =
+        { event, contentModifier ->
             TimelineItemEventContentView(
                 content = event.content,
+                timelineRoomInfo = timelineRoomInfo,
                 hideMediaContent = timelineProtectionState.hideMediaContent(event.eventId, event.isMine),
                 onShowContentClick = { timelineProtectionState.eventSink(TimelineProtectionEvent.ShowContent(event.eventId)) },
                 onLinkClick = onLinkClick,
@@ -142,7 +142,6 @@ private fun TimelineItemGroupedEventsRowContent(
                 modifier = contentModifier,
                 onContentClick = null,
                 onLongClick = null,
-                onContentLayoutChange = onContentLayoutChange
             )
         },
 ) {
