@@ -44,9 +44,9 @@ class CreditFormattersTest {
     }
 
     @Test
-    fun `credits periods use iOS lowercase raw values`() {
-        assertThat(CreditsPeriod.SevenDays.apiValue).isEqualTo("sevendays")
-        assertThat(CreditsPeriod.ThirtyDays.apiValue).isEqualTo("thirtydays")
+    fun `credits periods use analytics api values`() {
+        assertThat(CreditsPeriod.SevenDays.apiValue).isEqualTo("7d")
+        assertThat(CreditsPeriod.ThirtyDays.apiValue).isEqualTo("30d")
         assertThat(CreditsPeriod.All.apiValue).isEqualTo("all")
     }
 

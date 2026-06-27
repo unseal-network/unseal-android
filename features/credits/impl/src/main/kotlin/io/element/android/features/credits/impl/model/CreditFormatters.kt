@@ -20,9 +20,8 @@ enum class DailyUsageRange(val days: Long) {
 }
 
 enum class CreditsPeriod(val apiValue: String) {
-    // Mirrors iOS AnalyticsPeriod.rawValue.lowercased().
-    SevenDays("sevendays"),
-    ThirtyDays("thirtydays"),
+    SevenDays("7d"),
+    ThirtyDays("30d"),
     All("all"),
 }
 

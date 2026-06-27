@@ -531,15 +531,6 @@ class MessageComposerPresenter(
                     showAttachmentSourcePicker = false
                     // Navigation to the create poll screen is done at the view layer
                 }
-                MessageComposerEvent.SendPing -> {
-                    showAttachmentSourcePicker = false
-                    sessionCoroutineScope.launch {
-                        room.sendRawRoomMessage(contentJson = pingMessageContentJson())
-                            .onFailure { cause ->
-                                Timber.e(cause, "Failed to send ping message")
-                            }
-                    }
-                }
                 is MessageComposerEvent.ToggleTextFormatting -> {
                     showAttachmentSourcePicker = false
                     localCoroutineScope.toggleTextFormatting(event.enabled, markdownTextEditorState, richTextEditorState)
@@ -974,12 +965,7 @@ class MessageComposerPresenter(
     }
 
     private fun CoroutineScope.sendPing() = launch {
-        room.sendRawRoomMessage(
-            contentJson = JSONObject()
-                .put("msgtype", "m.ping")
-                .put("body", "Ping")
-                .toString()
-        ).onFailure { cause ->
+        room.sendRawRoomMessage(contentJson = pingMessageContentJson()).onFailure { cause ->
             Timber.e(cause, "Failed to send ping message")
         }
     }

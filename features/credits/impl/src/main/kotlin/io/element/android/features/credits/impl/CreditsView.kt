@@ -647,7 +647,7 @@ private fun aCreditsState(
         totalUsageMicros = "2250000",
     ),
     analytics = AnalyticsTokensResponse(
-        period = "thirtydays",
+        period = "30d",
         summaryByAgent = listOf(
             AnalyticsAgentSummary(agentId = "alice-bot", displayName = "Alice Bot", inputTokens = 1200, outputTokens = 3400, callCount = 18, pct = 62.5),
             AnalyticsAgentSummary(agentId = "ops-bot", displayName = "Ops Bot", inputTokens = 800, outputTokens = 1100, callCount = 7, pct = 37.5),

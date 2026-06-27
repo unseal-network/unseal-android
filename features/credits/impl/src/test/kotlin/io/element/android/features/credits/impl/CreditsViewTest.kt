@@ -216,7 +216,7 @@ private fun ledger(
 )
 
 private fun analytics() = AnalyticsTokensResponse(
-    period = "thirtydays",
+    period = "30d",
     summaryByAgent = listOf(
         AnalyticsAgentSummary(
             agentId = "alice-bot",

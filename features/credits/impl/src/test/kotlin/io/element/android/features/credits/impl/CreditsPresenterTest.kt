@@ -166,7 +166,7 @@ class CreditsPresenterTest {
     }
 
     @Test
-    fun `event - changing analytics period reloads analytics with iOS lowercase values`() = runTest {
+    fun `event - changing analytics period reloads analytics with api values`() = runTest {
         val periods = mutableListOf<String>()
         val service = FakeChatbotApiService().apply {
             getAnalyticsTokensResult = { period ->
@@ -178,10 +178,10 @@ class CreditsPresenterTest {
 
         presenter.test {
             awaitItem().eventSink(CreditsEvents.OnAppear)
-            val loaded = awaitStateWhere { it.analytics?.period == "thirtydays" && !it.isAnalyticsLoading }
+            val loaded = awaitStateWhere { it.analytics?.period == "30d" && !it.isAnalyticsLoading }
             loaded.eventSink(CreditsEvents.SelectAnalyticsPeriod(CreditsPeriod.SevenDays))
-            awaitStateWhere { it.analyticsPeriod == CreditsPeriod.SevenDays && it.analytics?.period == "sevendays" && !it.isAnalyticsLoading }
-            assertThat(periods).containsExactly("thirtydays", "sevendays").inOrder()
+            awaitStateWhere { it.analyticsPeriod == CreditsPeriod.SevenDays && it.analytics?.period == "7d" && !it.isAnalyticsLoading }
+            assertThat(periods).containsExactly("30d", "7d").inOrder()
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -213,7 +213,7 @@ class CreditsPresenterTest {
 
         presenter.test {
             awaitItem().eventSink(CreditsEvents.OnAppear)
-            awaitStateWhere { it.analytics?.period == "thirtydays" && !it.isAnalyticsLoading }
+            awaitStateWhere { it.analytics?.period == "30d" && !it.isAnalyticsLoading }
             assertThat(homeserverAnalyticsCalls).isEqualTo(1)
             assertThat(unsealAnalyticsCalls).isEqualTo(0)
             cancelAndIgnoreRemainingEvents()
@@ -261,7 +261,7 @@ class CreditsPresenterTest {
 
         presenter.test {
             awaitItem().eventSink(CreditsEvents.OnAppear)
-            val loaded = awaitStateWhere { it.analytics?.period == "thirtydays" && !it.isAnalyticsLoading }
+            val loaded = awaitStateWhere { it.analytics?.period == "30d" && !it.isAnalyticsLoading }
             failAnalytics = true
             loaded.eventSink(CreditsEvents.SelectAnalyticsPeriod(CreditsPeriod.SevenDays))
             val failed = awaitStateWhere { it.analyticsError?.contains("analytics down") == true && !it.isAnalyticsLoading }
