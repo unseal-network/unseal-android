@@ -711,14 +711,6 @@ private fun TimelineItemEventRowContent(
                 }
                 if (presentation.alignment == TimelineItemAlignment.End) {
                     end.linkTo(parent.end, margin = 16.dp)
-                    if (presentation.isStandalone) {
-                        // Own standalone content (incl. replies) is left-aligned at the same content
-                        // column as everything else — not hugging the right edge. Anchoring start here
-                        // also stops the inner fillMaxWidth content / reply EqualWidthColumn from
-                        // expanding to the full parent width and shoving wide content off-axis.
-                        start.linkTo(parent.start, margin = startMargin)
-                        width = Dimension.fillToConstraints
-                    }
                 } else {
                     start.linkTo(parent.start, margin = startMargin)
                     if (presentation.isStandalone) {
@@ -733,7 +725,11 @@ private fun TimelineItemEventRowContent(
                 contentAlignment = if (presentation.alignment == TimelineItemAlignment.End) Alignment.CenterEnd else Alignment.CenterStart,
             ) {
                 Box(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = if (presentation.alignment == TimelineItemAlignment.End) {
+                        Modifier.wrapContentWidth(align = Alignment.End)
+                    } else {
+                        Modifier.fillMaxWidth()
+                    },
                 ) {
                     MessageEventBubbleContent(
                         event = event,
@@ -745,7 +741,7 @@ private fun TimelineItemEventRowContent(
                         renderReadReceipts = renderReadReceipts,
                         isLastOutgoingMessage = isLastOutgoingMessage,
                         onReadReceiptsClick = onReadReceiptsClick,
-                        alignContentToStart = true,
+                        alignContentToStart = presentation.alignment != TimelineItemAlignment.End,
                         eventContentView = eventContentView,
                     )
                 }

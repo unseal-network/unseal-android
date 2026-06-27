@@ -65,6 +65,7 @@ import io.element.android.libraries.matrix.api.permalink.PermalinkBuilder
 import io.element.android.libraries.matrix.api.permalink.PermalinkParser
 import io.element.android.libraries.matrix.api.room.IntentionalMention
 import io.element.android.libraries.matrix.api.room.JoinedRoom
+import io.element.android.libraries.matrix.api.room.RoomMember
 import io.element.android.libraries.matrix.api.room.draft.ComposerDraft
 import io.element.android.libraries.matrix.api.room.draft.ComposerDraftType
 import io.element.android.libraries.matrix.api.room.getDirectRoomMember
@@ -180,6 +181,7 @@ class MessageComposerPresenter(
         val localCoroutineScope = rememberCoroutineScope()
 
         val roomInfo by room.roomInfoFlow.collectAsState()
+        val roomMembersState by room.membersStateFlow.collectAsState()
 
         val richTextEditorState = richTextEditorStateFactory.remember()
         if (isTesting) {
@@ -252,13 +254,30 @@ class MessageComposerPresenter(
                 mentionedUserIds = mentionedUserIds,
             )
         }
+        val directAgentSkillTarget = remember(roomMembersState, roomInfo, room.sessionId) {
+            roomMembersState
+                .getDirectRoomMember(roomInfo = roomInfo, sessionId = room.sessionId)
+                ?.takeIf { it.isAgentMember() }
+                ?.let {
+                    ComposerAgentDescriptor(
+                        agentId = it.userId.value,
+                        mxid = it.userId.value,
+                        label = it.displayName ?: it.userId.value.removePrefix("@"),
+                    )
+                }
+        }
         var pinnedAgentSkillTarget by remember { mutableStateOf<ComposerAgentDescriptor?>(null) }
-        val agentSkillTargets = remember(baseAgentSkillState.targets, pinnedAgentSkillTarget) {
+        val agentSkillTargets = remember(baseAgentSkillState.targets, directAgentSkillTarget, pinnedAgentSkillTarget, roomInfo.isDm) {
             val pinnedTarget = pinnedAgentSkillTarget
-            if (pinnedTarget == null || baseAgentSkillState.targets.any { it.mxid == pinnedTarget.mxid }) {
-                baseAgentSkillState.targets
+            val baseTargets = if (roomInfo.isDm && baseAgentSkillState.targets.isEmpty() && directAgentSkillTarget != null) {
+                persistentListOf(directAgentSkillTarget)
             } else {
-                (baseAgentSkillState.targets + pinnedTarget).toImmutableList()
+                baseAgentSkillState.targets
+            }
+            if (pinnedTarget == null || baseTargets.any { it.mxid == pinnedTarget.mxid }) {
+                baseTargets
+            } else {
+                (baseTargets + pinnedTarget).toImmutableList()
             }
         }
         val effectiveBaseAgentSkillState = baseAgentSkillState.copy(
@@ -1194,3 +1213,7 @@ class MessageComposerPresenter(
         }
     }
 }
+
+private val AGENT_MEMBER_USER_TYPES = setOf("agent", "bot", "external_bot", "trusted_external_bot")
+
+private fun RoomMember.isAgentMember(): Boolean = userType in AGENT_MEMBER_USER_TYPES

@@ -106,6 +106,7 @@ object RoomMenuReducer {
         isThreadTimeline: Boolean,
         canShareLocation: Boolean = false,
         enableTextFormatting: Boolean = false,
+        hasDirectAgentMember: Boolean = false,
         activeDeviceAgentBoundDeviceId: String? = null,
     ): RoomMenuRenderModel {
         val context = roomUnsealContext.dataOrNull()
@@ -121,7 +122,7 @@ object RoomMenuReducer {
         val attachmentActionEntries = buildAttachmentActionEntries(
             canShareLocation = canShareLocation,
             enableTextFormatting = enableTextFormatting,
-            enableAgentSkills = context?.hasAgentInRoom == true,
+            enableAgentSkills = context?.hasAgentInRoom == true || hasDirectAgentMember,
         )
         val attachmentActions = attachmentActionEntries.filter { it.isAvailable }.map { it.action }
         val scheduleBadge = context?.takeIf { it.hasAgentInRoom }?.let {

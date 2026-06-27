@@ -267,7 +267,7 @@ private fun mergeAgentsInRoom(
                 globalAgent == null -> roomAgent
                 else -> globalAgent.copy(
                     agentId = roomAgent.agentId,
-                    label = roomAgent.label,
+                    label = roomAgent.label.takeUnless { it == roomAgent.mxid } ?: globalAgent.label,
                     avatarUrl = roomAgent.avatarUrl ?: globalAgent.avatarUrl,
                 )
             }

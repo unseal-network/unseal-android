@@ -188,6 +188,19 @@ class RoomMenuReducerTest {
     }
 
     @Test
+    fun `reduce exposes skill attachment action immediately for direct agent room member`() {
+        val roomMenu = RoomMenuReducer.reduce(
+            roomUnsealContext = AsyncData.Uninitialized,
+            hasThreads = false,
+            isThreadTimeline = false,
+            hasDirectAgentMember = true,
+        )
+
+        assertThat(roomMenu.attachmentActions).contains(RoomAttachmentAction.Skill)
+        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Skill }.isAvailable).isTrue()
+    }
+
+    @Test
     fun `reduce exposes full ios attachment action contract with unavailable gaps`() {
         val roomMenu = RoomMenuReducer.reduce(
             roomUnsealContext = AsyncData.Uninitialized,

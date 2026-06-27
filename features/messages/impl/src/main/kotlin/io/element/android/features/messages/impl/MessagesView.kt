@@ -203,6 +203,7 @@ fun MessagesView(
 
     val density = LocalDensity.current
     var composerHeightDp by remember { mutableStateOf(80.dp) }
+    var topBarHeightDp by remember { mutableStateOf(0.dp) }
 
     // This is needed because the composer is inside an AndroidView that can't be affected by the FocusManager in Compose
     val localView = LocalView.current
@@ -318,7 +319,7 @@ fun MessagesView(
                             // input pill) where the gradient below fades it out.
                             composerBottomInset = composerBottomInset,
                             bottomContentPadding = (composerHeightDp - composerBottomInset).coerceAtLeast(0.dp),
-                            topChromeInset = 0.dp,
+                            topChromeInset = topBarHeightDp,
                         )
 
                         // Gradient-transparent backdrop: the last message fades from fully visible to the
@@ -336,7 +337,10 @@ fun MessagesView(
                         if (state.timelineState.timelineMode !is Timeline.Mode.Thread) {
                             MessagesViewTopBar(
                                 modifier = Modifier
-                                    .align(Alignment.TopStart),
+                                    .align(Alignment.TopStart)
+                                    .onSizeChanged { size ->
+                                        topBarHeightDp = with(density) { size.height.toDp() }
+                                    },
                                 roomName = state.roomName,
                                 roomAvatar = state.roomAvatar,
                                 isTombstoned = state.isTombstoned,

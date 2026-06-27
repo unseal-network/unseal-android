@@ -96,13 +96,13 @@ class RoomAgentMemberEnricherTest {
     }
 
     @Test
-    fun `enrich clears stale matrix agent type when endpoint no longer returns member`() {
+    fun `enrich preserves matrix enriched agent type when room context endpoint is empty`() {
         val members = listOf(aRoomMember(userId = AGENT_ID, userType = "agent", membership = RoomMembershipState.JOIN))
 
         val enriched = RoomAgentMemberEnricher.enrich(members, emptyList())
 
-        assertThat(enriched.single().userType).isNull()
-        assertThat(enriched.single().isAgent).isFalse()
+        assertThat(enriched.single().userType).isEqualTo("agent")
+        assertThat(enriched.single().isAgent).isTrue()
     }
 
     private companion object {
