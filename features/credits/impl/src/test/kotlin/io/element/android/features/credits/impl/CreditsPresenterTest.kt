@@ -13,6 +13,8 @@ import io.element.android.features.credits.api.CreditsEntryPoint
 import io.element.android.features.credits.impl.model.CreditsPeriod
 import io.element.android.features.credits.impl.model.DailyUsageRange
 import io.element.android.features.credits.impl.model.UsageRankingTab
+import io.element.android.libraries.chatbot.api.ChatbotApiService
+import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
 import io.element.android.libraries.chatbot.api.model.analytics.AnalyticsAgentSummary
 import io.element.android.libraries.chatbot.api.model.analytics.AnalyticsTokensResponse
 import io.element.android.libraries.chatbot.api.model.credits.CreditBalance
@@ -23,6 +25,7 @@ import io.element.android.libraries.chatbot.api.model.credits.CreditLedgerRespon
 import io.element.android.libraries.chatbot.test.FakeChatbotApiService
 import io.element.android.libraries.chatbot.test.FakeChatbotApiServiceFactory
 import io.element.android.libraries.chatbot.test.aCreditBalance
+import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.test.FakeMatrixClient
 import io.element.android.tests.testutils.WarmUpRule
 import io.element.android.tests.testutils.test
@@ -35,7 +38,7 @@ class CreditsPresenterTest {
     val warmUpRule = WarmUpRule()
 
     @Test
-    fun `present - on appear loads balance ledger daily usage and analytics`() = runTest {
+    fun `present - balance tab on appear loads balance ledger and daily usage`() = runTest {
         val service = FakeChatbotApiService().apply {
             getBalanceResult = { Result.success(aCreditBalance(balanceMicros = "2500000").copy(balanceUsd = "2.50")) }
             getLedgerResult = { limit, cursor ->
@@ -63,7 +66,6 @@ class CreditsPresenterTest {
                 it.balance?.balanceMicros == "2500000" &&
                     it.transactions.singleOrNull()?.id == "one" &&
                     it.dailyUsage?.daily?.size == 1 &&
-                    it.analytics?.period == "thirtydays" &&
                     !it.isBalanceLoading &&
                     !it.isLedgerLoading &&
                     !it.isDailyUsageLoading &&
@@ -71,6 +73,8 @@ class CreditsPresenterTest {
             }
             assertThat(loaded.transactionsCursor).isEqualTo("cursor-2")
             assertThat(loaded.hasMoreTransactions).isTrue()
+            assertThat(loaded.analytics).isNull()
+            assertThat(loaded.analyticsError).isNull()
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -108,6 +112,30 @@ class CreditsPresenterTest {
             assertThat(balanceCalls).isEqualTo(1)
             assertThat(ledgerCalls).isEqualTo(1)
             assertThat(dailyUsageCalls).isEqualTo(1)
+            assertThat(analyticsCalls).isEqualTo(0)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - balance tab does not eagerly load usage analytics`() = runTest {
+        var analyticsCalls = 0
+        val service = FakeChatbotApiService().apply {
+            getAnalyticsTokensResult = {
+                analyticsCalls++
+                Result.failure(RuntimeException("analytics down"))
+            }
+        }
+        val presenter = createPresenter(service = service, initialTab = CreditsEntryPoint.CreditsTab.Balance)
+
+        presenter.test {
+            awaitItem().eventSink(CreditsEvents.OnAppear)
+            val loaded = awaitStateWhere { !it.isBalanceLoading && !it.isLedgerLoading && !it.isDailyUsageLoading }
+            assertThat(analyticsCalls).isEqualTo(0)
+            assertThat(loaded.analyticsError).isNull()
+            loaded.eventSink(CreditsEvents.SelectTab(CreditsEntryPoint.CreditsTab.Usage))
+            val failedUsage = awaitStateWhere { !it.isAnalyticsLoading && it.analyticsError?.contains("analytics down") == true }
+            assertThat(failedUsage.selectedTab).isEqualTo(CreditsEntryPoint.CreditsTab.Usage)
             assertThat(analyticsCalls).isEqualTo(1)
             cancelAndIgnoreRemainingEvents()
         }
@@ -122,7 +150,7 @@ class CreditsPresenterTest {
                 Result.success(CreditDailyUsageResponse(start = start, end = end, daily = listOf(bucket(start, "1")), totalUsageMicros = "1"))
             }
         }
-        val presenter = createPresenter(service = service)
+        val presenter = createPresenter(service = service, initialTab = CreditsEntryPoint.CreditsTab.DailyUsage)
 
         presenter.test {
             awaitItem().eventSink(CreditsEvents.OnAppear)
@@ -146,7 +174,7 @@ class CreditsPresenterTest {
                 Result.success(analytics(period))
             }
         }
-        val presenter = createPresenter(service = service)
+        val presenter = createPresenter(service = service, initialTab = CreditsEntryPoint.CreditsTab.Usage)
 
         presenter.test {
             awaitItem().eventSink(CreditsEvents.OnAppear)
@@ -154,6 +182,90 @@ class CreditsPresenterTest {
             loaded.eventSink(CreditsEvents.SelectAnalyticsPeriod(CreditsPeriod.SevenDays))
             awaitStateWhere { it.analyticsPeriod == CreditsPeriod.SevenDays && it.analytics?.period == "sevendays" && !it.isAnalyticsLoading }
             assertThat(periods).containsExactly("thirtydays", "sevendays").inOrder()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `event - analytics loads from homeserver client`() = runTest {
+        var homeserverAnalyticsCalls = 0
+        var unsealAnalyticsCalls = 0
+        val homeserverService = FakeChatbotApiService().apply {
+            getAnalyticsTokensResult = {
+                homeserverAnalyticsCalls++
+                Result.success(analytics(it))
+            }
+        }
+        val unsealService = FakeChatbotApiService().apply {
+            getAnalyticsTokensResult = {
+                unsealAnalyticsCalls++
+                Result.failure(RuntimeException("wrong client"))
+            }
+        }
+        val factory = FakeChatbotApiServiceFactory().apply {
+            createForHomeserverResult = homeserverService
+            createForUnsealApiResult = unsealService
+        }
+        val presenter = createPresenter(
+            chatbotApiServiceFactory = factory,
+            initialTab = CreditsEntryPoint.CreditsTab.Usage,
+        )
+
+        presenter.test {
+            awaitItem().eventSink(CreditsEvents.OnAppear)
+            awaitStateWhere { it.analytics?.period == "thirtydays" && !it.isAnalyticsLoading }
+            assertThat(homeserverAnalyticsCalls).isEqualTo(1)
+            assertThat(unsealAnalyticsCalls).isEqualTo(0)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `event - failed daily range reload clears stale data`() = runTest {
+        var failDailyUsage = false
+        val service = FakeChatbotApiService().apply {
+            getDailyUsageResult = { start, end ->
+                if (failDailyUsage) {
+                    Result.failure(RuntimeException("daily down"))
+                } else {
+                    Result.success(CreditDailyUsageResponse(start = start, end = end, daily = listOf(bucket(start, "123")), totalUsageMicros = "123"))
+                }
+            }
+        }
+        val presenter = createPresenter(service = service, initialTab = CreditsEntryPoint.CreditsTab.DailyUsage)
+
+        presenter.test {
+            awaitItem().eventSink(CreditsEvents.OnAppear)
+            val loaded = awaitStateWhere { it.dailyUsage?.totalUsageMicros == "123" && !it.isDailyUsageLoading }
+            failDailyUsage = true
+            loaded.eventSink(CreditsEvents.SelectDailyUsageRange(DailyUsageRange.ThirtyDays))
+            val failed = awaitStateWhere { it.dailyUsageError?.contains("daily down") == true && !it.isDailyUsageLoading }
+            assertThat(failed.dailyUsage).isNull()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `event - failed analytics period reload clears stale data`() = runTest {
+        var failAnalytics = false
+        val service = FakeChatbotApiService().apply {
+            getAnalyticsTokensResult = {
+                if (failAnalytics) {
+                    Result.failure(RuntimeException("analytics down"))
+                } else {
+                    Result.success(analytics(it))
+                }
+            }
+        }
+        val presenter = createPresenter(service = service, initialTab = CreditsEntryPoint.CreditsTab.Usage)
+
+        presenter.test {
+            awaitItem().eventSink(CreditsEvents.OnAppear)
+            val loaded = awaitStateWhere { it.analytics?.period == "thirtydays" && !it.isAnalyticsLoading }
+            failAnalytics = true
+            loaded.eventSink(CreditsEvents.SelectAnalyticsPeriod(CreditsPeriod.SevenDays))
+            val failed = awaitStateWhere { it.analyticsError?.contains("analytics down") == true && !it.isAnalyticsLoading }
+            assertThat(failed.analytics).isNull()
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -182,6 +294,41 @@ class CreditsPresenterTest {
             assertThat(appended.transactionsCursor).isNull()
             assertThat(appended.hasMoreTransactions).isFalse()
             assertThat(requestedCursors).containsExactly(null, "cursor-2").inOrder()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `event - load more handles client creation failure`() = runTest {
+        var failClient = false
+        val service = FakeChatbotApiService().apply {
+            getLedgerResult = { _, cursor ->
+                if (cursor == null) {
+                    Result.success(CreditLedgerResponse(items = listOf(ledger("one")), nextCursor = "cursor-2"))
+                } else {
+                    Result.success(CreditLedgerResponse(items = listOf(ledger("two")), nextCursor = null))
+                }
+            }
+        }
+        val factory = object : ChatbotApiServiceFactory {
+            override suspend fun createForAiStream(matrixClient: MatrixClient): ChatbotApiService = service
+            override suspend fun createForHomeserver(matrixClient: MatrixClient): ChatbotApiService = service
+            override suspend fun createForUnsealApi(matrixClient: MatrixClient): ChatbotApiService {
+                if (failClient) throw RuntimeException("client down")
+                return service
+            }
+            override fun createForBaseUrl(baseUrl: String, matrixClient: MatrixClient): ChatbotApiService = service
+        }
+        val presenter = createPresenter(chatbotApiServiceFactory = factory)
+
+        presenter.test {
+            awaitItem().eventSink(CreditsEvents.OnAppear)
+            val loaded = awaitStateWhere { it.transactions.singleOrNull()?.id == "one" && it.hasMoreTransactions }
+            failClient = true
+            loaded.eventSink(CreditsEvents.LoadMoreTransactions)
+            val failed = awaitStateWhere { it.transactionsError?.contains("client down") == true && !it.isLoadingMoreTransactions }
+            assertThat(failed.transactions).hasSize(1)
+            assertThat(failed.hasMoreTransactions).isTrue()
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -225,11 +372,11 @@ class CreditsPresenterTest {
             val loaded = awaitStateWhere { it.dailyUsage?.totalUsageMicros == "123" && !it.isDailyUsageLoading }
             failDailyUsage = true
             loaded.eventSink(CreditsEvents.SelectDailyUsageRange(DailyUsageRange.ThirtyDays))
-            val failed = awaitStateWhere { it.error?.contains("network") == true && !it.isDailyUsageLoading }
-            assertThat(failed.dailyUsage?.totalUsageMicros).isEqualTo("123")
+            val failed = awaitStateWhere { it.dailyUsageError?.contains("network") == true && !it.isDailyUsageLoading }
+            assertThat(failed.dailyUsage).isNull()
             failed.eventSink(CreditsEvents.ClearError)
-            val cleared = awaitStateWhere { it.error == null }
-            assertThat(cleared.dailyUsage?.totalUsageMicros).isEqualTo("123")
+            val cleared = awaitStateWhere { it.dailyUsageError == null }
+            assertThat(cleared.dailyUsage).isNull()
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -256,12 +403,13 @@ class CreditsPresenterTest {
         service: FakeChatbotApiService = FakeChatbotApiService(),
         navigator: FakeCreditsNavigator = FakeCreditsNavigator(),
         initialTab: CreditsEntryPoint.CreditsTab = CreditsEntryPoint.CreditsTab.Balance,
+        chatbotApiServiceFactory: ChatbotApiServiceFactory = FakeChatbotApiServiceFactory(service),
     ): CreditsPresenter {
         return CreditsPresenter(
             initialTab = initialTab,
             navigator = navigator,
             matrixClient = FakeMatrixClient(),
-            chatbotApiServiceFactory = FakeChatbotApiServiceFactory(service),
+            chatbotApiServiceFactory = chatbotApiServiceFactory,
         )
     }
 }

@@ -30,8 +30,6 @@ import io.element.android.features.messages.impl.R
 import io.element.android.features.messages.impl.messagecomposer.gamepicker.GamePickerBottomSheet
 import io.element.android.features.messages.impl.roomdata.RoomAttachmentAction
 import io.element.android.features.messages.impl.roomdata.RoomAttachmentActionEntry
-import io.element.android.features.messages.impl.roomdata.RoomMenuReducer
-import io.element.android.libraries.architecture.AsyncData
 import io.element.android.libraries.androidutils.ui.hideKeyboard
 import io.element.android.libraries.designsystem.components.list.ListItemContent
 import io.element.android.libraries.designsystem.preview.ElementPreview
@@ -114,7 +112,7 @@ private fun AttachmentSourcePickerMenu(
             .imePadding()
             .verticalScroll(rememberScrollState())
     ) {
-        attachmentActions.forEach { action ->
+        attachmentActions.filter { it.isAvailable }.forEach { action ->
             AttachmentActionRow(
                 state = state,
                 entry = action,
@@ -188,6 +186,12 @@ private fun AttachmentActionRow(
             leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.TextFormatting())),
             headlineContent = { Text(stringResource(R.string.screen_room_attachment_text_formatting)) },
         )
+        RoomAttachmentAction.Skill -> ListItem(
+            enabled = entry.isAvailable,
+            onClick = entry.onClickIfAvailable { state.eventSink(MessageComposerEvent.ShowAgentSkillPicker) },
+            leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.Extensions())),
+            headlineContent = { Text(stringResource(R.string.screen_room_attachment_source_skill)) },
+        )
         RoomAttachmentAction.Ping -> ListItem(
             enabled = entry.isAvailable,
             onClick = entry.onClickIfAvailable { state.eventSink(MessageComposerEvent.SendPing) },
@@ -196,6 +200,7 @@ private fun AttachmentActionRow(
         )
         RoomAttachmentAction.Sketch -> ListItem(
             enabled = entry.isAvailable,
+            onClick = entry.onClickIfAvailable {},
             leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.Edit())),
             headlineContent = { Text(stringResource(R.string.screen_room_attachment_source_sketch)) },
         )
@@ -211,13 +216,9 @@ internal fun AttachmentSourcePickerMenuPreview() = ElementPreview {
         state = aMessageComposerState(
             canShareLocation = true,
         ),
-        attachmentActions = RoomMenuReducer.reduce(
-            roomUnsealContext = AsyncData.Uninitialized,
-            hasThreads = false,
-            isThreadTimeline = false,
-            canShareLocation = true,
-            enableTextFormatting = true,
-        ).attachmentActionEntries,
+        attachmentActions = RoomAttachmentAction.entries.map { action ->
+            RoomAttachmentActionEntry(action = action, isAvailable = action != RoomAttachmentAction.Sketch)
+        },
         onSendLocationClick = {},
         onCreatePollClick = {},
     )

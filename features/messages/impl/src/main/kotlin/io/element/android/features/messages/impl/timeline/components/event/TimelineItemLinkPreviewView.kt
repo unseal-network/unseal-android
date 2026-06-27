@@ -12,6 +12,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,11 +36,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.element.android.compound.theme.ElementTheme
+import io.element.android.features.messages.impl.R
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.wysiwyg.link.Link
 import kotlinx.coroutines.Dispatchers
@@ -67,19 +70,31 @@ fun TimelineItemLinkPreviewView(
     }
 
     val shape = RoundedCornerShape(12.dp)
-    val title = metadata.title?.takeIf { it.isNotBlank() } ?: metadata.host
+    val title = when (metadata.style) {
+        LinkPreviewStyle.GooglePlayInternalTest -> stringResource(R.string.screen_room_timeline_link_preview_sign_in)
+        else -> metadata.title?.takeIf { it.isNotBlank() } ?: metadata.host
+    }
     val subtitle = metadata.description?.takeIf { it.isNotBlank() } ?: metadata.host
+    val isBranded = metadata.style != LinkPreviewStyle.Default
+    val cardBackground = metadata.style.backgroundColor() ?: ElementTheme.colors.bgSubtleSecondaryLevel0
+    val titleColor = metadata.style.titleColor() ?: ElementTheme.colors.textPrimary
+    val subtitleColor = metadata.style.subtitleColor() ?: ElementTheme.colors.textSecondary
+    val cardModifier = modifier
+        .fillMaxWidth()
+        .heightIn(min = 78.dp)
+        .clip(shape)
+        .background(cardBackground)
+    val decoratedModifier = if (isBranded) {
+        cardModifier
+    } else {
+        cardModifier.border(1.dp, ElementTheme.colors.borderInteractiveSecondary, shape)
+    }
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = 72.dp)
-            .clip(shape)
-            .background(ElementTheme.colors.bgSubtleSecondaryLevel0)
-            .border(1.dp, ElementTheme.colors.borderInteractiveSecondary, shape)
+        modifier = decoratedModifier
             .clickable { onClick(Link(url = url, text = url)) }
-            .padding(12.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
             .semantics { contentDescription = "$title, $subtitle" },
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(
@@ -89,29 +104,139 @@ fun TimelineItemLinkPreviewView(
             Text(
                 text = title,
                 style = ElementTheme.typography.fontBodyLgMedium,
-                color = ElementTheme.colors.textPrimary,
-                maxLines = 2,
+                color = titleColor,
+                maxLines = if (isBranded) 1 else 2,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = subtitle,
                 style = ElementTheme.typography.fontBodyMdRegular,
-                color = ElementTheme.colors.textSecondary,
-                maxLines = 2,
+                color = subtitleColor,
+                maxLines = if (isBranded) 1 else 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        metadata.imageUrl?.let { imageUrl ->
-            AsyncImage(
-                model = imageUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(ElementTheme.colors.bgSubtleSecondary),
-            )
+        LinkPreviewVisual(metadata)
+    }
+}
+
+@Composable
+private fun LinkPreviewVisual(
+    metadata: LinkPreviewMetadata,
+    modifier: Modifier = Modifier,
+) {
+    when (metadata.style) {
+        LinkPreviewStyle.GooglePlayInternalTest -> GooglePlayLogo(
+            modifier = modifier.size(48.dp)
+        )
+        LinkPreviewStyle.AppStore,
+        LinkPreviewStyle.GitHub,
+        LinkPreviewStyle.GoogleMaps,
+        LinkPreviewStyle.YouTube -> BrandBadge(
+            label = metadata.style.badgeLabel(),
+            background = metadata.style.badgeBackground(),
+            foreground = metadata.style.badgeForeground(),
+            modifier = modifier.size(52.dp),
+        )
+        LinkPreviewStyle.Default -> {
+            val imageUrl = metadata.imageUrl ?: metadata.iconUrl
+            if (imageUrl != null) {
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = modifier
+                        .size(52.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(ElementTheme.colors.bgSubtleSecondary),
+                )
+            } else {
+                HostMonogram(
+                    host = metadata.host,
+                    modifier = modifier.size(52.dp)
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun BrandBadge(
+    label: String,
+    background: Color,
+    foreground: Color,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(background),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = ElementTheme.typography.fontBodyLgMedium,
+            color = foreground,
+        )
+    }
+}
+
+@Composable
+private fun HostMonogram(
+    host: String,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(ElementTheme.colors.bgSubtleSecondary),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = host.firstOrNull()?.uppercase().orEmpty(),
+            style = ElementTheme.typography.fontBodyLgMedium,
+            color = ElementTheme.colors.textSecondary,
+        )
+    }
+}
+
+@Composable
+private fun GooglePlayLogo(
+    modifier: Modifier = Modifier,
+) {
+    Canvas(modifier = modifier) {
+        val width = size.width
+        val height = size.height
+
+        fun pathOf(vararg points: Pair<Float, Float>) = Path().apply {
+            points.forEachIndexed { index, point ->
+                val x = point.first * width
+                val y = point.second * height
+                if (index == 0) {
+                    moveTo(x, y)
+                } else {
+                    lineTo(x, y)
+                }
+            }
+            close()
+        }
+
+        drawPath(
+            path = pathOf(0.18f to 0.08f, 0.58f to 0.50f, 0.18f to 0.92f),
+            color = GooglePlayGreen,
+        )
+        drawPath(
+            path = pathOf(0.18f to 0.92f, 0.58f to 0.50f, 0.73f to 0.66f, 0.32f to 0.96f),
+            color = GooglePlayBlueIcon,
+        )
+        drawPath(
+            path = pathOf(0.58f to 0.50f, 0.73f to 0.34f, 0.90f to 0.44f, 0.96f to 0.50f, 0.90f to 0.56f, 0.73f to 0.66f),
+            color = GooglePlayYellow,
+        )
+        drawPath(
+            path = pathOf(0.58f to 0.50f, 0.73f to 0.66f, 0.32f to 0.96f, 0.18f to 0.92f),
+            color = GooglePlayRed,
+        )
     }
 }
 
@@ -121,19 +246,102 @@ internal data class LinkPreviewMetadata(
     val title: String?,
     val description: String?,
     val imageUrl: String?,
+    val iconUrl: String?,
+    val style: LinkPreviewStyle = LinkPreviewStyle.Default,
 ) {
     companion object {
         fun fallback(url: String): LinkPreviewMetadata {
             val host = url.toHost()
+            val style = url.toLinkPreviewStyle()
+            val branded = style.fallbackText(host)
             return LinkPreviewMetadata(
                 url = url,
                 host = host,
-                title = host,
-                description = url,
+                title = branded?.title ?: host,
+                description = branded?.description ?: url,
                 imageUrl = null,
+                iconUrl = url.toFaviconUrl(),
+                style = style,
             )
         }
     }
+}
+
+internal enum class LinkPreviewStyle {
+    Default,
+    GooglePlayInternalTest,
+    AppStore,
+    GitHub,
+    GoogleMaps,
+    YouTube,
+}
+
+private fun LinkPreviewStyle.backgroundColor(): Color? = when (this) {
+    LinkPreviewStyle.Default -> null
+    LinkPreviewStyle.GooglePlayInternalTest -> GooglePlayBlue
+    LinkPreviewStyle.AppStore -> Color(0xFF0A84FF)
+    LinkPreviewStyle.GitHub -> Color(0xFF24292F)
+    LinkPreviewStyle.GoogleMaps -> Color(0xFF1A73E8)
+    LinkPreviewStyle.YouTube -> Color(0xFFFF0033)
+}
+
+private fun LinkPreviewStyle.titleColor(): Color? = when (this) {
+    LinkPreviewStyle.Default -> null
+    LinkPreviewStyle.GooglePlayInternalTest,
+    LinkPreviewStyle.AppStore,
+    LinkPreviewStyle.GitHub,
+    LinkPreviewStyle.GoogleMaps,
+    LinkPreviewStyle.YouTube -> Color.White
+}
+
+private fun LinkPreviewStyle.subtitleColor(): Color? = when (this) {
+    LinkPreviewStyle.Default -> null
+    LinkPreviewStyle.GooglePlayInternalTest,
+    LinkPreviewStyle.AppStore,
+    LinkPreviewStyle.GitHub,
+    LinkPreviewStyle.GoogleMaps,
+    LinkPreviewStyle.YouTube -> Color.White.copy(alpha = 0.68f)
+}
+
+private data class BrandedFallbackText(
+    val title: String,
+    val description: String,
+)
+
+private fun LinkPreviewStyle.fallbackText(host: String): BrandedFallbackText? = when (this) {
+    LinkPreviewStyle.Default -> null
+    LinkPreviewStyle.GooglePlayInternalTest -> BrandedFallbackText("Sign in", host)
+    LinkPreviewStyle.AppStore -> BrandedFallbackText("App Store", host)
+    LinkPreviewStyle.GitHub -> BrandedFallbackText("GitHub", host)
+    LinkPreviewStyle.GoogleMaps -> BrandedFallbackText("Google Maps", host)
+    LinkPreviewStyle.YouTube -> BrandedFallbackText("YouTube", host)
+}
+
+private fun LinkPreviewStyle.badgeLabel(): String = when (this) {
+    LinkPreviewStyle.Default -> ""
+    LinkPreviewStyle.GooglePlayInternalTest -> ""
+    LinkPreviewStyle.AppStore -> "A"
+    LinkPreviewStyle.GitHub -> "GH"
+    LinkPreviewStyle.GoogleMaps -> "M"
+    LinkPreviewStyle.YouTube -> "YT"
+}
+
+private fun LinkPreviewStyle.badgeBackground(): Color = when (this) {
+    LinkPreviewStyle.Default -> Color.Transparent
+    LinkPreviewStyle.GooglePlayInternalTest -> Color.Transparent
+    LinkPreviewStyle.AppStore -> Color.White.copy(alpha = 0.18f)
+    LinkPreviewStyle.GitHub -> Color.White.copy(alpha = 0.14f)
+    LinkPreviewStyle.GoogleMaps -> Color.White.copy(alpha = 0.18f)
+    LinkPreviewStyle.YouTube -> Color.White.copy(alpha = 0.18f)
+}
+
+private fun LinkPreviewStyle.badgeForeground(): Color = when (this) {
+    LinkPreviewStyle.Default -> Color.Transparent
+    LinkPreviewStyle.GooglePlayInternalTest -> Color.Transparent
+    LinkPreviewStyle.AppStore,
+    LinkPreviewStyle.GitHub,
+    LinkPreviewStyle.GoogleMaps,
+    LinkPreviewStyle.YouTube -> Color.White
 }
 
 internal object LinkPreviewMetadataProvider {
@@ -160,18 +368,26 @@ internal object LinkPreviewMetadataProvider {
 }
 
 private fun Document.toLinkPreviewMetadata(url: String): LinkPreviewMetadata {
-    val host = metaContent("og:site_name") ?: url.toHost()
-    val title = metaContent("og:title", "twitter:title") ?: title().takeIf { it.isNotBlank() } ?: host
-    val description = metaContent("og:description", "description", "twitter:description") ?: host
+    val style = url.toLinkPreviewStyle()
+    val urlHost = url.toHost()
+    val branded = style.fallbackText(urlHost)
+    val host = branded?.description ?: metaContent("og:site_name") ?: urlHost
+    val title = branded?.title ?: metaContent("og:title", "twitter:title") ?: title().takeIf { it.isNotBlank() } ?: host
+    val description = branded?.description ?: metaContent("og:description", "description", "twitter:description") ?: host
     val imageUrl = metaContent("og:image", "twitter:image")?.let { rawImageUrl ->
         runCatching { URI(url).resolve(rawImageUrl).toString() }.getOrNull()
     }
+    val iconUrl = linkHref("apple-touch-icon", "apple-touch-icon-precomposed", "icon", "shortcut icon")
+        ?.let { rawIconUrl -> runCatching { URI(url).resolve(rawIconUrl).toString() }.getOrNull() }
+        ?: url.toFaviconUrl()
     return LinkPreviewMetadata(
         url = url,
         host = host,
         title = title,
         description = description,
         imageUrl = imageUrl,
+        iconUrl = iconUrl,
+        style = style,
     )
 }
 
@@ -185,6 +401,16 @@ private fun Document.metaContent(vararg names: String): String? {
     return null
 }
 
+private fun Document.linkHref(vararg rels: String): String? {
+    for (rel in rels) {
+        val href = selectFirst("""link[rel~=(?i)\b${Regex.escape(rel)}\b]""")
+            ?.attr("href")
+            ?.takeIf { it.isNotBlank() }
+        if (href != null) return href
+    }
+    return null
+}
+
 private fun String.toHost(): String {
     return runCatching { URI(this).host }
         .getOrNull()
@@ -194,6 +420,33 @@ private fun String.toHost(): String {
             .substringBefore("/")
             .removePrefix("www.")
 }
+
+private fun String.toFaviconUrl(): String? {
+    return runCatching {
+        val uri = URI(this)
+        "${uri.scheme}://${uri.host}/favicon.ico"
+    }.getOrNull()
+}
+
+private fun String.toLinkPreviewStyle(): LinkPreviewStyle {
+    val uri = runCatching { URI(this) }.getOrNull() ?: return LinkPreviewStyle.Default
+    val host = uri.host?.removePrefix("www.").orEmpty()
+    val path = uri.path.orEmpty()
+    return when {
+        host == "play.google.com" && path.startsWith("/apps/internaltest") -> LinkPreviewStyle.GooglePlayInternalTest
+        host == "apps.apple.com" -> LinkPreviewStyle.AppStore
+        host == "github.com" || host.endsWith(".github.com") -> LinkPreviewStyle.GitHub
+        host == "maps.google.com" || host == "google.com" && path.startsWith("/maps") -> LinkPreviewStyle.GoogleMaps
+        host == "youtube.com" || host == "youtu.be" || host.endsWith(".youtube.com") -> LinkPreviewStyle.YouTube
+        else -> LinkPreviewStyle.Default
+    }
+}
+
+private val GooglePlayBlue = Color(0xFF3F73E8)
+private val GooglePlayGreen = Color(0xFF3BCC72)
+private val GooglePlayBlueIcon = Color(0xFF4285F4)
+private val GooglePlayYellow = Color(0xFFFABB05)
+private val GooglePlayRed = Color(0xFFEA4335)
 
 @Preview
 @Composable

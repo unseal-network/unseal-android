@@ -12,20 +12,27 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.libraries.designsystem.preview.ElementPreview
@@ -39,13 +46,10 @@ import org.jsoup.nodes.Element
 // horizontally scrolling wide tables rather than squashing them.
 private const val MaxFitColumns = 3
 
-// Columns whose longest cell is at most this many characters size to content (one line); longer
-// columns flex and wrap.
-private const val SHORT_COLUMN_MAX_CHARS = 12
-
-// In the scrollable fallback, short columns size to their content (one line) and long columns are
-// capped at this width and wrap, so nothing is squashed mid-token.
-private val ScrollColumnMaxWidth = 220.dp
+private const val MIN_COLUMN_WEIGHT_CHARS = 7
+private const val MAX_COLUMN_WEIGHT_CHARS = 28
+private val ScrollColumnMinWidth = 84.dp
+private val ScrollColumnMaxWidth = 236.dp
 
 // A timeline item is not lazy, so every table row composes/measures up-front when the item scrolls
 // into view. Cap the rows actually rendered so a huge table (e.g. a long meeting transcript) can't
@@ -78,41 +82,40 @@ private fun HtmlTableView(table: HtmlTable) {
     val gridColor = ElementTheme.colors.separatorPrimary
     val containerModifier = Modifier
         .clip(TableShape)
+        .background(ElementTheme.colors.bgCanvasDefault.copy(alpha = 0.72f))
         .border(GridLineThickness, gridColor, TableShape)
     val longestPerColumn = (0 until columnCount).map { column ->
         rows.maxOf { row -> row.cells.getOrNull(column)?.text?.length ?: 0 }
     }
+    val columnWeights = longestPerColumn.map { length ->
+        length.coerceIn(MIN_COLUMN_WEIGHT_CHARS, MAX_COLUMN_WEIGHT_CHARS).toFloat()
+    }
+    val scrollColumnWidths = longestPerColumn.map { length ->
+        estimatedScrollColumnWidth(length)
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (columnCount <= MaxFitColumns) {
-            // Short columns (timestamps, short labels) size to their content and stay on one line; only
-            // long columns flex to share the remaining width and wrap. This mirrors the iOS table look
-            // and avoids a single long column (e.g. a URL) forcing short columns to wrap awkwardly.
-            val flexColumns = longestPerColumn.withIndex()
-                .filter { it.value > SHORT_COLUMN_MAX_CHARS }
-                .map { it.index }
-                .toSet()
-            // If every column is short, let them all flex equally so the table still fills the width.
-            val noFlexColumns = flexColumns.isEmpty()
             Column(modifier = containerModifier.fillMaxWidth()) {
                 rows.forEachIndexed { index, row ->
                     if (index > 0) HorizontalDivider(thickness = GridLineThickness, color = gridColor)
-                    TableRow(row = row, columnCount = columnCount, rowIndex = index) { column, cellModifier ->
-                        if (noFlexColumns || column in flexColumns) cellModifier.weight(1f) else cellModifier
+                    TableRow(row = row, columnCount = columnCount, rowIndex = index, gridColor = gridColor) { column, cellModifier ->
+                        cellModifier.weight(columnWeights[column], fill = true)
                     }
                 }
             }
         } else {
-            // Short columns size to content and stay on one line; long columns are capped and wrap. The
-            // whole table scrolls horizontally so nothing is squashed mid-token.
-            Column(modifier = containerModifier.horizontalScroll(rememberScrollState())) {
-                rows.forEachIndexed { index, row ->
-                    if (index > 0) HorizontalDivider(thickness = GridLineThickness, color = gridColor)
-                    TableRow(row = row, columnCount = columnCount, rowIndex = index) { column, cellModifier ->
-                        if (longestPerColumn[column] > SHORT_COLUMN_MAX_CHARS) {
-                            cellModifier.widthIn(max = ScrollColumnMaxWidth)
-                        } else {
-                            cellModifier
+            val tableWidth = scrollColumnWidths.fold(0.dp) { acc, width -> acc + width }
+            Box(
+                modifier = containerModifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+            ) {
+                Column(modifier = Modifier.width(tableWidth)) {
+                    rows.forEachIndexed { index, row ->
+                        if (index > 0) HorizontalDivider(thickness = GridLineThickness, color = gridColor)
+                        TableRow(row = row, columnCount = columnCount, rowIndex = index, gridColor = gridColor) { column, cellModifier ->
+                            cellModifier.width(scrollColumnWidths[column])
                         }
                     }
                 }
@@ -134,32 +137,58 @@ private fun TableRow(
     row: HtmlTableRow,
     columnCount: Int,
     rowIndex: Int,
+    gridColor: Color,
     columnSizing: androidx.compose.foundation.layout.RowScope.(column: Int, Modifier) -> Modifier,
 ) {
     val isHeaderRow = row.cells.any { it.isHeader }
-    // iOS parity: a header band plus subtle alternating-row striping on the data rows.
-    // Deliberately no IntrinsicSize.Min / full-height vertical dividers here — those force an extra
-    // measurement pass per row and make scrolling janky for large tables. Row separation comes from
-    // striping + horizontal dividers + the outer border instead.
     val rowBackground = when {
         isHeaderRow -> ElementTheme.colors.bgSubtleSecondary
-        (rowIndex - 1) % 2 == 0 -> ElementTheme.colors.bgSubtleSecondary.copy(alpha = 0.3f)
+        (rowIndex - 1) % 2 == 0 -> ElementTheme.colors.bgSubtleSecondary.copy(alpha = 0.24f)
         else -> Color.Transparent
     }
-    Row(modifier = Modifier.background(rowBackground)) {
+    Row(
+        modifier = Modifier
+            .background(rowBackground)
+            .height(IntrinsicSize.Min)
+    ) {
         for (column in 0 until columnCount) {
             val cell = row.cells.getOrNull(column)
-            Text(
-                text = cell?.text.orEmpty(),
+            Box(
                 modifier = columnSizing(column, Modifier)
+                    .fillMaxHeight()
+                    .then(
+                        if (column < columnCount - 1) {
+                            Modifier.drawBehind {
+                                drawLine(
+                                    color = gridColor,
+                                    start = Offset(size.width, 0f),
+                                    end = Offset(size.width, size.height),
+                                    strokeWidth = GridLineThickness.toPx(),
+                                )
+                            }
+                        } else {
+                            Modifier
+                        }
+                    )
                     .padding(horizontal = 10.dp, vertical = 8.dp),
-                color = ElementTheme.colors.textPrimary,
-                style = LocalTextStyle.current.copy(
-                    fontWeight = if (cell?.isHeader == true) FontWeight.SemiBold else FontWeight.Normal,
-                ),
-            )
+            ) {
+                Text(
+                    text = cell?.text.orEmpty(),
+                    modifier = Modifier.fillMaxWidth(),
+                    color = ElementTheme.colors.textPrimary,
+                    textAlign = cell?.alignment?.textAlign ?: TextAlign.Start,
+                    style = ElementTheme.typography.fontBodySmRegular.copy(
+                        fontWeight = if (cell?.isHeader == true) FontWeight.SemiBold else FontWeight.Normal,
+                    ),
+                )
+            }
         }
     }
+}
+
+private fun estimatedScrollColumnWidth(textLength: Int): Dp {
+    val estimated = (textLength.coerceIn(MIN_COLUMN_WEIGHT_CHARS, MAX_COLUMN_WEIGHT_CHARS) * 8).dp + 28.dp
+    return estimated.coerceIn(ScrollColumnMinWidth, ScrollColumnMaxWidth)
 }
 
 internal data class HtmlTable(
@@ -173,7 +202,14 @@ internal data class HtmlTableRow(
 internal data class HtmlTableCell(
     val text: String,
     val isHeader: Boolean,
+    val alignment: HtmlTableCellAlignment = HtmlTableCellAlignment.Start,
 )
+
+internal enum class HtmlTableCellAlignment(val textAlign: TextAlign) {
+    Start(TextAlign.Start),
+    Center(TextAlign.Center),
+    End(TextAlign.End),
+}
 
 internal fun Document.extractHtmlTables(): List<HtmlTable> {
     return select("table").mapNotNull { table ->
@@ -215,14 +251,14 @@ internal fun HtmlTableBodyPreview() = ElementPreview {
                         listOf(
                             HtmlTableCell("15:21:26", isHeader = false),
                             HtmlTableCell("@rayson:topsecret.network", isHeader = false),
-                            HtmlTableCell("我们再瞧一下，因为我们现在的逻辑是这样的。", isHeader = false),
+                            HtmlTableCell("Let's check again because the current logic works like this.", isHeader = false),
                         )
                     ),
                     HtmlTableRow(
                         listOf(
                             HtmlTableCell("15:21:27", isHeader = false),
                             HtmlTableCell("@rayson:topsecret.network", isHeader = false),
-                            HtmlTableCell("嗯。", isHeader = false),
+                            HtmlTableCell("Got it.", isHeader = false),
                         )
                     ),
                 )

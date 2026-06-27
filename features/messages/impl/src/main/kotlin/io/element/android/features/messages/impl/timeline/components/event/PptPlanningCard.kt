@@ -59,8 +59,10 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import io.element.android.features.messages.impl.R
 import io.element.android.wysiwyg.link.Link
 import org.json.JSONObject
 
@@ -580,7 +582,7 @@ private fun WorkflowProgressSection(progress: WorkflowMessage, accentColor: Colo
                     }
                     progress.totalSlides?.let { total ->
                         Text(
-                            text = "共 $total 页",
+                            text = stringResource(R.string.screen_room_timeline_ppt_total_pages, total),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -602,7 +604,7 @@ private fun WorkflowProgressSection(progress: WorkflowMessage, accentColor: Colo
                     modifier = Modifier.size(16.dp),
                 )
                 Text(
-                    text = "生成完成",
+                    text = stringResource(R.string.screen_room_timeline_ppt_completed),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = Color(0xFF2FDB72),
@@ -611,6 +613,7 @@ private fun WorkflowProgressSection(progress: WorkflowMessage, accentColor: Colo
         }
 
         is WorkflowMessage.Error -> {
+            val fallbackReason = stringResource(R.string.screen_room_timeline_ppt_failed)
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -623,7 +626,7 @@ private fun WorkflowProgressSection(progress: WorkflowMessage, accentColor: Colo
                     modifier = Modifier.size(16.dp),
                 )
                 Text(
-                    text = progress.reason.ifBlank { "生成失败" },
+                    text = progress.reason.ifBlank { fallbackReason },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                 )

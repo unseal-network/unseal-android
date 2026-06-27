@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import coil3.ImageLoader
@@ -355,7 +356,7 @@ private fun MyGameRow(
         )
         if (roomCount > 1) {
             Text(
-                text = "$roomCount 个房间",
+                text = pluralStringResource(R.plurals.game_picker_room_count, roomCount, roomCount),
                 style = ElementTheme.typography.fontBodySmRegular,
                 color = ElementTheme.colors.textSecondary,
             )

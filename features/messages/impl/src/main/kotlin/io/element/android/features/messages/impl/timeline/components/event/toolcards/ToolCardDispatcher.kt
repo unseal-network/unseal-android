@@ -22,9 +22,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.element.android.features.messages.impl.R
+import io.element.android.features.messages.impl.timeline.components.event.PptGenerationWorkflowCard
+import io.element.android.features.messages.impl.timeline.components.event.PptGenerationWorkflowData
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -61,6 +65,7 @@ internal fun ToolCardFinalProps(
     // instead of a card claiming success while drawing nothing.
     if (!data.hasRenderableContent() || !data.hasCardContentFor(cardType)) return false
     // Bespoke per-category cards first (iOS ToolCardsIOS parity); generic list renderer last.
+    if (pptGenerationWorkflowCard(cardType, data)) return true
     if (composioSearchCard(cardType, data, onLinkClick)) return true
     if (gitHubPrimaryCard(cardType, data, onLinkClick)) return true
     if (gitHubActivityCard(cardType, data, onLinkClick)) return true
@@ -131,6 +136,7 @@ internal fun JSONObject.hasCardContentFor(cardType: String): Boolean {
             cardString("text", "full_text", "body", "content", "id").isNullOrBlank().not()
         "createSchedule", "updateSchedule", "updateScheduleStatus" -> cardString("name", "title", "scheduleId", "schedule_id", "status").isNullOrBlank().not()
         "moltbookRegister" -> cardString("title", "name", "status").isNullOrBlank().not()
+        "pptGenerationWorkflow" -> cardString("task_id").isNullOrBlank().not()
         else -> true
     }
 }
@@ -151,7 +157,7 @@ internal fun GenericListCard(data: JSONObject): Boolean {
         DividedList(shown) { item -> GenericListRow(item) }
         if (items.size > shown.size) {
             Text(
-                text = "+${items.size - shown.size} more",
+                text = stringResource(R.string.screen_room_timeline_tool_card_more_count, items.size - shown.size),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -162,7 +168,8 @@ internal fun GenericListCard(data: JSONObject): Boolean {
 
 @Composable
 private fun GenericListRow(item: JSONObject) {
-    val title = item.cardString("title", "name", "subject", "headline", "summary", "query", "text") ?: "Untitled"
+    val title = item.cardString("title", "name", "subject", "headline", "summary", "query", "text")
+        ?: stringResource(R.string.screen_room_timeline_tool_card_untitled)
     val subtitle = item.cardString("snippet", "description", "body", "content", "status", "state")
     val source = item.cardString("source", "label", "author", "from", "repository")
     val meta = item.cardString("publishedAt", "date", "time", "meta", "price", "priceFormatted")?.compactToolCardMetaDate()
@@ -220,3 +227,11 @@ private fun GenericListRow(item: JSONObject) {
 // Keep only a high safety cap here so card renderers do not truncate ordinary tool output before
 // the inner card scroll can take over.
 internal const val MAX_CARD_ITEMS = 100
+
+@Composable
+internal fun pptGenerationWorkflowCard(cardType: String, data: JSONObject): Boolean {
+    if (cardType != "pptGenerationWorkflow") return false
+    val workflowData = remember(data) { PptGenerationWorkflowData.fromJson(data) } ?: return false
+    PptGenerationWorkflowCard(data = workflowData)
+    return true
+}

@@ -42,10 +42,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.element.android.features.messages.impl.R
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import org.json.JSONObject
@@ -127,7 +129,7 @@ private val LinearGray = Color(0xFF8E8E93)
 private val LinearTodoGray = Color(0xFF8E8E93).copy(alpha = 0.6f)
 private val LinearYellow = Color(0xFFE6B800)
 
-private data class LinearStatusStyle(val icon: ImageVector, val label: String, val color: Color)
+private data class LinearStatusStyle(val icon: ImageVector, val color: Color)
 
 private fun normalizeLinearStatus(status: String?): String {
     val normalized = status.orEmpty()
@@ -145,12 +147,12 @@ private fun normalizeLinearStatus(status: String?): String {
     }
 }
 
-private fun linearStatusLabel(status: String): String = when (status) {
-    "backlog" -> "Backlog"
-    "in_progress" -> "In Progress"
-    "done" -> "Done"
-    "cancelled" -> "Cancelled"
-    else -> "Todo"
+private fun linearStatusLabelRes(status: String): Int = when (status) {
+    "backlog" -> R.string.screen_room_timeline_tool_card_linear_status_backlog
+    "in_progress" -> R.string.screen_room_timeline_tool_card_linear_status_in_progress
+    "done" -> R.string.screen_room_timeline_tool_card_linear_status_done
+    "cancelled" -> R.string.screen_room_timeline_tool_card_linear_status_cancelled
+    else -> R.string.screen_room_timeline_tool_card_linear_status_todo
 }
 
 private fun normalizeLinearPriority(priority: String?): String {
@@ -165,11 +167,11 @@ private fun normalizeLinearPriority(priority: String?): String {
 }
 
 private fun linearStatusStyle(status: String): LinearStatusStyle = when (status) {
-    "backlog" -> LinearStatusStyle(Icons.Outlined.Circle, "Backlog", LinearGray)
-    "in_progress" -> LinearStatusStyle(Icons.Outlined.RadioButtonUnchecked, "In Progress", LinearYellow)
-    "done" -> LinearStatusStyle(Icons.Filled.CheckCircle, "Done", LinearIndigo)
-    "cancelled" -> LinearStatusStyle(Icons.Outlined.Cancel, "Cancelled", LinearGray)
-    else -> LinearStatusStyle(Icons.Outlined.Circle, "Todo", LinearTodoGray)
+    "backlog" -> LinearStatusStyle(Icons.Outlined.Circle, LinearGray)
+    "in_progress" -> LinearStatusStyle(Icons.Outlined.RadioButtonUnchecked, LinearYellow)
+    "done" -> LinearStatusStyle(Icons.Filled.CheckCircle, LinearIndigo)
+    "cancelled" -> LinearStatusStyle(Icons.Outlined.Cancel, LinearGray)
+    else -> LinearStatusStyle(Icons.Outlined.Circle, LinearTodoGray)
 }
 
 private data class LinearPriorityStyle(val text: String, val color: Color)
@@ -229,7 +231,7 @@ private fun LinearIssueCardView(data: JSONObject, onLinkClick: () -> Unit) {
     val description = data.cardString("description")
     val url = data.cardString("url")
     val status = normalizeLinearStatus(data.cardString("status", "state"))
-    val statusLabel = data.cardString("statusLabel", "stateLabel") ?: linearStatusLabel(status)
+    val statusLabel = data.cardString("statusLabel", "stateLabel") ?: stringResource(linearStatusLabelRes(status))
     val priority = normalizeLinearPriority(data.cardString("priority", "priorityLabel"))
     val assignee = data.opt("assignee") as? JSONObject
     val team = data.cardString("team")
@@ -243,7 +245,7 @@ private fun LinearIssueCardView(data: JSONObject, onLinkClick: () -> Unit) {
         // Header: "Issue" title + status badge
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = "Issue",
+                text = stringResource(R.string.screen_room_timeline_tool_card_issue),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -380,10 +382,10 @@ private fun LinearIssuesListCardView(data: JSONObject, onLinkClick: () -> Unit) 
     val open = ltLinkOpener(onLinkClick)
 
     ToolCardSurface {
-        ToolCardHeader(title = "Issues", count = items.size)
+        ToolCardHeader(title = stringResource(R.string.screen_room_timeline_tool_card_issues), count = items.size)
         DividedList(shown) { issue -> LinearIssueRow(issue, open) }
         if (items.size > shown.size) {
-            LtMetaText("+${items.size - shown.size} more")
+            LtMetaText(stringResource(R.string.screen_room_timeline_tool_card_more_count, items.size - shown.size))
         }
     }
 }
@@ -391,7 +393,7 @@ private fun LinearIssuesListCardView(data: JSONObject, onLinkClick: () -> Unit) 
 @Composable
 private fun LinearIssueRow(item: JSONObject, open: (String?) -> Unit) {
     val identifier = item.cardString("identifier", "id") ?: ""
-    val title = item.cardString("title", "name") ?: "Untitled"
+    val title = item.cardString("title", "name") ?: stringResource(R.string.screen_room_timeline_tool_card_untitled)
     val status = normalizeLinearStatus(item.cardString("status", "state"))
     val priority = normalizeLinearPriority(item.cardString("priority", "priorityLabel"))
     val url = item.cardString("url")
@@ -457,10 +459,10 @@ private fun SocialPostFeedCardView(data: JSONObject) {
     val shown = posts.take(MAX_CARD_ITEMS)
 
     ToolCardSurface {
-        ToolCardHeader(title = "Posts", count = posts.size)
+        ToolCardHeader(title = stringResource(R.string.screen_room_timeline_tool_card_posts), count = posts.size)
         DividedList(shown) { post -> PostRow(post) }
         if (posts.size > shown.size) {
-            LtMetaText("+${posts.size - shown.size} more")
+            LtMetaText(stringResource(R.string.screen_room_timeline_tool_card_more_count, posts.size - shown.size))
         }
     }
 }
@@ -487,7 +489,7 @@ private fun formatSocialCount(n: Int): String = when {
 @Composable
 private fun PostRow(post: JSONObject) {
     val authorObject = post.optJSONObject("author") ?: post.optJSONObject("user")
-    val author = post.cardString("author") ?: authorObject?.cardString("name", "username", "screen_name") ?: "Unknown"
+    val author = post.cardString("author") ?: authorObject?.cardString("name", "username", "screen_name") ?: stringResource(R.string.screen_room_timeline_tool_card_unknown)
     val handle = post.cardString("handle") ?: authorObject?.cardString("handle", "username", "screen_name")?.let { "@${it.removePrefix("@")}" }
     val avatarUrl = post.cardString("avatarUrl", "avatar_url", "profile_image_url") ?: authorObject?.cardString("avatarUrl", "avatar_url", "profile_image_url")
     val body = post.cardString("body", "text", "full_text", "content") ?: ""

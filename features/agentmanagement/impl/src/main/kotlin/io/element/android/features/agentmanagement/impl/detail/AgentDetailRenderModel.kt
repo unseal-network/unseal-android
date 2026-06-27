@@ -90,40 +90,40 @@ fun AgentDetailState.toRenderModel(): AgentDetailRenderModel {
         displayName = displayName,
         matrixId = matrixId,
         providerModelLabel = currentAgent?.providerModelText(),
-        visibilityLabel = if (isPublic) "公开" else "私密",
+        visibilityLabel = if (isPublic) "Public" else "Private",
         isPublic = isPublic,
         description = currentAgent?.description?.takeIf { it.isNotBlank() },
         soul = currentAgent?.soul?.takeIf { it.isNotBlank() }?.let {
             AgentSoulRenderModel(
-                title = "角色设定",
+                title = "Role prompt",
                 text = it,
                 isExpanded = isSoulExpanded,
                 canToggle = it.length > 120,
-                toggleLabel = if (isSoulExpanded) "收起 ↑" else "展开 ↓",
+                toggleLabel = if (isSoulExpanded) "Collapse ↑" else "Expand ↓",
             )
         },
         skills = AgentSkillsRenderModel(
-            title = "拥有的技能",
-            manageLabel = "管理",
-            addFirstLabel = "为此 Agent 添加技能",
+            title = "Owned skills",
+            manageLabel = "Manage",
+            addFirstLabel = "Add a skill to this agent",
             items = agentSkills.toSkillChips(),
         ),
         rooms = AgentRoomsRenderModel(
-            title = "已加入的房间",
+            title = "Joined rooms",
             countLabel = rooms.takeIf { it.isNotEmpty() }?.size?.toString(),
-            emptyLabel = "尚未加入任何房间",
-            loadingLabel = "正在加载...",
+            emptyLabel = "Not joined to any rooms yet",
+            loadingLabel = "Loading...",
             items = rooms.toRoomItems(),
         ),
         canStartChat = agentMatrixUserId != null && !isLoading && !isStartingChat,
-        startChatLabel = "开始聊天",
-        editLabel = "编辑",
+        startChatLabel = "Start chat",
+        editLabel = "Edit",
         copyableAgentId = currentAgent?.copyableAgentId() ?: botName,
         agentProfileUrl = (currentAgent?.localpart ?: botName)
             .takeIf { it.isNotBlank() }
             ?.let { "${ChatbotConfig.WEBSITE_BASE_URL}/@$it" },
-        connectTitle = "连接我",
-        connectHint = "将此发给你的 Agent",
+        connectTitle = "Connect me",
+        connectHint = "Send this to your agent",
     )
 }
 

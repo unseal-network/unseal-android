@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="room_schedules_title">"Room AI Config"</string>
+  <string name="room_schedules_new_schedule">"New schedule"</string>
+  <string name="room_schedules_tab_schedules">"Schedules"</string>
+  <string name="room_schedules_tab_working_memory">"Working Memory"</string>
+  <string name="room_schedules_summary">"%1$d active · %2$d visible"</string>
+  <string name="room_schedules_mine_only">"Mine only"</string>
+  <string name="room_schedules_refresh">"Refresh"</string>
+  <string name="room_schedules_repeat">"Repeat"</string>
+  <string name="room_schedules_action">"Action"</string>
+  <string name="room_schedules_delete_confirmation">"Delete this schedule?"</string>
+  <string name="room_schedules_empty_title">"No schedules"</string>
+  <string name="room_schedules_empty_description">"Use the bottom button to create a schedule and let an agent run a prompt on a recurring cadence."</string>
+  <string name="room_schedules_no_saved_room_context">"No saved room context"</string>
+  <string name="room_schedules_characters_saved">"%1$d characters saved"</string>
+  <string name="room_schedules_memory">"Memory"</string>
+  <string name="room_schedules_saving">"Saving"</string>
+  <string name="room_schedules_add_memory">"Add Memory"</string>
+  <string name="room_schedules_edit_memory">"Edit Memory"</string>
+  <string name="room_schedules_no_working_memory">"No working memory"</string>
+  <string name="schedule_edit_basics">"Basics"</string>
+  <string name="schedule_edit_action">"Action"</string>
+  <string name="schedule_edit_description">"Configure when this agent should run."</string>
+  <string name="schedule_edit_no_agents">"No agents available"</string>
+  <string name="schedule_edit_hour">"Hour"</string>
+  <string name="schedule_edit_minute">"Minute"</string>
+  <string name="schedule_edit_error_load">"Failed to load schedules"</string>
+  <string name="schedule_edit_error_save">"Failed to save schedule"</string>
+  <string name="schedule_edit_error_empty_name">"Schedule name cannot be empty"</string>
+  <string name="schedule_edit_error_empty_action">"Action cannot be empty"</string>
+  <string name="schedule_edit_error_empty_agent">"Agent cannot be empty"</string>
+  <string name="schedule_edit_error_agent_not_in_room">"Agent not in room"</string>
+</resources>

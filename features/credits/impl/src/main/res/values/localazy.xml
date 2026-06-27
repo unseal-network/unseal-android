@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="credits_title">"Credits and billing"</string>
+  <string name="credits_tab_balance">"Balance"</string>
+  <string name="credits_tab_daily_usage">"Daily usage"</string>
+  <string name="credits_tab_usage">"Usage"</string>
+  <string name="credits_available_balance">"Available balance"</string>
+  <string name="credits_top_up">"Top up"</string>
+  <string name="credits_recent_transactions">"Recent transactions"</string>
+  <string name="credits_no_transactions">"No transactions yet"</string>
+  <string name="credits_loading">"Loading…"</string>
+  <string name="credits_load_more">"Load more"</string>
+  <string name="credits_no_data">"No data"</string>
+  <string name="credits_error_balance_unavailable">"Balance couldn't be loaded."</string>
+  <string name="credits_error_transactions_unavailable">"Transactions couldn't be loaded."</string>
+  <string name="credits_error_daily_usage_unavailable">"Daily usage couldn't be loaded."</string>
+  <string name="credits_error_usage_unavailable">"Usage couldn't be loaded."</string>
+  <string name="credits_total_spend">"Total spend"</string>
+  <string name="credits_seven_days">"7 days"</string>
+  <string name="credits_thirty_days">"30 days"</string>
+  <string name="credits_all">"All"</string>
+  <string name="credits_ranking_tab_agent">"Agent"</string>
+  <string name="credits_ranking_tab_model">"Model"</string>
+  <string name="credits_agent_usage_subtitle">"%1$d input · %2$d output · %3$d calls"</string>
+  <string name="credits_model_usage_subtitle">"%1$d input · %2$d output"</string>
+  <string name="topup_title">"Top up"</string>
+  <string name="topup_current_balance">"Current balance"</string>
+  <string name="topup_custom_amount">"Custom amount"</string>
+  <string name="topup_popular">"Popular"</string>
+  <string name="topup_amount_placeholder">"1 - 500 USD"</string>
+  <string name="topup_amount_range_error">"Amount must be between $1 and $500"</string>
+  <string name="topup_creating_payment_request">"Creating payment request…"</string>
+  <string name="topup_payment_request_created">"Payment request created"</string>
+  <string name="topup_opening_stripe">"Opening Stripe secure payment sheet…"</string>
+  <string name="topup_confirming">"Confirming %1$s…"</string>
+  <string name="topup_success">"Added %1$s"</string>
+  <string name="topup_error_missing_stripe_key">"Stripe publishable key is missing."</string>
+</resources>

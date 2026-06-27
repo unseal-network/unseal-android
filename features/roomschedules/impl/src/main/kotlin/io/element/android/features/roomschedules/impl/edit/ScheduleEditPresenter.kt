@@ -13,9 +13,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import io.element.android.features.roomschedules.impl.R
 import io.element.android.features.roomschedules.impl.cron.CronParser
 import io.element.android.features.roomschedules.impl.cron.CronPickerModel
 import io.element.android.features.roomschedules.impl.model.matrixUserId
@@ -67,9 +69,15 @@ class ScheduleEditPresenter(
         var action by remember { mutableStateOf(initialSchedule?.action.orEmpty()) }
         var cronModel by remember { mutableStateOf(initialSchedule?.cron?.let(CronParser::toPickerModel) ?: CronPickerModel.Default) }
         var error by remember { mutableStateOf<String?>(null) }
+        val loadError = stringResource(R.string.schedule_edit_error_load)
+        val saveError = stringResource(R.string.schedule_edit_error_save)
+        val emptyNameError = stringResource(R.string.schedule_edit_error_empty_name)
+        val emptyActionError = stringResource(R.string.schedule_edit_error_empty_action)
+        val emptyAgentError = stringResource(R.string.schedule_edit_error_empty_agent)
+        val agentNotInRoomError = stringResource(R.string.schedule_edit_error_agent_not_in_room)
 
-        fun errorMessage(throwable: Throwable): String {
-            return throwable.message ?: throwable::class.simpleName ?: throwable.toString()
+        fun errorMessage(throwable: Throwable, fallback: String): String {
+            return throwable.message?.takeIf { it.isNotBlank() } ?: fallback
         }
 
         suspend fun api() = chatbotApiServiceFactory.createForHomeserver(matrixClient)
@@ -89,7 +97,7 @@ class ScheduleEditPresenter(
                         selectedAgentBotName = loadedAgents.firstOrNull()?.botName.orEmpty()
                     }
                 }
-                .onFailure { error = errorMessage(it) }
+                .onFailure { error = errorMessage(it, loadError) }
 
             runCatching { joinedRoom.getMembers(limit = Int.MAX_VALUE) }
                 .getOrNull()
@@ -103,10 +111,10 @@ class ScheduleEditPresenter(
 
         fun validate(): Boolean {
             error = when {
-                mode is ScheduleEditMode.Create && name.trim().isEmpty() -> "Schedule name cannot be empty"
-                action.trim().isEmpty() -> "Action cannot be empty"
-                mode is ScheduleEditMode.Create && selectedAgentBotName.isBlank() -> "Agent cannot be empty"
-                !selectedAgentIsInRoom() -> "Agent not in room"
+                mode is ScheduleEditMode.Create && name.trim().isEmpty() -> emptyNameError
+                action.trim().isEmpty() -> emptyActionError
+                mode is ScheduleEditMode.Create && selectedAgentBotName.isBlank() -> emptyAgentError
+                !selectedAgentIsInRoom() -> agentNotInRoomError
                 else -> null
             }
             return error == null
@@ -149,7 +157,7 @@ class ScheduleEditPresenter(
                 error = null
                 navigator.onSaved()
             } else {
-                error = errorMessage(result.exceptionOrNull() ?: RuntimeException("Failed to save schedule"))
+                error = errorMessage(result.exceptionOrNull() ?: RuntimeException(), saveError)
             }
             isSubmitting = false
         }

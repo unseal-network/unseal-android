@@ -42,6 +42,8 @@ sealed interface MessageComposerEvent {
     data object ClearSlashError : MessageComposerEvent
     data object ShowGamePicker : MessageComposerEvent
     data object DismissGamePicker : MessageComposerEvent
+    data object SendPing : MessageComposerEvent
+    data object ShowAgentSkillPicker : MessageComposerEvent
     data object ToggleAgentSkillPicker : MessageComposerEvent
     data class SelectAgentSkill(val candidate: ComposerAgentSkillCandidate) : MessageComposerEvent
     data class RemoveSelectedAgentSkill(val selected: ComposerSelectedAgentSkill) : MessageComposerEvent

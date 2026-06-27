@@ -195,6 +195,7 @@ class MiniAppNode @AssistedInject constructor(
                 homeserverUrl = homeserverUrl,
                 matrixClient = matrixClient,
                 okHttpClient = okHttpClient(),
+                context = context,
             )
             return service.fetchAppBundle(appId)
                 .onSuccess { lastBundleInfo = it }
@@ -295,6 +296,7 @@ class MiniAppNode @AssistedInject constructor(
             homeserverUrl = homeserverUrl,
             matrixClient = matrixClient,
             okHttpClient = okHttpClient(),
+            context = context,
         )
 
         return service.fetchAppBundle(inputs.appId.toInt())

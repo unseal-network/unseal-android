@@ -30,9 +30,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import io.element.android.features.skills.impl.R
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillFacetValue
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillFacetsResponse
+import io.element.android.libraries.ui.strings.CommonStrings
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,12 +57,12 @@ fun SkillFilterSheet(
         ) {
             val field = selectedField
             if (field == null) {
-                Text("添加筛选", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.skills_filter_add), style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
                 SkillFilterField.entries.forEach { candidate ->
                     ListItem(
-                        headlineContent = { Text(candidate.label) },
-                        supportingContent = { Text("${candidate.values(facets).size} 个选项") },
+                        headlineContent = { Text(candidate.label()) },
+                        supportingContent = { Text(stringResource(R.string.skills_filter_options_count, candidate.values(facets).size)) },
                         modifier = Modifier.clickable(enabled = candidate.values(facets).isNotEmpty()) {
                             selectedField = candidate
                             query = ""
@@ -68,15 +71,15 @@ fun SkillFilterSheet(
                 }
             } else {
                 TextButton(onClick = { selectedField = null; query = "" }) {
-                    Text("返回")
+                    Text(stringResource(CommonStrings.action_go_back))
                 }
-                Text(field.label, style = MaterialTheme.typography.titleMedium)
+                Text(field.label(), style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = query,
                     onValueChange = { query = it },
-                    label = { Text("搜索${field.label}") },
+                    label = { Text(stringResource(R.string.skills_filter_search_field, field.label())) },
                     singleLine = true,
                 )
                 if (field == SkillFilterField.Tag) {
@@ -84,13 +87,13 @@ fun SkillFilterSheet(
                         FilterChip(
                             selected = filterState.tagMode == SkillTagMode.Any,
                             onClick = { onTagModeChanged(SkillTagMode.Any) },
-                            label = { Text("任一标签") },
+                            label = { Text(stringResource(R.string.skills_filter_any_tag)) },
                         )
                         Spacer(Modifier.width(8.dp))
                         FilterChip(
                             selected = filterState.tagMode == SkillTagMode.All,
                             onClick = { onTagModeChanged(SkillTagMode.All) },
-                            label = { Text("全部标签") },
+                            label = { Text(stringResource(R.string.skills_filter_all_tags)) },
                         )
                     }
                 }
@@ -100,7 +103,7 @@ fun SkillFilterSheet(
                     .forEach { facet ->
                         ListItem(
                             headlineContent = { Text(facet.value) },
-                            supportingContent = { Text("${facet.count} 个技能") },
+                            supportingContent = { Text(stringResource(R.string.skills_filter_skills_count, facet.count)) },
                             modifier = Modifier.clickable {
                                 onApplyToken(field.token(facet.filterValue()))
                                 if (field != SkillFilterField.Tag) {
@@ -116,10 +119,17 @@ fun SkillFilterSheet(
     }
 }
 
-private enum class SkillFilterField(val label: String) {
-    Category("分类"),
-    Tag("标签"),
-    Source("来源");
+private enum class SkillFilterField {
+    Category,
+    Tag,
+    Source;
+
+    @Composable
+    fun label(): String = when (this) {
+        Category -> stringResource(R.string.skills_filter_category)
+        Tag -> stringResource(R.string.skills_filter_tag)
+        Source -> stringResource(R.string.skills_filter_source)
+    }
 
     fun values(facets: ChatbotSkillFacetsResponse): List<ChatbotSkillFacetValue> = when (this) {
         Category -> facets.categories

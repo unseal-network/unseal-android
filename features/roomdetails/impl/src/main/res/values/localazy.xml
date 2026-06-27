@@ -45,6 +45,9 @@
   <string name="screen_room_details_badge_encrypted">"Encrypted"</string>
   <string name="screen_room_details_badge_not_encrypted">"Not encrypted"</string>
   <string name="screen_room_details_badge_public">"Public room"</string>
+  <string name="screen_room_details_debug_internal_room_id">"Internal room ID"</string>
+  <string name="screen_room_details_debug_room_version">"Room version"</string>
+  <string name="screen_room_details_debug_unknown">"Unknown"</string>
   <string name="screen_room_details_edit_room_title">"Edit details"</string>
   <string name="screen_room_details_edition_error">"There was an unknown error and the information couldn\'t be changed."</string>
   <string name="screen_room_details_edition_error_title">"Unable to update room"</string>

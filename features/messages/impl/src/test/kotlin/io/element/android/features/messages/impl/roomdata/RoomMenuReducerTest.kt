@@ -17,6 +17,26 @@ import org.junit.Test
 
 class RoomMenuReducerTest {
     @Test
+    fun `reduce exposes room configuration entry points before unseal context loads`() {
+        val roomMenu = RoomMenuReducer.reduce(
+            roomUnsealContext = AsyncData.Uninitialized,
+            hasThreads = false,
+            isThreadTimeline = false,
+        )
+
+        assertThat(roomMenu.topbarActions).containsExactly(
+            RoomTopbarAction.Schedules,
+            RoomTopbarAction.Webhooks,
+        ).inOrder()
+        assertThat(roomMenu.topbarTools.map { it.action }).containsExactly(
+            RoomTopbarAction.Webhooks,
+            RoomTopbarAction.Schedules,
+        ).inOrder()
+        assertThat(roomMenu.topbarTools.single { it.action == RoomTopbarAction.Schedules }.badgeCount).isNull()
+        assertThat(roomMenu.topbarTools.single { it.action == RoomTopbarAction.Webhooks }.badgeCount).isNull()
+    }
+
+    @Test
     fun `reduce does not expose threads as an iOS parity room topbar action`() {
         val roomMenu = RoomMenuReducer.reduce(
             roomUnsealContext = AsyncData.Uninitialized,
@@ -24,7 +44,7 @@ class RoomMenuReducerTest {
             isThreadTimeline = false,
         )
 
-        assertThat(roomMenu.topbarActions).isEmpty()
+        assertThat(roomMenu.topbarActions).doesNotContain(RoomTopbarAction.Threads)
     }
 
     @Test
@@ -35,7 +55,7 @@ class RoomMenuReducerTest {
             isThreadTimeline = true,
         )
 
-        assertThat(roomMenu.topbarActions).isEmpty()
+        assertThat(roomMenu.topbarActions).doesNotContain(RoomTopbarAction.Threads)
     }
 
     @Test
@@ -144,7 +164,44 @@ class RoomMenuReducerTest {
     }
 
     @Test
-    fun `reduce does not expose unimplemented sketch placeholder attachment action`() {
+    fun `reduce exposes skill attachment action when an agent is in the room`() {
+        val roomMenu = RoomMenuReducer.reduce(
+            roomUnsealContext = AsyncData.Success(contextWithAgent()),
+            hasThreads = false,
+            isThreadTimeline = false,
+            canShareLocation = true,
+            enableTextFormatting = true,
+        )
+
+        assertThat(roomMenu.attachmentActions).containsExactly(
+            RoomAttachmentAction.Game,
+            RoomAttachmentAction.TextFormatting,
+            RoomAttachmentAction.Skill,
+            RoomAttachmentAction.Poll,
+            RoomAttachmentAction.Ping,
+            RoomAttachmentAction.Location,
+            RoomAttachmentAction.Files,
+            RoomAttachmentAction.Gallery,
+            RoomAttachmentAction.PhotoFromCamera,
+            RoomAttachmentAction.VideoFromCamera,
+        ).inOrder()
+    }
+
+    @Test
+    fun `reduce exposes skill attachment action immediately for direct agent room member`() {
+        val roomMenu = RoomMenuReducer.reduce(
+            roomUnsealContext = AsyncData.Uninitialized,
+            hasThreads = false,
+            isThreadTimeline = false,
+            hasDirectAgentMember = true,
+        )
+
+        assertThat(roomMenu.attachmentActions).contains(RoomAttachmentAction.Skill)
+        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Skill }.isAvailable).isTrue()
+    }
+
+    @Test
+    fun `reduce exposes full ios attachment action contract with unavailable gaps`() {
         val roomMenu = RoomMenuReducer.reduce(
             roomUnsealContext = AsyncData.Uninitialized,
             hasThreads = false,
@@ -156,15 +213,25 @@ class RoomMenuReducerTest {
         assertThat(roomMenu.attachmentActionEntries.map { it.action }).containsExactly(
             RoomAttachmentAction.Game,
             RoomAttachmentAction.TextFormatting,
+            RoomAttachmentAction.Skill,
             RoomAttachmentAction.Poll,
             RoomAttachmentAction.Ping,
+            RoomAttachmentAction.Sketch,
             RoomAttachmentAction.Location,
             RoomAttachmentAction.Files,
             RoomAttachmentAction.Gallery,
             RoomAttachmentAction.PhotoFromCamera,
             RoomAttachmentAction.VideoFromCamera,
         ).inOrder()
-        assertThat(roomMenu.attachmentActionEntries.map { it.action }).doesNotContain(RoomAttachmentAction.Sketch)
+        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Ping }.isAvailable).isTrue()
+        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Ping }.unavailableReason)
+            .isNull()
+        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Sketch }.isAvailable).isFalse()
+        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Sketch }.unavailableReason)
+            .isEqualTo(RoomAttachmentActionUnavailableReason.RequiresBottomLayer)
+        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Skill }.isAvailable).isFalse()
+        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Skill }.unavailableReason)
+            .isEqualTo(RoomAttachmentActionUnavailableReason.DisabledByRoomCapability)
     }
 
     @Test
@@ -191,6 +258,9 @@ class RoomMenuReducerTest {
             .isEqualTo(RoomAttachmentActionUnavailableReason.DisabledByRoomCapability)
         assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Location }.isAvailable).isFalse()
         assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Location }.unavailableReason)
+            .isEqualTo(RoomAttachmentActionUnavailableReason.DisabledByRoomCapability)
+        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Skill }.isAvailable).isFalse()
+        assertThat(roomMenu.attachmentActionEntries.single { it.action == RoomAttachmentAction.Skill }.unavailableReason)
             .isEqualTo(RoomAttachmentActionUnavailableReason.DisabledByRoomCapability)
     }
 

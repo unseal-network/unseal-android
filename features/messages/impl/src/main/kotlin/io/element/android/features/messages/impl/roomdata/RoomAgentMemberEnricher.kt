@@ -17,7 +17,7 @@ object RoomAgentMemberEnricher {
             val agent = activeAgentFor(member, agentsByUserId)
             RoomMemberRender(
                 member = member,
-                userType = agent?.userType ?: agent?.let { "agent" },
+                userType = agent?.userType ?: agent?.let { "agent" } ?: member.userType,
                 displayNameOverride = agent?.displayName,
                 avatarUrlOverride = agent?.avatarUrl,
             )

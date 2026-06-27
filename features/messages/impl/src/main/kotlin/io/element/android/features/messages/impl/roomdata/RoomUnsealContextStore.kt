@@ -43,6 +43,19 @@ enum class RoomUnsealRefreshReason(val force: Boolean) {
     Manual(force = true),
 }
 
+private val RoomUnsealRefreshReason.requiresFullRoomData: Boolean
+    get() = when (this) {
+        RoomUnsealRefreshReason.ScheduleChanged,
+        RoomUnsealRefreshReason.WebhookChanged,
+        RoomUnsealRefreshReason.RoomConfigChanged,
+        RoomUnsealRefreshReason.Manual -> true
+        RoomUnsealRefreshReason.Initial,
+        RoomUnsealRefreshReason.SkillCatalogChanged,
+        RoomUnsealRefreshReason.MembersChanged,
+        RoomUnsealRefreshReason.AppResumed,
+        RoomUnsealRefreshReason.ComposerMentionStarted -> false
+    }
+
 @SingleIn(RoomScope::class)
 @ContributesBinding(RoomScope::class)
 @Inject
@@ -60,10 +73,25 @@ class DefaultRoomUnsealContextStore(
         refreshMutex.withLock {
             if (!force && mutableContext.value.isLoading()) return
             val previousContext = mutableContext.value.dataOrNull()
+            var loadingContext = previousContext
             mutableContext.value = AsyncData.Loading(prevData = previousContext)
             runCatchingExceptions {
                 withContext(dispatchers.io) {
-                    loader.load()
+                    if (reason.requiresFullRoomData) {
+                        loader.load { identityContext ->
+                            if (previousContext == null && identityContext.hasAgentInRoom) {
+                                loadingContext = identityContext
+                                mutableContext.value = AsyncData.Loading(prevData = identityContext)
+                                Timber.d(
+                                    "RoomUnsealContext identity loaded reason=$reason roomId=${identityContext.roomId.value} " +
+                                        "members=${identityContext.members.size} agents=${identityContext.roomAgents.size} " +
+                                        "hasAgent=${identityContext.hasAgentInRoom}"
+                                )
+                            }
+                        }
+                    } else {
+                        loader.loadIdentity().withDetailsFrom(previousContext)
+                    }
                 }
             }.onSuccess { context ->
                 mutableContext.value = AsyncData.Success(context)
@@ -74,9 +102,21 @@ class DefaultRoomUnsealContextStore(
                         "webhooks=${context.webhookTriggers.size} errors=${context.errors.size}"
                 )
             }.onFailure { error ->
-                mutableContext.value = AsyncData.Failure(error, prevData = previousContext)
+                mutableContext.value = AsyncData.Failure(error, prevData = loadingContext)
                 Timber.w(error, "Failed to load RoomUnsealContext reason=$reason")
             }
         }
     }
+}
+
+private fun RoomUnsealContext.withDetailsFrom(previousContext: RoomUnsealContext?): RoomUnsealContext {
+    if (previousContext == null || previousContext.roomId != roomId || !hasAgentInRoom) return this
+    return copy(
+        schedules = previousContext.schedules,
+        activeScheduleCount = previousContext.activeScheduleCount,
+        webhookTriggers = previousContext.webhookTriggers,
+        webhookSummary = previousContext.webhookSummary,
+        workingMemory = previousContext.workingMemory,
+        errors = (errors + previousContext.errors).distinct(),
+    )
 }

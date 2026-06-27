@@ -45,7 +45,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.border
 import androidx.compose.ui.layout.onSizeChanged
-import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -90,11 +89,13 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import io.element.android.compound.theme.ElementTheme
+import io.element.android.features.messages.impl.R
 import io.element.android.features.messages.impl.components.SelectedStatePill
 import io.element.android.features.messages.impl.components.ShapedClickableSurface
 import io.element.android.features.messages.impl.timeline.model.event.AiCustomStreamPart
@@ -126,6 +127,9 @@ import org.json.JSONObject
 
 private val ToolCallContentMaxHeight = 320.dp
 
+/** Allows [PptGenerationWorkflowCard] (deep in the tool card chain) to read workflow progress. */
+internal val LocalWorkflowMessages = androidx.compose.runtime.compositionLocalOf<Map<String, WorkflowMessage>> { emptyMap() }
+
 private data class ToolRootUiState(
     val selectedIndex: Int,
     val expanded: Boolean,
@@ -147,25 +151,11 @@ fun TimelineItemAiView(
     onLinkLongClick: (Link) -> Unit,
     onLongClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
-    onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit = {},
     workflowMessages: Map<String, WorkflowMessage> = emptyMap(),
 ) {
     val toolRootUiStates = remember { mutableStateMapOf<String, ToolRootUiState>() }
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            // Report the body as full-width so the bubble's ContentAvoidingLayout places the
-            // timestamp / "edited" marker on its own row below, never overlapping the content.
-            .onSizeChanged { size ->
-                onContentLayoutChange(
-                    ContentAvoidingLayoutData(
-                        contentWidth = size.width,
-                        contentHeight = size.height,
-                        nonOverlappingContentWidth = size.width,
-                        nonOverlappingContentHeight = size.height,
-                    )
-                )
-            },
+        modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         // Mirror iOS BubbleMessageView: render ONLY the (hidden-filtered, ordered) stream parts.
@@ -296,6 +286,7 @@ private fun AiStreamPartsView(
     // first tool part's position; render every other part inline in order; trailing streaming
     // cursor unless the last part is already a streaming text (which carries its own cursor).
     val toolCardInserted = toolCallRoot != null
+    androidx.compose.runtime.CompositionLocalProvider(LocalWorkflowMessages provides workflowMessages) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -334,6 +325,7 @@ private fun AiStreamPartsView(
             StreamingCursor()
         }
     }
+    } // end CompositionLocalProvider(LocalWorkflowMessages)
 }
 
 /** Trailing streaming indicator (iOS StreamingCursor). */
@@ -395,12 +387,12 @@ private fun AiUnavailableCard() {
             )
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = "消息内容加载失败",
+                    text = stringResource(R.string.screen_room_timeline_ai_unavailable_title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = "该回复没有可显示的内容，请稍后重试。",
+                    text = stringResource(R.string.screen_room_timeline_ai_unavailable_description),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -448,7 +440,11 @@ private fun ReasoningPart(part: AiReasoningStreamPart) {
                 contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
             ) {
                 Text(
-                    text = (if (expanded) "▾ " else "▸ ") + if (isStreaming) "思考中" else "思考",
+                    text = (if (expanded) "▾ " else "▸ ") + if (isStreaming) {
+                        stringResource(R.string.screen_room_timeline_ai_reasoning_in_progress)
+                    } else {
+                        stringResource(R.string.screen_room_timeline_ai_reasoning)
+                    },
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -548,6 +544,10 @@ private fun ToolCallRootCard(
             )
         }
     }
+    val rootTitle = model.title
+        .takeUnless { it.equals("Tool Calls", ignoreCase = true) }
+        ?.localizedToolDisplayName()
+        ?: stringResource(R.string.screen_room_timeline_tool_card_tool_calls)
     Surface(
         shape = rootShape,
         color = rootContainerColor,
@@ -608,7 +608,7 @@ private fun ToolCallRootCard(
                         isCalling = model.callingCount > 0,
                     )
                     Text(
-                        text = model.title,
+                        text = rootTitle,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 2,
@@ -722,7 +722,7 @@ private fun ToolSelectionTabs(
                     ) {
                         ToolStateDot(entry.state)
                         Text(
-                            text = entry.name,
+                            text = entry.name.localizedToolDisplayName(),
                             style = MaterialTheme.typography.labelMedium,
                             color = LocalContentColor.current,
                         )
@@ -779,6 +779,53 @@ private fun toolRootBodyBrush(): Brush {
             ),
         )
     }
+}
+
+@Composable
+private fun String.localizedToolDisplayName(): String = when (this) {
+    "Flights" -> stringResource(R.string.screen_room_timeline_tool_card_flights)
+    "Hotels" -> stringResource(R.string.screen_room_timeline_tool_card_hotels)
+    "News" -> stringResource(R.string.screen_room_timeline_tool_card_news)
+    "Web Search" -> stringResource(R.string.screen_room_timeline_tool_card_web_search)
+    "Search" -> stringResource(R.string.screen_room_timeline_tool_card_search)
+    "Scholar" -> stringResource(R.string.screen_room_timeline_tool_card_scholar)
+    "Images" -> stringResource(R.string.screen_room_timeline_tool_card_images)
+    "Shopping" -> stringResource(R.string.screen_room_timeline_tool_card_shopping)
+    "Finance" -> stringResource(R.string.screen_room_timeline_tool_card_finance)
+    "Weather" -> stringResource(R.string.screen_room_timeline_tool_card_weather)
+    "Events" -> stringResource(R.string.screen_room_timeline_tool_card_events)
+    "Places" -> stringResource(R.string.screen_room_timeline_tool_card_places)
+    "Web Content" -> stringResource(R.string.screen_room_timeline_tool_card_web_content)
+    "Issues" -> stringResource(R.string.screen_room_timeline_tool_card_issues)
+    "Issues & PRs" -> stringResource(R.string.screen_room_timeline_tool_card_issues_and_prs)
+    "Pull Requests" -> stringResource(R.string.screen_room_timeline_tool_card_pull_requests)
+    "Issue" -> stringResource(R.string.screen_room_timeline_tool_card_issue)
+    "Check Runs" -> stringResource(R.string.screen_room_timeline_tool_card_check_runs)
+    "Commits" -> stringResource(R.string.screen_room_timeline_tool_card_commits)
+    "Contributors" -> stringResource(R.string.screen_room_timeline_tool_card_contributors)
+    "Deployments" -> stringResource(R.string.screen_room_timeline_tool_card_deployments)
+    "Notifications" -> stringResource(R.string.screen_room_timeline_tool_card_notifications)
+    "Organizations" -> stringResource(R.string.screen_room_timeline_tool_card_organizations)
+    "Release" -> stringResource(R.string.screen_room_timeline_tool_card_release)
+    "Repositories" -> stringResource(R.string.screen_room_timeline_tool_card_repositories)
+    "Starred" -> stringResource(R.string.screen_room_timeline_tool_card_starred)
+    "Secret Alerts" -> stringResource(R.string.screen_room_timeline_tool_card_secret_alerts)
+    "Workflows" -> stringResource(R.string.screen_room_timeline_tool_card_workflows)
+    "Comments" -> stringResource(R.string.screen_room_timeline_tool_card_comments)
+    "PR Comments" -> stringResource(R.string.screen_room_timeline_tool_card_pr_comments)
+    "Email" -> stringResource(R.string.screen_room_timeline_tool_card_email)
+    "Emails" -> stringResource(R.string.screen_room_timeline_tool_card_emails)
+    "Draft" -> stringResource(R.string.screen_room_timeline_tool_card_draft)
+    "Files" -> stringResource(R.string.screen_room_timeline_tool_card_files)
+    "File" -> stringResource(R.string.screen_room_timeline_tool_card_file)
+    "Timeline" -> stringResource(R.string.screen_room_timeline_tool_card_timeline)
+    "Posts" -> stringResource(R.string.screen_room_timeline_tool_card_posts)
+    "Post" -> stringResource(R.string.screen_room_timeline_tool_card_post)
+    "Create Schedule" -> stringResource(R.string.screen_room_timeline_tool_card_create_schedule)
+    "Update Schedule" -> stringResource(R.string.screen_room_timeline_tool_card_update_schedule)
+    "Schedule Status" -> stringResource(R.string.screen_room_timeline_tool_card_schedule_status)
+    "Generate Presentation" -> stringResource(R.string.screen_room_timeline_tool_card_generate_presentation)
+    else -> this
 }
 
 @Composable
@@ -879,7 +926,11 @@ private fun ToolCallingProgressRow(hasRenderedContent: Boolean) {
         StreamingCursor()
         InlineLoadingDots()
         Text(
-            text = if (hasRenderedContent) "Updating results" else "Waiting for results",
+            text = if (hasRenderedContent) {
+                stringResource(R.string.screen_room_timeline_ai_updating_results)
+            } else {
+                stringResource(R.string.screen_room_timeline_ai_waiting_for_results)
+            },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -892,7 +943,23 @@ private fun ToolErrorEntryContent(entry: AiToolCardEntry) {
     val props = remember(entry.id, propsHash) {
         runCatching { JSONObject(entry.props) }.getOrNull() ?: JSONObject()
     }
-    val detail = remember(entry.id, propsHash) { props.toolErrorDetail(entry.props) }
+    val failedResults = stringResource(R.string.screen_room_timeline_ai_failed_to_get_results)
+    val statusFailed = stringResource(R.string.screen_room_timeline_ai_tool_error_status_failed)
+    val toolLabel = stringResource(R.string.screen_room_timeline_ai_tool_error_tool)
+    val reasonLabel = stringResource(R.string.screen_room_timeline_ai_tool_error_reason)
+    val nestedLabel = stringResource(R.string.screen_room_timeline_ai_tool_error_nested)
+    val rawLabel = stringResource(R.string.screen_room_timeline_ai_tool_error_raw)
+    val detail = remember(entry.id, propsHash, failedResults, statusFailed, toolLabel, reasonLabel, nestedLabel, rawLabel) {
+        props.toolErrorDetail(
+            rawProps = entry.props,
+            failedResults = failedResults,
+            statusFailed = statusFailed,
+            toolLabel = toolLabel,
+            reasonLabel = reasonLabel,
+            nestedLabel = nestedLabel,
+            rawLabel = rawLabel,
+        )
+    }
     val message = detail.summary
     var expanded by rememberSaveable(entry.id, "tool-error-expanded") { mutableStateOf(true) }
     Surface(
@@ -922,7 +989,7 @@ private fun ToolErrorEntryContent(entry: AiToolCardEntry) {
                 )
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        text = entry.name.ifBlank { "Tool call" },
+                        text = entry.name.ifBlank { stringResource(R.string.screen_room_timeline_ai_tool_call) },
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.error,
@@ -1061,27 +1128,30 @@ private fun AiToolStreamPart.cardTypeForEmptyState(): String? {
     }.getOrNull()
 }
 
+@Composable
 private fun String?.emptyToolResultLabel(): String {
     return when (this) {
-        "socialPostFeed" -> "No posts returned"
-        "productList" -> "No products returned"
-        "eventList" -> "No events returned"
-        "imageGrid" -> "No images returned"
-        "hotelBooking" -> "No hotels returned"
-        "flightAlert" -> "No flights returned"
-        "headlineList", "urlContent" -> "No results returned"
-        "fileAttachment" -> "No files returned"
-        "githubIssuesList", "linearIssuesList" -> "No issues returned"
-        "repoList" -> "No repositories returned"
-        "notifications" -> "No notifications returned"
-        else -> "No visual result returned"
+        "socialPostFeed" -> stringResource(R.string.screen_room_timeline_tool_card_no_posts_returned)
+        "productList" -> stringResource(R.string.screen_room_timeline_tool_card_no_products_returned)
+        "eventList" -> stringResource(R.string.screen_room_timeline_tool_card_no_events_returned)
+        "imageGrid" -> stringResource(R.string.screen_room_timeline_tool_card_no_images_returned)
+        "hotelBooking" -> stringResource(R.string.screen_room_timeline_tool_card_no_hotels_returned)
+        "flightAlert" -> stringResource(R.string.screen_room_timeline_tool_card_no_flights_returned)
+        "headlineList", "urlContent" -> stringResource(R.string.screen_room_timeline_tool_card_no_results_returned)
+        "fileAttachment" -> stringResource(R.string.screen_room_timeline_tool_card_no_files_returned)
+        "githubIssuesList", "linearIssuesList" -> stringResource(R.string.screen_room_timeline_tool_card_no_issues_returned)
+        "repoList" -> stringResource(R.string.screen_room_timeline_tool_card_no_repositories_returned)
+        "notifications" -> stringResource(R.string.screen_room_timeline_tool_card_no_notifications_returned)
+        else -> stringResource(R.string.screen_room_timeline_tool_card_no_visual_result_returned)
     }
 }
 
 @Composable
 private fun ToolErrorContent(part: AiToolStreamPart) {
     Text(
-        text = part.errorText?.takeIf { it.isNotBlank() } ?: "Tool call failed.",
+        text = part.errorText
+            ?.takeIf { it.isNotBlank() && !it.equals("Tool call failed.", ignoreCase = true) && !it.equals("Tool call failed", ignoreCase = true) }
+            ?: stringResource(R.string.screen_room_timeline_tool_card_tool_call_failed),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.error,
     )
@@ -1099,7 +1169,15 @@ private data class ToolErrorDetail(
     val body: String,
 )
 
-private fun JSONObject.toolErrorDetail(rawProps: String): ToolErrorDetail {
+private fun JSONObject.toolErrorDetail(
+    rawProps: String,
+    failedResults: String,
+    statusFailed: String,
+    toolLabel: String,
+    reasonLabel: String,
+    nestedLabel: String,
+    rawLabel: String,
+): ToolErrorDetail {
     val summary = firstErrorString(
         "errorText",
         "message",
@@ -1111,15 +1189,15 @@ private fun JSONObject.toolErrorDetail(rawProps: String): ToolErrorDetail {
         "description",
     )?.takeIf { !it.looksLikeRawJsonError() }
         ?: nestedErrorString()
-        ?: "Failed to get results"
+        ?: failedResults
     val body = buildList {
-        add("Status: failed")
-        firstErrorString("toolName", "name")?.let { add("Tool: $it") }
+        add(statusFailed)
+        firstErrorString("toolName", "name")?.let { add("$toolLabel: $it") }
         firstErrorString("errorText", "message", "error", "reason", "detail", "details", "cause", "description")
             ?.takeIf { it.isNotBlank() }
-            ?.let { add("Reason: ${it.compactToolErrorText()}") }
-        nestedErrorString()?.takeIf { it != summary }?.let { add("Nested: ${it.compactToolErrorText()}") }
-        rawProps.takeIf { it.isNotBlank() }?.let { add("Raw: ${it.compactToolErrorText()}") }
+            ?.let { add("$reasonLabel: ${it.compactToolErrorText()}") }
+        nestedErrorString()?.takeIf { it != summary }?.let { add("$nestedLabel: ${it.compactToolErrorText()}") }
+        rawProps.takeIf { it.isNotBlank() }?.let { add("$rawLabel: ${it.compactToolErrorText()}") }
     }.joinToString("\n")
     return ToolErrorDetail(summary = summary.compactToolErrorText(), body = body)
 }
@@ -1206,7 +1284,7 @@ private fun ToolPayloadCard(
             }
             if (model.moreCount > 0) {
                 Text(
-                    text = "+${model.moreCount} more",
+                    text = stringResource(R.string.screen_room_timeline_tool_card_more_count, model.moreCount),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1254,7 +1332,7 @@ private fun DataPart(
     workflowMessages: Map<String, WorkflowMessage> = emptyMap(),
 ) {
     when (part.type) {
-        "data-error" -> ErrorPart(AiErrorStreamPart(id = part.id, state = part.state, errorText = part.payload.errorTextFromJson() ?: "Stream error"))
+        "data-error" -> ErrorPart(AiErrorStreamPart(id = part.id, state = part.state, errorText = part.payload.errorTextFromJson().orEmpty()))
         "data-error-card" -> ErrorCard(part.payload)
         "data-tool-call-suspended" -> SuspendedToolCard(part.payload)
         "data-ui-spec", "data-json-render", "data-spec" -> {
@@ -1266,14 +1344,31 @@ private fun DataPart(
             }
         }
         "data" -> {
-            val pptData = remember(part.id, part.payload) { PptPlanningData.fromJson(part.payload) }
-            if (pptData != null) {
-                val progress = workflowMessages[pptData.taskId] ?: WorkflowMessage.Empty
-                PptPlanningCard(
-                    data = pptData,
-                    workflowProgress = progress,
-                    onLinkClick = onLinkClick,
-                )
+            val contentType = remember(part.id, part.payload) {
+                runCatching { JSONObject(part.payload).optString("content_type") }.getOrNull().orEmpty()
+            }
+            when (contentType) {
+                "ppt_planning" -> {
+                    val pptData = remember(part.id, part.payload) { PptPlanningData.fromJson(part.payload) }
+                    if (pptData != null) {
+                        val progress = workflowMessages[pptData.taskId] ?: WorkflowMessage.Empty
+                        PptPlanningCard(
+                            data = pptData,
+                            workflowProgress = progress,
+                            onLinkClick = onLinkClick,
+                        )
+                    }
+                }
+                "ppt_outline_v2" -> {
+                    val outlineData = remember(part.id, part.payload) { PptOutlineData.fromJson(part.payload) }
+                    if (outlineData != null) {
+                        PptOutlineCard(
+                            data = outlineData,
+                            onLinkClick = onLinkClick,
+                        )
+                    }
+                }
+                else -> Unit
             }
         }
         else -> Unit
@@ -1283,7 +1378,7 @@ private fun DataPart(
 @Composable
 private fun ErrorCard(payload: String) {
     val json = payload.jsonObjectOrNull()
-    val title = json?.optString("title")?.takeIf { it.isNotBlank() } ?: "Something went wrong"
+    val title = json?.optString("title")?.takeIf { it.isNotBlank() } ?: stringResource(R.string.screen_room_timeline_ai_generic_error_title)
     val message = json?.optString("message")?.takeIf { it.isNotBlank() } ?: payload.errorTextFromJson().orEmpty()
     ErrorBanner(title = title, message = message)
 }
@@ -1319,7 +1414,7 @@ private fun ErrorBanner(title: String? = null, message: String) {
                     )
                 }
                 Text(
-                    text = message.ifBlank { "Stream error" },
+                    text = message.ifBlank { stringResource(R.string.screen_room_timeline_tool_card_stream_error) },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1408,7 +1503,7 @@ private fun SuspendedToolCard(payload: String) {
                     }
                 }
                 Text(
-                    text = "Suspended",
+                    text = stringResource(R.string.screen_room_timeline_ai_suspended),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
@@ -1436,12 +1531,12 @@ private fun SuspendedToolCard(payload: String) {
             model.fields.takeIf { it.isNotEmpty() }?.let { fields ->
                 SuspendedToolFieldEditor(
                     fields = fields,
-                    submitLabel = model.submitLabel ?: "Continue",
+                    submitLabel = model.submitLabel ?: stringResource(R.string.screen_room_timeline_ai_continue),
                 )
             }
             if (model.details.size > 6 || model.choices.size > 6) {
                 Text(
-                    text = "+${(model.details.size + model.choices.size) - 6} more",
+                    text = stringResource(R.string.screen_room_timeline_tool_card_more_count, (model.details.size + model.choices.size) - 6),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1710,7 +1805,11 @@ private fun SourcePart(
     onLinkLongClick: (Link) -> Unit,
 ) {
     InlineInfoRow(
-        label = if (part.sourceType == "document") "Document" else "Source",
+        label = if (part.sourceType == "document") {
+            stringResource(R.string.screen_room_timeline_ai_document)
+        } else {
+            stringResource(R.string.screen_room_timeline_ai_source)
+        },
         title = part.filename ?: part.title,
         accent = MaterialTheme.colorScheme.primary,
     ) {
@@ -1730,9 +1829,11 @@ private fun FilePart(
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
 ) {
+    val fileLabel = stringResource(R.string.screen_room_timeline_tool_card_file)
+    val fallbackTitle = "$fileLabel · ${localizedAiState(part.state)}"
     InlineInfoRow(
-        label = "File",
-        title = listOfNotNull(part.filename, part.mediaType).joinToString(" · ").ifBlank { "File · ${part.state}" },
+        label = fileLabel,
+        title = listOfNotNull(part.filename, part.mediaType).joinToString(" · ").ifBlank { fallbackTitle },
         accent = MaterialTheme.colorScheme.secondary,
     ) {
         part.url?.takeIf { it.isNotBlank() }?.let {
@@ -1747,7 +1848,7 @@ private fun FilePart(
 
 @Composable
 private fun ErrorPart(part: AiErrorStreamPart) {
-    ErrorBanner(message = part.errorText.ifBlank { "Stream error" })
+    ErrorBanner(message = part.errorText.ifBlank { stringResource(R.string.screen_room_timeline_tool_card_stream_error) })
 }
 
 @Composable
@@ -1863,7 +1964,7 @@ private fun ThinkingSection(steps: List<AiThinkingStep>) {
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
-                text = (if (expanded) "▾ " else "▸ ") + "思考 (${steps.size})",
+                text = (if (expanded) "▾ " else "▸ ") + stringResource(R.string.screen_room_timeline_ai_reasoning) + " (${steps.size})",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
@@ -1897,7 +1998,7 @@ private fun ToolCallCard(toolCall: AiToolCall) {
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                text = "${toolCall.displayName} · ${toolCall.state}",
+                text = "${toolCall.displayName.localizedToolDisplayName()} · ${localizedAiState(toolCall.state)}",
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -1911,6 +2012,17 @@ private fun ToolCallCard(toolCall: AiToolCall) {
             }
         }
     }
+}
+
+@Composable
+private fun localizedAiState(state: String): String = when (state.lowercase()) {
+    "pending" -> stringResource(R.string.screen_room_timeline_ai_state_pending)
+    "running" -> stringResource(R.string.screen_room_timeline_ai_state_running)
+    "streaming" -> stringResource(R.string.screen_room_timeline_ai_state_streaming)
+    "completed", "complete", "done", "success" -> stringResource(R.string.screen_room_timeline_ai_state_completed)
+    "failed", "error" -> stringResource(R.string.screen_room_timeline_ai_state_failed)
+    "cancelled", "canceled" -> stringResource(R.string.screen_room_timeline_ai_state_cancelled)
+    else -> state
 }
 
 @Composable
@@ -1934,7 +2046,7 @@ private fun SourcesSection(sources: List<AiSource>) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "Sources (${sources.size})",
+                    text = stringResource(R.string.screen_room_timeline_ai_sources, sources.size),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),

@@ -37,11 +37,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.skills.impl.R
 import io.element.android.features.skills.impl.shared.SkillFilterSheet
 import io.element.android.features.skills.impl.shared.SkillFilterState
 import io.element.android.features.skills.impl.shared.SkillFilterTokensRow
@@ -50,6 +52,7 @@ import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillFacetsR
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
+import io.element.android.libraries.ui.strings.CommonStrings
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 
@@ -68,10 +71,10 @@ fun SkillMarketplaceView(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Skill 市场") },
+                title = { Text(stringResource(R.string.skills_marketplace_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "返回")
+                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = stringResource(CommonStrings.action_go_back))
                     }
                 },
             )
@@ -116,7 +119,7 @@ fun SkillMarketplaceView(
                 item {
                     Text(
                         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
-                        text = "$total 个公开技能",
+                        text = stringResource(R.string.skills_public_count, total),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -137,7 +140,11 @@ fun SkillMarketplaceView(
                     item {
                         Text(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 40.dp),
-                            text = if (state.searchQuery.isNotBlank() || state.filterState.activeTokenCount > 0) "没有匹配的技能" else "暂无公开技能",
+                            text = if (state.searchQuery.isNotBlank() || state.filterState.activeTokenCount > 0) {
+                                stringResource(R.string.skills_no_matching_public_skills)
+                            } else {
+                                stringResource(R.string.skills_empty_public)
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
@@ -148,7 +155,7 @@ fun SkillMarketplaceView(
                                     .fillMaxWidth()
                                     .clickable { state.eventSink(SkillMarketplaceEvents.ClearFilters) }
                                     .padding(horizontal = 16.dp, vertical = 4.dp),
-                                text = "清除筛选",
+                                text = stringResource(R.string.skills_clear_filters),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.primary,
                                 textAlign = TextAlign.Center,
@@ -182,7 +189,7 @@ fun SkillMarketplaceView(
                                     CircularProgressIndicator(modifier = Modifier.size(20.dp))
                                 } else {
                                     Text(
-                                        text = "加载更多",
+                                        text = stringResource(R.string.skills_load_more),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
@@ -209,7 +216,7 @@ private fun SearchAndFilterControls(state: SkillMarketplaceState) {
             modifier = Modifier.fillMaxWidth(),
             value = state.searchQuery,
             onValueChange = { state.eventSink(SkillMarketplaceEvents.SearchQueryChanged(it)) },
-            placeholder = { Text("搜索公开技能") },
+            placeholder = { Text(stringResource(R.string.skills_search_public_placeholder)) },
             leadingIcon = { Icon(imageVector = CompoundIcons.Search(), contentDescription = null) },
             singleLine = true,
             shape = RoundedCornerShape(28.dp),
@@ -218,7 +225,13 @@ private fun SearchAndFilterControls(state: SkillMarketplaceState) {
             enabled = state.filtersAvailable,
             onClick = { state.eventSink(SkillMarketplaceEvents.AddFilter) },
         ) {
-            Text(if (state.filterState.activeTokenCount > 0) "筛选 · ${state.filterState.activeTokenCount}" else "筛选")
+            Text(
+                if (state.filterState.activeTokenCount > 0) {
+                    stringResource(R.string.skills_filter_count, state.filterState.activeTokenCount)
+                } else {
+                    stringResource(R.string.skills_filter)
+                },
+            )
         }
     }
 }

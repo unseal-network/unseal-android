@@ -41,7 +41,6 @@ import io.element.android.tests.testutils.setSafeContent
 import io.element.android.wysiwyg.link.Link
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -73,6 +72,7 @@ class TimelineViewTest {
                 eventSink = eventsRecorder,
             ),
         )
+        advancePastScrollSettleDelay()
         eventsRecorder.assertSingle(TimelineEvent.OnScrollFinished(firstIndex = 0))
     }
 
@@ -88,6 +88,7 @@ class TimelineViewTest {
             forceJumpToBottomVisibility = true,
         )
 
+        advancePastScrollSettleDelay()
         eventsRecorder.assertSingle(TimelineEvent.OnScrollFinished(firstIndex = 0))
         eventsRecorder.clear()
 
@@ -106,6 +107,7 @@ class TimelineViewTest {
             ),
         )
 
+        advancePastScrollSettleDelay()
         eventsRecorder.assertSingle(TimelineEvent.OnScrollFinished(firstIndex = 0))
         eventsRecorder.clear()
 
@@ -142,6 +144,7 @@ class TimelineViewTest {
                 eventSink = eventsRecorder,
             ),
         )
+        advancePastScrollSettleDelay()
         val contentDescription = activity!!.getString(CommonStrings.a11y_encryption_details)
         onNodeWithContentDescription(contentDescription).performClick()
         eventsRecorder.assertList(
@@ -163,6 +166,7 @@ class TimelineViewTest {
                 messageShield = aCriticalShield(),
             ),
         )
+        advancePastScrollSettleDelay()
         eventsRecorder.assertSingle(TimelineEvent.OnScrollFinished(firstIndex = 0))
         eventsRecorder.clear()
 
@@ -170,10 +174,6 @@ class TimelineViewTest {
         eventsRecorder.assertSingle(TimelineEvent.HideShieldDialog)
     }
 
-    @Ignore(
-        "performScrollToIndex in compose tests no longer sets LazyListState.isScrollInProgress to true, so the LoadMore event is not emitted." +
-            "This needs to be reworked to use a different approach to check the LoadMore event was emitted."
-    )
     @Test
     fun `scrolling near to the start of the loaded items triggers a pre-fetch`() = runAndroidComposeUiTest {
         val eventsRecorder = EventsRecorder<TimelineEvent>()
@@ -192,10 +192,11 @@ class TimelineViewTest {
                 isLive = false,
             ),
         )
+        advancePastScrollSettleDelay()
 
         onNodeWithTag("timeline").performScrollToIndex(180)
 
-        mainClock.advanceTimeBy(1000)
+        advancePastScrollSettleDelay()
 
         eventsRecorder.assertList(
             listOf(
@@ -204,6 +205,11 @@ class TimelineViewTest {
             )
         )
     }
+}
+
+private fun AndroidComposeUiTest<ComponentActivity>.advancePastScrollSettleDelay() {
+    mainClock.advanceTimeBy(350)
+    waitForIdle()
 }
 
 private fun AndroidComposeUiTest<ComponentActivity>.setTimelineView(

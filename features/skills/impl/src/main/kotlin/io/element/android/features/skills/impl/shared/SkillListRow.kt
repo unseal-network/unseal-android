@@ -23,9 +23,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.skills.impl.R
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 
@@ -86,7 +88,7 @@ fun SkillListRow(
                 SkillMetadataChips(skill = skill, onFilterSelected = onFilterSelected)
                 skill.createdDateLabel()?.let {
                     Text(
-                        text = "创建时间：$it",
+                        text = stringResource(R.string.skill_list_created_at, it),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -132,7 +134,7 @@ fun SkillVisibilityBadge(visibility: ChatbotSkillVisibility) {
         modifier = Modifier
             .background(bg, RoundedCornerShape(percent = 50))
             .padding(horizontal = 8.dp, vertical = 3.dp),
-        text = visibility.displayName(),
+        text = stringResource(visibility.displayNameRes()),
         style = MaterialTheme.typography.labelSmall,
         color = fg,
         maxLines = 1,

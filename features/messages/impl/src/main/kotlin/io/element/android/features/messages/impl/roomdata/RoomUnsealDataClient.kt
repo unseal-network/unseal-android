@@ -17,5 +17,31 @@ interface RoomUnsealDataClient {
     suspend fun listLegacyAgentSkills(agentLookupId: String): Result<List<RoomLegacyAgentSkillDescriptor>>
     suspend fun listWebhookTriggers(roomId: RoomId): Result<List<RoomWebhookTriggerDescriptor>>
     suspend fun getRoomWorkingMemory(roomId: RoomId): Result<String>
+    suspend fun loadRoomIdentityData(roomId: RoomId): RoomUnsealDataSnapshot {
+        return RoomUnsealDataSnapshot(
+            roomAgents = getRoomAgents(roomId).toRoomUnsealResource(emptyList()),
+            allAgents = listAgents().toRoomUnsealResource(emptyList()),
+        )
+    }
     suspend fun loadRoomData(roomId: RoomId): RoomUnsealDataSnapshot
+    suspend fun loadRoomData(
+        roomId: RoomId,
+        onIdentitySnapshot: (RoomUnsealDataSnapshot) -> Unit,
+    ): RoomUnsealDataSnapshot {
+        val snapshot = loadRoomData(roomId)
+        onIdentitySnapshot(
+            RoomUnsealDataSnapshot(
+                roomAgents = snapshot.roomAgents,
+                allAgents = snapshot.allAgents,
+            )
+        )
+        return snapshot
+    }
+}
+
+private fun <T> Result<T>.toRoomUnsealResource(defaultValue: T): RoomUnsealResource<T> {
+    return fold(
+        onSuccess = { RoomUnsealResource.success(it) },
+        onFailure = { RoomUnsealResource.failure(defaultValue, it) },
+    )
 }

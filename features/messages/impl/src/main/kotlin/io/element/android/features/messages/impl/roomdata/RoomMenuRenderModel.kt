@@ -74,6 +74,7 @@ data class RoomAttachmentActionEntry(
 
 enum class RoomAttachmentActionUnavailableReason {
     DisabledByRoomCapability,
+    RequiresBottomLayer,
 }
 
 enum class RoomTopbarAction {
@@ -93,6 +94,7 @@ enum class RoomAttachmentAction {
     Poll,
     Game,
     TextFormatting,
+    Skill,
     Ping,
     Sketch,
 }
@@ -104,15 +106,14 @@ object RoomMenuReducer {
         isThreadTimeline: Boolean,
         canShareLocation: Boolean = false,
         enableTextFormatting: Boolean = false,
+        hasDirectAgentMember: Boolean = false,
         activeDeviceAgentBoundDeviceId: String? = null,
     ): RoomMenuRenderModel {
         val context = roomUnsealContext.dataOrNull()
         val deviceAgent = context?.deviceAgentInRoom
         val actions = buildList {
-            if (context?.hasAgentInRoom == true) {
-                add(RoomTopbarAction.Schedules)
-                add(RoomTopbarAction.Webhooks)
-            }
+            add(RoomTopbarAction.Schedules)
+            add(RoomTopbarAction.Webhooks)
             if (deviceAgent != null) {
                 add(RoomTopbarAction.DeviceAgentChat)
                 add(RoomTopbarAction.DeviceAgentTerminal)
@@ -121,6 +122,7 @@ object RoomMenuReducer {
         val attachmentActionEntries = buildAttachmentActionEntries(
             canShareLocation = canShareLocation,
             enableTextFormatting = enableTextFormatting,
+            enableAgentSkills = context?.hasAgentInRoom == true || hasDirectAgentMember,
         )
         val attachmentActions = attachmentActionEntries.filter { it.isAvailable }.map { it.action }
         val scheduleBadge = context?.takeIf { it.hasAgentInRoom }?.let {
@@ -166,6 +168,7 @@ object RoomMenuReducer {
 private fun buildAttachmentActionEntries(
     canShareLocation: Boolean,
     enableTextFormatting: Boolean,
+    enableAgentSkills: Boolean,
 ): List<RoomAttachmentActionEntry> = listOf(
     RoomAttachmentActionEntry(
         action = RoomAttachmentAction.Game,
@@ -176,10 +179,20 @@ private fun buildAttachmentActionEntries(
         unavailableReason = RoomAttachmentActionUnavailableReason.DisabledByRoomCapability.takeUnless { enableTextFormatting },
     ),
     RoomAttachmentActionEntry(
+        action = RoomAttachmentAction.Skill,
+        isAvailable = enableAgentSkills,
+        unavailableReason = RoomAttachmentActionUnavailableReason.DisabledByRoomCapability.takeUnless { enableAgentSkills },
+    ),
+    RoomAttachmentActionEntry(
         action = RoomAttachmentAction.Poll,
     ),
     RoomAttachmentActionEntry(
         action = RoomAttachmentAction.Ping,
+    ),
+    RoomAttachmentActionEntry(
+        action = RoomAttachmentAction.Sketch,
+        isAvailable = false,
+        unavailableReason = RoomAttachmentActionUnavailableReason.RequiresBottomLayer,
     ),
     RoomAttachmentActionEntry(
         action = RoomAttachmentAction.Location,

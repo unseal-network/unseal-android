@@ -7,6 +7,7 @@
 
 package io.element.android.features.messages.impl.timeline.components.event.toolcards
 
+import android.text.format.DateFormat as AndroidDateFormat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Canvas
@@ -65,11 +66,14 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import io.element.android.features.messages.impl.R
 import io.element.android.features.messages.impl.components.SelectedStatePill
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
@@ -166,15 +170,15 @@ private fun MetaText(text: String, color: Color = MaterialTheme.colorScheme.onSu
 private fun FlightAlertCard(data: JSONObject, onLinkClick: () -> Unit) {
     val flights = data.cardObjects("flights").take(MAX_ITEMS)
     ToolCardSurface {
-        ToolCardHeader(title = "Flights", count = data.cardObjects("flights").size)
+        ToolCardHeader(title = stringResource(R.string.screen_room_timeline_tool_card_flights), count = data.cardObjects("flights").size)
         if (flights.isEmpty()) {
-            MetaText("No flights found")
+            MetaText(stringResource(R.string.screen_room_timeline_tool_card_no_flights_found))
         } else {
             DividedList(flights) { FlightRow(it) }
             data.cardString("searchUrl")?.let { searchUrl ->
                 val action = openLinkAction(searchUrl, onLinkClick)
                 Text(
-                    text = "View on Google Flights",
+                    text = stringResource(R.string.screen_room_timeline_tool_card_view_google_flights),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary,
@@ -187,7 +191,7 @@ private fun FlightAlertCard(data: JSONObject, onLinkClick: () -> Unit) {
 
 @Composable
 private fun FlightRow(flight: JSONObject) {
-    val airline = flight.cardString("airline") ?: "Flight"
+    val airline = flight.cardString("airline") ?: stringResource(R.string.screen_room_timeline_tool_card_flight)
     val airlineLogo = flight.cardString("airlineLogo")
     val flightNumber = flight.cardString("flightNumber") ?: "—"
     val depCode = flight.cardString("departureCode", "departureAirport") ?: "—"
@@ -319,11 +323,11 @@ private fun formatTime(raw: String?): String {
     return if (sep != null) raw.substringAfter(sep).take(5) else raw.take(5)
 }
 
+@Composable
 private fun stopsLabel(stops: Int?): String = when {
     stops == null -> ""
-    stops == 0 -> "Direct"
-    stops == 1 -> "1 stop"
-    else -> "$stops stops"
+    stops == 0 -> stringResource(R.string.screen_room_timeline_tool_card_direct)
+    else -> pluralStringResource(R.plurals.screen_room_timeline_tool_card_stop_count, stops, stops)
 }
 
 // MARK: - Hotels (hotelBooking)
@@ -343,7 +347,7 @@ private fun HotelBookingCard(data: JSONObject, onLinkClick: () -> Unit) {
 
 @Composable
 private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
-    val name = hotel.cardString("name") ?: "Unknown Hotel"
+    val name = hotel.cardString("name") ?: stringResource(R.string.screen_room_timeline_tool_card_unknown_hotel)
     val address = hotel.cardString("area", "address")
     val price = hotel.cardString("price")
     val totalPrice = hotel.cardString("total", "totalPrice")
@@ -450,7 +454,7 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     rating?.let { HotelRatingBadge(rating = it) }
-                    reviewCount?.let { MetaText("${it.compactCount()} rev.") }
+                    reviewCount?.let { MetaText(stringResource(R.string.screen_room_timeline_tool_card_review_count_abbreviated, it.compactCount())) }
                 }
             }
 
@@ -470,7 +474,7 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
                     )
                     totalPrice?.let {
                         Text(
-                            text = "total $it",
+                            text = stringResource(R.string.screen_room_timeline_tool_card_total_price, it),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -499,11 +503,11 @@ private fun HotelRow(hotel: JSONObject, onLinkClick: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 mapAction?.let {
-                    HotelActionChip(text = "Map", color = Color(0xFF2F80ED), onClick = it)
+                    HotelActionChip(text = stringResource(R.string.screen_room_timeline_tool_card_map), color = Color(0xFF2F80ED), onClick = it)
                     Spacer(modifier = Modifier.width(8.dp))
                 }
                 bookAction?.let {
-                    HotelActionChip(text = "Book", color = FinanceUpColor, onClick = it)
+                    HotelActionChip(text = stringResource(R.string.screen_room_timeline_tool_card_book), color = FinanceUpColor, onClick = it)
                 }
             }
         }
@@ -536,6 +540,7 @@ private fun List<String>.normalizedHotelImageUrls(): List<String> =
 
 @Composable
 private fun SparseHotelRow(name: String) {
+    val hotelsFallback = stringResource(R.string.screen_room_timeline_tool_card_hotels)
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -586,7 +591,7 @@ private fun SparseHotelRow(name: String) {
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
-                    text = name.ifBlank { "Hotels" },
+                    text = name.ifBlank { hotelsFallback },
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -594,7 +599,7 @@ private fun SparseHotelRow(name: String) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "Hotel search completed, but detailed results were not returned.",
+                    text = stringResource(R.string.screen_room_timeline_tool_card_hotel_results_unavailable),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
@@ -604,8 +609,8 @@ private fun SparseHotelRow(name: String) {
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    HotelAmenityChip(text = "Details unavailable", index = 1)
-                    HotelAmenityChip(text = "Try dates or city", index = 2)
+                    HotelAmenityChip(text = stringResource(R.string.screen_room_timeline_tool_card_hotel_details_unavailable), index = 1)
+                    HotelAmenityChip(text = stringResource(R.string.screen_room_timeline_tool_card_hotel_try_dates_or_city), index = 2)
                 }
             }
         }
@@ -851,7 +856,7 @@ private fun HeadlineListCard(data: JSONObject, onLinkClick: () -> Unit) {
 
 @Composable
 private fun HeadlineRow(item: JSONObject, onLinkClick: () -> Unit) {
-    val title = item.cardString("title") ?: "Untitled"
+    val title = item.cardString("title") ?: stringResource(R.string.screen_room_timeline_tool_card_untitled)
     val rawSnippet = item.cardString("snippet")?.trim()
     val source = item.cardString("source", "label")
     val snippetAsDate = rawSnippet?.takeIf { it.looksLikeHeadlineDate() }?.cleanHeadlineMetaDate()
@@ -1056,7 +1061,7 @@ private fun BreakingNewsCard(data: JSONObject, onLinkClick: () -> Unit) {
     ToolCardSurface {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = "Breaking News",
+                text = stringResource(R.string.screen_room_timeline_tool_card_breaking_news),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -1088,9 +1093,9 @@ private fun BreakingNewsCard(data: JSONObject, onLinkClick: () -> Unit) {
 private fun ImageGridCard(data: JSONObject, onLinkClick: () -> Unit) {
     val all = data.cardObjects("images")
     ToolCardSurface {
-        ToolCardHeader(title = "Images", count = all.size)
+        ToolCardHeader(title = stringResource(R.string.screen_room_timeline_tool_card_images), count = all.size)
         if (all.isEmpty()) {
-            MetaText("No images found")
+            MetaText(stringResource(R.string.screen_room_timeline_tool_card_no_images_found))
             return@ToolCardSurface
         }
         val images = all.take(MAX_IMAGES)
@@ -1115,7 +1120,7 @@ private fun ImageGridCard(data: JSONObject, onLinkClick: () -> Unit) {
                                 verticalArrangement = Arrangement.Bottom,
                             ) {
                                 Text(
-                                    text = title ?: source ?: "Image",
+                                    text = title ?: source ?: stringResource(R.string.screen_room_timeline_tool_card_image),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurface,
@@ -1269,13 +1274,17 @@ private fun FinanceCard(data: JSONObject, onLinkClick: () -> Unit) {
     val news = data.cardObjects("news")
     val stats = data.cardStrings("stats")
     val financials = data.cardObjects("financials")
+    val newsLabel = stringResource(R.string.screen_room_timeline_tool_card_news)
+    val financialsLabel = stringResource(R.string.screen_room_timeline_tool_card_financials)
+    val eventsLabel = stringResource(R.string.screen_room_timeline_tool_card_events)
+    val statsLabel = stringResource(R.string.screen_room_timeline_tool_card_stats)
     val tabs = buildList {
-        if (news.isNotEmpty()) add("News")
-        if (financials.isNotEmpty()) add("Financials")
-        if (keyEvents.isNotEmpty()) add("Events")
-        if (stats.isNotEmpty()) add("Stats")
+        if (news.isNotEmpty()) add(FinanceTab("News", newsLabel))
+        if (financials.isNotEmpty()) add(FinanceTab("Financials", financialsLabel))
+        if (keyEvents.isNotEmpty()) add(FinanceTab("Events", eventsLabel))
+        if (stats.isNotEmpty()) add(FinanceTab("Stats", statsLabel))
     }
-    var selectedTab by remember(tabs.map { it }.joinToString("|")) { mutableStateOf(0) }
+    var selectedTab by remember(tabs.map { it.key }.joinToString("|")) { mutableStateOf(0) }
     if (selectedTab >= tabs.size) selectedTab = 0
 
     if (quote == null && graph.isEmpty() && markets.isEmpty() && tabs.isEmpty()) return
@@ -1289,7 +1298,7 @@ private fun FinanceCard(data: JSONObject, onLinkClick: () -> Unit) {
             PriceChart(graph)
         }
         if (markets.isNotEmpty()) {
-            FinanceSectionHeader("Markets")
+            FinanceSectionHeader(stringResource(R.string.screen_room_timeline_tool_card_markets))
             DividedList(markets.take(MAX_ITEMS)) { MarketRow(it) }
         }
         if (tabs.isNotEmpty()) {
@@ -1299,14 +1308,14 @@ private fun FinanceCard(data: JSONObject, onLinkClick: () -> Unit) {
             )
             if (tabs.size > 1) {
                 FinanceSegmentedTabs(
-                    tabs = tabs,
+                    tabs = tabs.map { it.label },
                     selectedIndex = selectedTab,
                     onSelected = { selectedTab = it },
                 )
             } else {
-                FinanceSectionHeader(tabs.first())
+                FinanceSectionHeader(tabs.first().label)
             }
-            when (tabs[selectedTab]) {
+            when (tabs[selectedTab].key) {
                 "News" -> DividedList(news.take(MAX_ITEMS)) { NewsRow(it, onLinkClick) }
                 "Financials" -> FinancialsList(financials)
                 "Events" -> DividedList(keyEvents.take(MAX_ITEMS)) { KeyEventRow(it) }
@@ -1315,6 +1324,11 @@ private fun FinanceCard(data: JSONObject, onLinkClick: () -> Unit) {
         }
     }
 }
+
+private data class FinanceTab(
+    val key: String,
+    val label: String,
+)
 
 @Composable
 private fun FinanceSegmentedTabs(
@@ -1676,7 +1690,7 @@ private fun FinancialRow(row: JSONObject) {
 private fun WeatherCard(data: JSONObject) {
     val current = data.optJSONObject("current")
     val forecast = data.cardObjects("forecast", "items", "daily_forecast")
-    val city = data.cardString("city", "location") ?: current?.cardString("city", "location") ?: "Weather"
+    val city = data.cardString("city", "location") ?: current?.cardString("city", "location") ?: stringResource(R.string.screen_room_timeline_tool_card_weather)
     val country = data.cardString("country")
     if (current == null && forecast.isEmpty()) return
 
@@ -1750,7 +1764,16 @@ private fun WeatherCard(data: JSONObject) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = if (selectedDay == 0) "Current" else "Forecast ${selectedForecast?.cardString("day", "weekday", "date") ?: ""}",
+                    text = if (selectedDay == 0) {
+                        stringResource(R.string.screen_room_timeline_tool_card_weather_current)
+                    } else {
+                        val forecastDay = selectedForecast?.cardString("day", "weekday", "date").orEmpty()
+                        if (forecastDay.isBlank()) {
+                            stringResource(R.string.screen_room_timeline_tool_card_weather_forecast)
+                        } else {
+                            stringResource(R.string.screen_room_timeline_tool_card_weather_forecast_day, forecastDay)
+                        }
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -1767,9 +1790,9 @@ private fun WeatherCard(data: JSONObject) {
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            WeatherStat(label = "Feels", value = feelsLike?.let { "${it.roundedInt()}°" } ?: "—", unit = "", icon = Icons.Outlined.DeviceThermostat, tint = weatherAccent, modifier = Modifier.weight(1f))
-            WeatherStat(label = "Wind", value = windSpeed?.let { "${it.roundedInt()}" } ?: "—", unit = if (windSpeed == null) "" else "km/h", icon = Icons.Outlined.Air, tint = weatherAccent, modifier = Modifier.weight(1f))
-            WeatherStat(label = "Humid", value = humidity?.let { "${it.roundedInt()}%" } ?: "—", unit = "", icon = Icons.Outlined.WaterDrop, tint = weatherAccent, modifier = Modifier.weight(1f))
+            WeatherStat(label = stringResource(R.string.screen_room_timeline_tool_card_weather_feels), value = feelsLike?.let { "${it.roundedInt()}°" } ?: "—", unit = "", icon = Icons.Outlined.DeviceThermostat, tint = weatherAccent, modifier = Modifier.weight(1f))
+            WeatherStat(label = stringResource(R.string.screen_room_timeline_tool_card_weather_wind), value = windSpeed?.let { "${it.roundedInt()}" } ?: "—", unit = if (windSpeed == null) "" else "km/h", icon = Icons.Outlined.Air, tint = weatherAccent, modifier = Modifier.weight(1f))
+            WeatherStat(label = stringResource(R.string.screen_room_timeline_tool_card_weather_humid), value = humidity?.let { "${it.roundedInt()}%" } ?: "—", unit = "", icon = Icons.Outlined.WaterDrop, tint = weatherAccent, modifier = Modifier.weight(1f))
         }
 
         if (forecast.isNotEmpty()) {
@@ -1777,7 +1800,7 @@ private fun WeatherCard(data: JSONObject) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Outlined.CalendarToday, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(11.dp))
                     Text(
-                        text = "7-DAY FORECAST",
+                        text = stringResource(R.string.screen_room_timeline_tool_card_weather_seven_day_forecast),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1880,7 +1903,7 @@ private fun ForecastPill(item: JSONObject, selected: Boolean, onClick: () -> Uni
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
-                text = item.cardString("day", "weekday", "date")?.take(3) ?: "Day",
+                text = item.cardString("day", "weekday", "date")?.take(3) ?: stringResource(R.string.screen_room_timeline_tool_card_day),
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = androidx.compose.material3.LocalContentColor.current,
@@ -1913,7 +1936,7 @@ private fun DetailedForecast(item: JSONObject, themeColor: Color) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(item.cardString("day", "weekday") ?: "Day", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+            Text(item.cardString("day", "weekday") ?: stringResource(R.string.screen_room_timeline_tool_card_day), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
             item.cardString("date")?.let { Text(it, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
         }
@@ -1922,7 +1945,7 @@ private fun DetailedForecast(item: JSONObject, themeColor: Color) {
                 Icon(weatherIcon(condition), contentDescription = null, tint = themeColor, modifier = Modifier.size(36.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(formatWeatherCondition(condition), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                    if (precipitation > 0) Text("Precipitation chance", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (precipitation > 0) Text(stringResource(R.string.screen_room_timeline_tool_card_precipitation_chance), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1930,7 +1953,7 @@ private fun DetailedForecast(item: JSONObject, themeColor: Color) {
                     Text(high?.let { "${it.roundedInt()}°" } ?: "—", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     low?.let { Text("/ ${it.roundedInt()}°", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 3.dp)) }
                 }
-                if (precipitation > 0) Text("${precipitation.roundedInt()}% chance of rain", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
+                if (precipitation > 0) Text(stringResource(R.string.screen_room_timeline_tool_card_rain_chance, precipitation.roundedInt()), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
             }
         }
         if (precipitation > 0) {
@@ -1945,7 +1968,9 @@ private fun weatherDateText(selectedDay: Int, selectedForecast: JSONObject?): St
     if (selectedDay > 0) {
         selectedForecast?.cardString("date")?.let { return it }
     }
-    return SimpleDateFormat("M月 d, E", Locale.CHINA).format(Date())
+    val locale = Locale.getDefault()
+    val pattern = AndroidDateFormat.getBestDateTimePattern(locale, "MMMEd")
+    return SimpleDateFormat(pattern, locale).format(Date())
 }
 
 private fun weatherIcon(condition: String) = when {
@@ -1964,12 +1989,13 @@ private fun weatherColor(condition: String): Color = when {
     else -> Color(0xFF8E8E93)
 }
 
+@Composable
 private fun formatWeatherCondition(condition: String): String = when {
-    condition.containsAny("sun", "clear") -> "Sunny"
-    condition.containsAny("rain", "shower") -> "Rainy"
-    condition.containsAny("wind") -> "Windy"
-    condition.containsAny("storm", "bolt", "thunder") -> "Stormy"
-    condition.isBlank() -> "Current conditions"
+    condition.containsAny("sun", "clear") -> stringResource(R.string.screen_room_timeline_tool_card_weather_sunny)
+    condition.containsAny("rain", "shower") -> stringResource(R.string.screen_room_timeline_tool_card_weather_rainy)
+    condition.containsAny("wind") -> stringResource(R.string.screen_room_timeline_tool_card_weather_windy)
+    condition.containsAny("storm", "bolt", "thunder") -> stringResource(R.string.screen_room_timeline_tool_card_weather_stormy)
+    condition.isBlank() -> stringResource(R.string.screen_room_timeline_tool_card_weather_current_conditions)
     else -> condition.replaceFirstChar { it.uppercase() }
 }
 
@@ -1994,9 +2020,9 @@ private fun String.trimTrailingZero(): String = replace(".0", "")
 private fun EventListCard(data: JSONObject, onLinkClick: () -> Unit) {
     val all = data.cardObjects("events")
     ToolCardSurface {
-        ToolCardHeader(title = "Events", count = all.size)
+        ToolCardHeader(title = stringResource(R.string.screen_room_timeline_tool_card_events), count = all.size)
         if (all.isEmpty()) {
-            MetaText("No events found")
+            MetaText(stringResource(R.string.screen_room_timeline_tool_card_no_events_found))
             return@ToolCardSurface
         }
         DividedList(all.take(MAX_ITEMS)) { EventRow(it, onLinkClick) }
@@ -2109,7 +2135,7 @@ private fun PlaceListCard(data: JSONObject, onLinkClick: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
             if (all.isEmpty()) {
-                MetaText("No places found")
+                MetaText(stringResource(R.string.screen_room_timeline_tool_card_no_places_found))
                 return@Column
             }
             Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -2123,7 +2149,7 @@ private fun PlaceHeader(count: Int) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Color(0xFF31E879), modifier = Modifier.size(22.dp))
         Text(
-            text = "Places",
+            text = stringResource(R.string.screen_room_timeline_tool_card_places),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
@@ -2203,7 +2229,7 @@ private fun PlaceRow(place: JSONObject, onLinkClick: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 Text(name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                val tail = listOfNotNull(reviews?.let { "$it reviews" }, price, type).joinToString("  ·  ")
+                val tail = listOfNotNull(reviews?.let { pluralStringResource(R.plurals.screen_room_timeline_tool_card_review_count, it, it) }, price, type).joinToString("  ·  ")
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(7.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -2304,7 +2330,7 @@ private fun PlaceBanner(
 private fun UrlContentCard(data: JSONObject, onLinkClick: () -> Unit) {
     val all = data.cardObjects("articles", "results", "items", "data")
     if (all.isEmpty()) {
-        MetaText("No content fetched")
+        MetaText(stringResource(R.string.screen_room_timeline_tool_card_content_not_fetched))
         return
     }
     DividedList(all.take(MAX_ITEMS)) { UrlRow(it, onLinkClick) }

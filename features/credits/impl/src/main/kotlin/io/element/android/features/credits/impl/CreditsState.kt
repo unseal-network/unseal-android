@@ -32,7 +32,10 @@ data class CreditsState(
     val isDailyUsageLoading: Boolean,
     val isAnalyticsLoading: Boolean,
     val isLoadingMoreTransactions: Boolean,
-    val error: String?,
+    val balanceError: String?,
+    val transactionsError: String?,
+    val dailyUsageError: String?,
+    val analyticsError: String?,
     val eventSink: (CreditsEvents) -> Unit,
 ) {
     val hasMoreTransactions: Boolean = transactionsCursor != null

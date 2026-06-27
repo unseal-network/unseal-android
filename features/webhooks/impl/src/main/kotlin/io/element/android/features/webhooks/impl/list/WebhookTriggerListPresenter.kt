@@ -13,9 +13,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import io.element.android.features.webhooks.impl.R
 import io.element.android.features.webhooks.impl.shared.isEnabled
 import io.element.android.features.webhooks.impl.shared.loadWebhookRoomAgents
 import io.element.android.features.webhooks.impl.shared.matchesWebhookQuery
@@ -58,6 +60,9 @@ class WebhookTriggerListPresenter(
         var togglingTriggerId by remember { mutableStateOf<String?>(null) }
         var deletingTriggerId by remember { mutableStateOf<String?>(null) }
         var deleteConfirmationTriggerId by remember { mutableStateOf<String?>(null) }
+        val loadError = stringResource(R.string.webhook_triggers_error_load)
+        val updateStatusError = stringResource(R.string.webhook_triggers_error_update_status)
+        val deleteError = stringResource(R.string.webhook_triggers_error_delete)
 
         suspend fun api() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
 
@@ -108,7 +113,7 @@ class WebhookTriggerListPresenter(
                     error = null
                 }
                 .onFailure {
-                    error = errorMessage(it, "加载触发器失败")
+                    error = errorMessage(it, loadError)
                 }
             isLoading = false
         }
@@ -121,7 +126,7 @@ class WebhookTriggerListPresenter(
                     loadTriggers()
                 }
                 .onFailure {
-                    error = errorMessage(it, "更新触发器状态失败")
+                    error = errorMessage(it, updateStatusError)
                 }
             togglingTriggerId = null
         }
@@ -136,7 +141,7 @@ class WebhookTriggerListPresenter(
                     loadTriggers()
                 }
                 .onFailure {
-                    error = errorMessage(it, "删除触发器失败")
+                    error = errorMessage(it, deleteError)
                 }
             deletingTriggerId = null
         }

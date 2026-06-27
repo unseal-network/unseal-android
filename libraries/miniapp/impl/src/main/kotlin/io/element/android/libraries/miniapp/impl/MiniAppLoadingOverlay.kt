@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -97,7 +98,7 @@ fun MiniAppLoadingOverlay(
         ) {
             Icon(
                 painter = painterResource(id = io.element.android.compound.R.drawable.ic_compound_close),
-                contentDescription = "关闭",
+                contentDescription = stringResource(R.string.miniapp_action_close),
                 tint = theme.fgColor,
                 modifier = Modifier.size(16.dp),
             )
@@ -276,7 +277,7 @@ private fun RetryButton(fgColor: Color, onClick: () -> Unit) {
             ),
     ) {
         Text(
-            text = "重试",
+            text = stringResource(R.string.miniapp_action_retry),
             color = fgColor,
             fontSize = 14.sp,
         )

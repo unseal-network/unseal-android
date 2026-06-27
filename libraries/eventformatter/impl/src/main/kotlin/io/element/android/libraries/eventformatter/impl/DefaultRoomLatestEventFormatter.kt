@@ -23,6 +23,7 @@ import io.element.android.libraries.matrix.api.timeline.item.event.EventContent
 import io.element.android.libraries.matrix.api.timeline.item.event.FailedToParseMessageLikeContent
 import io.element.android.libraries.matrix.api.timeline.item.event.FailedToParseStateContent
 import io.element.android.libraries.matrix.api.timeline.item.event.FileMessageType
+import io.element.android.libraries.matrix.api.timeline.item.event.GalleryMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.ImageMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.LegacyCallInviteContent
 import io.element.android.libraries.matrix.api.timeline.item.event.LiveLocationContent
@@ -163,6 +164,9 @@ class DefaultRoomLatestEventFormatter(
                     .takeIf { it.isNotEmpty() }
                     ?.prefixWith(sp.getString(CommonStrings.common_voice_message))
                     ?: sp.getString(CommonStrings.common_voice_message)
+            }
+            is GalleryMessageType -> {
+                messageType.body
             }
             is OtherMessageType -> {
                 messageType.body

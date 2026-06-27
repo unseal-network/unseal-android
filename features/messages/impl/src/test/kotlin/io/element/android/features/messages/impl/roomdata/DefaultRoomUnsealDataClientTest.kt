@@ -226,6 +226,142 @@ class DefaultRoomUnsealDataClientTest {
         assertThat(snapshot.workingMemory.value).isEqualTo("memory")
     }
 
+    @Test
+    fun `loadRoomIdentityData only requests agent identity resources`() = runTest {
+        var requestedSchedules = false
+        var requestedWebhooks = false
+        var requestedWorkingMemory = false
+        val service = FakeChatbotApiService().apply {
+            getRoomAgentsResult = {
+                Result.success(
+                    ChatbotGetRoomAgentsResponse(
+                        agents = listOf(
+                            ChatbotRoomAgent(
+                                agentId = "@agent:example.org",
+                                mxid = "@agent:example.org",
+                                displayName = "Agent",
+                                userType = "agent",
+                                membership = "join",
+                            )
+                        )
+                    )
+                )
+            }
+            listAgentsResult = {
+                Result.success(
+                    listOf(
+                        ChatbotAgent(
+                            botName = "agent",
+                            localpart = "agent",
+                            serverName = "example.org",
+                            displayName = "Agent",
+                        )
+                    )
+                )
+            }
+            listSchedulesResult = {
+                requestedSchedules = true
+                Result.failure(IllegalStateException("schedules should not load"))
+            }
+            listWebhookTriggersResult = { _, _, _, _ ->
+                requestedWebhooks = true
+                Result.failure(IllegalStateException("webhooks should not load"))
+            }
+            getRoomWorkingMemoryResult = {
+                requestedWorkingMemory = true
+                Result.failure(IllegalStateException("memory should not load"))
+            }
+        }
+        val client = createClient(service)
+
+        val snapshot = client.loadRoomIdentityData(A_ROOM_ID)
+
+        assertThat(snapshot.roomAgents.value.single().userId).isEqualTo("@agent:example.org")
+        assertThat(snapshot.allAgents.value.single().matrixUserId).isEqualTo("@agent:example.org")
+        assertThat(snapshot.schedules.value).isEmpty()
+        assertThat(snapshot.webhookTriggers.value).isEmpty()
+        assertThat(snapshot.workingMemory.value).isEmpty()
+        assertThat(requestedSchedules).isFalse()
+        assertThat(requestedWebhooks).isFalse()
+        assertThat(requestedWorkingMemory).isFalse()
+    }
+
+    @Test
+    fun `loadRoomData reports identity snapshot before room detail resources`() = runTest {
+        val service = FakeChatbotApiService().apply {
+            getRoomAgentsResult = {
+                Result.success(
+                    ChatbotGetRoomAgentsResponse(
+                        agents = listOf(
+                            ChatbotRoomAgent(
+                                agentId = "@agent:example.org",
+                                mxid = "@agent:example.org",
+                                displayName = "Agent",
+                                userType = "agent",
+                                membership = "join",
+                            )
+                        )
+                    )
+                )
+            }
+            listAgentsResult = {
+                Result.success(
+                    listOf(
+                        ChatbotAgent(
+                            botName = "agent",
+                            localpart = "agent",
+                            serverName = "example.org",
+                            displayName = "Agent",
+                        )
+                    )
+                )
+            }
+            listSchedulesResult = {
+                Result.success(
+                    listOf(
+                        ChatbotSchedule(
+                            scheduleId = "schedule-1",
+                            name = "Morning",
+                            cron = "0 9 * * *",
+                            action = "hello",
+                            agentId = "@agent:example.org",
+                            roomId = A_ROOM_ID.value,
+                            enabled = true,
+                        )
+                    )
+                )
+            }
+            listWebhookTriggersResult = { _, _, _, _ ->
+                Result.success(
+                    listOf(
+                        ChatbotWebhookTrigger(
+                            triggerId = "trigger-1",
+                            agentId = "@agent:example.org",
+                            name = "GitHub",
+                            actionPrompt = "summarize",
+                            roomId = A_ROOM_ID.value,
+                            status = ChatbotWebhookTriggerStatus.Enabled,
+                        )
+                    )
+                )
+            }
+            getRoomWorkingMemoryResult = { Result.success("memory") }
+        }
+        val client = createClient(service)
+        var identitySnapshot: RoomUnsealDataSnapshot? = null
+
+        val snapshot = client.loadRoomData(A_ROOM_ID) { identitySnapshot = it }
+
+        assertThat(identitySnapshot?.roomAgents?.value?.single()?.userId).isEqualTo("@agent:example.org")
+        assertThat(identitySnapshot?.allAgents?.value?.single()?.matrixUserId).isEqualTo("@agent:example.org")
+        assertThat(identitySnapshot?.schedules?.value).isEmpty()
+        assertThat(identitySnapshot?.webhookTriggers?.value).isEmpty()
+        assertThat(identitySnapshot?.workingMemory?.value).isEmpty()
+        assertThat(snapshot.schedules.value.single().id).isEqualTo("schedule-1")
+        assertThat(snapshot.webhookTriggers.value.single().id).isEqualTo("trigger-1")
+        assertThat(snapshot.workingMemory.value).isEqualTo("memory")
+    }
+
     private fun createClient(service: FakeChatbotApiService): DefaultRoomUnsealDataClient {
         return DefaultRoomUnsealDataClient(
             matrixClient = FakeMatrixClient(),

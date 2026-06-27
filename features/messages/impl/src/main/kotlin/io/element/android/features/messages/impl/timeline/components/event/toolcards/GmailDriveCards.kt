@@ -34,10 +34,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.element.android.features.messages.impl.R
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import org.json.JSONObject
@@ -142,7 +145,8 @@ private fun ComposeEmailCardView(data: JSONObject) {
     val from = data.opt("from") as? JSONObject
     val to = data.cardObjects("to")
     val cc = data.cardObjects("cc")
-    val subject = data.cardString("subject") ?: "(No Subject)"
+    val noSubject = stringResource(R.string.screen_room_timeline_tool_card_no_subject)
+    val subject = data.cardString("subject") ?: noSubject
     val date = data.cardString("date")
     val body = data.cardString("body")
     val hasAttachments = data.cardBool("hasAttachments") ?: false
@@ -150,7 +154,7 @@ private fun ComposeEmailCardView(data: JSONObject) {
     val starred = data.cardBool("starred") ?: false
     val labels = data.cardStrings("labels")
 
-    val isEmpty = subject == "(No Subject)" &&
+    val isEmpty = subject == noSubject &&
         to.isEmpty() &&
         cc.isEmpty() &&
         from == null &&
@@ -164,7 +168,7 @@ private fun ComposeEmailCardView(data: JSONObject) {
         // Header: title "Email" + trailing star/labels.
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = "Email",
+                text = stringResource(R.string.screen_room_timeline_tool_card_email),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -194,13 +198,13 @@ private fun ComposeEmailCardView(data: JSONObject) {
         )
 
         // Address rows
-        if (from != null) AddressRow(label = "From", addresses = listOf(from))
-        if (to.isNotEmpty()) AddressRow(label = "To", addresses = to)
-        if (cc.isNotEmpty()) AddressRow(label = "Cc", addresses = cc)
+        if (from != null) AddressRow(label = stringResource(R.string.screen_room_timeline_tool_card_from), addresses = listOf(from))
+        if (to.isNotEmpty()) AddressRow(label = stringResource(R.string.screen_room_timeline_tool_card_to), addresses = to)
+        if (cc.isNotEmpty()) AddressRow(label = stringResource(R.string.screen_room_timeline_tool_card_cc), addresses = cc)
         if (date != null) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "Date",
+                    text = stringResource(R.string.screen_room_timeline_tool_card_date),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.End,
@@ -231,7 +235,7 @@ private fun ComposeEmailCardView(data: JSONObject) {
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(12.dp),
                 )
-                MetaText("$attachmentCount attachment${if (attachmentCount == 1) "" else "s"}")
+                MetaText(pluralStringResource(R.plurals.screen_room_timeline_tool_card_attachment_count, attachmentCount, attachmentCount))
             }
         }
     }
@@ -248,14 +252,14 @@ private fun EmailListCardView(messages: List<JSONObject>) {
     ) {
         DividedList(shown) { message -> EmailListRow(message, open) }
         if (messages.size > shown.size) {
-            MetaText("+${messages.size - shown.size} more")
+            MetaText(stringResource(R.string.screen_room_timeline_tool_card_more_count, messages.size - shown.size))
         }
     }
 }
 
 @Composable
 private fun EmailListRow(message: JSONObject, open: (String?) -> Unit) {
-    val subject = message.cardString("subject", "title") ?: "(No Subject)"
+    val subject = message.cardString("subject", "title") ?: stringResource(R.string.screen_room_timeline_tool_card_no_subject)
     val from = formatAddrValue(message.opt("from")) ?: message.cardString("sender", "fromEmail", "email")
     val snippet = message.cardString("snippet", "body", "summary", "text")
     val date = message.cardString("date", "receivedAt", "received_at", "internalDate")
@@ -356,7 +360,9 @@ private fun EmailListRow(message: JSONObject, open: (String?) -> Unit) {
 private fun FileAttachmentCardView(data: JSONObject, onLinkClick: () -> Unit) {
     val files = data.cardObjects("files", "items")
     if (files.isEmpty()) return
-    val title = data.cardString("title")
+    val title = data.cardString("title")?.let {
+        if (it == "Files") stringResource(R.string.screen_room_timeline_tool_card_files) else it
+    }
     val shown = files.take(MAX_CARD_ITEMS)
     val open = rememberLinkOpener(onLinkClick)
 
@@ -370,7 +376,7 @@ private fun FileAttachmentCardView(data: JSONObject, onLinkClick: () -> Unit) {
         DividedList(shown) { file -> FileRow(file, open) }
         if (files.size > shown.size) {
             Text(
-                text = "+${files.size - shown.size} more",
+                text = stringResource(R.string.screen_room_timeline_tool_card_more_count, files.size - shown.size),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp),
@@ -381,7 +387,12 @@ private fun FileAttachmentCardView(data: JSONObject, onLinkClick: () -> Unit) {
 
 @Composable
 private fun FileRow(file: JSONObject, open: (String?) -> Unit) {
-    val name = file.cardString("name", "filename", "title") ?: "Untitled"
+    val rawName = file.cardString("name", "filename", "title")
+    val name = when (rawName) {
+        "Attachment" -> stringResource(R.string.screen_room_timeline_tool_card_attachment)
+        null -> stringResource(R.string.screen_room_timeline_tool_card_untitled)
+        else -> rawName
+    }
     val size = file.cardString("sizeLabel", "size")?.friendlyDriveSize()
     val mimeType = file.cardString("mimeType", "mediaType")
     val modifiedAt = file.cardString("modifiedAt", "modified_at", "modifiedTime", "modified_time")?.friendlyDriveDate()

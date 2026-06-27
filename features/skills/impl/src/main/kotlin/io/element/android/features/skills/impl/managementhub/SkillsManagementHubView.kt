@@ -27,13 +27,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.skills.impl.R
 import io.element.android.libraries.designsystem.components.management.ManagementListRow
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
+import io.element.android.libraries.ui.strings.CommonStrings
 
 @Composable
 fun SkillsManagementHubView(
@@ -47,10 +50,10 @@ fun SkillsManagementHubView(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Agent 与技能") },
+                title = { Text(stringResource(R.string.skills_hub_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "返回")
+                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = stringResource(CommonStrings.action_go_back))
                     }
                 },
             )
@@ -62,14 +65,14 @@ fun SkillsManagementHubView(
                 .padding(padding),
         ) {
             HubRow(
-                title = "Agent 管理",
-                subtitle = "创建、编辑和管理 Agent",
+                title = stringResource(R.string.skills_hub_agent_management),
+                subtitle = stringResource(R.string.skills_hub_agent_management_subtitle),
                 icon = CompoundIcons.Labs(),
                 onClick = onOpenAgentManagement,
             )
             HubRow(
-                title = "技能管理",
-                subtitle = "维护技能库与公开市场",
+                title = stringResource(R.string.skills_hub_skill_management),
+                subtitle = stringResource(R.string.skills_hub_skill_management_subtitle),
                 icon = CompoundIcons.ListBulleted(),
                 onClick = onOpenSkills,
             )

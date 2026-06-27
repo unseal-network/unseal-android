@@ -26,6 +26,7 @@ import io.element.android.features.messages.impl.timeline.factories.event.AiStre
 import io.element.android.features.messages.impl.timeline.factories.event.AiStreamHandleStore
 import io.element.android.features.messages.impl.timeline.factories.event.AiSdkStreamReducer
 import io.element.android.features.messages.impl.timeline.model.event.AiDataStreamPart
+import io.element.android.features.messages.impl.timeline.model.event.AiToolStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.libraries.agentstream.api.StreamRequest
 import io.element.android.libraries.agentstream.api.StreamSnapshot
@@ -112,21 +113,29 @@ class TimelineItemAiPresenter(
             )
         }
 
-        // Start WebSocket progress tracking whenever a ppt_planning task_id appears in parts.
-        val pptTaskId = remember(currentContent.visibleParts) {
-            currentContent.visibleParts
-                .filterIsInstance<AiDataStreamPart>()
-                .firstOrNull { part ->
-                    part.type == "data" && part.payload.isPptPlanningPayload()
+        // Collect all workflow task_ids that need WebSocket tracking:
+        // 1. ppt_planning data parts (existing)
+        // 2. generate_ppt_html_presentation tool output (task_id starts with "ppt_gen_")
+        val workflowTaskIds = remember(currentContent.visibleParts) {
+            buildSet {
+                currentContent.visibleParts.forEach { part ->
+                    when {
+                        part is AiDataStreamPart && part.type == "data" && part.payload.isPptPlanningPayload() ->
+                            extractPptTaskId(part.payload)?.let { add(it) }
+                        part is AiToolStreamPart && part.toolName == "generate_ppt_html_presentation" ->
+                            part.output?.let { extractPptTaskId(it) }?.let { add(it) }
+                        else -> Unit
+                    }
                 }
-                ?.let { part -> extractPptTaskId(part.payload) }
+            }
         }
 
-        LaunchedEffect(pptTaskId) {
-            if (pptTaskId == null) return@LaunchedEffect
-            workflowProgressManager.progressFlow(pptTaskId).collect { msg ->
-                if (msg !is WorkflowMessage.Empty) {
-                    workflowMessages = workflowMessages + (pptTaskId to msg)
+        LaunchedEffect(workflowTaskIds) {
+            workflowTaskIds.forEach { taskId ->
+                workflowProgressManager.progressFlow(taskId).collect { msg ->
+                    if (msg !is WorkflowMessage.Empty) {
+                        workflowMessages = workflowMessages + (taskId to msg)
+                    }
                 }
             }
         }

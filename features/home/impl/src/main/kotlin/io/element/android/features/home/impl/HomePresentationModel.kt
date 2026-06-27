@@ -80,11 +80,7 @@ fun HomeState.toPresentationModel(): HomePresentationModel {
             ),
         ),
         presentedSheet = presentedSheet,
-        bottomNavigationPolicy = if (homeSpacesState.spaceRooms.isEmpty()) {
-            HomeBottomNavigationPolicy.Hidden
-        } else {
-            HomeBottomNavigationPolicy.ChatsAndSpaces
-        },
+        bottomNavigationPolicy = HomeBottomNavigationPolicy.ChatsAndSpaces,
         banner = contentState.toBannerPresentation(),
         roomList = HomeRoomListPresentationModel(
             hideRoomList = hideRoomList,

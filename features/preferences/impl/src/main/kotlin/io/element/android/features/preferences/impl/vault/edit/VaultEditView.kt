@@ -33,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,8 +41,10 @@ import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.preferences.impl.R
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
+import io.element.android.libraries.ui.strings.CommonStrings
 
 @Composable
 fun VaultEditView(
@@ -57,10 +60,18 @@ fun VaultEditView(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(state.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = {
+                    Text(
+                        text = stringResource(
+                            if (state.isEditingExisting) R.string.screen_vault_edit_title_edit else R.string.screen_vault_edit_title_create,
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "返回")
+                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = stringResource(CommonStrings.action_go_back))
                     }
                 },
             )
@@ -74,14 +85,14 @@ fun VaultEditView(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            SectionHeader("基本信息")
+            SectionHeader(stringResource(R.string.screen_vault_edit_basic_info))
 
             OutlinedTextField(
                 modifier = Modifier.fillMaxWidth(),
                 value = state.key,
                 onValueChange = { state.eventSink(VaultEditEvents.KeyChanged(it)) },
-                label = { Text("密钥") },
-                placeholder = { Text("键") },
+                label = { Text(stringResource(R.string.screen_vault_edit_key_label)) },
+                placeholder = { Text(stringResource(R.string.screen_vault_edit_key_placeholder)) },
                 singleLine = true,
                 enabled = !state.isEditingExisting && !state.isSaving,
             )
@@ -94,7 +105,7 @@ fun VaultEditView(
                 ) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp))
                     Text(
-                        text = "正在加载值…",
+                        text = stringResource(R.string.screen_vault_edit_loading_value),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -104,8 +115,8 @@ fun VaultEditView(
                     modifier = Modifier.fillMaxWidth(),
                     value = state.value,
                     onValueChange = { state.eventSink(VaultEditEvents.ValueChanged(it)) },
-                    label = { Text("值") },
-                    placeholder = { Text("值") },
+                    label = { Text(stringResource(R.string.screen_vault_edit_value_label)) },
+                    placeholder = { Text(stringResource(R.string.screen_vault_edit_value_label)) },
                     singleLine = true,
                     enabled = !state.isSaving,
                     visualTransformation = if (state.isValueVisible) {
@@ -122,7 +133,11 @@ fun VaultEditView(
                                 } else {
                                     CompoundIcons.VisibilityOn()
                                 },
-                                contentDescription = if (state.isValueVisible) "隐藏值" else "显示值",
+                                contentDescription = if (state.isValueVisible) {
+                                    stringResource(R.string.screen_vault_edit_hide_value)
+                                } else {
+                                    stringResource(R.string.screen_vault_edit_show_value)
+                                },
                             )
                         }
                     },
@@ -133,7 +148,7 @@ fun VaultEditView(
                 modifier = Modifier.fillMaxWidth(),
                 value = state.description,
                 onValueChange = { state.eventSink(VaultEditEvents.DescriptionChanged(it)) },
-                label = { Text("描述（可选）") },
+                label = { Text(stringResource(R.string.screen_vault_edit_description_label)) },
                 minLines = 3,
                 enabled = !state.isSaving,
             )
@@ -154,7 +169,7 @@ fun VaultEditView(
                 if (state.isSaving) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp))
                 } else {
-                    Text(state.saveButtonLabel)
+                    Text(stringResource(if (state.isEditingExisting) R.string.screen_vault_edit_save_changes else R.string.screen_vault_edit_create_now))
                 }
             }
         }
@@ -176,7 +191,7 @@ internal class VaultEditStateProvider : PreviewParameterProvider<VaultEditState>
         get() = sequenceOf(
             aVaultEditState(),
             aVaultEditState(isEditingExisting = true, isLoadingValue = true),
-            aVaultEditState(isEditingExisting = true, isLoadingValue = false, error = "Value不能为空。"),
+            aVaultEditState(isEditingExisting = true, isLoadingValue = false, error = "Value cannot be empty."),
         )
 }
 
@@ -188,7 +203,7 @@ private fun aVaultEditState(
     isEditingExisting = isEditingExisting,
     key = if (isEditingExisting) "OPENAI_API_KEY" else "",
     value = if (isEditingExisting && !isLoadingValue) "sk-1234567890" else "",
-    description = if (isEditingExisting) "OpenAI 服务密钥" else "",
+    description = if (isEditingExisting) "OpenAI service key" else "",
     isValueVisible = false,
     isLoadingValue = isLoadingValue,
     isSaving = false,

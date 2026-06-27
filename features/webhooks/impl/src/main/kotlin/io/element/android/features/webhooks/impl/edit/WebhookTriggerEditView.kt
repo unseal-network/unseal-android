@@ -61,6 +61,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
@@ -71,8 +72,9 @@ import coil3.compose.SubcomposeAsyncImageContent
 import coil3.request.ImageRequest
 import coil3.svg.SvgDecoder
 import io.element.android.compound.tokens.generated.CompoundIcons
-import io.element.android.features.webhooks.impl.shared.composioLogoUrl
 import io.element.android.features.webhooks.api.WebhookTriggerEditMode
+import io.element.android.features.webhooks.impl.R
+import io.element.android.features.webhooks.impl.shared.composioLogoUrl
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotConnectedAccount
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotConnectedAccountProfile
 import io.element.android.libraries.chatbot.api.model.rooms.ChatbotRoomAgent
@@ -80,6 +82,7 @@ import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookEve
 import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookEventType
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
+import io.element.android.libraries.ui.strings.CommonStrings
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 
@@ -99,10 +102,10 @@ fun WebhookTriggerEditView(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(if (state.isCreateMode) "新建触发器" else "编辑触发器") },
+                title = { Text(if (state.isCreateMode) stringResource(R.string.webhook_trigger_edit_create_title) else stringResource(R.string.webhook_trigger_edit_edit_title)) },
                 navigationIcon = {
                     TextButton(onClick = { state.eventSink(WebhookTriggerEditEvents.Cancel) }) {
-                        Text("取消")
+                        Text(stringResource(CommonStrings.action_cancel))
                     }
                 },
                 actions = {
@@ -118,7 +121,7 @@ fun WebhookTriggerEditView(
                             onClick = { state.eventSink(WebhookTriggerEditEvents.Save) },
                             enabled = state.canSave,
                         ) {
-                            Text("保存")
+                            Text(stringResource(CommonStrings.action_save))
                         }
                     }
                 },
@@ -158,12 +161,12 @@ private fun EditForm(state: WebhookTriggerEditState, modifier: Modifier = Modifi
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         if (state.isCreateMode) {
-            SectionHeader("AI 自动生成")
+            SectionHeader(stringResource(R.string.webhook_trigger_edit_ai_generate))
             OutlinedTextField(
                 modifier = Modifier.fillMaxWidth(),
                 value = state.draftPrompt,
                 onValueChange = { state.eventSink(WebhookTriggerEditEvents.DraftPromptChanged(it)) },
-                label = { Text("描述您想要的，例如 \"当我收到新邮件时，帮我总结内容\"") },
+                label = { Text(stringResource(R.string.webhook_trigger_edit_draft_prompt_label)) },
                 minLines = 2,
                 enabled = !state.isDrafting,
             )
@@ -176,14 +179,14 @@ private fun EditForm(state: WebhookTriggerEditState, modifier: Modifier = Modifi
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                         Spacer(Modifier.size(8.dp))
                     }
-                    Text(if (state.isDrafting) "生成中…" else "生成")
+                    Text(if (state.isDrafting) stringResource(R.string.webhook_trigger_edit_generating) else stringResource(R.string.webhook_trigger_edit_generate))
                 }
             }
         }
 
-        SectionHeader("事件来源", locked = !state.isCreateMode)
+        SectionHeader(stringResource(R.string.webhook_trigger_edit_event_source), locked = !state.isCreateMode)
         SelectorRow(
-            label = "来源",
+            label = stringResource(R.string.webhook_trigger_edit_source),
             value = state.selectedSource?.name ?: "—",
             sourceSlug = state.selectedSource?.source,
             enabled = state.isCreateMode,
@@ -191,7 +194,7 @@ private fun EditForm(state: WebhookTriggerEditState, modifier: Modifier = Modifi
         )
 
         if (state.selectedSource != null && state.connectedAccounts.isNotEmpty()) {
-            SectionHeader("账户")
+            SectionHeader(stringResource(R.string.webhook_trigger_edit_account))
             AccountRow(
                 account = state.selectedAccount,
                 showChevron = state.isCreateMode && state.connectedAccounts.size > 1,
@@ -201,55 +204,55 @@ private fun EditForm(state: WebhookTriggerEditState, modifier: Modifier = Modifi
             )
         }
 
-        SectionHeader("事件类型", locked = !state.isCreateMode)
+        SectionHeader(stringResource(R.string.webhook_trigger_edit_event_type), locked = !state.isCreateMode)
         EventTypeRow(
             state = state,
             enabled = state.isCreateMode && state.selectedSource != null,
             onClick = { showEventTypeSheet = true },
         )
 
-        SectionHeader("目标")
+        SectionHeader(stringResource(R.string.webhook_trigger_edit_target))
         DropdownField(
-            label = "房间",
+            label = stringResource(R.string.webhook_trigger_edit_room),
             value = state.availableRooms.firstOrNull { it.roomId.value == state.selectedRoomId }
                 ?.let { it.info.name ?: it.roomId.value }
-                ?: "选择房间",
+                ?: stringResource(R.string.webhook_trigger_edit_select_room),
             options = state.availableRooms.map { it.roomId.value to (it.info.name ?: it.roomId.value) },
             enabled = true,
             onSelect = { state.eventSink(WebhookTriggerEditEvents.SelectRoom(it)) },
         )
         if (state.isCreateMode) {
             DropdownField(
-                label = "助手",
+                label = stringResource(R.string.webhook_trigger_edit_agent),
                 value = state.availableAgents.firstOrNull { it.agentId == state.selectedAgentId }
                     ?.let { it.displayName ?: it.agentId }
-                    ?: "选择助手",
+                    ?: stringResource(R.string.webhook_trigger_edit_select_agent),
                 options = state.availableAgents.map { it.agentId to (it.displayName ?: it.agentId) },
                 enabled = state.selectedRoomId != null,
                 onSelect = { state.eventSink(WebhookTriggerEditEvents.SelectAgent(it)) },
             )
         }
 
-        SectionHeader("触发器详情")
+        SectionHeader(stringResource(R.string.webhook_trigger_edit_details))
         OutlinedTextField(
             modifier = Modifier.fillMaxWidth(),
             value = state.name,
             onValueChange = { state.eventSink(WebhookTriggerEditEvents.NameChanged(it)) },
-            label = { Text("名称") },
+            label = { Text(stringResource(R.string.webhook_trigger_edit_name)) },
             singleLine = true,
         )
         OutlinedTextField(
             modifier = Modifier.fillMaxWidth(),
             value = state.description,
             onValueChange = { state.eventSink(WebhookTriggerEditEvents.DescriptionChanged(it)) },
-            label = { Text("描述") },
+            label = { Text(stringResource(R.string.webhook_trigger_edit_description)) },
             singleLine = true,
         )
         OutlinedTextField(
             modifier = Modifier.fillMaxWidth(),
             value = state.actionPrompt,
             onValueChange = { state.eventSink(WebhookTriggerEditEvents.ActionPromptChanged(it)) },
-            label = { Text("行动提示") },
+            label = { Text(stringResource(R.string.webhook_trigger_edit_action_prompt)) },
             minLines = 4,
         )
 
@@ -301,7 +304,7 @@ private fun SectionHeader(title: String, locked: Boolean = false) {
         if (locked) {
             Icon(
                 CompoundIcons.Lock(),
-                contentDescription = "已锁定",
+                contentDescription = stringResource(R.string.webhook_trigger_edit_locked),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(14.dp),
             )
@@ -450,7 +453,7 @@ private fun AccountRow(
             } else {
                 Text(
                     modifier = Modifier.weight(1f),
-                    text = "选择账户",
+                    text = stringResource(R.string.webhook_trigger_edit_select_account),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -508,7 +511,7 @@ private fun EventTypeRow(
             if (names.isEmpty()) {
                 Text(
                     modifier = Modifier.weight(1f),
-                    text = "选择事件类型...",
+                    text = stringResource(R.string.webhook_trigger_edit_select_event_type),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -531,7 +534,7 @@ private fun EventTypeRow(
                     val remaining = names.size - MAX_VISIBLE_EVENT_CHIPS
                     if (remaining > 0) {
                         Text(
-                            text = "+$remaining 更多",
+                            text = stringResource(R.string.webhook_trigger_edit_more_count, remaining),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.align(Alignment.CenterVertically),
@@ -595,12 +598,12 @@ private fun SourcePickerSheet(state: WebhookTriggerEditState, onDismiss: () -> U
     var query by remember { mutableStateOf("") }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
-            Text("选择来源", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+            Text(stringResource(R.string.webhook_trigger_edit_select_source), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
             OutlinedTextField(
                 modifier = Modifier.fillMaxWidth(),
                 value = query,
                 onValueChange = { query = it },
-                placeholder = { Text("搜索来源...") },
+                placeholder = { Text(stringResource(R.string.webhook_trigger_edit_search_source)) },
                 leadingIcon = { Icon(CompoundIcons.Search(), contentDescription = null) },
                 singleLine = true,
             )
@@ -633,7 +636,7 @@ private fun SourcePickerSheet(state: WebhookTriggerEditState, onDismiss: () -> U
             ) {
                 Icon(CompoundIcons.Link(), contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.size(8.dp))
-                Text("立即连接")
+                Text(stringResource(R.string.webhook_trigger_edit_connect_now))
             }
         }
     }
@@ -643,7 +646,7 @@ private fun SourcePickerSheet(state: WebhookTriggerEditState, onDismiss: () -> U
 private fun AccountPickerSheet(state: WebhookTriggerEditState, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
-            Text("选择账户", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+            Text(stringResource(R.string.webhook_trigger_edit_select_account), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 state.connectedAccounts.forEach { account ->
                     ListItem(
@@ -676,8 +679,8 @@ private fun EventTypePickerSheet(state: WebhookTriggerEditState, onDismiss: () -
                 modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("事件类型", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                TextButton(onClick = onDismiss) { Text("完成") }
+                Text(stringResource(R.string.webhook_trigger_edit_event_type), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                TextButton(onClick = onDismiss) { Text(stringResource(CommonStrings.action_done)) }
             }
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 eventTypes.forEach { eventType ->

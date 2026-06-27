@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,8 +24,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
-import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayout
-import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
 import io.element.android.libraries.designsystem.theme.components.Icon
 import io.element.android.libraries.designsystem.theme.components.Text
 
@@ -39,26 +38,26 @@ fun TimelineItemAttachmentView(
     filename: String,
     fileExtensionAndSize: String,
     caption: String?,
-    onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier,
-    ) {
-        TimelineItemAttachmentHeaderView(
-            icon = icon,
-            iconContentDescription = iconContentDescription,
-            filename = filename,
-            fileExtensionAndSize = fileExtensionAndSize,
-            hasCaption = caption != null,
-            onContentLayoutChange = onContentLayoutChange,
-        )
-        if (caption != null) {
-            TimelineItemAttachmentCaptionView(
-                modifier = Modifier.padding(top = 4.dp),
-                caption = caption,
-                onContentLayoutChange = onContentLayoutChange,
+    TimelineCardSurface(modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+        ) {
+            TimelineItemAttachmentHeaderView(
+                icon = icon,
+                iconContentDescription = iconContentDescription,
+                filename = filename,
+                fileExtensionAndSize = fileExtensionAndSize,
             )
+            if (caption != null) {
+                TimelineItemAttachmentCaptionView(
+                    modifier = Modifier.padding(top = 8.dp),
+                    caption = caption,
+                )
+            }
         }
     }
 }
@@ -69,8 +68,6 @@ private fun TimelineItemAttachmentHeaderView(
     iconContentDescription: String?,
     filename: String,
     fileExtensionAndSize: String,
-    hasCaption: Boolean,
-    onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val iconSize = 36.dp
@@ -107,14 +104,6 @@ private fun TimelineItemAttachmentHeaderView(
                 style = ElementTheme.typography.fontBodySmRegular,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                onTextLayout = if (hasCaption) {
-                    {}
-                } else {
-                    ContentAvoidingLayout.measureLastTextLine(
-                        onContentLayoutChange = onContentLayoutChange,
-                        extraWidth = iconSize + spacing
-                    )
-                },
             )
         }
     }
@@ -123,7 +112,6 @@ private fun TimelineItemAttachmentHeaderView(
 @Composable
 private fun TimelineItemAttachmentCaptionView(
     caption: String,
-    onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Text(
@@ -131,8 +119,5 @@ private fun TimelineItemAttachmentCaptionView(
         text = caption,
         color = ElementTheme.colors.textPrimary,
         style = ElementTheme.typography.fontBodyLgRegular,
-        onTextLayout = ContentAvoidingLayout.measureLastTextLine(
-            onContentLayoutChange = onContentLayoutChange,
-        )
     )
 }

@@ -47,6 +47,7 @@ import io.element.android.libraries.matrix.api.timeline.item.event.AudioMessageT
 import io.element.android.libraries.matrix.api.timeline.item.event.EmoteMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.FileMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.FormattedBody
+import io.element.android.libraries.matrix.api.timeline.item.event.GalleryMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.ImageMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.InReplyTo
 import io.element.android.libraries.matrix.api.timeline.item.event.LocationMessageType
@@ -93,6 +94,24 @@ import kotlin.time.Duration.Companion.minutes
             htmlDocument = null,
             isEdited = false,
             formattedBody = SpannedString("body"),
+        )
+        assertThat(result).isEqualTo(expected)
+    }
+
+    @Test
+    fun `test create GalleryMessageType`() = runTest {
+        val sut = createTimelineItemContentMessageFactory()
+        val result = sut.create(
+            content = createMessageContent(type = GalleryMessageType(body = "gallery body")),
+            senderId = A_USER_ID,
+            senderProfile = aProfileDetails(),
+            eventId = AN_EVENT_ID,
+        )
+        val expected = TimelineItemTextContent(
+            body = "gallery body",
+            htmlDocument = null,
+            isEdited = false,
+            formattedBody = SpannedString("gallery body"),
         )
         assertThat(result).isEqualTo(expected)
     }
@@ -184,6 +203,27 @@ import kotlin.time.Duration.Companion.minutes
         val sut = createTimelineItemContentMessageFactory()
         val result = sut.create(
             content = createMessageContent(type = TextMessageType("https://www.example.org and https://matrix.to/#/@alice:matrix.org", null)),
+            senderId = A_USER_ID,
+            senderProfile = aProfileDetails(),
+            eventId = AN_EVENT_ID,
+        ) as TimelineItemTextContent
+
+        assertThat(result.linkPreviewUrls).containsExactly("https://www.example.org")
+    }
+
+    @Test
+    fun `test create TextMessageType excludes parsed matrix permalinks from preview`() = runTest {
+        val matrixPermalink = "https://app.element.io/#/user/@alice:matrix.org"
+        val permalinkParser = FakePermalinkParser { url ->
+            if (url == matrixPermalink) {
+                PermalinkData.UserLink(A_USER_ID)
+            } else {
+                PermalinkData.FallbackLink(Uri.parse(url))
+            }
+        }
+        val sut = createTimelineItemContentMessageFactory(permalinkParser = permalinkParser)
+        val result = sut.create(
+            content = createMessageContent(type = TextMessageType("https://www.example.org and $matrixPermalink", null)),
             senderId = A_USER_ID,
             senderProfile = aProfileDetails(),
             eventId = AN_EVENT_ID,

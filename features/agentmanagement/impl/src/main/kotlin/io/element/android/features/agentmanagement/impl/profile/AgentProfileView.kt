@@ -44,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -53,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.agentmanagement.impl.R
 import io.element.android.features.agentmanagement.impl.detail.AgentDetailEvents
 import io.element.android.features.agentmanagement.impl.detail.AgentDetailState
 import io.element.android.features.agentmanagement.impl.shared.shapeAwareClickable
@@ -104,7 +106,14 @@ fun AgentProfileView(
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             item { Hero(state) }
-            item { ConnectCard(connectUrl = state.agentConnectUrl, isLoading = state.isLoading, title = model.connectTitle, hint = model.connectHint) }
+            item {
+                ConnectCard(
+                    connectUrl = state.agentConnectUrl,
+                    isLoading = state.isLoading,
+                    title = stringResource(R.string.agent_detail_connect_title),
+                    hint = stringResource(R.string.agent_detail_connect_hint),
+                )
+            }
             when {
                 model.skills.items.isNotEmpty() -> item { SkillsSection(state) }
                 else -> item { SkillsLoadingSection() }
@@ -157,7 +166,7 @@ private fun Hero(state: AgentDetailState) {
                 )
             }
         }
-        ProfileChip(text = model.visibilityLabel)
+        ProfileChip(text = stringResource(if (model.isPublic) R.string.agent_management_visibility_public else R.string.agent_management_visibility_private))
         model.description?.let {
             Text(
                 text = it,
@@ -175,7 +184,7 @@ private fun Hero(state: AgentDetailState) {
             if (state.isStartingChat) {
                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
             } else {
-                Text(model.startChatLabel)
+                Text(stringResource(R.string.agent_detail_start_chat))
             }
         }
     }
@@ -202,6 +211,7 @@ private fun ConnectCard(connectUrl: String?, isLoading: Boolean, title: String, 
     var copied by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val hasUrl = !connectUrl.isNullOrBlank()
+    val connectInstructions = connectUrl?.let { stringResource(R.string.agent_profile_connect_instructions, it) }
 
     Surface(
         modifier = Modifier
@@ -209,7 +219,7 @@ private fun ConnectCard(connectUrl: String?, isLoading: Boolean, title: String, 
             .padding(horizontal = 16.dp)
             .then(
                 if (hasUrl) Modifier.shapeAwareClickable(RoundedCornerShape(16.dp)) {
-                    clipboard.setText(AnnotatedString("Follow this instructions to connect me $connectUrl"))
+                    clipboard.setText(AnnotatedString(connectInstructions.orEmpty()))
                     copied = true
                     scope.launch { delay(2000); copied = false }
                 } else Modifier
@@ -276,7 +286,7 @@ private fun SkillsLoadingSection() {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            text = "Skills",
+            text = stringResource(R.string.agent_management_skills),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(start = 4.dp, bottom = 2.dp),
@@ -340,7 +350,7 @@ private fun SkillsSection(state: AgentDetailState) {
             modifier = Modifier.padding(start = 4.dp, bottom = 2.dp),
         ) {
             Text(
-                text = skills.title,
+                text = stringResource(R.string.agent_detail_owned_skills),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )

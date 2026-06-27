@@ -860,7 +860,7 @@ private fun DebugInfoSection(
         val toastMessage = stringResource(CommonStrings.common_copied_to_clipboard)
         ListItem(
             headlineContent = {
-                Text("Internal room ID")
+                Text(stringResource(R.string.screen_room_details_debug_internal_room_id))
             },
             supportingContent = {
                 Text(
@@ -880,11 +880,11 @@ private fun DebugInfoSection(
         )
         ListItem(
             headlineContent = {
-                Text("Room version")
+                Text(stringResource(R.string.screen_room_details_debug_room_version))
             },
             supportingContent = {
                 Text(
-                    text = roomVersion ?: "Unknown",
+                    text = roomVersion ?: stringResource(R.string.screen_room_details_debug_unknown),
                     style = ElementTheme.typography.fontBodySmRegular,
                     color = ElementTheme.colors.textSecondary,
                 )

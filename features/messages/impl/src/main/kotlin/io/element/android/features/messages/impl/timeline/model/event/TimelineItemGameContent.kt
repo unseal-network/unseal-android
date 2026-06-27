@@ -17,7 +17,7 @@ import androidx.compose.runtime.Immutable
  * {
  *   "msgtype": "m.game.v1",
  *   "type": "tool-output-available",
- *   "body": "邀请大家开始一局 Chess 游戏",
+ *   "body": "Invite everyone to start a Chess game",
  *   "m.game.info": { "id": 1, "name": "Chess", "brief": "...", "icon": "..." },
  *   "m.game.roomid": "game-room-xyz",
  *   "m.game.creator": "@alice:matrix.example.com"
@@ -56,7 +56,7 @@ data class TimelineItemGameContent(
     val remoteUrl: String?,
     /** Matrix user ID of the room creator. */
     val creatorUserId: String?,
-    /** Fallback plain text body ("邀请大家..."). */
+    /** Fallback plain text body. */
     val fallbackBody: String,
 ) : TimelineItemEventContent {
     override val type: String = "m.game.v1"

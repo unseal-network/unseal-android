@@ -44,6 +44,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,10 +55,12 @@ import com.stripe.android.PaymentConfiguration
 import com.stripe.android.paymentsheet.PaymentSheet
 import com.stripe.android.paymentsheet.PaymentSheetResult
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.credits.impl.R
 import io.element.android.libraries.chatbot.api.model.credits.CreditBalance
 import io.element.android.libraries.chatbot.api.model.credits.CreditPaymentIntentResponse
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
+import io.element.android.libraries.ui.strings.CommonStrings
 
 @Composable
 fun TopupView(
@@ -85,7 +88,7 @@ fun TopupView(
         val params = awaiting.params
         val publishableKey = params.publishableKey.orEmpty()
         if (publishableKey.isBlank()) {
-            state.eventSink(TopupEvents.PaymentSheetFailed("Stripe publishable key is missing."))
+            state.eventSink(TopupEvents.PaymentSheetFailed(context.getString(R.string.topup_error_missing_stripe_key)))
             return@LaunchedEffect
         }
 
@@ -110,14 +113,14 @@ fun TopupView(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = "充值",
+                        text = stringResource(R.string.topup_title),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = { state.eventSink(TopupEvents.Dismiss) }) {
-                        Icon(CompoundIcons.ChevronLeft(), contentDescription = "返回")
+                        Icon(CompoundIcons.ChevronLeft(), contentDescription = stringResource(CommonStrings.action_go_back))
                     }
                 },
             )
@@ -152,7 +155,7 @@ private fun BalanceSummary(state: TopupState) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = "当前余额",
+                text = stringResource(R.string.topup_current_balance),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -205,7 +208,7 @@ private fun PresetGrid(state: TopupState) {
                         )
                         if (preset.isPopular) {
                             Text(
-                                text = "Popular",
+                                text = stringResource(R.string.topup_popular),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
                             )
@@ -228,13 +231,13 @@ private fun CustomAmountField(state: TopupState) {
         modifier = Modifier.fillMaxWidth(),
         value = state.customAmount,
         onValueChange = { state.eventSink(TopupEvents.SelectCustomAmount(it)) },
-        label = { Text("自定义金额") },
-        placeholder = { Text("1 - 500 USD") },
+        label = { Text(stringResource(R.string.topup_custom_amount)) },
+        placeholder = { Text(stringResource(R.string.topup_amount_placeholder)) },
         prefix = { Text("$") },
         isError = state.customAmountInvalid,
         supportingText = {
             if (state.customAmountInvalid) {
-                Text("金额必须在 $1 到 $500 之间")
+                Text(stringResource(R.string.topup_amount_range_error))
             }
         },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -253,7 +256,7 @@ private fun PhaseStatus(state: TopupState) {
     }
     when (val phase = state.phase) {
         TopupPhase.Selecting -> Unit
-        TopupPhase.Processing -> InlineProgress("正在创建支付请求…")
+        TopupPhase.Processing -> InlineProgress(stringResource(R.string.topup_creating_payment_request))
         is TopupPhase.AwaitingPaymentSheet -> Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
@@ -264,14 +267,14 @@ private fun PhaseStatus(state: TopupState) {
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
-                    text = "支付请求已创建",
+                    text = stringResource(R.string.topup_payment_request_created),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
-                InlineProgress("正在打开 Stripe 安全支付面板…")
+                InlineProgress(stringResource(R.string.topup_opening_stripe))
             }
         }
-        is TopupPhase.Confirming -> InlineProgress("正在确认 ${TopupState.formatCents(phase.amountCents)} 入账…")
+        is TopupPhase.Confirming -> InlineProgress(stringResource(R.string.topup_confirming, TopupState.formatCents(phase.amountCents)))
         is TopupPhase.Success -> Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
@@ -279,7 +282,7 @@ private fun PhaseStatus(state: TopupState) {
         ) {
             Text(
                 modifier = Modifier.padding(16.dp),
-                text = "已充值 ${TopupState.formatCents(phase.amountCents)}",
+                text = stringResource(R.string.topup_success, TopupState.formatCents(phase.amountCents)),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,

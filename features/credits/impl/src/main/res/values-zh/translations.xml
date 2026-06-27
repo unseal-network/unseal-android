@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="credits_title">"积分与账单"</string>
+  <string name="credits_tab_balance">"余额"</string>
+  <string name="credits_tab_daily_usage">"每日用量"</string>
+  <string name="credits_tab_usage">"用量"</string>
+  <string name="credits_available_balance">"可用余额"</string>
+  <string name="credits_top_up">"充值"</string>
+  <string name="credits_recent_transactions">"最近交易"</string>
+  <string name="credits_no_transactions">"暂无交易记录"</string>
+  <string name="credits_loading">"加载中…"</string>
+  <string name="credits_load_more">"载入更多"</string>
+  <string name="credits_no_data">"暂无数据"</string>
+  <string name="credits_error_balance_unavailable">"余额加载失败。"</string>
+  <string name="credits_error_transactions_unavailable">"交易记录加载失败。"</string>
+  <string name="credits_error_daily_usage_unavailable">"每日用量加载失败。"</string>
+  <string name="credits_error_usage_unavailable">"用量数据加载失败。"</string>
+  <string name="credits_total_spend">"累计消费"</string>
+  <string name="credits_seven_days">"7天"</string>
+  <string name="credits_thirty_days">"30天"</string>
+  <string name="credits_all">"全部"</string>
+  <string name="credits_ranking_tab_agent">"Agent"</string>
+  <string name="credits_ranking_tab_model">"Model"</string>
+  <string name="credits_agent_usage_subtitle">"%1$d 输入 · %2$d 输出 · %3$d 次调用"</string>
+  <string name="credits_model_usage_subtitle">"%1$d 输入 · %2$d 输出"</string>
+  <string name="topup_title">"充值"</string>
+  <string name="topup_current_balance">"当前余额"</string>
+  <string name="topup_custom_amount">"自定义金额"</string>
+  <string name="topup_popular">"热门"</string>
+  <string name="topup_amount_placeholder">"1 至 500 USD"</string>
+  <string name="topup_amount_range_error">"金额必须在 $1 到 $500 之间"</string>
+  <string name="topup_creating_payment_request">"正在创建支付请求…"</string>
+  <string name="topup_payment_request_created">"支付请求已创建"</string>
+  <string name="topup_opening_stripe">"正在打开 Stripe 安全支付面板…"</string>
+  <string name="topup_confirming">"正在确认 %1$s 入账…"</string>
+  <string name="topup_success">"已充值 %1$s"</string>
+  <string name="topup_error_missing_stripe_key">"缺少 Stripe publishable key。"</string>
+</resources>

@@ -18,6 +18,7 @@ import io.element.android.libraries.matrix.api.timeline.item.event.AudioMessageT
 import io.element.android.libraries.matrix.api.timeline.item.event.EmoteMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.EventTimelineItem
 import io.element.android.libraries.matrix.api.timeline.item.event.FileMessageType
+import io.element.android.libraries.matrix.api.timeline.item.event.GalleryMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.ImageMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.LocationMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageContent
@@ -100,6 +101,9 @@ class DefaultPinnedMessagesBannerFormatter(
                     .takeIf { it.isNotEmpty() }
                     ?.prefixWith(sp.getString(CommonStrings.common_voice_message))
                     ?: sp.getString(CommonStrings.common_voice_message)
+            }
+            is GalleryMessageType -> {
+                messageType.body
             }
             is OtherMessageType -> {
                 messageType.body

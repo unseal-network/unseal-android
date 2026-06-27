@@ -37,7 +37,7 @@ open class HomeStateProvider : PreviewParameterProvider<HomeState> {
                         summaries = generateRoomListRoomSummaryList(),
                     )
                 ),
-                // For the bottom nav bar to be visible in the preview, the user must be member of at least one space
+                // Include spaces in this preview to show the populated Spaces tab.
                 homeSpacesState = aHomeSpacesState(),
             ),
             aHomeState(

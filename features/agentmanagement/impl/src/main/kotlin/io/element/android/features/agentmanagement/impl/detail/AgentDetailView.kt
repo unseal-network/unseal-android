@@ -40,6 +40,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,6 +48,7 @@ import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.agentmanagement.impl.R
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgentRoom
 import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelPlatform
@@ -77,7 +79,7 @@ fun AgentDetailView(
             CenterAlignedTopAppBar(
                 title = { Text(renderModel.navigationTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) { Icon(CompoundIcons.ChevronLeft(), "返回") }
+                    IconButton(onClick = onBackClick) { Icon(CompoundIcons.ChevronLeft(), stringResource(io.element.android.libraries.ui.strings.CommonStrings.action_go_back)) }
                 },
                 actions = {
                     if (state.canEdit) {
@@ -138,7 +140,10 @@ private fun Header(state: AgentDetailState, renderModel: AgentDetailRenderModel)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             renderModel.providerModelLabel?.let { Chip(text = it, icon = CompoundIcons.Computer()) }
-            Chip(text = renderModel.visibilityLabel, icon = if (renderModel.isPublic) CompoundIcons.Public() else CompoundIcons.Lock())
+            Chip(
+                text = stringResource(if (renderModel.isPublic) R.string.agent_management_visibility_public else R.string.agent_management_visibility_private),
+                icon = if (renderModel.isPublic) CompoundIcons.Public() else CompoundIcons.Lock(),
+            )
         }
     }
 }
@@ -166,7 +171,7 @@ private fun ActionButtons(state: AgentDetailState, renderModel: AgentDetailRende
     ) {
         Icon(CompoundIcons.Chat(), null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.size(8.dp))
-        Text(renderModel.startChatLabel)
+        Text(stringResource(R.string.agent_detail_start_chat))
     }
 }
 
@@ -183,7 +188,7 @@ private fun SectionLabel(title: String) {
 @Composable
 private fun SoulSection(state: AgentDetailState, soul: AgentSoulRenderModel) {
     Column {
-        SectionLabel(soul.title)
+        SectionLabel(stringResource(R.string.agent_detail_role))
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -202,7 +207,7 @@ private fun SoulSection(state: AgentDetailState, soul: AgentSoulRenderModel) {
             if (soul.canToggle) {
                 Text(
                     modifier = Modifier.shapeAwareClickable(RoundedCornerShape(50)) { state.eventSink(AgentDetailEvents.ToggleSoulExpanded) },
-                    text = soul.toggleLabel,
+                    text = stringResource(if (soul.isExpanded) R.string.agent_detail_collapse else R.string.agent_detail_expand),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -216,9 +221,9 @@ private fun SkillsSection(state: AgentDetailState) {
     val skills = state.renderModel.skills
     Column {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            SectionLabel(skills.title)
+            SectionLabel(stringResource(R.string.agent_detail_owned_skills))
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = { state.eventSink(AgentDetailEvents.ManageSkills) }) { Text(skills.manageLabel) }
+            TextButton(onClick = { state.eventSink(AgentDetailEvents.ManageSkills) }) { Text(stringResource(R.string.agent_detail_manage)) }
             Spacer(Modifier.size(8.dp))
         }
         if (skills.items.isEmpty()) {
@@ -228,7 +233,7 @@ private fun SkillsSection(state: AgentDetailState) {
             ) {
                 Icon(CompoundIcons.Plus(), null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.size(8.dp))
-                Text(skills.addFirstLabel)
+                Text(stringResource(R.string.agent_detail_add_skill))
             }
         } else {
             Row(
@@ -274,9 +279,9 @@ private fun ChannelsSection(state: AgentDetailState) {
     val channels = state.channels
     Column {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            SectionLabel("Channels")
+            SectionLabel(stringResource(R.string.agent_detail_channels))
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = { state.eventSink(AgentDetailEvents.ManageChannels) }) { Text("Manage") }
+            TextButton(onClick = { state.eventSink(AgentDetailEvents.ManageChannels) }) { Text(stringResource(R.string.agent_detail_manage)) }
             Spacer(Modifier.size(8.dp))
         }
         if (channels.isEmpty()) {
@@ -286,7 +291,7 @@ private fun ChannelsSection(state: AgentDetailState) {
             ) {
                 Icon(CompoundIcons.Plus(), null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.size(8.dp))
-                Text("Connect a channel")
+                Text(stringResource(R.string.agent_detail_connect_channel))
             }
         } else {
             Row(
@@ -310,12 +315,14 @@ private fun ChannelChip(channel: ChatbotChannelSummary, onClick: () -> Unit) {
         ChatbotChannelPlatform.Discord -> Color(0xFF5865F2)
     }
     val icon = if (channel.platform == ChatbotChannelPlatform.Telegram) CompoundIcons.Send() else CompoundIcons.Chat()
-    val platformName = when (channel.platform) {
-        ChatbotChannelPlatform.Telegram -> "Telegram"
-        ChatbotChannelPlatform.WeCom -> "WeCom"
-        ChatbotChannelPlatform.Feishu -> "飞书"
-        ChatbotChannelPlatform.Discord -> "Discord"
-    }
+    val platformName = stringResource(
+        when (channel.platform) {
+            ChatbotChannelPlatform.Telegram -> R.string.agent_channels_platform_telegram
+            ChatbotChannelPlatform.WeCom -> R.string.agent_channels_platform_wecom
+            ChatbotChannelPlatform.Feishu -> R.string.agent_channels_platform_feishu
+            ChatbotChannelPlatform.Discord -> R.string.agent_channels_platform_discord
+        }
+    )
     Row(
         modifier = Modifier
             .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp))
@@ -342,7 +349,7 @@ private fun RoomsSection(state: AgentDetailState) {
     val rooms = state.renderModel.rooms
     Column {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            SectionLabel(rooms.title)
+            SectionLabel(stringResource(R.string.agent_detail_rooms))
             Spacer(Modifier.weight(1f))
             rooms.countLabel?.let { count ->
                 Text(count, modifier = Modifier.padding(end = 16.dp), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -351,7 +358,7 @@ private fun RoomsSection(state: AgentDetailState) {
         if (rooms.items.isEmpty()) {
             Text(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
-                text = if (state.isLoading) rooms.loadingLabel else rooms.emptyLabel,
+                text = stringResource(if (state.isLoading) R.string.agent_detail_loading else R.string.agent_detail_no_rooms),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,

@@ -146,6 +146,7 @@ class TimelineItemContentFactory(
                     senderProfile = senderProfile,
                     content = itemContent,
                     eventId = eventId,
+                    isOutgoing = isOutgoing,
                 )
             }
             is ProfileChangeContent -> {

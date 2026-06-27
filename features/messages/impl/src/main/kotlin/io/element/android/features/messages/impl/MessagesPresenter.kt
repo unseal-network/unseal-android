@@ -87,6 +87,7 @@ import io.element.android.libraries.matrix.api.encryption.identity.IdentityState
 import io.element.android.libraries.matrix.api.permalink.PermalinkParser
 import io.element.android.libraries.matrix.api.room.JoinedRoom
 import io.element.android.libraries.matrix.api.room.RoomInfo
+import io.element.android.libraries.matrix.api.room.RoomMember
 import io.element.android.libraries.matrix.api.room.RoomMembersState
 import io.element.android.libraries.matrix.api.room.history.RoomHistoryVisibility
 import io.element.android.libraries.matrix.api.room.powerlevels.permissionsAsState
@@ -195,13 +196,16 @@ class MessagesPresenter(
         val roomMemberSignature = remember(membersState) {
             membersState.roomUnsealMemberSignature()
         }
-        val threadsList by produceState(persistentListOf()) {
+        val canOpenThreadList by featureFlagService.isFeatureEnabledFlow(FeatureFlags.RoomThreadList).collectAsState(initial = false)
+        val threadsList by produceState(persistentListOf(), canOpenThreadList) {
+            if (!canOpenThreadList) {
+                value = persistentListOf()
+                return@produceState
+            }
             room.threadsListService.subscribeToItemUpdates()
                 .onStart { room.threadsListService.paginate() }
                 .collectLatest { value = it.toImmutableList() }
         }
-
-        val canOpenThreadList by featureFlagService.isFeatureEnabledFlow(FeatureFlags.RoomThreadList).collectAsState(initial = false)
         val isCurrentlySharingLiveLocationInRoom by remember { liveLocationShareManager.isCurrentlySharing(room.roomId) }.collectAsState()
 
         val userEventPermissions by room.permissionsAsState(UserEventPermissions.DEFAULT) { perms ->
@@ -270,7 +274,7 @@ class MessagesPresenter(
             }
         }
         LifecycleResumeEffect(Unit) {
-            if (!roomUnsealContextState.isLoading()) {
+            if (roomUnsealContextState.dataOrNull() != null && !roomUnsealContextState.isLoading()) {
                 coroutineScope.launch { roomUnsealContextStore.refresh(RoomUnsealRefreshReason.AppResumed) }
             }
             onPauseOrDispose {}
@@ -422,6 +426,7 @@ class MessagesPresenter(
                 isThreadTimeline = timelineState.timelineMode is Timeline.Mode.Thread,
                 canShareLocation = composerState.canShareLocation,
                 enableTextFormatting = MessageComposerConfig.ENABLE_RICH_TEXT_EDITING,
+                hasDirectAgentMember = roomInfo.isDm && dmRoomMember?.isAgentMember() == true,
                 activeDeviceAgentBoundDeviceId = activeDeviceAgentBoundDeviceId,
             ),
             deviceAgentTerminalPanel = deviceAgentTerminalPanel,
@@ -717,6 +722,10 @@ class MessagesPresenter(
         }
     }
 }
+
+private val AGENT_MEMBER_USER_TYPES = setOf("agent", "bot", "external_bot", "trusted_external_bot")
+
+private fun RoomMember.isAgentMember(): Boolean = userType in AGENT_MEMBER_USER_TYPES
 
 private fun TimelineItem.Event.selectableText(): String? {
     return when (val content = content) {

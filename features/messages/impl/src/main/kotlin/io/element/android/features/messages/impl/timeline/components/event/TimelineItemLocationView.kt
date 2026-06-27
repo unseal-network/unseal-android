@@ -45,23 +45,25 @@ fun TimelineItemLocationView(
     onStopLiveLocationClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier = modifier.fillMaxWidth()) {
-        StaticMapView(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 188.dp),
-            pinVariant = content.pinVariant,
-            location = content.location,
-            zoom = 15.0,
-            contentDescription = content.description
-        )
-
-        if (content.mode is TimelineItemLocationContent.Mode.Live) {
-            LiveLocationOverlay(
-                mode = content.mode,
-                onStopClick = onStopLiveLocationClick,
-                modifier = Modifier.align(Alignment.BottomStart)
+    TimelineCardSurface(modifier = modifier) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            StaticMapView(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 140.dp, max = 188.dp),
+                pinVariant = content.pinVariant,
+                location = content.location,
+                zoom = 15.0,
+                contentDescription = content.description
             )
+
+            if (content.mode is TimelineItemLocationContent.Mode.Live) {
+                LiveLocationOverlay(
+                    mode = content.mode,
+                    onStopClick = onStopLiveLocationClick,
+                    modifier = Modifier.align(Alignment.BottomStart)
+                )
+            }
         }
     }
 }

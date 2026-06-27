@@ -26,21 +26,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
+import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.linknewdevice.impl.R
-import io.element.android.libraries.designsystem.atomic.organisms.NumberedListOrganism
 import io.element.android.libraries.designsystem.atomic.pages.FlowStepPage
 import io.element.android.libraries.designsystem.components.BigIcon
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import io.element.android.libraries.designsystem.theme.LocalBuildMeta
 import io.element.android.libraries.designsystem.theme.components.CircularProgressIndicator
-import io.element.android.libraries.designsystem.utils.annotatedTextWithBold
+import io.element.android.libraries.designsystem.theme.components.Text
 import io.element.android.libraries.qrcode.QrCodeImage
-import kotlinx.collections.immutable.persistentListOf
 
 /**
  * QrCode display screen:
@@ -65,7 +64,7 @@ fun ShowQrCodeView(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             AnimatedContent(
-                modifier = Modifier.size(220.dp),
+                modifier = Modifier.size(236.dp),
                 targetState = state.data.dataOrNull(),
                 transitionSpec = {
                     fadeIn().togetherWith(fadeOut())
@@ -75,21 +74,36 @@ fun ShowQrCodeView(
                     data = data,
                 )
             }
-            Spacer(modifier = Modifier.height(32.dp))
-            NumberedListOrganism(
-                modifier = Modifier.fillMaxSize(),
-                items = persistentListOf(
-                    AnnotatedString(stringResource(R.string.screen_link_new_device_mobile_step1, appName)),
-                    annotatedTextWithBold(
-                        text = stringResource(
-                            id = R.string.screen_link_new_device_mobile_step2,
-                            stringResource(R.string.screen_link_new_device_mobile_step2_action),
-                        ),
-                        boldText = stringResource(R.string.screen_link_new_device_mobile_step2_action)
-                    ),
-                    AnnotatedString(stringResource(R.string.screen_link_new_device_mobile_step3)),
+            Spacer(modifier = Modifier.height(24.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    text = stringResource(R.string.screen_link_new_device_mobile_step3),
+                    style = ElementTheme.typography.fontBodyLgMedium,
+                    color = ElementTheme.colors.textPrimary,
+                    textAlign = TextAlign.Center,
                 )
-            )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.screen_link_new_device_mobile_step1, appName),
+                    style = ElementTheme.typography.fontBodyMdRegular,
+                    color = ElementTheme.colors.textSecondary,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = stringResource(
+                        id = R.string.screen_link_new_device_mobile_step2,
+                        stringResource(R.string.screen_link_new_device_mobile_step2_action),
+                    ),
+                    style = ElementTheme.typography.fontBodyMdRegular,
+                    color = ElementTheme.colors.textSecondary,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
     }
 }

@@ -1360,8 +1360,8 @@ class MessagesPresenterTest {
 
             // Enable the feature flag, now it should reflect the thread list state
             featureFlagService.setFeatureEnabled(FeatureFlags.RoomThreadList, true)
-            skipItems(1)
-            assertThat(awaitItem().threads.hasThreads).isTrue()
+            val threadsEnabledState = consumeItemsUntilPredicate { it.threads.hasThreads }.last()
+            assertThat(threadsEnabledState.threads.hasThreads).isTrue()
 
             // And if we remove the items, it should update accordingly
             itemsFlow.value = emptyList()

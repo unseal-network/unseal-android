@@ -13,9 +13,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import io.element.android.features.preferences.impl.R
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
 import io.element.android.libraries.matrix.api.MatrixClient
@@ -45,6 +47,11 @@ class VaultEditPresenter(
         var isSaving by remember { mutableStateOf(false) }
         var error by remember { mutableStateOf<String?>(null) }
         var hasLoadedOnce by remember { mutableStateOf(false) }
+        val unknownError = stringResource(R.string.screen_vault_error_unknown)
+        val loadValueFailedTemplate = stringResource(R.string.screen_vault_error_load_value_failed)
+        val keyEmptyError = stringResource(R.string.screen_vault_error_key_empty)
+        val valueEmptyError = stringResource(R.string.screen_vault_error_value_empty)
+        val saveFailedError = stringResource(R.string.screen_vault_error_save_failed)
 
         fun failureMessage(failure: Throwable, fallback: String): String =
             failure.message ?: failure::class.simpleName ?: fallback
@@ -63,18 +70,18 @@ class VaultEditPresenter(
                         value = it
                         error = null
                     }
-                    .onFailure { error = "加载值失败：${failureMessage(it, "未知错误")}" }
+                    .onFailure { error = loadValueFailedTemplate.format(failureMessage(it, unknownError)) }
                 isLoadingValue = false
             }
         }
 
         fun save() {
             if (key.isEmpty()) {
-                error = "Key不能为空。"
+                error = keyEmptyError
                 return
             }
             if (value.isEmpty()) {
-                error = "Value不能为空。"
+                error = valueEmptyError
                 return
             }
             coroutineScope.launch {
@@ -93,7 +100,7 @@ class VaultEditPresenter(
                     }
                     .onFailure {
                         isSaving = false
-                        error = failureMessage(it, "保存失败")
+                        error = failureMessage(it, saveFailedError)
                     }
             }
         }

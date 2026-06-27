@@ -13,9 +13,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import io.element.android.features.skills.impl.R
 import io.element.android.features.skills.impl.shared.apiValue
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
@@ -59,10 +61,13 @@ class SkillDetailPresenter(
         var error by remember { mutableStateOf<String?>(null) }
         var hasLoadedOnce by remember { mutableStateOf(false) }
         var loadRequestId by remember { mutableStateOf(0) }
+        val loadError = stringResource(R.string.skill_detail_error_load)
+        val updateError = stringResource(R.string.skill_detail_error_update)
+        val deleteError = stringResource(R.string.skill_detail_error_delete)
 
         suspend fun api() = chatbotApiServiceFactory.createForHomeserver(matrixClient)
 
-        fun failureMessage(error: Throwable, fallback: String): String = error.message ?: error::class.simpleName ?: fallback
+        fun failureMessage(fallback: String): String = fallback
 
         fun load(isInitial: Boolean) {
             if (isInitial && hasLoadedOnce) return
@@ -76,7 +81,7 @@ class SkillDetailPresenter(
                         response = it
                         error = null
                     }
-                    .onFailure { error = failureMessage(it, "Failed to load skill") }
+                    .onFailure { error = failureMessage(loadError) }
                 isLoading = false
                 hasLoadedOnce = true
             }
@@ -106,7 +111,7 @@ class SkillDetailPresenter(
                         isEditing = false
                         error = null
                     }
-                    .onFailure { error = failureMessage(it, "Failed to update skill") }
+                    .onFailure { error = failureMessage(updateError) }
                 isSaving = false
             }
         }
@@ -120,7 +125,7 @@ class SkillDetailPresenter(
                         error = null
                         navigator.onDeleted(id)
                     }
-                    .onFailure { error = failureMessage(it, "Failed to delete skill") }
+                    .onFailure { error = failureMessage(deleteError) }
                 isDeleting = false
             }
         }

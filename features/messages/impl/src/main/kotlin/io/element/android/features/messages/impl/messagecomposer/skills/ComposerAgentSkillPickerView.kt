@@ -9,6 +9,7 @@ package io.element.android.features.messages.impl.messagecomposer.skills
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,21 +17,22 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
+import io.element.android.features.messages.impl.R
 import io.element.android.features.messages.impl.components.SelectedStatePill
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
@@ -55,7 +57,7 @@ internal fun ComposerAgentSkillPickerView(
             activeAgentMxid = state.activeAgentMxid,
         )
     }
-    val shouldShow = state.targets.isNotEmpty() || state.isPresented || state.selectedSkills.isNotEmpty()
+    val shouldShow = state.isPresented || state.selectedSkills.isNotEmpty()
     if (!shouldShow) return
 
     Surface(
@@ -91,7 +93,7 @@ internal fun ComposerAgentSkillPickerView(
                 when {
                     state.isCatalogLoading -> LoadingRow()
                     state.error != null -> PickerMessage(text = state.error)
-                    visibleCandidates.isEmpty() -> PickerMessage(text = "No visible skills available")
+                    visibleCandidates.isEmpty() -> PickerMessage(text = stringResource(R.string.screen_room_agent_skill_picker_empty))
                     else -> CandidateList(
                         candidates = visibleCandidates,
                         onSelectSkill = onSelectSkill,
@@ -115,12 +117,12 @@ private fun PickerHeader(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "Agent skills",
+                text = stringResource(R.string.screen_room_agent_skill_picker_title),
                 style = ElementTheme.typography.fontBodyMdMedium,
                 color = ElementTheme.colors.textPrimary,
             )
             Text(
-                text = "${state.targets.size} target${if (state.targets.size == 1) "" else "s"} · $visibleCandidateCount available",
+                text = stringResource(R.string.screen_room_agent_skill_picker_summary, state.targets.size, visibleCandidateCount),
                 style = ElementTheme.typography.fontBodySmRegular,
                 color = ElementTheme.colors.textSecondary,
                 maxLines = 1,
@@ -128,7 +130,13 @@ private fun PickerHeader(
             )
         }
         TextButton(onClick = onTogglePicker) {
-            Text(if (state.isPresented) "Hide" else "Choose")
+            Text(
+                text = if (state.isPresented) {
+                    stringResource(R.string.screen_room_agent_skill_picker_hide)
+                } else {
+                    stringResource(R.string.screen_room_agent_skill_picker_choose)
+                }
+            )
         }
     }
 }
@@ -138,8 +146,11 @@ private fun SelectedSkillsRow(
     selectedSkills: List<ComposerSelectedAgentSkill>,
     onRemoveSkill: (ComposerSelectedAgentSkill) -> Unit,
 ) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(selectedSkills, key = { it.id }) { selected ->
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        selectedSkills.forEach { selected ->
             val chipShape = RoundedCornerShape(18.dp)
             Surface(
                 shape = chipShape,
@@ -180,8 +191,11 @@ private fun AgentTargetRow(
     state: ComposerAgentSkillState,
     onSelectTarget: (String) -> Unit,
 ) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(state.targets, key = { it.mxid }) { target ->
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        state.targets.forEach { target ->
             val selected = target.mxid == state.activeAgentMxid
             SelectedStatePill(
                 selected = selected,
@@ -218,7 +232,7 @@ private fun LoadingRow() {
     ) {
         CircularProgressIndicator()
         Text(
-            text = "Loading skills...",
+            text = stringResource(R.string.screen_room_agent_skill_picker_loading),
             style = ElementTheme.typography.fontBodySmRegular,
             color = ElementTheme.colors.textSecondary,
         )
@@ -240,10 +254,12 @@ private fun CandidateList(
     candidates: List<ComposerAgentSkillCandidate>,
     onSelectSkill: (ComposerAgentSkillCandidate) -> Unit,
 ) {
-    LazyColumn(
-        modifier = Modifier.heightIn(max = 220.dp),
+    Column(
+        modifier = Modifier
+            .heightIn(max = 220.dp)
+            .verticalScroll(rememberScrollState()),
     ) {
-        items(candidates, key = { it.id }) { candidate ->
+        candidates.forEach { candidate ->
             CandidateRow(
                 candidate = candidate,
                 onSelectSkill = onSelectSkill,

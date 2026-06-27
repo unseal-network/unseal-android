@@ -92,12 +92,12 @@ class HomePresentationModelTest {
     }
 
     @Test
-    fun `bottom navigation hides when there are no spaces`() {
+    fun `bottom navigation remains visible when there are no spaces`() {
         val model = aHomeState(
             homeSpacesState = aHomeSpacesState(spaceRooms = emptyList()),
         ).toPresentationModel()
 
-        assertThat(model.bottomNavigationPolicy).isEqualTo(HomeBottomNavigationPolicy.Hidden)
+        assertThat(model.bottomNavigationPolicy).isEqualTo(HomeBottomNavigationPolicy.ChatsAndSpaces)
     }
 
     @Test

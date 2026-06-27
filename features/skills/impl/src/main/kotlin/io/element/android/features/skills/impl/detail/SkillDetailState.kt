@@ -7,7 +7,7 @@
 
 package io.element.android.features.skills.impl.detail
 
-import io.element.android.features.skills.impl.shared.displayName
+import io.element.android.features.skills.impl.shared.displayNameRes
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotGetUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 
@@ -28,7 +28,7 @@ data class SkillDetailState(
 ) {
     val skill = response?.skill
     val title: String = skill?.name?.takeIf { it.isNotBlank() } ?: id
-    val visibilityLabel: String? = skill?.visibility?.displayName()
+    val visibilityLabelRes: Int? = skill?.visibility?.displayNameRes()
     val canEdit: Boolean = isOwner && skill != null && !isLoading && !isSaving && !isDeleting
     val fileItems: List<SkillFileRenderModel> = buildSkillFileRenderModels(
         skillId = id,

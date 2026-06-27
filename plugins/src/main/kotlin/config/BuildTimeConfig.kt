@@ -17,7 +17,9 @@ object BuildTimeConfig {
 
     val METADATA_HOST_REVERSED: String? = "network.unseal"
     val URL_WEBSITE: String? = "https://unseal.network"
-    val URL_LOGO: String? = "https://unseal.network"
+    // Used as OIDC client metadata logo_uri by Matrix Authentication Service.
+    // This must be a directly loadable image URL, not the website landing page.
+    val URL_LOGO: String? = "https://unseal.network/landing/res/logos/256.png"
     val URL_COPYRIGHT: String? = null
     val URL_ACCEPTABLE_USE: String? = null
     val URL_PRIVACY: String? = null

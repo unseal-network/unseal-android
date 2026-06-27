@@ -122,6 +122,7 @@ data class AgentEditState(
     val sandboxBusy: Boolean = false,
     val sandboxMessage: String? = null,
     val pendingSandboxAction: AgentSandboxInitMethod? = null,
+    val renderLabels: AgentEditRenderLabels = AgentEditRenderLabels(),
     val eventSink: (AgentEditEvents) -> Unit,
 ) {
     val selectedProvider: ChatbotAgentProvider? = providers.firstOrNull { it.id == form.providerId }
@@ -129,5 +130,5 @@ data class AgentEditState(
     val needsApiKey: Boolean = needsApiKey(form.providerId)
     val supportsBaseUrl: Boolean = supportsBaseUrl(selectedProvider)
     val isCreate: Boolean = mode is AgentEditMode.Create
-    val renderModel: AgentEditRenderModel = toRenderModel()
+    val renderModel: AgentEditRenderModel = toRenderModel(renderLabels)
 }

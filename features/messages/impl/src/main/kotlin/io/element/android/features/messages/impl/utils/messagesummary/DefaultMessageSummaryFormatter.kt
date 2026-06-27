@@ -19,6 +19,7 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemImageContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLegacyCallInviteContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemPingContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemPollContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemProfileChangeContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRedactedContent
@@ -54,6 +55,7 @@ class DefaultMessageSummaryFormatter(
             is TimelineItemPollContent -> content.question
             is TimelineItemVoiceContent -> context.getString(CommonStrings.common_voice_message)
             is TimelineItemGameContent -> content.gameName
+            is TimelineItemPingContent -> content.body
             is TimelineItemUnknownContent -> context.getString(CommonStrings.common_unsupported_event)
             is TimelineItemImageContent -> context.getString(CommonStrings.common_image)
             is TimelineItemStickerContent -> context.getString(CommonStrings.common_sticker)

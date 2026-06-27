@@ -15,9 +15,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.res.stringResource
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import io.element.android.features.connectors.impl.R
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotToolkit
@@ -65,12 +67,14 @@ class ConnectorListPresenter(
         var connectingSlug by remember { mutableStateOf<String?>(null) }
         var error by remember { mutableStateOf<String?>(null) }
         var successMessage by remember { mutableStateOf<String?>(null) }
+        val connectedSuccessTemplate = stringResource(R.string.connectors_connected_success)
+        val loadError = stringResource(R.string.connectors_error_load)
+        val loadMoreError = stringResource(R.string.connectors_error_load_more)
+        val connectError = stringResource(R.string.connectors_error_connect)
 
         suspend fun api() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
 
-        fun errorMessage(throwable: Throwable, fallback: String): String {
-            return throwable.message ?: throwable::class.simpleName ?: fallback
-        }
+        fun errorMessage(fallback: String): String = fallback
 
         // Mirror iOS: only send the search term once it reaches the minimum length, otherwise null.
         fun searchParam(): String? {
@@ -103,7 +107,7 @@ class ConnectorListPresenter(
                 .onSuccess {
                     if (showConnectionSuccess && toolkits.isNotEmpty()) {
                         it.items.firstOrNull { toolkit -> toolkit.connected && toolkit.slug !in previousConnectedSlugs }?.let { toolkit ->
-                            successMessage = "${toolkit.name} 已连接"
+                            successMessage = connectedSuccessTemplate.format(toolkit.name)
                         }
                     }
                     toolkits = it.items
@@ -111,7 +115,7 @@ class ConnectorListPresenter(
                     error = null
                 }
                 .onFailure {
-                    error = errorMessage(it, "Failed to load connectors")
+                    error = errorMessage(loadError)
                 }
             isLoading = false
         }
@@ -132,7 +136,7 @@ class ConnectorListPresenter(
                     error = null
                 }
                 .onFailure {
-                    error = errorMessage(it, "Failed to load more connectors")
+                    error = errorMessage(loadMoreError)
                 }
             isLoadingMore = false
         }
@@ -146,7 +150,7 @@ class ConnectorListPresenter(
                     error = null
                 }
                 .onFailure {
-                    error = errorMessage(it, "Failed to connect")
+                    error = errorMessage(connectError)
                 }
             connectingSlug = null
         }

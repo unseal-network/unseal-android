@@ -23,25 +23,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.layer.CompositingStrategy
 import androidx.compose.ui.tooling.preview.PreviewParameter
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.features.messages.impl.timeline.model.TimelineItemGroupPosition
 import io.element.android.features.messages.impl.timeline.model.bubble.BubbleState
 import io.element.android.features.messages.impl.timeline.model.bubble.BubbleStateProvider
 import io.element.android.libraries.core.extensions.to01
-import io.element.android.libraries.designsystem.components.avatar.AvatarSize
 import io.element.android.libraries.designsystem.modifiers.onKeyboardContextMenuAction
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import io.element.android.libraries.designsystem.text.toDp
-import io.element.android.libraries.designsystem.text.toPx
 import io.element.android.libraries.designsystem.theme.components.Text
 import io.element.android.libraries.designsystem.theme.messageFromMeBackground
 import io.element.android.libraries.designsystem.theme.messageFromOtherBackground
@@ -51,7 +46,6 @@ import io.element.android.libraries.ui.utils.a11y.isTalkbackActive
 import io.element.android.libraries.ui.utils.graphics.drawInLayer
 
 private val BUBBLE_RADIUS = 12.dp
-private val avatarRadius = AvatarSize.TimelineSender.dp / 2
 
 private val MIN_BUBBLE_WIDTH = 80.dp
 
@@ -78,12 +72,9 @@ fun MessageEventBubble(
             .onKeyboardContextMenuAction(onLongClick)
     }
 
-    val cutTopStart = state.cutTopStart
     // Ignore state.isHighlighted for now, we need a design decision on it.
     val backgroundBubbleColor = MessageEventBubbleDefaults.backgroundBubbleColor(state.isMine)
-    val bubbleShape = remember(state) { MessageEventBubbleDefaults.shape(state.cutTopStart, state.groupPosition, state.isMine) }
-    val radiusPx = (avatarRadius + SENDER_AVATAR_BORDER_WIDTH).toPx()
-    val yOffsetPx = -(NEGATIVE_MARGIN_FOR_BUBBLE + avatarRadius).toPx()
+    val bubbleShape = remember(state) { MessageEventBubbleDefaults.shape(state.groupPosition, state.isMine) }
     BoxWithConstraints(
         modifier = modifier
             .drawWithCache {
@@ -105,27 +96,18 @@ fun MessageEventBubble(
                         drawContent()
 
                         // And then clip the top start corner if needed to make room for the avatar
-                        if (cutTopStart) {
-                            drawCircle(
-                                color = Color.Black,
-                                center = Offset(
-                                    x = if (layoutDirection == LayoutDirection.Rtl) size.width else 0f,
-                                    y = yOffsetPx,
-                                ),
-                                radius = radiusPx,
-                                blendMode = BlendMode.Clear,
-                            )
-                        }
+                        // Unseal keeps avatars in the sender row instead of overlapping bubbles, so
+                        // no avatar notch is cut out here.
                     }
                 }
             },
-        // Need to set the contentAlignment again (it's already set in TimelineItemEventRow), for the case
-        // when content width is low.
-        contentAlignment = if (state.isMine) Alignment.CenterEnd else Alignment.CenterStart
+        // Unseal timeline uses a single content axis. `isMine` affects bubble styling only, never
+        // the content coordinates.
+        contentAlignment = Alignment.CenterStart
     ) {
         Box(
             modifier = Modifier
-                .testTag(TestTags.messageBubble)
+                .testTag(TestTags.timelineItemEventContent)
                 .widthIn(
                     min = MIN_BUBBLE_WIDTH,
                     max = (constraints.maxWidth * MessageEventBubbleDefaults.BUBBLE_WIDTH_RATIO)
@@ -141,13 +123,12 @@ fun MessageEventBubble(
 }
 
 object MessageEventBubbleDefaults {
-    fun shape(cutTopStart: Boolean, groupPosition: TimelineItemGroupPosition, isMine: Boolean): Shape {
-        val topLeftCorner = if (cutTopStart) 0.dp else BUBBLE_RADIUS
+    fun shape(groupPosition: TimelineItemGroupPosition, isMine: Boolean): Shape {
         return when (groupPosition) {
             TimelineItemGroupPosition.First -> if (isMine) {
                 RoundedCornerShape(BUBBLE_RADIUS, BUBBLE_RADIUS, 0.dp, BUBBLE_RADIUS)
             } else {
-                RoundedCornerShape(topLeftCorner, BUBBLE_RADIUS, BUBBLE_RADIUS, 0.dp)
+                RoundedCornerShape(BUBBLE_RADIUS, BUBBLE_RADIUS, BUBBLE_RADIUS, 0.dp)
             }
             TimelineItemGroupPosition.Middle -> if (isMine) {
                 RoundedCornerShape(BUBBLE_RADIUS, 0.dp, 0.dp, BUBBLE_RADIUS)
@@ -161,7 +142,7 @@ object MessageEventBubbleDefaults {
             }
             TimelineItemGroupPosition.None ->
                 RoundedCornerShape(
-                    topLeftCorner,
+                    BUBBLE_RADIUS,
                     BUBBLE_RADIUS,
                     BUBBLE_RADIUS,
                     BUBBLE_RADIUS
@@ -190,7 +171,7 @@ internal fun MessageEventBubblePreview(@PreviewParameter(BubbleStateProvider::cl
         modifier = Modifier
             .size(width = 240.dp, height = 64.dp)
             .padding(vertical = 8.dp),
-        contentAlignment = if (state.isMine) Alignment.CenterEnd else Alignment.CenterStart,
+        contentAlignment = Alignment.CenterStart,
     ) {
         MessageEventBubble(
             state = state,

@@ -22,6 +22,7 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemImageContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemNoticeContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemPingContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemStickerContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVideoContent
@@ -32,10 +33,12 @@ import io.element.android.libraries.androidutils.text.safeLinkify
 import io.element.android.libraries.core.mimetype.MimeTypes
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.UserId
+import io.element.android.libraries.matrix.api.permalink.PermalinkData
 import io.element.android.libraries.matrix.api.permalink.PermalinkParser
 import io.element.android.libraries.matrix.api.timeline.item.event.AudioMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.EmoteMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.FileMessageType
+import io.element.android.libraries.matrix.api.timeline.item.event.GalleryMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.ImageMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.LocationMessageType
 import io.element.android.libraries.matrix.api.timeline.item.event.MessageContent
@@ -58,6 +61,7 @@ private const val MIN_IMAGE_SIZE = 1L
 private const val MAX_IMAGE_SIZE = 10_000L
 private const val MIN_ASPECT_RATIO = 0.001f
 private const val MAX_ASPECT_RATIO = 10f
+private const val MSGTYPE_PING = "m.ping"
 
 @Inject
 class TimelineItemContentMessageFactory(
@@ -72,6 +76,7 @@ class TimelineItemContentMessageFactory(
         senderId: UserId,
         senderProfile: ProfileDetails,
         eventId: EventId?,
+        isOutgoing: Boolean = false,
     ): TimelineItemEventContent {
         return when (val messageType = content.type) {
             is EmoteMessageType -> {
@@ -262,10 +267,10 @@ class TimelineItemContentMessageFactory(
                     htmlDocument = htmlDocument,
                     formattedBody = formattedBody,
                     isEdited = content.isEdited,
-                    linkPreviewUrls = formattedBody.extractLinkPreviewUrls(),
+                    linkPreviewUrls = formattedBody.extractLinkPreviewUrls(permalinkParser),
                 )
             }
-            is OtherMessageType -> {
+            is GalleryMessageType -> {
                 val body = messageType.body.trimEnd()
                 val formattedBody = textPillificationHelper.pillify(body).safeLinkify()
                 TimelineItemTextContent(
@@ -273,7 +278,25 @@ class TimelineItemContentMessageFactory(
                     htmlDocument = null,
                     formattedBody = formattedBody,
                     isEdited = content.isEdited,
-                    linkPreviewUrls = formattedBody.extractLinkPreviewUrls(),
+                    linkPreviewUrls = formattedBody.extractLinkPreviewUrls(permalinkParser),
+                )
+            }
+            is OtherMessageType -> {
+                if (messageType.msgType == MSGTYPE_PING) {
+                    return TimelineItemPingContent(
+                        body = messageType.body.trimEnd().ifBlank { "Ping" },
+                        senderDisplayName = senderProfile.getDisambiguatedDisplayName(senderId),
+                        isOutgoing = isOutgoing,
+                    )
+                }
+                val body = messageType.body.trimEnd()
+                val formattedBody = textPillificationHelper.pillify(body).safeLinkify()
+                TimelineItemTextContent(
+                    body = body,
+                    htmlDocument = null,
+                    formattedBody = formattedBody,
+                    isEdited = content.isEdited,
+                    linkPreviewUrls = formattedBody.extractLinkPreviewUrls(permalinkParser),
                 )
             }
         }
@@ -304,18 +327,26 @@ private fun String.withLinks(): CharSequence? {
     return spannable.takeIf { spannable.getSpans<URLSpan>(0, length).isNotEmpty() }
 }
 
-private fun CharSequence.extractLinkPreviewUrls(): List<String> {
+private fun CharSequence.extractLinkPreviewUrls(permalinkParser: PermalinkParser): List<String> {
     if (this !is Spanned) return emptyList()
     return getSpans<URLSpan>(0, length)
         .map { it.url }
-        .filter { it.isPreviewableUrl() }
+        .filter { it.isPreviewableUrl(permalinkParser) }
         .distinct()
         .take(2)
 }
 
-private fun String.isPreviewableUrl(): Boolean {
+private fun String.isPreviewableUrl(permalinkParser: PermalinkParser): Boolean {
     val normalized = lowercase()
     return (normalized.startsWith("http://") || normalized.startsWith("https://")) &&
         !normalized.startsWith("https://matrix.to/") &&
-        !normalized.startsWith("http://matrix.to/")
+        !normalized.startsWith("http://matrix.to/") &&
+        !isMatrixPermalink(permalinkParser)
+}
+
+private fun String.isMatrixPermalink(permalinkParser: PermalinkParser): Boolean {
+    return runCatching { permalinkParser.parse(this) }
+        .getOrNull()
+        ?.let { it !is PermalinkData.FallbackLink }
+        ?: false
 }

@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.util.Locale
 
 private val ChartGreen = Color(0xFF2E7D32)
@@ -159,7 +160,7 @@ internal fun <T> CreditPillPicker(
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
     // Compact pills for the right-side range/period selectors (mirrors iOS bodyXS sizing); keeps the
-    // usage-card header on one line so labels like "全部" don't wrap to two lines.
+    // usage-card header on one line so short labels don't wrap to two lines.
     compact: Boolean = false,
 ) {
     Row(
@@ -202,11 +203,13 @@ private fun formatBucketLabel(epochSeconds: Int, sevenDayRange: Boolean): String
     return date.format(DateTimeFormatter.ofPattern(pattern, Locale.getDefault()))
 }
 
-/** Formats an ISO-8601 ledger timestamp as "MMM d, HH:mm" (mirrors iOS `formattedDate`). */
+/** Formats an ISO-8601 ledger timestamp using the current system locale. */
 internal fun formatLedgerTimestamp(iso: String): String {
     return runCatching {
         val instant = Instant.parse(iso)
-        instant.atZone(ZoneId.systemDefault())
-            .format(DateTimeFormatter.ofPattern("MMM d, HH:mm", Locale.getDefault()))
+        DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
+            .withLocale(Locale.getDefault())
+            .withZone(ZoneId.systemDefault())
+            .format(instant)
     }.getOrDefault(iso)
 }

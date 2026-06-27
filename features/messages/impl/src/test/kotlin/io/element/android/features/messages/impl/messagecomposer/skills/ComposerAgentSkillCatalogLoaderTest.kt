@@ -54,6 +54,37 @@ class ComposerAgentSkillCatalogLoaderTest {
     }
 
     @Test
+    fun `load only requests skill catalog for explicit targets`() = runTest {
+        val otherAgentUserId = UserId("@other:example.org")
+        val dataClient = FakeRoomUnsealDataClient().apply {
+            roomAgentSkillsResult = { _, agentId, _ ->
+                Result.success(
+                    listOf(
+                        RoomAgentSkillDescriptor(
+                            id = "skill-$agentId",
+                            name = if (agentId == AGENT_USER_ID.value) "weather" else "other",
+                            description = null,
+                            runtimeVisible = true,
+                        )
+                    )
+                )
+            }
+        }
+
+        val result = loader(dataClient).load(
+            context = contextWithAgents(listOf(AGENT_USER_ID, otherAgentUserId)),
+            targets = listOf(agentTarget()),
+            currentUserId = CURRENT_USER_ID.value,
+            isDirectRoom = true,
+        )
+
+        assertThat(result.error).isNull()
+        assertThat(result.candidates.map { it.agent.mxid }).containsExactly(AGENT_USER_ID.value)
+        assertThat(result.candidates.map { it.skillName }).containsExactly("weather")
+        assertThat(dataClient.roomAgentSkillRequests.map { it.agentId }).containsExactly(AGENT_USER_ID.value)
+    }
+
+    @Test
     fun `load falls back to legacy installed skills when runtime candidates are not visible`() = runTest {
         val dataClient = FakeRoomUnsealDataClient().apply {
             roomAgentSkillsResult = { _, _, _ ->
@@ -132,29 +163,34 @@ class ComposerAgentSkillCatalogLoaderTest {
     }
 
     private fun contextWithAgent(): RoomUnsealContext {
+        return contextWithAgents(listOf(AGENT_USER_ID))
+    }
+
+    private fun contextWithAgents(agentUserIds: List<UserId>): RoomUnsealContext {
         return RoomUnsealContext.from(
             roomId = ROOM_ID,
-            members = listOf(
-                aRoomMember(userId = CURRENT_USER_ID, membership = RoomMembershipState.JOIN),
-                aRoomMember(userId = AGENT_USER_ID, membership = RoomMembershipState.JOIN),
-            ),
+            members = listOf(aRoomMember(userId = CURRENT_USER_ID, membership = RoomMembershipState.JOIN)) +
+                agentUserIds.map { userId -> aRoomMember(userId = userId, membership = RoomMembershipState.JOIN) },
             snapshot = RoomUnsealDataSnapshot(
                 roomAgents = RoomUnsealResource.success(
-                    listOf(RoomAgentDescriptor(userId = AGENT_USER_ID.value, displayName = null, avatarUrl = null, userType = "agent", membership = "join"))
+                    agentUserIds.map { userId ->
+                        RoomAgentDescriptor(userId = userId.value, displayName = null, avatarUrl = null, userType = "agent", membership = "join")
+                    }
                 ),
                 allAgents = RoomUnsealResource.success(
-                    listOf(
+                    agentUserIds.map { userId ->
+                        val localpart = userId.value.removePrefix("@").substringBefore(":")
                         AgentAccountDescriptor(
-                            botName = "Gemini",
-                            localpart = "gemini",
+                            botName = localpart,
+                            localpart = localpart,
                             serverName = "example.org",
-                            matrixUserId = AGENT_USER_ID.value,
-                            displayName = "Gemini",
+                            matrixUserId = userId.value,
+                            displayName = localpart,
                             avatarUrl = null,
                             isDeviceAgent = false,
                             boundDeviceId = null,
                         )
-                    )
+                    }
                 ),
             ),
         )

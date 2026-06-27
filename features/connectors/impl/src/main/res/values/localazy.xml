@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="connectors_title">"External integrations"</string>
+  <string name="connectors_search_placeholder">"Search toolkits (at least 3 characters)…"</string>
+  <string name="connectors_empty_toolkits">"No toolkits found"</string>
+  <string name="connectors_filter_all">"All"</string>
+  <string name="connectors_manage">"Manage"</string>
+  <string name="connectors_connect">"Connect"</string>
+  <string name="connectors_connecting">"Connecting…"</string>
+  <string name="connectors_connected_success">"%1$s connected"</string>
+  <string name="connectors_manage_title">"Manage %1$s"</string>
+  <string name="connectors_connect_new_account">"Connect new account"</string>
+  <string name="connectors_empty_accounts">"No connected accounts"</string>
+  <string name="connectors_disconnect_title">"Disconnect account"</string>
+  <string name="connectors_disconnect_message">"Are you sure you want to disconnect this account? The assistant will no longer be able to use it.\n\nAll triggers configured with this connection will also be permanently deleted."</string>
+  <string name="connectors_disconnect">"Disconnect"</string>
+  <string name="connectors_connected">"Connected"</string>
+  <string name="connectors_connected_status">"Connected · %1$s"</string>
+  <string name="connectors_error_load">"Failed to load connectors"</string>
+  <string name="connectors_error_load_more">"Failed to load more connectors"</string>
+  <string name="connectors_error_connect">"Failed to connect"</string>
+  <string name="connectors_error_load_accounts">"Failed to load connected accounts"</string>
+  <string name="connectors_error_disconnect">"Failed to disconnect account"</string>
+</resources>

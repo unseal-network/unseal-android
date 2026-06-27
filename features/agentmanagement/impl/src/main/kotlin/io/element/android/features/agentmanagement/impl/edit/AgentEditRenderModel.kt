@@ -44,16 +44,50 @@ data class AgentEditRenderModel(
     val skillPickerLabel: String,
 )
 
+data class AgentEditRenderLabels(
+    val titleCreate: String = "Create agent",
+    val titleEdit: String = "Edit agent",
+    val create: String = "Create",
+    val saveChanges: String = "Save changes",
+    val sectionLabels: AgentEditSectionLabels = AgentEditSectionLabels(),
+    val identifierRequired: String = "Identifier (required)",
+    val identifier: String = "Identifier",
+    val identifierHelper: String = "The identifier cannot be changed after creation. Use lowercase letters and numbers.",
+    val noVault: String = "No vault entries.",
+    val chooseVault: String = "Choose from my vault",
+    val noSkills: String = "No skills available",
+    val addSkill: String = "Add skill",
+    val checking: String = "Checking...",
+    val available: String = "Available",
+    val taken: String = "Taken",
+    val savingAgent: String = "Saving agent…",
+    val creatingDirectChat: String = "Creating direct chat…",
+    val runtimePerUser: String = "Separate runtime per user",
+    val runtimeDedicated: String = "Dedicated agent runtime",
+    val voiceDefault: String = "Use server default",
+    val voicePersonal: String = "Personal voice",
+    val voiceProvider: String = "Provider voice",
+    val runtimePerUserDescription: String = "Each user uses their own runtime when chatting with the agent. Data stays separate.",
+    val runtimeDedicatedDescription: String = "All users share the agent's dedicated runtime.",
+    val runtimeDedicatedWarning: String = "All users will share this runtime. Make sure it does not contain private information, or use it only in trusted groups.",
+    val runtimeCreateEmpty: String = "Create empty runtime",
+    val runtimeCreateEmptySubtitle: String = "Start from scratch with a fresh runtime for this agent",
+    val runtimeCloneOwner: String = "Copy my runtime",
+    val runtimeCloneOwnerSubtitle: String = "Copy your current runtime as a starting point; future changes stay separate",
+    val runtimeConfiguredClone: String = "Configured · Source: copied from user runtime",
+    val runtimeConfiguredEmpty: String = "Configured · Source: empty runtime",
+)
+
 data class AgentEditSectionLabels(
-    val avatar: String = "头像",
-    val basicInfo: String = "基本信息",
-    val accessControl: String = "访问控制",
-    val aiEngine: String = "AI 引擎",
-    val voice: String = "语音",
-    val soul: String = "角色设定",
-    val runtime: String = "运行环境",
-    val vault: String = "密钥变量",
-    val skills: String = "拥有的技能",
+    val avatar: String = "Avatar",
+    val basicInfo: String = "Basic information",
+    val accessControl: String = "Access control",
+    val aiEngine: String = "AI engine",
+    val voice: String = "Voice",
+    val soul: String = "Role prompt",
+    val runtime: String = "Runtime",
+    val vault: String = "Vault variables",
+    val skills: String = "Owned skills",
 )
 
 data class AgentEditOption(
@@ -86,27 +120,34 @@ data class AgentSandboxInitOptionRenderModel(
     val isSelected: Boolean,
 )
 
-fun AgentEditState.toRenderModel(): AgentEditRenderModel {
+fun AgentEditState.toRenderModel(labels: AgentEditRenderLabels = AgentEditRenderLabels()): AgentEditRenderModel {
     val isSubmitting = phase is AgentEditPhase.Submitting
     return AgentEditRenderModel(
-        title = if (isCreate) "创建 Agent" else "编辑 Agent",
+        title = if (isCreate) labels.titleCreate else labels.titleEdit,
         isCreate = isCreate,
-        submitLabel = if (isCreate) "创建" else "保存更改",
+        submitLabel = if (isCreate) labels.create else labels.saveChanges,
         isSubmitting = isSubmitting,
-        submittingLabel = (phase as? AgentEditPhase.Submitting)?.step?.displayLabel(),
-        sectionLabels = AgentEditSectionLabels(),
-        botNameLabel = if (isCreate) "唯一标识符（必填）" else "标识符",
-        botNameHelper = if (isCreate) "标识符创建后不可更改。请使用小写字母和数字。" else null,
-        botNameAvailabilityLabel = nameAvailability.displayLabel(),
+        submittingLabel = (phase as? AgentEditPhase.Submitting)?.step?.displayLabel(labels),
+        sectionLabels = labels.sectionLabels,
+        botNameLabel = if (isCreate) labels.identifierRequired else labels.identifier,
+        botNameHelper = if (isCreate) labels.identifierHelper else null,
+        botNameAvailabilityLabel = nameAvailability.displayLabel(labels),
         providerOptions = providers.toProviderOptions(form.providerId),
         selectedProviderLabel = selectedProvider?.displayLabel() ?: "—",
         modelOptions = availableModels.toModelOptions(form.model),
         selectedModelLabel = availableModels.firstOrNull { it.id == form.model }?.displayLabel() ?: form.model.ifEmpty { "—" },
         needsApiKey = needsApiKey,
         supportsBaseUrl = supportsBaseUrl,
-        voiceOptions = voiceOptions(voiceSelection, voiceProfiles, providerVoices),
-        selectedVoiceLabel = AgentVoiceSelection.label(voiceSelection, voiceProfiles, providerVoices),
-        sandbox = sandboxRenderModel(form.sandboxMode, form.sandboxInitMethod, sandboxStatus, sandboxBusy, sandboxMessage),
+        voiceOptions = voiceOptions(voiceSelection, voiceProfiles, providerVoices, labels),
+        selectedVoiceLabel = AgentVoiceSelection.label(
+            token = voiceSelection,
+            profiles = voiceProfiles,
+            providerVoices = providerVoices,
+            defaultLabel = labels.voiceDefault,
+            personalVoiceLabel = labels.voicePersonal,
+            providerVoiceLabel = labels.voiceProvider,
+        ),
+        sandbox = sandboxRenderModel(form.sandboxMode, form.sandboxInitMethod, sandboxStatus, sandboxBusy, sandboxMessage, labels),
         selectedSkills = availableSkills
             .filter { it.id in selectedSkillIds }
             .map { AgentEditChipRenderModel(id = it.id, label = it.name, description = it.description?.takeIf { desc -> desc.isNotBlank() }) }
@@ -117,30 +158,30 @@ fun AgentEditState.toRenderModel(): AgentEditRenderModel {
                 AgentEditChipRenderModel(id = key, label = key, description = vault?.description?.takeIf { it.isNotBlank() })
             }
             .toImmutableList(),
-        vaultPickerLabel = if (personalVaultKeys.isEmpty()) "暂无密钥配置。" else "从我的密钥库选择",
-        skillPickerLabel = if (availableSkills.isEmpty()) "暂无可用技能" else "添加技能",
+        vaultPickerLabel = if (personalVaultKeys.isEmpty()) labels.noVault else labels.chooseVault,
+        skillPickerLabel = if (availableSkills.isEmpty()) labels.noSkills else labels.addSkill,
     )
 }
 
-fun AgentNameAvailability.displayLabel(): String? = when (this) {
+fun AgentNameAvailability.displayLabel(labels: AgentEditRenderLabels = AgentEditRenderLabels()): String? = when (this) {
     AgentNameAvailability.Unknown -> null
-    AgentNameAvailability.Checking -> "检查中..."
-    AgentNameAvailability.Available -> "可用"
-    AgentNameAvailability.Taken -> "已被占用"
+    AgentNameAvailability.Checking -> labels.checking
+    AgentNameAvailability.Available -> labels.available
+    AgentNameAvailability.Taken -> labels.taken
 }
 
-fun AgentEditSubmittingStep.displayLabel(): String = when (this) {
-    AgentEditSubmittingStep.CreateAgent -> "正在保存 Agent…"
-    AgentEditSubmittingStep.CreateDM -> "正在创建私聊…"
+fun AgentEditSubmittingStep.displayLabel(labels: AgentEditRenderLabels = AgentEditRenderLabels()): String = when (this) {
+    AgentEditSubmittingStep.CreateAgent -> labels.savingAgent
+    AgentEditSubmittingStep.CreateDM -> labels.creatingDirectChat
 }
 
 fun ChatbotAgentProvider.displayLabel(): String = displayName ?: info?.displayName ?: id
 
 fun ChatbotProviderModel.displayLabel(): String = displayName ?: id
 
-fun AgentSandboxMode.displayLabel(): String = when (this) {
-    AgentSandboxMode.PerUser -> "每用户各自的环境"
-    AgentSandboxMode.AgentDedicated -> "Agent 专属环境"
+fun AgentSandboxMode.displayLabel(labels: AgentEditRenderLabels = AgentEditRenderLabels()): String = when (this) {
+    AgentSandboxMode.PerUser -> labels.runtimePerUser
+    AgentSandboxMode.AgentDedicated -> labels.runtimeDedicated
 }
 
 fun List<ChatbotAgentProvider>.toProviderOptions(selectedId: String?): ImmutableList<AgentEditOption> {
@@ -155,9 +196,10 @@ private fun voiceOptions(
     selectedToken: String,
     profiles: List<ChatbotVoiceProfile>,
     providerVoices: List<ChatbotProviderVoice>,
+    labels: AgentEditRenderLabels = AgentEditRenderLabels(),
 ): ImmutableList<AgentEditOption> {
     return buildList {
-        add(AgentEditOption(AgentVoiceSelection.DEFAULT, "使用服务器默认", selectedToken == AgentVoiceSelection.DEFAULT))
+        add(AgentEditOption(AgentVoiceSelection.DEFAULT, labels.voiceDefault, selectedToken == AgentVoiceSelection.DEFAULT))
         profiles.forEach { add(AgentEditOption(AgentVoiceSelection.profile(it.id), it.displayName, selectedToken == AgentVoiceSelection.profile(it.id))) }
         providerVoices.forEach {
             val token = AgentVoiceSelection.provider(it.provider, it.providerVoiceId)
@@ -172,38 +214,39 @@ private fun sandboxRenderModel(
     sandboxStatus: AgentSandboxStatus?,
     sandboxBusy: Boolean,
     sandboxMessage: String?,
+    labels: AgentEditRenderLabels = AgentEditRenderLabels(),
 ): AgentSandboxRenderModel {
     return AgentSandboxRenderModel(
-        modeLabel = mode.displayLabel(),
+        modeLabel = mode.displayLabel(labels),
         modeOptions = AgentSandboxMode.entries.map {
-            AgentEditOption(id = it.name, label = it.displayLabel(), isSelected = it == mode)
+            AgentEditOption(id = it.name, label = it.displayLabel(labels), isSelected = it == mode)
         }.toImmutableList(),
         description = if (mode == AgentSandboxMode.PerUser) {
-            "每个用户与 Agent 对话时使用自己的运行环境，数据互不影响。"
+            labels.runtimePerUserDescription
         } else {
-            "所有用户共享 Agent 的独立运行环境。"
+            labels.runtimeDedicatedDescription
         },
         warning = if (mode == AgentSandboxMode.AgentDedicated) {
-            "所有用户将共享此环境，请确保不包含私有信息，或仅在信任的群组中使用。"
+            labels.runtimeDedicatedWarning
         } else {
             null
         },
         initOptions = listOf(
             AgentSandboxInitOptionRenderModel(
                 method = AgentSandboxInitMethod.Empty,
-                title = "创建空白环境",
-                subtitle = "从零开始，Agent 拥有全新的运行空间",
+                title = labels.runtimeCreateEmpty,
+                subtitle = labels.runtimeCreateEmptySubtitle,
                 isSelected = initMethod == AgentSandboxInitMethod.Empty,
             ),
             AgentSandboxInitOptionRenderModel(
                 method = AgentSandboxInitMethod.CloneOwner,
-                title = "从我的环境复制",
-                subtitle = "复制你当前的运行环境作为起点，后续互不影响",
+                title = labels.runtimeCloneOwner,
+                subtitle = labels.runtimeCloneOwnerSubtitle,
                 isSelected = initMethod == AgentSandboxInitMethod.CloneOwner,
             ),
         ).toImmutableList(),
         statusLabel = sandboxStatus?.let {
-            "已配置 · ${if (it.sourceUserId != null) "来源: 从用户环境复制" else "来源: 空白环境"}"
+            if (it.sourceUserId != null) labels.runtimeConfiguredClone else labels.runtimeConfiguredEmpty
         },
         isBusy = sandboxBusy,
         message = sandboxMessage,

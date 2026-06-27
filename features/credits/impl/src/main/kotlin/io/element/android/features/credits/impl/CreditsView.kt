@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewParameter
@@ -69,6 +70,7 @@ import io.element.android.libraries.chatbot.api.model.credits.CreditLedgerItem
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import io.element.android.libraries.designsystem.theme.components.SegmentedButton
+import io.element.android.libraries.ui.strings.CommonStrings
 
 private val RankingDotColors = listOf(
     Color(0xFF2E7D32),
@@ -89,19 +91,19 @@ fun CreditsView(
 
     Scaffold(
         modifier = modifier,
-        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = "积分与账单",
+                        text = stringResource(R.string.credits_title),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = { state.eventSink(CreditsEvents.Dismiss) }) {
-                        Icon(CompoundIcons.ChevronLeft(), contentDescription = "完成")
+                        Icon(CompoundIcons.ChevronLeft(), contentDescription = stringResource(CommonStrings.action_done))
                     }
                 },
             )
@@ -116,13 +118,6 @@ fun CreditsView(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             TopLevelTabs(state)
-            state.error?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
             when (state.selectedTab) {
                 CreditsEntryPoint.CreditsTab.Balance -> BalanceCard(state)
                 CreditsEntryPoint.CreditsTab.DailyUsage -> DailyUsageCard(state)
@@ -138,9 +133,9 @@ fun CreditsView(
 @Composable
 private fun TopLevelTabs(state: CreditsState) {
     val tabs = listOf(
-        CreditsEntryPoint.CreditsTab.Balance to "余额",
-        CreditsEntryPoint.CreditsTab.DailyUsage to "每日用量",
-        CreditsEntryPoint.CreditsTab.Usage to "用量",
+        CreditsEntryPoint.CreditsTab.Balance to stringResource(R.string.credits_tab_balance),
+        CreditsEntryPoint.CreditsTab.DailyUsage to stringResource(R.string.credits_tab_daily_usage),
+        CreditsEntryPoint.CreditsTab.Usage to stringResource(R.string.credits_tab_usage),
     )
     SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
         tabs.forEachIndexed { index, (tab, label) ->
@@ -159,8 +154,8 @@ private fun TopLevelTabs(state: CreditsState) {
 private fun Card(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(12.dp),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -170,16 +165,59 @@ private fun Card(content: @Composable ColumnScope.() -> Unit) {
     }
 }
 
+@Composable
+private fun SectionError(
+    title: String,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(10.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = CompoundIcons.Error(),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        Text(
+            text = title,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(onClick = onRetry) {
+            Text(stringResource(CommonStrings.action_retry))
+        }
+    }
+}
+
 // MARK: - Balance
 
 @Composable
 private fun BalanceCard(state: CreditsState) {
     Card {
         Text(
-            text = "可用余额",
+            text = stringResource(R.string.credits_available_balance),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (!state.isBalanceLoading && state.balance == null && state.balanceError != null) {
+            SectionError(
+                title = stringResource(R.string.credits_error_balance_unavailable),
+                onRetry = { state.eventSink(CreditsEvents.SelectTab(CreditsEntryPoint.CreditsTab.Balance)) },
+            )
+            return@Card
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "USD",
@@ -221,7 +259,7 @@ private fun BalanceCard(state: CreditsState) {
         ) {
             Icon(CompoundIcons.Plus(), contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.size(8.dp))
-            Text("充值")
+            Text(stringResource(R.string.credits_top_up))
             Spacer(Modifier.size(8.dp))
             Icon(CompoundIcons.PopOut(), contentDescription = null, modifier = Modifier.size(16.dp))
         }
@@ -232,15 +270,19 @@ private fun BalanceCard(state: CreditsState) {
 private fun TransactionsCard(state: CreditsState) {
     Card {
         Text(
-            text = "最近交易",
+            text = stringResource(R.string.credits_recent_transactions),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,
         )
         when {
             state.isLedgerLoading -> CircularProgressIndicator(modifier = Modifier.size(28.dp))
+            state.transactionsError != null && state.transactions.isEmpty() -> SectionError(
+                title = stringResource(R.string.credits_error_transactions_unavailable),
+                onRetry = { state.eventSink(CreditsEvents.SelectTab(CreditsEntryPoint.CreditsTab.Balance)) },
+            )
             state.transactions.isEmpty() -> Text(
-                text = "暂无交易记录",
+                text = stringResource(R.string.credits_no_transactions),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -257,7 +299,7 @@ private fun TransactionsCard(state: CreditsState) {
                 onClick = { state.eventSink(CreditsEvents.LoadMoreTransactions) },
                 enabled = !state.isLoadingMoreTransactions,
             ) {
-                Text(if (state.isLoadingMoreTransactions) "加载中…" else "载入更多")
+                Text(if (state.isLoadingMoreTransactions) stringResource(R.string.credits_loading) else stringResource(R.string.credits_load_more))
                 if (!state.isLoadingMoreTransactions) {
                     Spacer(Modifier.size(6.dp))
                     Icon(CompoundIcons.ChevronDown(), contentDescription = null, modifier = Modifier.size(16.dp))
@@ -339,7 +381,7 @@ private fun DailyUsageCard(state: CreditsState) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "每日用量",
+                text = stringResource(R.string.credits_tab_daily_usage),
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
@@ -354,12 +396,21 @@ private fun DailyUsageCard(state: CreditsState) {
                 modifier = Modifier.fillMaxWidth().height(180.dp),
                 contentAlignment = Alignment.Center,
             ) { CircularProgressIndicator(modifier = Modifier.size(28.dp)) }
+            state.dailyUsageError != null && dailyUsage == null -> Box(
+                modifier = Modifier.fillMaxWidth().height(180.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                SectionError(
+                    title = stringResource(R.string.credits_error_daily_usage_unavailable),
+                    onRetry = { state.eventSink(CreditsEvents.SelectTab(CreditsEntryPoint.CreditsTab.DailyUsage)) },
+                )
+            }
             buckets.isEmpty() -> Box(
                 modifier = Modifier.fillMaxWidth().height(180.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "暂无数据",
+                    text = stringResource(R.string.credits_no_data),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -376,7 +427,7 @@ private fun DailyUsageCard(state: CreditsState) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "累计消费",
+                text = stringResource(R.string.credits_total_spend),
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -395,8 +446,8 @@ private fun DailyUsageCard(state: CreditsState) {
 private fun DailyUsageRangeSelector(state: CreditsState) {
     CreditPillPicker(
         options = listOf(
-            DailyUsageRange.SevenDays to "7天",
-            DailyUsageRange.ThirtyDays to "30天",
+            DailyUsageRange.SevenDays to stringResource(R.string.credits_seven_days),
+            DailyUsageRange.ThirtyDays to stringResource(R.string.credits_thirty_days),
         ),
         selected = state.dailyUsageRange,
         onSelect = { state.eventSink(CreditsEvents.SelectDailyUsageRange(it)) },
@@ -422,9 +473,16 @@ private fun UsageRankingCard(state: CreditsState) {
             CircularProgressIndicator(modifier = Modifier.size(28.dp))
         }
         val analytics = state.analytics
+        if (!state.isAnalyticsLoading && analytics == null && state.analyticsError != null) {
+            SectionError(
+                title = stringResource(R.string.credits_error_usage_unavailable),
+                onRetry = { state.eventSink(CreditsEvents.SelectTab(CreditsEntryPoint.CreditsTab.Usage)) },
+            )
+            return@Card
+        }
         if (!state.isAnalyticsLoading && analytics == null) {
             Text(
-                text = "暂无数据",
+                text = stringResource(R.string.credits_no_data),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -463,8 +521,8 @@ private fun RankingTabSelector(state: CreditsState) {
     // iOS keeps "Agent"/"Model" untranslated in zh-Hans (credits_ranking_tab_agent/model).
     CreditPillPicker(
         options = listOf(
-            UsageRankingTab.Agent to "Agent",
-            UsageRankingTab.Model to "Model",
+            UsageRankingTab.Agent to stringResource(R.string.credits_ranking_tab_agent),
+            UsageRankingTab.Model to stringResource(R.string.credits_ranking_tab_model),
         ),
         selected = state.usageRankingTab,
         onSelect = { state.eventSink(CreditsEvents.SelectUsageRankingTab(it)) },
@@ -475,9 +533,9 @@ private fun RankingTabSelector(state: CreditsState) {
 private fun AnalyticsPeriodSelector(state: CreditsState) {
     CreditPillPicker(
         options = listOf(
-            CreditsPeriod.SevenDays to "7天",
-            CreditsPeriod.ThirtyDays to "30天",
-            CreditsPeriod.All to "全部",
+            CreditsPeriod.SevenDays to stringResource(R.string.credits_seven_days),
+            CreditsPeriod.ThirtyDays to stringResource(R.string.credits_thirty_days),
+            CreditsPeriod.All to stringResource(R.string.credits_all),
         ),
         selected = state.analyticsPeriod,
         onSelect = { state.eventSink(CreditsEvents.SelectAnalyticsPeriod(it)) },
@@ -490,7 +548,7 @@ private fun AgentRow(agent: AnalyticsAgentSummary, dotColor: Color) {
     RankingRow(
         dotColor = dotColor,
         title = agent.displayName ?: agent.agentId,
-        subtitle = "${agent.inputTokens} 输入 · ${agent.outputTokens} 输出 · ${agent.callCount} 次调用",
+        subtitle = stringResource(R.string.credits_agent_usage_subtitle, agent.inputTokens, agent.outputTokens, agent.callCount),
         percent = agent.pct,
     )
 }
@@ -500,7 +558,7 @@ private fun ModelRow(model: AnalyticsModelSummary, dotColor: Color) {
     RankingRow(
         dotColor = dotColor,
         title = model.model,
-        subtitle = "${model.inputTokens} 输入 · ${model.outputTokens} 输出",
+        subtitle = stringResource(R.string.credits_model_usage_subtitle, model.inputTokens, model.outputTokens),
         percent = model.pct,
     )
 }
@@ -607,7 +665,10 @@ private fun aCreditsState(
     isDailyUsageLoading = false,
     isAnalyticsLoading = false,
     isLoadingMoreTransactions = false,
-    error = null,
+    balanceError = null,
+    transactionsError = null,
+    dailyUsageError = null,
+    analyticsError = null,
     eventSink = {},
 )
 

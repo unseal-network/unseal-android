@@ -13,9 +13,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import io.element.android.features.preferences.impl.R
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
 import io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem
@@ -44,6 +46,9 @@ class VaultManagementPresenter(
         var successMessage by remember { mutableStateOf<String?>(null) }
         var pendingDelete by remember { mutableStateOf<ChatbotVaultItem?>(null) }
         var isDeleting by remember { mutableStateOf(false) }
+        val unknownError = stringResource(R.string.screen_vault_error_unknown)
+        val loadFailedTemplate = stringResource(R.string.screen_vault_error_load_failed)
+        val deleteFailedTemplate = stringResource(R.string.screen_vault_error_delete_failed)
 
         fun failureMessage(failure: Throwable, fallback: String): String =
             failure.message ?: failure::class.simpleName ?: fallback
@@ -60,7 +65,7 @@ class VaultManagementPresenter(
                         items = it
                         error = null
                     }
-                    .onFailure { error = "加载失败：${failureMessage(it, "未知错误")}" }
+                    .onFailure { error = loadFailedTemplate.format(failureMessage(it, unknownError)) }
                 isLoading = false
             }
         }
@@ -77,7 +82,7 @@ class VaultManagementPresenter(
                         successMessage = "Vault entry deleted successfully"
                         load()
                     }
-                    .onFailure { error = "删除失败：${failureMessage(it, "未知错误")}" }
+                    .onFailure { error = deleteFailedTemplate.format(failureMessage(it, unknownError)) }
                 isDeleting = false
             }
         }

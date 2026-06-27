@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="game_invite_body">"邀请大家开始一局 %1$s 游戏"</string>
+</resources>

@@ -187,14 +187,21 @@ object ComposerAgentSkillReducer {
         knownAgents: Map<String, ComposerAgentDescriptor>,
         isDirectRoom: Boolean,
     ): List<ComposerAgentDescriptor> {
-        val descriptorsByMxid = knownAgents.toMutableMap()
+        if (targets.isEmpty()) return emptyList()
+        val descriptorsByMxid = linkedMapOf<String, ComposerAgentDescriptor>()
         targets.forEach { target ->
-            descriptorsByMxid[target.mxid] = target
+            val knownAgent = knownAgents[target.mxid]
+            descriptorsByMxid[target.mxid] = if (knownAgent == null) {
+                target
+            } else {
+                target.copy(
+                    agentId = target.agentId.ifBlank { knownAgent.agentId },
+                    label = knownAgent.label,
+                )
+            }
         }
         if (isDirectRoom && descriptorsByMxid.isEmpty()) {
-            targets.forEach { target ->
-                descriptorsByMxid[target.mxid] = target
-            }
+            return emptyList()
         }
         return descriptorsByMxid.values.sortedWith(compareBy<ComposerAgentDescriptor> { it.label }.thenBy { it.mxid })
     }

@@ -30,7 +30,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewParameter
@@ -40,8 +39,6 @@ import coil3.compose.AsyncImagePainter
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.features.messages.impl.timeline.aTimelineItemEvent
 import io.element.android.features.messages.impl.timeline.components.ATimelineItemEventRow
-import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayout
-import io.element.android.features.messages.impl.timeline.components.layout.ContentAvoidingLayoutData
 import io.element.android.features.messages.impl.timeline.model.TimelineItemGroupPosition
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemImageContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemImageContentProvider
@@ -67,7 +64,6 @@ fun TimelineItemImageView(
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
     onShowContentClick: () -> Unit,
-    onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val a11yLabel = stringResource(CommonStrings.common_image)
@@ -124,16 +120,7 @@ fun TimelineItemImageView(
                     renderMode = MarkdownRenderMode.Stable,
                     onLinkClick = onLinkClick,
                     onLongClick = onLongClick,
-                    modifier = captionModifier.onSizeChanged { size ->
-                        onContentLayoutChange(
-                            ContentAvoidingLayoutData(
-                                contentWidth = size.width,
-                                contentHeight = size.height,
-                                nonOverlappingContentWidth = size.width,
-                                nonOverlappingContentHeight = size.height,
-                            )
-                        )
-                    },
+                    modifier = captionModifier,
                 )
             } else {
                 val formattedCaption = if (LocalInspectionMode.current) {
@@ -152,7 +139,6 @@ fun TimelineItemImageView(
                         onLinkClickedListener = onLinkClick,
                         onLinkLongClickedListener = onLinkLongClick,
                         releaseOnDetach = false,
-                        onTextLayout = ContentAvoidingLayout.measureLegacyLastTextLine(onContentLayoutChange = onContentLayoutChange),
                     )
                 }
             }
@@ -175,7 +161,6 @@ internal fun TimelineItemImageViewPreview(@PreviewParameter(TimelineItemImageCon
         onLongClick = {},
         onLinkClick = {},
         onLinkLongClick = {},
-        onContentLayoutChange = {},
     )
 }
 
@@ -190,7 +175,6 @@ internal fun TimelineItemImageViewHideMediaContentPreview() = ElementPreview {
         onLongClick = {},
         onLinkClick = {},
         onLinkLongClick = {},
-        onContentLayoutChange = {},
     )
 }
 

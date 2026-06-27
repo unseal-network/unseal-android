@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="game_invite_body">"Invite everyone to start a %1$s game"</string>
+</resources>

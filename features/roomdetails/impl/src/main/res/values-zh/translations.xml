@@ -45,6 +45,9 @@
   <string name="screen_room_details_badge_encrypted">"已加密"</string>
   <string name="screen_room_details_badge_not_encrypted">"未加密"</string>
   <string name="screen_room_details_badge_public">"公共房间"</string>
+  <string name="screen_room_details_debug_internal_room_id">"内部房间 ID"</string>
+  <string name="screen_room_details_debug_room_version">"房间版本"</string>
+  <string name="screen_room_details_debug_unknown">"未知"</string>
   <string name="screen_room_details_edit_room_title">"编辑详情"</string>
   <string name="screen_room_details_edition_error">"出现未知错误，无法更改信息。"</string>
   <string name="screen_room_details_edition_error_title">"无法更新房间"</string>

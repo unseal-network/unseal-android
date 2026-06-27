@@ -14,9 +14,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import io.element.android.features.agentmanagement.impl.R
 import io.element.android.libraries.androidutils.clipboard.ClipboardHelper
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
@@ -53,6 +55,7 @@ class AgentChannelsPresenter(
 
     @Composable
     override fun present(): AgentChannelsState {
+        val context = LocalContext.current
         val coroutineScope = rememberCoroutineScope()
         var channels by remember { mutableStateOf(emptyList<ChatbotChannelSummary>()) }
         var isLoading by remember { mutableStateOf(true) }
@@ -62,6 +65,8 @@ class AgentChannelsPresenter(
         var hasLoadedOnce by remember { mutableStateOf(false) }
 
         suspend fun api() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
+        fun string(resId: Int, vararg args: Any): String = context.getString(resId, *args)
+        fun errorString(resId: Int, vararg args: Any): String = string(resId, *args)
 
         fun loadChannels(isInitial: Boolean) {
             if (isInitial && hasLoadedOnce) return
@@ -69,15 +74,15 @@ class AgentChannelsPresenter(
                 if (isInitial) isLoading = true
                 api().listAgentChannels(agentId)
                     .onSuccess { error = null; channels = it }
-                    .onFailure { channels = emptyList(); error = it.message ?: it::class.simpleName ?: "Couldn't load channels." }
+                    .onFailure { channels = emptyList(); error = errorString(R.string.agent_channels_error_load) }
                 isLoading = false
                 hasLoadedOnce = true
             }
         }
 
         fun validateWecom(current: ChannelSheetState): String? = when {
-            current.wecomToken.isBlank() -> "Token is required."
-            current.wecomAesKey.length != WECOM_AES_KEY_LENGTH -> "EncodingAESKey must be exactly $WECOM_AES_KEY_LENGTH characters."
+            current.wecomToken.isBlank() -> string(R.string.agent_channels_error_token_required)
+            current.wecomAesKey.length != WECOM_AES_KEY_LENGTH -> string(R.string.agent_channels_error_aes_key_length, WECOM_AES_KEY_LENGTH)
             else -> null
         }
 
@@ -96,7 +101,7 @@ class AgentChannelsPresenter(
                             busy = false,
                         )
                     }
-                    .onFailure { sheet = sheet?.copy(busy = false, error = it.message ?: it::class.simpleName ?: "Failed to load channel.") }
+                    .onFailure { sheet = sheet?.copy(busy = false, error = errorString(R.string.agent_channels_error_load_channel)) }
             }
         }
 
@@ -109,14 +114,14 @@ class AgentChannelsPresenter(
                         .onSuccess { res ->
                             sheet = sheet?.copy(busy = false, feishuInstallationId = res.installationId, feishuQrUrl = res.qrUrl)
                         }
-                        .onFailure { sheet = sheet?.copy(busy = false, error = it.message ?: it::class.simpleName ?: "Failed to connect Feishu.") }
+                        .onFailure { sheet = sheet?.copy(busy = false, error = errorString(R.string.agent_channels_error_connect_feishu)) }
                 }
                 return
             }
             val body: ChatbotChannelConnectBody = if (current.platform == ChatbotChannelPlatform.Telegram) {
                 val trimmed = current.botToken.trim()
                 if (trimmed.isEmpty()) {
-                    sheet = current.copy(error = "Bot token is required.")
+                    sheet = current.copy(error = string(R.string.agent_channels_error_bot_token_required))
                     return
                 }
                 ChatbotChannelConnectBody.Telegram(trimmed)
@@ -125,7 +130,7 @@ class AgentChannelsPresenter(
                 val publicKey = current.discordPublicKey.trim()
                 val applicationId = current.discordApplicationId.trim()
                 if (botToken.isEmpty() || publicKey.isEmpty() || applicationId.isEmpty()) {
-                    sheet = current.copy(error = "Bot Token, Public Key and Application ID are all required.")
+                    sheet = current.copy(error = string(R.string.agent_channels_error_discord_required))
                     return
                 }
                 ChatbotChannelConnectBody.Discord(botToken, publicKey, applicationId)
@@ -155,7 +160,7 @@ class AgentChannelsPresenter(
                             loadChannels(isInitial = false)
                         }
                     }
-                    .onFailure { sheet = sheet?.copy(busy = false, error = it.message ?: it::class.simpleName ?: "Failed to connect channel.") }
+                    .onFailure { sheet = sheet?.copy(busy = false, error = errorString(R.string.agent_channels_error_connect_channel)) }
             }
         }
 
@@ -178,7 +183,7 @@ class AgentChannelsPresenter(
                             connectedAesKey = current.wecomAesKey,
                         )
                     }
-                    .onFailure { sheet = sheet?.copy(busy = false, error = it.message ?: it::class.simpleName ?: "Failed to update credentials.") }
+                    .onFailure { sheet = sheet?.copy(busy = false, error = errorString(R.string.agent_channels_error_update_credentials)) }
             }
         }
 
@@ -186,7 +191,7 @@ class AgentChannelsPresenter(
             coroutineScope.launch {
                 api().disconnectAgentChannel(agentId, installationId)
                     .onSuccess { loadChannels(isInitial = false) }
-                    .onFailure { error = it.message ?: it::class.simpleName ?: "Couldn't remove channel." }
+                    .onFailure { error = errorString(R.string.agent_channels_error_remove) }
             }
         }
 
@@ -242,7 +247,7 @@ class AgentChannelsPresenter(
                             return@LaunchedEffect
                         }
                         "error" -> {
-                            sheet = sheet?.copy(error = "Couldn't connect Feishu. Please try again.")
+                            sheet = sheet?.copy(error = string(R.string.agent_channels_error_feishu_retry))
                             return@LaunchedEffect
                         }
                     }

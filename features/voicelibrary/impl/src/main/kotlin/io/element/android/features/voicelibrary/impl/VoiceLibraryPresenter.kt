@@ -13,9 +13,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import io.element.android.features.voicelibrary.impl.R
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotCreateVoiceProfileRequest
@@ -44,6 +47,7 @@ class VoiceLibraryPresenter(
 
     @Composable
     override fun present(): VoiceLibraryState {
+        val context = LocalContext.current
         val coroutineScope = rememberCoroutineScope()
         var hasLoadedOnce by remember { mutableStateOf(false) }
         var selectedTab by remember { mutableStateOf(VoiceLibraryTab.Mine) }
@@ -70,12 +74,22 @@ class VoiceLibraryPresenter(
         var loadingPreviewId by remember { mutableStateOf<String?>(null) }
         var remotePreviewId by remember { mutableStateOf<String?>(null) }
         var error by remember { mutableStateOf<String?>(null) }
+        val loadError = stringResource(R.string.voice_library_error_load)
+        val loadPublicError = stringResource(R.string.voice_library_error_load_public)
+        val saveError = stringResource(R.string.voice_library_error_save)
+        val deleteError = stringResource(R.string.voice_library_error_delete)
+        val shareError = stringResource(R.string.voice_library_error_share)
+        val importError = stringResource(R.string.voice_library_error_import)
+        val uploadError = stringResource(R.string.voice_library_error_upload)
+        val defaultRecordedVoice = stringResource(R.string.voice_library_default_recorded_voice)
+        val recordingEmptyError = stringResource(R.string.voice_library_error_recording_empty)
+        val previewUnavailableError = stringResource(R.string.voice_library_error_recording_preview_unavailable)
+        val enterNameError = stringResource(R.string.voice_library_error_enter_name)
+        val noPreviewAudioError = stringResource(R.string.voice_library_error_no_preview_audio)
 
         suspend fun api() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
 
-        fun errorMessage(throwable: Throwable, fallback: String): String {
-            return throwable.message ?: throwable::class.simpleName ?: fallback
-        }
+        fun errorMessage(fallback: String): String = fallback
 
         fun loadProfiles() = coroutineScope.launch {
             isLoading = true
@@ -86,7 +100,7 @@ class VoiceLibraryPresenter(
                     profiles = it
                     error = null
                 }
-                .onFailure { error = errorMessage(it, "加载语音失败") }
+                .onFailure { error = errorMessage(loadError) }
             isLoading = false
         }
 
@@ -98,7 +112,7 @@ class VoiceLibraryPresenter(
                     catalog = it
                     error = null
                 }
-                .onFailure { error = errorMessage(it, "加载公开语音失败") }
+                .onFailure { error = errorMessage(loadPublicError) }
             isLoading = false
         }
 
@@ -122,7 +136,7 @@ class VoiceLibraryPresenter(
                     error = null
                     loadProfiles()
                 }
-                .onFailure { error = errorMessage(it, "保存语音失败") }
+                .onFailure { error = errorMessage(saveError) }
             busyId = null
         }
 
@@ -134,14 +148,13 @@ class VoiceLibraryPresenter(
                 .onSuccess { response ->
                     profiles = profiles.filterNot { it.id == profileId }
                     deleteNotice = if (response.deletedAgentVoiceConfigs > 0) {
-                        val suffix = if (response.deletedAgentVoiceConfigs == 1) "" else "s"
-                        "Deleted voice and cleared ${response.deletedAgentVoiceConfigs} agent voice binding$suffix."
+                        context.getString(R.string.voice_library_deleted_voice_with_bindings, response.deletedAgentVoiceConfigs)
                     } else {
-                        "Deleted voice."
+                        context.getString(R.string.voice_library_deleted_voice)
                     }
                     error = null
                 }
-                .onFailure { error = errorMessage(it, "删除语音失败") }
+                .onFailure { error = errorMessage(deleteError) }
             busyId = null
         }
 
@@ -153,7 +166,7 @@ class VoiceLibraryPresenter(
                     lastShareId = it.id
                     error = null
                 }
-                .onFailure { error = errorMessage(it, "创建分享链接失败") }
+                .onFailure { error = errorMessage(shareError) }
             busyId = null
         }
 
@@ -167,7 +180,7 @@ class VoiceLibraryPresenter(
                     error = null
                     loadProfiles()
                 }
-                .onFailure { error = errorMessage(it, "导入分享语音失败") }
+                .onFailure { error = errorMessage(importError) }
             busyId = null
         }
 
@@ -188,7 +201,7 @@ class VoiceLibraryPresenter(
 
         fun uploadRecording(sample: VoiceLibraryRecordingSample) = coroutineScope.launch {
             if (sample.audioBase64.isBlank()) {
-                error = "Recording was empty. Please try again."
+                error = recordingEmptyError
                 return@launch
             }
             val namedSample = sample.copy(displayName = recordingName.ifBlank { sample.displayName })
@@ -214,7 +227,7 @@ class VoiceLibraryPresenter(
                     error = null
                     loadProfiles()
                 }
-                .onFailure { error = errorMessage(it, "上传录音失败") }
+                .onFailure { error = errorMessage(uploadError) }
             busyId = null
         }
 
@@ -255,7 +268,7 @@ class VoiceLibraryPresenter(
                 VoiceLibraryEvents.ShowCreateVoice -> {
                     isPresentingCreateVoice = true
                     if (recordingName.isBlank()) {
-                        recordingName = "Recorded voice"
+                        recordingName = defaultRecordedVoice
                     }
                     error = null
                 }
@@ -318,7 +331,7 @@ class VoiceLibraryPresenter(
                     when {
                         isRecordingPreviewPlaying -> isRecordingPreviewPlaying = false
                         sample?.localFilePath.isNullOrBlank() -> {
-                            error = "Recording preview is not available. Please record again."
+                            error = previewUnavailableError
                         }
                         else -> {
                             isRecordingPreviewPlaying = true
@@ -364,14 +377,14 @@ class VoiceLibraryPresenter(
                     val sample = recordingSample
                     when {
                         sample == null -> {
-                            recordingValidationMessage = "Recording was empty. Please try again."
+                            recordingValidationMessage = recordingEmptyError
                             error = recordingValidationMessage
                         }
                         recordingValidationMessage != null -> {
                             error = recordingValidationMessage
                         }
                         recordingName.trim().isEmpty() -> {
-                            error = "Enter a name to enable upload"
+                            error = enterNameError
                         }
                         else -> uploadRecording(sample)
                     }
@@ -382,7 +395,7 @@ class VoiceLibraryPresenter(
                 is VoiceLibraryEvents.TogglePreview -> {
                     val item = event.item
                     if (!item.hasPreview) {
-                        error = "No preview audio is available for this voice."
+                        error = noPreviewAudioError
                     } else if (loadingPreviewId == item.id || remotePreviewId == item.id) {
                         stopPreview()
                     } else {

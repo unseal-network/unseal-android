@@ -13,9 +13,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import io.element.android.features.agentmanagement.impl.R
 import io.element.android.features.agentmanagement.impl.shared.AgentDirectChatService
 import io.element.android.features.agentmanagement.impl.shared.AgentVoiceSelection
 import io.element.android.features.agentmanagement.impl.shared.agentMatrixUserId
@@ -63,6 +65,7 @@ class AgentEditPresenter(
 
     @Composable
     override fun present(): AgentEditState {
+        val context = LocalContext.current
         val coroutineScope = rememberCoroutineScope()
         var form by remember { mutableStateOf(initialForm(mode)) }
         var providers by remember { mutableStateOf(emptyList<ChatbotAgentProvider>()) }
@@ -86,6 +89,52 @@ class AgentEditPresenter(
         var sandboxBusy by remember { mutableStateOf(false) }
         var sandboxMessage by remember { mutableStateOf<String?>(null) }
         var pendingSandboxAction by remember { mutableStateOf<AgentSandboxInitMethod?>(null) }
+
+        fun string(resId: Int): String = context.getString(resId)
+        fun Throwable.messageOr(resId: Int): String = message?.takeIf { it.isNotBlank() } ?: string(resId)
+        val renderLabels = AgentEditRenderLabels(
+            titleCreate = string(R.string.agent_edit_title_create),
+            titleEdit = string(R.string.agent_edit_title_edit),
+            create = string(R.string.agent_edit_create),
+            saveChanges = string(R.string.agent_edit_save_changes),
+            sectionLabels = AgentEditSectionLabels(
+                avatar = string(R.string.agent_edit_avatar),
+                basicInfo = string(R.string.agent_edit_basic_info),
+                accessControl = string(R.string.agent_edit_access_control),
+                aiEngine = string(R.string.agent_edit_ai_engine),
+                voice = string(R.string.agent_edit_voice),
+                soul = string(R.string.agent_edit_role),
+                runtime = string(R.string.agent_edit_runtime),
+                vault = string(R.string.agent_edit_vault),
+                skills = string(R.string.agent_edit_owned_skills),
+            ),
+            identifierRequired = string(R.string.agent_edit_identifier_required),
+            identifier = string(R.string.agent_edit_identifier),
+            identifierHelper = string(R.string.agent_edit_identifier_helper),
+            noVault = string(R.string.agent_edit_no_vault),
+            chooseVault = string(R.string.agent_edit_choose_vault),
+            noSkills = string(R.string.agent_edit_no_skills),
+            addSkill = string(R.string.agent_edit_add_skill),
+            checking = string(R.string.agent_edit_checking),
+            available = string(R.string.agent_edit_available),
+            taken = string(R.string.agent_edit_taken),
+            savingAgent = string(R.string.agent_edit_saving_agent),
+            creatingDirectChat = string(R.string.agent_edit_creating_dm),
+            runtimePerUser = string(R.string.agent_edit_runtime_per_user),
+            runtimeDedicated = string(R.string.agent_edit_runtime_dedicated),
+            voiceDefault = string(R.string.agent_edit_voice_default),
+            voicePersonal = string(R.string.agent_edit_voice_personal),
+            voiceProvider = string(R.string.agent_edit_voice_provider),
+            runtimePerUserDescription = string(R.string.agent_edit_runtime_per_user_description),
+            runtimeDedicatedDescription = string(R.string.agent_edit_runtime_dedicated_description),
+            runtimeDedicatedWarning = string(R.string.agent_edit_runtime_dedicated_warning),
+            runtimeCreateEmpty = string(R.string.agent_edit_runtime_create_empty),
+            runtimeCreateEmptySubtitle = string(R.string.agent_edit_runtime_create_empty_subtitle),
+            runtimeCloneOwner = string(R.string.agent_edit_runtime_clone_owner),
+            runtimeCloneOwnerSubtitle = string(R.string.agent_edit_runtime_clone_owner_subtitle),
+            runtimeConfiguredClone = string(R.string.agent_edit_runtime_configured_clone),
+            runtimeConfiguredEmpty = string(R.string.agent_edit_runtime_configured_empty),
+        )
 
         fun selectedProvider(providerId: String? = form.providerId): ChatbotAgentProvider? {
             return providers.firstOrNull { it.id == providerId }
@@ -215,14 +264,14 @@ class AgentEditPresenter(
                             phase = AgentEditPhase.Submitting(AgentEditSubmittingStep.CreateAgent)
                             if (trimmed.botName.isEmpty()) {
                                 phase = AgentEditPhase.Editing
-                                error = "bot_name cannot be empty."
+                                error = string(R.string.agent_edit_error_empty_identifier)
                                 return@launch
                             }
                             nameAvailability = AgentNameAvailability.Checking
                             nameAvailability = nameCheckResult(api, trimmed.botName)
                             if (nameAvailability == AgentNameAvailability.Taken) {
                                 phase = AgentEditPhase.Editing
-                                error = "Agent name already exists."
+                                error = string(R.string.agent_edit_error_name_exists)
                                 return@launch
                             }
                             val created = api.createAgent(trimmed.toCreateRequest())
@@ -287,9 +336,9 @@ class AgentEditPresenter(
                 } catch (failure: Throwable) {
                     phase = AgentEditPhase.Editing
                     error = if (failure === AgentNameConflictException) {
-                        "Agent name already exists."
+                        string(R.string.agent_edit_error_name_exists)
                     } else {
-                        failure.message ?: failure::class.simpleName ?: "Failed to submit agent"
+                        failure.messageOr(R.string.agent_edit_error_submit)
                     }
                 }
             }
@@ -310,7 +359,7 @@ class AgentEditPresenter(
                     isLoading = true
                     matrixClient.uploadMedia(event.mimeType, event.data)
                         .onSuccess { mxcUrl -> form = form.copy(avatarUrl = mxcUrl) }
-                        .onFailure { error = it.message ?: "Failed to upload avatar" }
+                        .onFailure { error = it.messageOr(R.string.agent_edit_error_upload_avatar) }
                     isLoading = false
                 }
                 is AgentEditEvents.IsPublicChanged -> form = form.copy(isPublic = event.value)
@@ -339,7 +388,7 @@ class AgentEditPresenter(
                         coroutineScope.launch {
                             val id = agentVoiceId ?: (mode as? AgentEditMode.Edit)?.let { resolveAgentId(ChatbotAgent(botName = it.botName)) }
                             if (id == null) {
-                                error = "Agent has no Matrix user ID"
+                                error = string(R.string.agent_edit_error_no_matrix_user_id)
                                 return@launch
                             }
                             sandboxBusy = true
@@ -348,16 +397,26 @@ class AgentEditPresenter(
                             val envApi = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
                             when (method) {
                                 AgentSandboxInitMethod.Empty -> envApi.createAgentSandbox(id)
-                                    .onFailure { error = it.humanizeChatbotError("Failed to create runtime") }
+                                    .onFailure {
+                                        error = it.humanizeChatbotError(
+                                            fallback = string(R.string.agent_edit_error_create_runtime),
+                                            creditsExhausted = string(R.string.agent_edit_error_runtime_credits_exhausted),
+                                        )
+                                    }
                                 AgentSandboxInitMethod.CloneOwner -> envApi.cloneAgentSandbox(id)
-                                    .onSuccess { sandboxMessage = it.message?.takeIf { m -> m.isNotBlank() } ?: "Runtime cloned from your account." }
-                                    .onFailure { error = it.humanizeChatbotError("Failed to clone runtime") }
+                                    .onSuccess { sandboxMessage = it.message?.takeIf { m -> m.isNotBlank() } ?: string(R.string.agent_edit_runtime_cloned) }
+                                    .onFailure {
+                                        error = it.humanizeChatbotError(
+                                            fallback = string(R.string.agent_edit_error_clone_runtime),
+                                            creditsExhausted = string(R.string.agent_edit_error_runtime_credits_exhausted),
+                                        )
+                                    }
                             }
                             envApi.getAgentSandbox(id).onSuccess { response ->
                                 sandboxStatus = response.sandbox
                                 response.sandboxMode?.let { form = form.copy(sandboxMode = it) }
                                 if (method == AgentSandboxInitMethod.Empty && error == null && response.sandbox != null) {
-                                    sandboxMessage = "Empty runtime created."
+                                    sandboxMessage = string(R.string.agent_edit_runtime_created)
                                 }
                             }
                             sandboxBusy = false
@@ -413,6 +472,7 @@ class AgentEditPresenter(
             sandboxBusy = sandboxBusy,
             sandboxMessage = sandboxMessage,
             pendingSandboxAction = pendingSandboxAction,
+            renderLabels = renderLabels,
             eventSink = ::handleEvent,
         )
     }
@@ -528,11 +588,11 @@ class AgentEditPresenter(
     }
 
     /** Turns a raw chatbot error into a user-facing message, recognising known server error codes. */
-    private fun Throwable.humanizeChatbotError(fallback: String): String {
+    private fun Throwable.humanizeChatbotError(fallback: String, creditsExhausted: String): String {
         val raw = (this as? ChatbotApiError.HttpError)?.body ?: message
         return when {
             raw == null -> fallback
-            raw.contains("credits_exhausted") -> "Your account is out of credits, so the runtime could not be set up."
+            raw.contains("credits_exhausted") -> creditsExhausted
             else -> Regex("\"message\"\\s*:\\s*\"([^\"]+)\"").find(raw)?.groupValues?.get(1)
                 ?.takeIf { it.isNotBlank() }
                 ?: message
@@ -542,7 +602,7 @@ class AgentEditPresenter(
 
     private companion object {
         const val NAME_CHECK_DEBOUNCE_MS = 450L
-        val AgentNameConflictException = IllegalStateException("Agent name already exists.")
+        val AgentNameConflictException = IllegalStateException()
         val DEFAULT_SOUL = """
             You are a helpful AI assistant. Your role is to assist users with their questions and tasks.
 

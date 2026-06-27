@@ -93,7 +93,7 @@ internal fun BoxScope.FloatingDateBadgeOverlay(
                 if (isScrolling) {
                     isBadgeVisible = true
                 } else {
-                    delay(2000.milliseconds)
+                    delay(350.milliseconds)
                     isBadgeVisible = false
                 }
             }
