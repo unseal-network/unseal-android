@@ -153,22 +153,21 @@ fun TimelineView(
         Box(modifier) {
             val renderReadReceipts = state.renderReadReceipts
             LazyColumn(
-                // Two-layer floating chrome. The top bar is a Compose overlay, so we let the timeline
-                // extend to the physical top and scroll *under* it (content visible behind the header)
-                // via contentPadding.top — Compose-over-AndroidView compositing is cheap.
+                // Two-layer floating chrome. The top bar stays visually floating, but the list
+                // viewport itself starts below it so dates/messages never render under the controls.
                 // The composer is an AndroidView (EditText); letting timeline message TextViews scroll
                 // behind it forces expensive AndroidView-over-AndroidView view-hierarchy invalidation
                 // every frame (measured p99 36ms -> 200ms). So we clip the list just above the composer
                 // with an outer bottom padding — the composer still floats, content rests right at its edge.
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = composerBottomInset)
+                    .padding(top = topChromeInset, bottom = composerBottomInset)
                     .nestedScroll(nestedScrollConnection)
                     .testTag(TestTags.timeline),
                 state = lazyListState,
                 reverseLayout = useReverseLayout,
                 contentPadding = PaddingValues(
-                    top = topChromeInset + 8.dp,
+                    top = 8.dp,
                     // At rest this is the breathing room between the last message and the composer
                     // input field — the outer composerBottomInset already clips the list to the
                     // composer's top edge, so this padding is exactly the visible bottom gap.
