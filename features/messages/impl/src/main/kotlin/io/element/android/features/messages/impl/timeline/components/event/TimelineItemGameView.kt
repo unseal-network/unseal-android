@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -37,11 +36,13 @@ import coil3.ImageLoader
 import coil3.compose.AsyncImage
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import io.element.android.compound.theme.ElementTheme
+import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.messages.impl.R
 import io.element.android.features.messages.impl.timeline.TimelineEvent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemGameContent
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
+import io.element.android.libraries.designsystem.theme.components.Icon
 import io.element.android.libraries.designsystem.theme.components.Text
 import okhttp3.OkHttpClient
 
@@ -50,7 +51,6 @@ internal fun TimelineItemGameView(
     content: TimelineItemGameContent,
     eventSink: (TimelineEvent.TimelineItemEvent) -> Unit,
     modifier: Modifier = Modifier,
-    timestampSlot: @Composable () -> Unit = {},
 ) {
     // Build a custom Coil ImageLoader that adds the APP-U header required by the
     // homeserver sign proxy.  Re-created only when the homeserver host changes (once per session).
@@ -89,7 +89,7 @@ internal fun TimelineItemGameView(
         color = ElementTheme.colors.bgSubtleSecondary,
         border = BorderStroke(1.dp, ElementTheme.colors.borderInteractiveSecondary),
         modifier = modifier
-            .widthIn(max = 280.dp)
+            .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .clickable {
                 clicked = true
@@ -122,8 +122,16 @@ internal fun TimelineItemGameView(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(ElementTheme.colors.bgSubtlePrimary),
-                )
+                        .background(ElementTheme.colors.textLinkExternal.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = CompoundIcons.PlaySolid(),
+                        contentDescription = null,
+                        tint = ElementTheme.colors.textLinkExternal,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
             }
 
             // Text column fills remaining width so the bottom Row can use SpaceBetween
@@ -147,22 +155,14 @@ internal fun TimelineItemGameView(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                // Action text + timestamp on the same row — timestamp pushed to the far right
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = stringResource(
-                            if (clicked) R.string.screen_room_game_card_opened
-                            else R.string.screen_room_game_card_start
-                        ),
-                        style = ElementTheme.typography.fontBodySmMedium,
-                        color = ElementTheme.colors.textLinkExternal,
-                    )
-                    timestampSlot()
-                }
+                Text(
+                    text = stringResource(
+                        if (clicked) R.string.screen_room_game_card_opened
+                        else R.string.screen_room_game_card_start
+                    ),
+                    style = ElementTheme.typography.fontBodySmMedium,
+                    color = ElementTheme.colors.textLinkExternal,
+                )
             }
         }
     }

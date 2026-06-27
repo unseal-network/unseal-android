@@ -11,9 +11,15 @@ import com.google.common.truth.Truth.assertThat
 import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryDisplayStage
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemGameContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRoomKeyRecovery
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRoomKeyRecoveryState
+import io.element.android.features.messages.impl.timeline.model.event.aStaticLocationMode
+import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemAudioContent
+import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemFileContent
+import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemLocationContent
 import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemTextContent
+import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemVoiceContent
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryRequest
@@ -137,6 +143,59 @@ class TimelinePresentationReducerTest {
     }
 
     @Test
+    fun `reduce renders game invites as standalone card content`() {
+        val model = TimelinePresentationReducer.reduce(
+            content = aTimelineItemGameContent(),
+            isMine = false,
+            groupPosition = TimelineItemGroupPosition.None,
+            isDirectRoom = true,
+        )
+
+        assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
+        assertThat(model.contentKind).isEqualTo(TimelineContentKind.Media)
+        assertThat(model.timestampPolicy).isEqualTo(TimelineTimestampPolicy.ContentManaged)
+        assertThat(model.contentWidthPolicy).isEqualTo(TimelineContentWidthPolicy.StandaloneAdaptive)
+        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Disabled)
+    }
+
+    @Test
+    fun `reduce renders attachment cards as standalone content`() {
+        listOf(
+            aTimelineItemFileContent(),
+            aTimelineItemAudioContent(),
+            aTimelineItemLocationContent(mode = aStaticLocationMode()),
+        ).forEach { content ->
+            val model = TimelinePresentationReducer.reduce(
+                content = content,
+                isMine = false,
+                groupPosition = TimelineItemGroupPosition.None,
+                isDirectRoom = true,
+            )
+
+            assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
+            assertThat(model.contentKind).isEqualTo(TimelineContentKind.Media)
+            assertThat(model.contentWidthPolicy).isEqualTo(TimelineContentWidthPolicy.StandaloneAdaptive)
+            assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Disabled)
+        }
+    }
+
+    @Test
+    fun `reduce renders voice messages as standalone media content`() {
+        val model = TimelinePresentationReducer.reduce(
+            content = aTimelineItemVoiceContent(),
+            isMine = false,
+            groupPosition = TimelineItemGroupPosition.None,
+            isDirectRoom = true,
+        )
+
+        assertThat(model.bubblePolicy).isEqualTo(TimelineBubblePolicy.Standalone)
+        assertThat(model.contentKind).isEqualTo(TimelineContentKind.Media)
+        assertThat(model.timestampPolicy).isEqualTo(TimelineTimestampPolicy.ContentManaged)
+        assertThat(model.contentWidthPolicy).isEqualTo(TimelineContentWidthPolicy.StandaloneAdaptive)
+        assertThat(model.replySwipePolicy).isEqualTo(TimelineReplySwipePolicy.Disabled)
+    }
+
+    @Test
     fun `reduce keeps room key recovery standalone even with supplementary UI`() {
         val model = TimelinePresentationReducer.reduce(
             content = aTimelineItemEncryptedRecoveryContent(),
@@ -203,6 +262,20 @@ class TimelinePresentationReducerTest {
                 planStages = listOf(RoomKeyRecoveryDisplayStage.Backup, RoomKeyRecoveryDisplayStage.Sender),
                 currentStage = RoomKeyRecoveryDisplayStage.Backup,
             )
+        )
+    }
+
+    private fun aTimelineItemGameContent(): TimelineItemGameContent {
+        return TimelineItemGameContent(
+            gameName = "Wolf-New",
+            gameBrief = "Wolf-NewWolf-NewWolf-New",
+            resolvedIconUrl = null,
+            homeserverHost = null,
+            gameRoomId = "game-room",
+            gameId = 1,
+            remoteUrl = null,
+            creatorUserId = "@alice:example.com",
+            fallbackBody = "Start game",
         )
     }
 }

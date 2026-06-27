@@ -124,6 +124,15 @@ private fun LinkPreviewVisual(
         LinkPreviewStyle.GooglePlayInternalTest -> GooglePlayLogo(
             modifier = modifier.size(48.dp)
         )
+        LinkPreviewStyle.AppStore,
+        LinkPreviewStyle.GitHub,
+        LinkPreviewStyle.GoogleMaps,
+        LinkPreviewStyle.YouTube -> BrandBadge(
+            label = metadata.style.badgeLabel(),
+            background = metadata.style.badgeBackground(),
+            foreground = metadata.style.badgeForeground(),
+            modifier = modifier.size(52.dp),
+        )
         LinkPreviewStyle.Default -> {
             val imageUrl = metadata.imageUrl ?: metadata.iconUrl
             if (imageUrl != null) {
@@ -143,6 +152,27 @@ private fun LinkPreviewVisual(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun BrandBadge(
+    label: String,
+    background: Color,
+    foreground: Color,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(background),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = ElementTheme.typography.fontBodyLgMedium,
+            color = foreground,
+        )
     }
 }
 
@@ -218,11 +248,12 @@ internal data class LinkPreviewMetadata(
         fun fallback(url: String): LinkPreviewMetadata {
             val host = url.toHost()
             val style = url.toLinkPreviewStyle()
+            val branded = style.fallbackText(host)
             return LinkPreviewMetadata(
                 url = url,
                 host = host,
-                title = if (style == LinkPreviewStyle.GooglePlayInternalTest) "登录" else host,
-                description = if (style == LinkPreviewStyle.GooglePlayInternalTest) host else url,
+                title = branded?.title ?: host,
+                description = branded?.description ?: url,
                 imageUrl = null,
                 iconUrl = url.toFaviconUrl(),
                 style = style,
@@ -234,21 +265,78 @@ internal data class LinkPreviewMetadata(
 internal enum class LinkPreviewStyle {
     Default,
     GooglePlayInternalTest,
+    AppStore,
+    GitHub,
+    GoogleMaps,
+    YouTube,
 }
 
 private fun LinkPreviewStyle.backgroundColor(): Color? = when (this) {
     LinkPreviewStyle.Default -> null
     LinkPreviewStyle.GooglePlayInternalTest -> GooglePlayBlue
+    LinkPreviewStyle.AppStore -> Color(0xFF0A84FF)
+    LinkPreviewStyle.GitHub -> Color(0xFF24292F)
+    LinkPreviewStyle.GoogleMaps -> Color(0xFF1A73E8)
+    LinkPreviewStyle.YouTube -> Color(0xFFFF0033)
 }
 
 private fun LinkPreviewStyle.titleColor(): Color? = when (this) {
     LinkPreviewStyle.Default -> null
-    LinkPreviewStyle.GooglePlayInternalTest -> Color.White
+    LinkPreviewStyle.GooglePlayInternalTest,
+    LinkPreviewStyle.AppStore,
+    LinkPreviewStyle.GitHub,
+    LinkPreviewStyle.GoogleMaps,
+    LinkPreviewStyle.YouTube -> Color.White
 }
 
 private fun LinkPreviewStyle.subtitleColor(): Color? = when (this) {
     LinkPreviewStyle.Default -> null
-    LinkPreviewStyle.GooglePlayInternalTest -> Color.White.copy(alpha = 0.62f)
+    LinkPreviewStyle.GooglePlayInternalTest,
+    LinkPreviewStyle.AppStore,
+    LinkPreviewStyle.GitHub,
+    LinkPreviewStyle.GoogleMaps,
+    LinkPreviewStyle.YouTube -> Color.White.copy(alpha = 0.68f)
+}
+
+private data class BrandedFallbackText(
+    val title: String,
+    val description: String,
+)
+
+private fun LinkPreviewStyle.fallbackText(host: String): BrandedFallbackText? = when (this) {
+    LinkPreviewStyle.Default -> null
+    LinkPreviewStyle.GooglePlayInternalTest -> BrandedFallbackText("登录", host)
+    LinkPreviewStyle.AppStore -> BrandedFallbackText("App Store", host)
+    LinkPreviewStyle.GitHub -> BrandedFallbackText("GitHub", host)
+    LinkPreviewStyle.GoogleMaps -> BrandedFallbackText("Google Maps", host)
+    LinkPreviewStyle.YouTube -> BrandedFallbackText("YouTube", host)
+}
+
+private fun LinkPreviewStyle.badgeLabel(): String = when (this) {
+    LinkPreviewStyle.Default -> ""
+    LinkPreviewStyle.GooglePlayInternalTest -> ""
+    LinkPreviewStyle.AppStore -> "A"
+    LinkPreviewStyle.GitHub -> "GH"
+    LinkPreviewStyle.GoogleMaps -> "M"
+    LinkPreviewStyle.YouTube -> "YT"
+}
+
+private fun LinkPreviewStyle.badgeBackground(): Color = when (this) {
+    LinkPreviewStyle.Default -> Color.Transparent
+    LinkPreviewStyle.GooglePlayInternalTest -> Color.Transparent
+    LinkPreviewStyle.AppStore -> Color.White.copy(alpha = 0.18f)
+    LinkPreviewStyle.GitHub -> Color.White.copy(alpha = 0.14f)
+    LinkPreviewStyle.GoogleMaps -> Color.White.copy(alpha = 0.18f)
+    LinkPreviewStyle.YouTube -> Color.White.copy(alpha = 0.18f)
+}
+
+private fun LinkPreviewStyle.badgeForeground(): Color = when (this) {
+    LinkPreviewStyle.Default -> Color.Transparent
+    LinkPreviewStyle.GooglePlayInternalTest -> Color.Transparent
+    LinkPreviewStyle.AppStore,
+    LinkPreviewStyle.GitHub,
+    LinkPreviewStyle.GoogleMaps,
+    LinkPreviewStyle.YouTube -> Color.White
 }
 
 internal object LinkPreviewMetadataProvider {
@@ -276,21 +364,11 @@ internal object LinkPreviewMetadataProvider {
 
 private fun Document.toLinkPreviewMetadata(url: String): LinkPreviewMetadata {
     val style = url.toLinkPreviewStyle()
-    val host = if (style == LinkPreviewStyle.GooglePlayInternalTest) {
-        url.toHost()
-    } else {
-        metaContent("og:site_name") ?: url.toHost()
-    }
-    val title = if (style == LinkPreviewStyle.GooglePlayInternalTest) {
-        "登录"
-    } else {
-        metaContent("og:title", "twitter:title") ?: title().takeIf { it.isNotBlank() } ?: host
-    }
-    val description = if (style == LinkPreviewStyle.GooglePlayInternalTest) {
-        host
-    } else {
-        metaContent("og:description", "description", "twitter:description") ?: host
-    }
+    val urlHost = url.toHost()
+    val branded = style.fallbackText(urlHost)
+    val host = branded?.description ?: metaContent("og:site_name") ?: urlHost
+    val title = branded?.title ?: metaContent("og:title", "twitter:title") ?: title().takeIf { it.isNotBlank() } ?: host
+    val description = branded?.description ?: metaContent("og:description", "description", "twitter:description") ?: host
     val imageUrl = metaContent("og:image", "twitter:image")?.let { rawImageUrl ->
         runCatching { URI(url).resolve(rawImageUrl).toString() }.getOrNull()
     }
@@ -347,9 +425,14 @@ private fun String.toFaviconUrl(): String? {
 
 private fun String.toLinkPreviewStyle(): LinkPreviewStyle {
     val uri = runCatching { URI(this) }.getOrNull() ?: return LinkPreviewStyle.Default
+    val host = uri.host?.removePrefix("www.").orEmpty()
+    val path = uri.path.orEmpty()
     return when {
-        uri.host?.removePrefix("www.") == "play.google.com" &&
-            uri.path.orEmpty().startsWith("/apps/internaltest") -> LinkPreviewStyle.GooglePlayInternalTest
+        host == "play.google.com" && path.startsWith("/apps/internaltest") -> LinkPreviewStyle.GooglePlayInternalTest
+        host == "apps.apple.com" -> LinkPreviewStyle.AppStore
+        host == "github.com" || host.endsWith(".github.com") -> LinkPreviewStyle.GitHub
+        host == "maps.google.com" || host == "google.com" && path.startsWith("/maps") -> LinkPreviewStyle.GoogleMaps
+        host == "youtube.com" || host == "youtu.be" || host.endsWith(".youtube.com") -> LinkPreviewStyle.YouTube
         else -> LinkPreviewStyle.Default
     }
 }

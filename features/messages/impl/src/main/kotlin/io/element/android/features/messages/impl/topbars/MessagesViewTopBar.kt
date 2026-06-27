@@ -33,6 +33,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -81,92 +86,99 @@ internal fun MessagesViewTopBar(
     modifier: Modifier = Modifier,
     menuActions: @Composable RowScope.() -> Unit,
 ) {
-    Row(
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(ElementTheme.colors.bgCanvasDefault)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.Top,
+            .padding(horizontal = 16.dp, vertical = 4.dp),
     ) {
-        FloatingCircleButton(onClick = onBackClick) {
-            Icon(
-                modifier = Modifier.size(22.dp),
-                imageVector = CompoundIcons.ArrowLeft(),
-                contentDescription = stringResource(CommonStrings.action_back),
-            )
-        }
-
-        val roundedCornerShape = RoundedCornerShape(24.dp)
         Row(
             modifier = Modifier
-                .widthIn(max = 260.dp)
-                .height(44.dp)
-                .clip(roundedCornerShape)
-                .background(ElementTheme.colors.bgSubtleSecondary.copy(alpha = 0.78f))
-                .border(1.dp, ElementTheme.colors.borderDisabled, roundedCornerShape)
-                .clickable { onRoomDetailsClick() }
-                .semantics { heading() }
-                .padding(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            val titleModifier = Modifier.weight(1f, fill = false)
-            RoomAvatarAndNameRow(
-                roomName = roomName,
-                roomAvatar = roomAvatar,
-                isTombstoned = isTombstoned,
-                heroes = heroes,
-                modifier = titleModifier
-            )
-
-            val iconModifier = Modifier.size(16.dp)
-
-            when (dmUserIdentityState) {
-                IdentityState.Verified -> {
-                    Icon(
-                        modifier = iconModifier,
-                        imageVector = CompoundIcons.Verified(),
-                        tint = ElementTheme.colors.iconSuccessPrimary,
-                        contentDescription = null,
-                    )
-                }
-                IdentityState.VerificationViolation -> {
-                    Icon(
-                        modifier = iconModifier,
-                        imageVector = CompoundIcons.ErrorSolid(),
-                        tint = ElementTheme.colors.iconCriticalPrimary,
-                        contentDescription = null,
-                    )
-                }
-                else -> Unit
-            }
-
-            when (sharedHistoryIcon) {
-                SharedHistoryIcon.NONE -> Unit
-                SharedHistoryIcon.SHARED -> Icon(
-                    modifier = iconModifier,
-                    imageVector = CompoundIcons.History(),
-                    tint = ElementTheme.colors.iconInfoPrimary,
-                    contentDescription = stringResource(CommonStrings.common_shared_history),
-                )
-                SharedHistoryIcon.WORLD_READABLE -> Icon(
-                    modifier = iconModifier,
-                    imageVector = CompoundIcons.UserProfileSolid(),
-                    tint = ElementTheme.colors.iconInfoPrimary,
-                    contentDescription = stringResource(CommonStrings.common_world_readable_history),
-                )
-            }
-        }
-
-        Spacer(Modifier.weight(1f, fill = true))
-
-        Row(
-            modifier = Modifier.defaultMinSize(minHeight = 48.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                .fillMaxWidth()
+                .padding(top = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.Top,
-            content = menuActions,
-        )
+        ) {
+            FloatingCircleButton(onClick = onBackClick) {
+                Icon(
+                    modifier = Modifier.size(24.dp),
+                    imageVector = CompoundIcons.ArrowLeft(),
+                    contentDescription = stringResource(CommonStrings.action_back),
+                )
+            }
+
+            val roundedCornerShape = RoundedCornerShape(24.dp)
+            Row(
+                modifier = Modifier
+                    .widthIn(max = 288.dp)
+                    .height(48.dp)
+                    .shadow(10.dp, roundedCornerShape, clip = false, ambientColor = Color.Black.copy(alpha = 0.05f), spotColor = Color.Black.copy(alpha = 0.07f))
+                    .clip(roundedCornerShape)
+                    .background(topBarBubbleBrush(isActive = false))
+                    .topBarBubbleHighlight()
+                    .border(1.dp, ElementTheme.colors.borderDisabled.copy(alpha = 0.24f), roundedCornerShape)
+                    .clickable { onRoomDetailsClick() }
+                    .semantics { heading() }
+                    .padding(start = 12.dp, end = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val titleModifier = Modifier.weight(1f, fill = false)
+                RoomAvatarAndNameRow(
+                    roomName = roomName,
+                    roomAvatar = roomAvatar,
+                    isTombstoned = isTombstoned,
+                    heroes = heroes,
+                    modifier = titleModifier
+                )
+
+                val iconModifier = Modifier.size(16.dp)
+
+                when (dmUserIdentityState) {
+                    IdentityState.Verified -> {
+                        Icon(
+                            modifier = iconModifier,
+                            imageVector = CompoundIcons.Verified(),
+                            tint = ElementTheme.colors.iconSuccessPrimary,
+                            contentDescription = null,
+                        )
+                    }
+                    IdentityState.VerificationViolation -> {
+                        Icon(
+                            modifier = iconModifier,
+                            imageVector = CompoundIcons.ErrorSolid(),
+                            tint = ElementTheme.colors.iconCriticalPrimary,
+                            contentDescription = null,
+                        )
+                    }
+                    else -> Unit
+                }
+
+                when (sharedHistoryIcon) {
+                    SharedHistoryIcon.NONE -> Unit
+                    SharedHistoryIcon.SHARED -> Icon(
+                        modifier = iconModifier,
+                        imageVector = CompoundIcons.History(),
+                        tint = ElementTheme.colors.iconInfoPrimary,
+                        contentDescription = stringResource(CommonStrings.common_shared_history),
+                    )
+                    SharedHistoryIcon.WORLD_READABLE -> Icon(
+                        modifier = iconModifier,
+                        imageVector = CompoundIcons.UserProfileSolid(),
+                        tint = ElementTheme.colors.iconInfoPrimary,
+                        contentDescription = stringResource(CommonStrings.common_world_readable_history),
+                    )
+                }
+            }
+
+            Spacer(Modifier.weight(1f, fill = true))
+
+            Row(
+                modifier = Modifier.defaultMinSize(minHeight = 48.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                verticalAlignment = Alignment.Top,
+                content = menuActions,
+            )
+        }
     }
 }
 
@@ -179,10 +191,12 @@ private fun FloatingCircleButton(
 ) {
     Box(
         modifier = modifier
-            .size(44.dp)
+            .size(48.dp)
+            .shadow(10.dp, CircleShape, clip = false, ambientColor = Color.Black.copy(alpha = 0.05f), spotColor = Color.Black.copy(alpha = 0.07f))
             .clip(CircleShape)
-            .background(ElementTheme.colors.bgSubtleSecondary.copy(alpha = 0.78f))
-            .border(1.dp, ElementTheme.colors.borderDisabled, CircleShape)
+            .background(topBarBubbleBrush(isActive = false))
+            .topBarBubbleHighlight()
+            .border(1.dp, ElementTheme.colors.borderDisabled.copy(alpha = 0.24f), CircleShape)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(bounded = true),
@@ -195,6 +209,32 @@ private fun FloatingCircleButton(
     }
 }
 
+@Composable
+private fun topBarBubbleBrush(isActive: Boolean): Brush {
+    val topAlpha = if (isActive) 0.92f else 0.78f
+    val bottomAlpha = if (isActive) 0.76f else 0.58f
+    return Brush.verticalGradient(
+        colors = listOf(
+            ElementTheme.colors.bgCanvasDefault.copy(alpha = topAlpha),
+            ElementTheme.colors.bgCanvasDefault.copy(alpha = bottomAlpha),
+        )
+    )
+}
+
+private fun Modifier.topBarBubbleHighlight(): Modifier = drawBehind {
+    drawLine(
+        color = Color.White.copy(alpha = 0.42f),
+        start = Offset(0f, 0.7f),
+        end = Offset(size.width, 0.7f),
+        strokeWidth = 1.2f,
+    )
+    drawLine(
+        color = Color.Black.copy(alpha = 0.04f),
+        start = Offset(0f, size.height - 0.7f),
+        end = Offset(size.width, size.height - 0.7f),
+        strokeWidth = 1f,
+    )
+}
 @Composable
 private fun RoomAvatarAndNameRow(
     roomName: String?,

@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -193,11 +194,6 @@ fun TimelineItemEventRow(
             eventSink = eventSink,
             modifier = contentModifier,
             onContentLayoutChange = onContentLayoutChange,
-            // Game cards embed the timestamp inside the card itself (inline with the action row)
-            // so no separate timestamp row is rendered by the bubble layout system.
-            gameCardTimestampSlot = {
-                TimelineEventTimestampView(event = event, eventSink = eventSink)
-            },
         )
     },
 ) {
@@ -256,7 +252,10 @@ fun TimelineItemEventRow(
             )
         }
         val canUseStandaloneFastPath = presentation.isStandalone &&
-            presentation.supplementaryPolicy == TimelineSupplementaryPolicy.None
+            presentation.supplementaryPolicy == TimelineSupplementaryPolicy.None &&
+            // Voice messages own their rounded capsule and need the content-managed timestamp
+            // to stay inside the bar, so they use the standard standalone layout below.
+            event.content !is TimelineItemVoiceContent
 
         if (canUseStandaloneFastPath) {
             TimelineItemStandaloneRow(
@@ -451,11 +450,11 @@ private fun TimelineItemStandaloneRow(
                         traversalIndex = -1f
                     },
             ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.wrapContentWidth(align = Alignment.Start)) {
                     CompositionLocalProvider(
                         LocalTimelineTextLayoutMeasurementEnabled provides false,
                     ) {
-                        eventContentView(Modifier.fillMaxWidth()) {}
+                        eventContentView(Modifier.wrapContentWidth(align = Alignment.Start)) {}
                     }
                     if (event.content !is TimelineItemAiContent) {
                         Row(
@@ -1107,8 +1106,7 @@ private fun MessageEventBubbleContent(
         // AI stream messages mirror iOS: cards + markdown are standalone timeline content and
         // should not pay the normal bubble/timestamp avoidance layout cost.
         is TimelineItemAiContent -> TimestampPosition.Hidden
-        // Game cards render the timestamp inline inside the card itself — suppress the external one
-        is TimelineItemGameContent -> TimestampPosition.Hidden
+        is TimelineItemGameContent -> TimestampPosition.Below
         else -> TimestampPosition.Default
     }
     val paddingBehaviour = when (event.content) {
@@ -1116,6 +1114,7 @@ private fun MessageEventBubbleContent(
         is TimelineItemVideoContent -> if (event.content.showCaption) ContentPadding.CaptionedMedia else ContentPadding.Media
         is TimelineItemStickerContent,
         is TimelineItemLocationContent,
+        is TimelineItemVoiceContent,
         // Game card has its own internal padding — no extra bubble padding needed
         is TimelineItemGameContent,
         is TimelineItemAiContent -> ContentPadding.Media

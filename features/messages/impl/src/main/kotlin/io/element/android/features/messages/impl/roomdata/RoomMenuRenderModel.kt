@@ -94,6 +94,7 @@ enum class RoomAttachmentAction {
     Poll,
     Game,
     TextFormatting,
+    Skill,
     Ping,
     Sketch,
 }
@@ -110,10 +111,8 @@ object RoomMenuReducer {
         val context = roomUnsealContext.dataOrNull()
         val deviceAgent = context?.deviceAgentInRoom
         val actions = buildList {
-            if (context?.hasAgentInRoom == true) {
-                add(RoomTopbarAction.Schedules)
-                add(RoomTopbarAction.Webhooks)
-            }
+            add(RoomTopbarAction.Schedules)
+            add(RoomTopbarAction.Webhooks)
             if (deviceAgent != null) {
                 add(RoomTopbarAction.DeviceAgentChat)
                 add(RoomTopbarAction.DeviceAgentTerminal)
@@ -122,6 +121,7 @@ object RoomMenuReducer {
         val attachmentActionEntries = buildAttachmentActionEntries(
             canShareLocation = canShareLocation,
             enableTextFormatting = enableTextFormatting,
+            enableAgentSkills = context?.hasAgentInRoom == true,
         )
         val attachmentActions = attachmentActionEntries.filter { it.isAvailable }.map { it.action }
         val scheduleBadge = context?.takeIf { it.hasAgentInRoom }?.let {
@@ -167,6 +167,7 @@ object RoomMenuReducer {
 private fun buildAttachmentActionEntries(
     canShareLocation: Boolean,
     enableTextFormatting: Boolean,
+    enableAgentSkills: Boolean,
 ): List<RoomAttachmentActionEntry> = listOf(
     RoomAttachmentActionEntry(
         action = RoomAttachmentAction.Game,
@@ -175,6 +176,11 @@ private fun buildAttachmentActionEntries(
         action = RoomAttachmentAction.TextFormatting,
         isAvailable = enableTextFormatting,
         unavailableReason = RoomAttachmentActionUnavailableReason.DisabledByRoomCapability.takeUnless { enableTextFormatting },
+    ),
+    RoomAttachmentActionEntry(
+        action = RoomAttachmentAction.Skill,
+        isAvailable = enableAgentSkills,
+        unavailableReason = RoomAttachmentActionUnavailableReason.DisabledByRoomCapability.takeUnless { enableAgentSkills },
     ),
     RoomAttachmentActionEntry(
         action = RoomAttachmentAction.Poll,

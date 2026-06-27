@@ -65,8 +65,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -201,7 +203,6 @@ fun MessagesView(
 
     val density = LocalDensity.current
     var composerHeightDp by remember { mutableStateOf(80.dp) }
-    var topBarHeightDp by remember { mutableStateOf(52.dp) }
 
     // This is needed because the composer is inside an AndroidView that can't be affected by the FocusManager in Compose
     val localView = LocalView.current
@@ -262,7 +263,7 @@ fun MessagesView(
                 },
         content = {
             Scaffold(
-                contentWindowInsets = WindowInsets.statusBars,
+                contentWindowInsets = WindowInsets(0.dp),
                 topBar = {
                     if (state.timelineState.timelineMode is Timeline.Mode.Thread) {
                         ThreadTopBar(
@@ -317,7 +318,7 @@ fun MessagesView(
                             // input pill) where the gradient below fades it out.
                             composerBottomInset = composerBottomInset,
                             bottomContentPadding = (composerHeightDp - composerBottomInset).coerceAtLeast(0.dp),
-                            topChromeInset = topBarHeightDp + 8.dp,
+                            topChromeInset = 0.dp,
                         )
 
                         // Gradient-transparent backdrop: the last message fades from fully visible to the
@@ -325,6 +326,7 @@ fun MessagesView(
                         // over the timeline — no AndroidView overlap, no scroll cost.
                         ComposerChromeBackdrop(
                             composerHeight = composerHeightDp,
+                            useSolidBackground = state.composerState.showTextFormatting,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(composerHeightDp)
@@ -334,10 +336,7 @@ fun MessagesView(
                         if (state.timelineState.timelineMode !is Timeline.Mode.Thread) {
                             MessagesViewTopBar(
                                 modifier = Modifier
-                                    .align(Alignment.TopStart)
-                                    .onSizeChanged { size ->
-                                        topBarHeightDp = with(density) { size.height.toDp() }
-                                    },
+                                    .align(Alignment.TopStart),
                                 roomName = state.roomName,
                                 roomAvatar = state.roomAvatar,
                                 isTombstoned = state.isTombstoned,
@@ -661,7 +660,7 @@ private fun RoomToolMenu(
                     .size(22.dp)
                     .rotate(moreRotation),
                 imageVector = CompoundIcons.OverflowHorizontal(),
-                contentDescription = "Room tools",
+                contentDescription = stringResource(R.string.screen_room_topbar_tools),
             )
         }
 
@@ -743,10 +742,10 @@ private fun RoomTopbarToolButton(
                 RoomTopbarAction.Threads -> CompoundIcons.Threads()
             },
             contentDescription = when (tool.action) {
-                RoomTopbarAction.DeviceAgentTerminal -> "Remote terminal"
-                RoomTopbarAction.DeviceAgentChat -> "Chat with device agent"
-                RoomTopbarAction.Webhooks -> "Webhook triggers"
-                RoomTopbarAction.Schedules -> "Room AI Config"
+                RoomTopbarAction.DeviceAgentTerminal -> stringResource(R.string.screen_room_topbar_remote_terminal)
+                RoomTopbarAction.DeviceAgentChat -> stringResource(R.string.screen_room_topbar_device_agent_chat)
+                RoomTopbarAction.Webhooks -> stringResource(R.string.screen_room_topbar_webhooks)
+                RoomTopbarAction.Schedules -> stringResource(R.string.screen_room_topbar_ai_config)
                 RoomTopbarAction.Threads -> stringResource(CommonStrings.common_threads)
             },
         )
@@ -820,7 +819,7 @@ private fun DeviceAgentTerminalPanel(
                     ) {
                         Icon(
                             imageVector = CompoundIcons.Close(),
-                            contentDescription = "Close remote terminal",
+                            contentDescription = stringResource(R.string.screen_room_topbar_close_remote_terminal),
                         )
                     }
                 }
@@ -860,16 +859,12 @@ private fun ToolbarCircleButton(
     ) {
         Box(
             modifier = Modifier
-                .size(44.dp)
+                .size(48.dp)
+                .shadow(10.dp, CircleShape, clip = false, ambientColor = Color.Black.copy(alpha = 0.05f), spotColor = Color.Black.copy(alpha = 0.07f))
                 .clip(CircleShape)
-                .background(
-                    if (isActive) {
-                        ElementTheme.colors.bgCanvasDefault.copy(alpha = 0.88f)
-                    } else {
-                        ElementTheme.colors.bgSubtleSecondary.copy(alpha = 0.88f)
-                    }
-                )
-                .border(1.dp, ElementTheme.colors.borderDisabled, CircleShape)
+                .background(toolbarBubbleBrush(isActive = isActive))
+                .toolbarBubbleHighlight()
+                .border(1.dp, ElementTheme.colors.borderDisabled.copy(alpha = 0.24f), CircleShape)
                 .clickable(
                     enabled = enabled,
                     interactionSource = remember { MutableInteractionSource() },
@@ -881,6 +876,33 @@ private fun ToolbarCircleButton(
             content()
         }
     }
+}
+
+@Composable
+private fun toolbarBubbleBrush(isActive: Boolean): Brush {
+    val topAlpha = if (isActive) 0.92f else 0.78f
+    val bottomAlpha = if (isActive) 0.76f else 0.58f
+    return Brush.verticalGradient(
+        colors = listOf(
+            ElementTheme.colors.bgCanvasDefault.copy(alpha = topAlpha),
+            ElementTheme.colors.bgCanvasDefault.copy(alpha = bottomAlpha),
+        )
+    )
+}
+
+private fun Modifier.toolbarBubbleHighlight(): Modifier = drawBehind {
+    drawLine(
+        color = Color.White.copy(alpha = 0.42f),
+        start = Offset(0f, 0.7f),
+        end = Offset(size.width, 0.7f),
+        strokeWidth = 1.2f,
+    )
+    drawLine(
+        color = Color.Black.copy(alpha = 0.04f),
+        start = Offset(0f, size.height - 0.7f),
+        end = Offset(size.width, size.height - 0.7f),
+        strokeWidth = 1f,
+    )
 }
 
 @Composable
@@ -1103,9 +1125,14 @@ private val ComposerFadeZone = 36.dp
 @Composable
 private fun ComposerChromeBackdrop(
     composerHeight: Dp,
+    useSolidBackground: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val bgColor = ElementTheme.colors.bgCanvasDefault
+    if (useSolidBackground) {
+        Box(modifier = modifier.background(bgColor))
+        return
+    }
     // The gradient backdrop is composerHeight tall; the timeline overlaps only the top ComposerFadeZone
     // of it. Place the "fully opaque" stop at exactly that fraction so the fade finishes right where the
     // input pill begins — regardless of composer height (single line, multi-line, reply preview, etc.).

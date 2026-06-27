@@ -57,15 +57,36 @@ class DefaultRoomUnsealDataClient(
         return service().getRoomWorkingMemory(roomId.value)
     }
 
-    override suspend fun loadRoomData(roomId: RoomId): RoomUnsealDataSnapshot = coroutineScope {
+    override suspend fun loadRoomIdentityData(roomId: RoomId): RoomUnsealDataSnapshot = coroutineScope {
+        val roomAgents = async { getRoomAgents(roomId).toResource(emptyList()) }
+        val allAgents = async { listAgents().toResource(emptyList()) }
+        RoomUnsealDataSnapshot(
+            roomAgents = roomAgents.await(),
+            allAgents = allAgents.await(),
+        )
+    }
+
+    override suspend fun loadRoomData(roomId: RoomId): RoomUnsealDataSnapshot {
+        return loadRoomData(roomId, onIdentitySnapshot = {})
+    }
+
+    override suspend fun loadRoomData(
+        roomId: RoomId,
+        onIdentitySnapshot: (RoomUnsealDataSnapshot) -> Unit,
+    ): RoomUnsealDataSnapshot = coroutineScope {
         val roomAgents = async { getRoomAgents(roomId).toResource(emptyList()) }
         val allAgents = async { listAgents().toResource(emptyList()) }
         val schedules = async { listSchedules(roomId).toResource(emptyList()) }
         val webhookTriggers = async { listWebhookTriggers(roomId).toResource(emptyList()) }
         val workingMemory = async { getRoomWorkingMemory(roomId).toResource("") }
-        RoomUnsealDataSnapshot(
+        val identitySnapshot = RoomUnsealDataSnapshot(
             roomAgents = roomAgents.await(),
             allAgents = allAgents.await(),
+        )
+        onIdentitySnapshot(identitySnapshot)
+        RoomUnsealDataSnapshot(
+            roomAgents = identitySnapshot.roomAgents,
+            allAgents = identitySnapshot.allAgents,
             schedules = schedules.await(),
             webhookTriggers = webhookTriggers.await(),
             workingMemory = workingMemory.await(),

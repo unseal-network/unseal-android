@@ -9,13 +9,18 @@ package io.element.android.features.messages.impl.timeline.model
 
 import androidx.compose.runtime.Immutable
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAudioContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEventContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemFileContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemGameContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemImageContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRedactedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemStickerContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextBasedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVideoContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVoiceContent
 
 @Immutable
 data class TimelinePresentationModel(
@@ -224,6 +229,11 @@ object TimelinePresentationReducer {
             is TimelineItemImageContent -> if (caption == null && formattedCaption == null) TimelineContentKind.Media else TimelineContentKind.RichEvent
             is TimelineItemVideoContent -> if (caption == null && formattedCaption == null) TimelineContentKind.Media else TimelineContentKind.RichEvent
             is TimelineItemStickerContent -> TimelineContentKind.Media
+            is TimelineItemAudioContent,
+            is TimelineItemFileContent,
+            is TimelineItemLocationContent,
+            is TimelineItemVoiceContent,
+            is TimelineItemGameContent -> TimelineContentKind.Media
             else -> TimelineContentKind.RichEvent
         }
     }

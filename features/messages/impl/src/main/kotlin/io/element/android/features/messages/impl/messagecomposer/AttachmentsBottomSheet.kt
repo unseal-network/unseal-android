@@ -178,6 +178,11 @@ private fun AttachmentActionRow(
             leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.TextFormatting())),
             headlineContent = { Text(stringResource(R.string.screen_room_attachment_text_formatting)) },
         )
+        RoomAttachmentAction.Skill -> ListItem(
+            onClick = { state.eventSink(MessageComposerEvent.ShowAgentSkillPicker) },
+            leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.Extensions())),
+            headlineContent = { Text(stringResource(R.string.screen_room_attachment_source_skill)) },
+        )
         RoomAttachmentAction.Ping -> ListItem(
             onClick = {},
             leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.Mention())),

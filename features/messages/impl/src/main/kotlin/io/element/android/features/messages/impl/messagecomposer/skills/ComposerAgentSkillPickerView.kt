@@ -9,6 +9,7 @@ package io.element.android.features.messages.impl.messagecomposer.skills
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,10 +17,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ripple
@@ -55,7 +55,7 @@ internal fun ComposerAgentSkillPickerView(
             activeAgentMxid = state.activeAgentMxid,
         )
     }
-    val shouldShow = state.targets.isNotEmpty() || state.isPresented || state.selectedSkills.isNotEmpty()
+    val shouldShow = state.isPresented || state.selectedSkills.isNotEmpty()
     if (!shouldShow) return
 
     Surface(
@@ -138,8 +138,11 @@ private fun SelectedSkillsRow(
     selectedSkills: List<ComposerSelectedAgentSkill>,
     onRemoveSkill: (ComposerSelectedAgentSkill) -> Unit,
 ) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(selectedSkills, key = { it.id }) { selected ->
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        selectedSkills.forEach { selected ->
             val chipShape = RoundedCornerShape(18.dp)
             Surface(
                 shape = chipShape,
@@ -180,8 +183,11 @@ private fun AgentTargetRow(
     state: ComposerAgentSkillState,
     onSelectTarget: (String) -> Unit,
 ) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(state.targets, key = { it.mxid }) { target ->
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        state.targets.forEach { target ->
             val selected = target.mxid == state.activeAgentMxid
             SelectedStatePill(
                 selected = selected,
@@ -240,10 +246,12 @@ private fun CandidateList(
     candidates: List<ComposerAgentSkillCandidate>,
     onSelectSkill: (ComposerAgentSkillCandidate) -> Unit,
 ) {
-    LazyColumn(
-        modifier = Modifier.heightIn(max = 220.dp),
+    Column(
+        modifier = Modifier
+            .heightIn(max = 220.dp)
+            .verticalScroll(rememberScrollState()),
     ) {
-        items(candidates, key = { it.id }) { candidate ->
+        candidates.forEach { candidate ->
             CandidateRow(
                 candidate = candidate,
                 onSelectSkill = onSelectSkill,

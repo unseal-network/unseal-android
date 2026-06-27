@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,23 +43,27 @@ fun TimelineItemAttachmentView(
     onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier,
-    ) {
-        TimelineItemAttachmentHeaderView(
-            icon = icon,
-            iconContentDescription = iconContentDescription,
-            filename = filename,
-            fileExtensionAndSize = fileExtensionAndSize,
-            hasCaption = caption != null,
-            onContentLayoutChange = onContentLayoutChange,
-        )
-        if (caption != null) {
-            TimelineItemAttachmentCaptionView(
-                modifier = Modifier.padding(top = 4.dp),
-                caption = caption,
+    TimelineCardSurface(modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+        ) {
+            TimelineItemAttachmentHeaderView(
+                icon = icon,
+                iconContentDescription = iconContentDescription,
+                filename = filename,
+                fileExtensionAndSize = fileExtensionAndSize,
+                hasCaption = caption != null,
                 onContentLayoutChange = onContentLayoutChange,
             )
+            if (caption != null) {
+                TimelineItemAttachmentCaptionView(
+                    modifier = Modifier.padding(top = 8.dp),
+                    caption = caption,
+                    onContentLayoutChange = onContentLayoutChange,
+                )
+            }
         }
     }
 }

@@ -13,6 +13,7 @@
     <!-- iOS parity entries in the attachment source picker menu. Disabled until the Android bottom layer exists. -->
     <string name="screen_room_attachment_source_ping">Ping</string>
     <string name="screen_room_attachment_source_sketch">Sketch</string>
+    <string name="screen_room_attachment_source_skill">选择 Skill</string>
     <!-- iOS parity entries in the message action menu. Disabled until Android actions are wired. -->
     <string name="screen_timeline_item_menu_save_message">Save message</string>
     <string name="screen_timeline_item_menu_unsave_message">Unsave message</string>

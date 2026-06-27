@@ -50,9 +50,6 @@ fun TimelineItemEventContentView(
     eventSink: (TimelineEvent.TimelineItemEvent) -> Unit,
     modifier: Modifier = Modifier,
     onContentLayoutChange: (ContentAvoidingLayoutData) -> Unit = {},
-    // Injected by TimelineItemEventRow so the game card can render the timestamp
-    // inline without coupling TimelineItemGameView to TimelineItem.Event directly.
-    gameCardTimestampSlot: @Composable () -> Unit = {},
 ) {
     val presenterFactories = LocalTimelineItemPresenterFactories.current
     when (content) {
@@ -94,7 +91,6 @@ fun TimelineItemEventContentView(
             content = content,
             eventSink = eventSink,
             modifier = modifier,
-            timestampSlot = gameCardTimestampSlot,
         )
         is TimelineItemPingContent -> TimelineItemPingView(
             content = content,

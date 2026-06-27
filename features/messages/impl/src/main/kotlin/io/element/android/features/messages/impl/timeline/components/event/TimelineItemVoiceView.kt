@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -82,9 +83,13 @@ fun TimelineItemVoiceView(
     )
     Row(
         modifier = modifier
-            .widthIn(min = 220.dp, max = 400.dp)
-            .height(56.dp)
-            .padding(start = 8.dp, end = 12.dp)
+            .widthIn(min = 280.dp, max = 400.dp)
+            .height(64.dp)
+            .background(
+                color = ElementTheme.colors.bgSubtleSecondary,
+                shape = RoundedCornerShape(18.dp),
+            )
+            .padding(start = 14.dp, end = 14.dp)
             .clearAndSetSemantics {
                 contentDescription = a11y
                 if (state.buttonType == VoiceMessageState.ButtonType.Disabled) {
@@ -115,7 +120,7 @@ fun TimelineItemVoiceView(
                 VoiceMessageState.ButtonType.Disabled -> PlayButton(onClick = {}, enabled = false)
             }
         }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(10.dp))
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -132,7 +137,7 @@ fun TimelineItemVoiceView(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(12.dp))
         WaveformPlaybackView(
             showCursor = state.showCursor,
             playbackProgress = state.progress,

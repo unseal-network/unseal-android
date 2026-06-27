@@ -196,6 +196,7 @@ private fun splitMarkdownTableSegments(text: String): List<MarkdownSegment> {
         if (!inFence && index + 1 < lines.size && isMarkdownTableSeparator(lines[index + 1])) {
             val headers = parseMarkdownTableRow(line)
             if (headers.size >= 2) {
+                val alignments = parseMarkdownTableAlignments(lines[index + 1])
                 val dataRows = mutableListOf<List<String>>()
                 var rowIndex = index + 2
                 while (rowIndex < lines.size) {
@@ -207,9 +208,21 @@ private fun splitMarkdownTableSegments(text: String): List<MarkdownSegment> {
                 if (dataRows.isNotEmpty()) {
                     flushText()
                     val rows = buildList {
-                        add(HtmlTableRow(headers.map { HtmlTableCell(text = it, isHeader = true) }))
+                        add(HtmlTableRow(headers.mapIndexed { column, text ->
+                            HtmlTableCell(
+                                text = text,
+                                isHeader = true,
+                                alignment = alignments.getOrElse(column) { HtmlTableCellAlignment.Start },
+                            )
+                        }))
                         dataRows.forEach { row ->
-                            add(HtmlTableRow(row.map { HtmlTableCell(text = it, isHeader = false) }))
+                            add(HtmlTableRow(row.mapIndexed { column, text ->
+                                HtmlTableCell(
+                                    text = text,
+                                    isHeader = false,
+                                    alignment = alignments.getOrElse(column) { HtmlTableCellAlignment.Start },
+                                )
+                            }))
                         }
                     }
                     segments += MarkdownSegment.Table(HtmlTable(rows = rows))
@@ -499,6 +512,17 @@ private fun isMarkdownTableSeparator(line: String): Boolean {
     val cells = parseMarkdownTableRow(line)
     return cells.size >= 2 && cells.all { cell ->
         cell.matches(Regex(":?-{3,}:?"))
+    }
+}
+
+private fun parseMarkdownTableAlignments(line: String): List<HtmlTableCellAlignment> {
+    return parseMarkdownTableRow(line).map { cell ->
+        val trimmed = cell.trim()
+        when {
+            trimmed.startsWith(":") && trimmed.endsWith(":") -> HtmlTableCellAlignment.Center
+            trimmed.endsWith(":") -> HtmlTableCellAlignment.End
+            else -> HtmlTableCellAlignment.Start
+        }
     }
 }
 

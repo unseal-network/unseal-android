@@ -283,7 +283,7 @@ class MessageComposerPresenter(
             isAgentSkillPickerPresented = true
             clearComposerSuggestions()
         }
-        fun presentDirectAgentSkillPicker() {
+        fun showAgentSkillPicker() {
             val target = effectiveBaseAgentSkillState.targets.firstOrNull()
             if (target == null) {
                 localCoroutineScope.launch {
@@ -296,15 +296,9 @@ class MessageComposerPresenter(
             isAgentSkillPickerPresented = true
             clearComposerSuggestions()
         }
-        fun isDirectSkillSlashSuggestion(suggestion: Suggestion?): Boolean {
-            return roomInfo.isDm &&
-                suggestion?.type == SuggestionType.Command &&
-                suggestion.start == 0 &&
-                suggestion.text.isEmpty()
-        }
-        LaunchedEffect(roomUnsealContextState, effectiveBaseAgentSkillState.targets, roomInfo.isDm, room.sessionId) {
+        LaunchedEffect(roomUnsealContextState, effectiveBaseAgentSkillState.targets, roomInfo.isDm, room.sessionId, isAgentSkillPickerPresented) {
             val context = roomUnsealContextState.dataOrNull()
-            if (context == null || effectiveBaseAgentSkillState.targets.isEmpty()) {
+            if (context == null || effectiveBaseAgentSkillState.targets.isEmpty() || !isAgentSkillPickerPresented) {
                 agentSkillCandidates = persistentListOf()
                 agentSkillCatalogError = null
                 isAgentSkillCatalogLoading = false
@@ -361,14 +355,8 @@ class MessageComposerPresenter(
         } else {
             markdownTextEditorState.text.value().toString()
         }
-        LaunchedEffect(composerTextSnapshot, roomInfo.isDm, effectiveBaseAgentSkillState.targets, selectedAgentSkills) {
-            if (roomInfo.isDm && composerTextSnapshot.trim() == "/" && effectiveBaseAgentSkillState.targets.isNotEmpty()) {
-                activeAgentSkillMxid = effectiveBaseAgentSkillState.targets.first().mxid
-                isAgentSkillPickerPresented = true
-                clearComposerSuggestions()
-            } else if (ComposerAgentSkillReducer.hasUnresolvedTargets(effectiveBaseAgentSkillState.targets, selectedAgentSkills)) {
-                isAgentSkillPickerPresented = true
-            } else if (effectiveBaseAgentSkillState.targets.isEmpty() && selectedAgentSkills.isEmpty()) {
+        LaunchedEffect(effectiveBaseAgentSkillState.targets, selectedAgentSkills) {
+            if (effectiveBaseAgentSkillState.targets.isEmpty() && selectedAgentSkills.isEmpty()) {
                 isAgentSkillPickerPresented = false
             }
         }
@@ -505,11 +493,7 @@ class MessageComposerPresenter(
                     }
                 }
                 is MessageComposerEvent.SuggestionReceived -> {
-                    if (isDirectSkillSlashSuggestion(event.suggestion)) {
-                        presentDirectAgentSkillPicker()
-                    } else {
-                        suggestionSearchTrigger.value = event.suggestion
-                    }
+                    suggestionSearchTrigger.value = event.suggestion
                 }
                 is MessageComposerEvent.InsertSuggestion -> {
                     localCoroutineScope.launch {
@@ -564,6 +548,10 @@ class MessageComposerPresenter(
                 }
                 MessageComposerEvent.DismissGamePicker -> {
                     showGamePicker = false
+                }
+                MessageComposerEvent.ShowAgentSkillPicker -> {
+                    showAttachmentSourcePicker = false
+                    showAgentSkillPicker()
                 }
                 MessageComposerEvent.ToggleAgentSkillPicker -> {
                     isAgentSkillPickerPresented = !isAgentSkillPickerPresented

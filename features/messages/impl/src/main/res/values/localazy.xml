@@ -96,4 +96,10 @@
     <item quantity="other">"%1$s are typing"</item>
   </plurals>
   <string name="screen_room_typing_two_members">"%1$s and %2$s"</string>
+  <string name="screen_room_topbar_tools">"Room tools"</string>
+  <string name="screen_room_topbar_remote_terminal">"Remote terminal"</string>
+  <string name="screen_room_topbar_device_agent_chat">"Chat with device agent"</string>
+  <string name="screen_room_topbar_webhooks">"Webhook triggers"</string>
+  <string name="screen_room_topbar_ai_config">"Room AI Config"</string>
+  <string name="screen_room_topbar_close_remote_terminal">"Close remote terminal"</string>
 </resources>
