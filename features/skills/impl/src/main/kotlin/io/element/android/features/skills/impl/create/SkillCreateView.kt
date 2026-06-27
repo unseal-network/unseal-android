@@ -55,42 +55,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
-import io.element.android.features.skills.impl.shared.displayName
+import io.element.android.features.skills.impl.R
+import io.element.android.features.skills.impl.shared.displayNameRes
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
+import io.element.android.libraries.ui.strings.CommonStrings
 import kotlinx.collections.immutable.persistentListOf
-
-// zh-CN strings sourced from iOS zh-Hans Localizable.strings.
-private const val TITLE_CREATE_SKILL = "创建技能"
-private const val SECTION_BASIC = "基本信息"
-private const val SECTION_FILE = "文件"
-private const val NAME_PLACEHOLDER = "名称（必填）"
-private const val DESCRIPTION_PLACEHOLDER = "描述"
-private const val VISIBILITY_LABEL = "可见性"
-private const val ADD_FILE = "添加文件"
-private const val UPLOAD_FILE = "上传文件"
-private const val UPLOAD_ZIP = "上传 ZIP"
-private const val TEXT_IMPORT_HINT = "单文件导入仅支持 UTF-8 文本（.md、.txt、.json、.yaml 等），最大 2 MB。"
-private const val ACTION_CREATE = "立即创建"
-private const val ACTION_VIEW_DETAIL = "查看详情"
-private const val ACTION_BACK_TO_LIST = "返回列表"
-private const val SUCCESS_TITLE = "技能已创建"
-private const val FILE_EDITOR_TITLE = "编辑文件"
-private const val FILE_EDITOR_PATH_PLACEHOLDER = "文件路径（如 skill.md）"
-private const val ACTION_DONE = "完成"
-private const val ACTION_CANCEL = "取消"
-private const val FILE_EXISTS_TITLE = "文件已存在"
-private const val FILE_EXISTS_KEEP_BOTH = "保留两个"
-private const val FILE_EXISTS_OVERWRITE = "覆盖"
-private const val A11Y_DELETE = "删除"
-private const val A11Y_BACK = "返回"
 
 @Composable
 fun SkillCreateView(
@@ -105,10 +83,10 @@ fun SkillCreateView(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(TITLE_CREATE_SKILL, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(stringResource(R.string.skills_create), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = A11Y_BACK)
+                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = stringResource(CommonStrings.action_go_back))
                     }
                 },
             )
@@ -141,16 +119,16 @@ fun SkillCreateView(
     state.pendingFileConflict?.let { conflict ->
         AlertDialog(
             onDismissRequest = { state.eventSink(SkillCreateEvents.DismissFileConflict) },
-            title = { Text(FILE_EXISTS_TITLE) },
-            text = { Text("“${conflict.incomingFile.path}” 已存在。") },
+            title = { Text(stringResource(R.string.skill_create_file_exists_title)) },
+            text = { Text(stringResource(R.string.skill_create_file_exists_message, conflict.incomingFile.path)) },
             confirmButton = {
                 TextButton(onClick = { state.eventSink(SkillCreateEvents.KeepBothConflictingFile) }) {
-                    Text(FILE_EXISTS_KEEP_BOTH)
+                    Text(stringResource(R.string.skill_create_file_exists_keep_both))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { state.eventSink(SkillCreateEvents.OverwriteConflictingFile) }) {
-                    Text(FILE_EXISTS_OVERWRITE)
+                    Text(stringResource(R.string.skill_create_file_exists_overwrite))
                 }
             },
         )
@@ -171,12 +149,12 @@ private fun FormContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         // MARK: Basic info section
-        SectionHeader(SECTION_BASIC)
+        SectionHeader(stringResource(R.string.skill_create_basic_info))
         OutlinedTextField(
             modifier = Modifier.fillMaxWidth(),
             value = state.name,
             onValueChange = { state.eventSink(SkillCreateEvents.NameChanged(it)) },
-            placeholder = { Text(NAME_PLACEHOLDER) },
+            placeholder = { Text(stringResource(R.string.skill_create_name_placeholder)) },
             singleLine = true,
             enabled = !state.isSubmitting,
         )
@@ -184,19 +162,19 @@ private fun FormContent(
             modifier = Modifier.fillMaxWidth(),
             value = state.description,
             onValueChange = { state.eventSink(SkillCreateEvents.DescriptionChanged(it)) },
-            placeholder = { Text(DESCRIPTION_PLACEHOLDER) },
+            placeholder = { Text(stringResource(R.string.skill_detail_description)) },
             minLines = 2,
             maxLines = 6,
             enabled = !state.isSubmitting,
         )
-        Text(VISIBILITY_LABEL, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+        Text(stringResource(R.string.skill_create_visibility), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ChatbotSkillVisibility.entries.forEach { visibility ->
                 FilterChip(
                     selected = state.visibility == visibility,
                     onClick = { state.eventSink(SkillCreateEvents.VisibilityChanged(visibility)) },
                     enabled = !state.isSubmitting,
-                    label = { Text(visibility.displayName()) },
+                    label = { Text(stringResource(visibility.displayNameRes())) },
                 )
             }
         }
@@ -223,10 +201,10 @@ private fun FormContent(
             },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             leadingContent = { Icon(CompoundIcons.Plus(), contentDescription = null) },
-            headlineContent = { Text(ADD_FILE, color = MaterialTheme.colorScheme.primary) },
+            headlineContent = { Text(stringResource(R.string.skill_create_add_file), color = MaterialTheme.colorScheme.primary) },
         )
         Text(
-            text = TEXT_IMPORT_HINT,
+            text = stringResource(R.string.skill_create_text_import_hint),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -250,7 +228,7 @@ private fun FormContent(
                     strokeWidth = 2.dp,
                 )
             } else {
-                Text(ACTION_CREATE)
+                Text(stringResource(R.string.skill_create_submit))
             }
         }
         Spacer(Modifier.height(24.dp))
@@ -269,19 +247,19 @@ private fun FilesSectionHeader(
     ) {
         Text(
             modifier = Modifier.weight(1f),
-            text = SECTION_FILE,
+            text = stringResource(R.string.skill_create_file),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary,
         )
         TextButton(onClick = onPickFile, enabled = enabled) {
             Icon(CompoundIcons.Attachment(), contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.size(4.dp))
-            Text(UPLOAD_FILE, style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.skill_create_upload_file), style = MaterialTheme.typography.bodySmall)
         }
         TextButton(onClick = onPickZip, enabled = enabled) {
             Icon(CompoundIcons.Files(), contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.size(4.dp))
-            Text(UPLOAD_ZIP, style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.skill_create_upload_zip), style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -299,7 +277,7 @@ private fun FileRow(
         leadingContent = { Icon(CompoundIcons.Document(), contentDescription = null) },
         headlineContent = {
             Text(
-                text = file.path.ifEmpty { FILE_EDITOR_PATH_PLACEHOLDER },
+                text = file.path.ifEmpty { stringResource(R.string.skill_create_file_path_placeholder) },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -309,7 +287,7 @@ private fun FileRow(
                 IconButton(onClick = onDelete) {
                     Icon(
                         imageVector = CompoundIcons.Delete(),
-                        contentDescription = A11Y_DELETE,
+                        contentDescription = stringResource(CommonStrings.action_delete),
                         tint = MaterialTheme.colorScheme.error,
                     )
                 }
@@ -337,22 +315,22 @@ private fun FileEditorBottomSheet(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(onClick = onDismiss) { Text(ACTION_CANCEL) }
+                TextButton(onClick = onDismiss) { Text(stringResource(CommonStrings.action_cancel)) }
                 Text(
                     modifier = Modifier.weight(1f),
-                    text = path.ifEmpty { FILE_EDITOR_TITLE },
+                    text = path.ifEmpty { stringResource(R.string.skill_create_file_editor_title) },
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                TextButton(onClick = { onSave(path, content) }) { Text(ACTION_DONE) }
+                TextButton(onClick = { onSave(path, content) }) { Text(stringResource(CommonStrings.action_done)) }
             }
             HorizontalDivider()
             OutlinedTextField(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 value = path,
                 onValueChange = { path = it },
-                placeholder = { Text(FILE_EDITOR_PATH_PLACEHOLDER) },
+                placeholder = { Text(stringResource(R.string.skill_create_file_path_placeholder)) },
                 singleLine = true,
             )
             OutlinedTextField(
@@ -406,7 +384,7 @@ private fun SuccessContent(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Text(SUCCESS_TITLE, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+                Text(stringResource(R.string.skill_create_success_title), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
                 Text(name, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
@@ -420,13 +398,13 @@ private fun SuccessContent(
             ) {
                 Icon(CompoundIcons.Document(), contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.size(8.dp))
-                Text(ACTION_VIEW_DETAIL)
+                Text(stringResource(R.string.skill_create_view_detail))
             }
             OutlinedButton(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = onBackToList,
             ) {
-                Text(ACTION_BACK_TO_LIST)
+                Text(stringResource(R.string.skill_create_back_to_list))
             }
         }
         Spacer(Modifier.height(32.dp))

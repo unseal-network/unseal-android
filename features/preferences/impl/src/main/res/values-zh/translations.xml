@@ -161,4 +161,15 @@
   <string name="screen_vault_edit_loading_value">"正在加载值…"</string>
   <string name="screen_vault_edit_hide_value">"隐藏值"</string>
   <string name="screen_vault_edit_show_value">"显示值"</string>
+  <string name="screen_vault_edit_title_edit">"编辑条目"</string>
+  <string name="screen_vault_edit_title_create">"创建条目"</string>
+  <string name="screen_vault_edit_save_changes">"保存修改"</string>
+  <string name="screen_vault_edit_create_now">"立即创建"</string>
+  <string name="screen_vault_error_load_failed">"加载失败：%1$s"</string>
+  <string name="screen_vault_error_delete_failed">"删除失败：%1$s"</string>
+  <string name="screen_vault_error_load_value_failed">"加载值失败：%1$s"</string>
+  <string name="screen_vault_error_key_empty">"Key不能为空。"</string>
+  <string name="screen_vault_error_value_empty">"Value不能为空。"</string>
+  <string name="screen_vault_error_save_failed">"保存失败"</string>
+  <string name="screen_vault_error_unknown">"未知错误"</string>
 </resources>

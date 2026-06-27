@@ -48,7 +48,7 @@ import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.skills.impl.R
 import io.element.android.features.skills.impl.shared.SkillMetadataChips
-import io.element.android.features.skills.impl.shared.displayName
+import io.element.android.features.skills.impl.shared.displayNameRes
 import io.element.android.features.skills.impl.shared.hasDiscoveryMetadata
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotGetUserSkillResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
@@ -161,7 +161,7 @@ private fun SkillReadOnlyContent(state: SkillDetailState) {
     SectionHeader(stringResource(R.string.skill_detail_info))
     InfoRow(stringResource(R.string.skill_detail_name), state.title)
     state.skill?.description?.takeIf { it.isNotBlank() }?.let { InfoRow(stringResource(R.string.skill_detail_description), it) }
-    state.visibilityLabel?.let { InfoRow(stringResource(R.string.skill_detail_visibility), it) }
+    state.visibilityLabelRes?.let { InfoRow(stringResource(R.string.skill_detail_visibility), stringResource(it)) }
     state.skill?.createdAt?.let { InfoRow(stringResource(R.string.skill_detail_created_at), it) }
 
     state.skill?.takeIf { it.hasDiscoveryMetadata() }?.let { skill ->
@@ -284,7 +284,7 @@ private fun SkillEditForm(state: SkillDetailState) {
                 selected = state.editVisibility == visibility,
                 onClick = { state.eventSink(SkillDetailEvents.EditVisibilityChanged(visibility)) },
                 enabled = !state.isSaving,
-                label = { Text(visibility.displayName()) },
+                label = { Text(stringResource(visibility.displayNameRes())) },
             )
         }
     }

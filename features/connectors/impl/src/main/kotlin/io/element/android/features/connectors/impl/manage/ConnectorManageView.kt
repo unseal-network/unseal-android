@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewParameter
@@ -51,10 +52,12 @@ import coil3.compose.AsyncImagePainter
 import coil3.compose.SubcomposeAsyncImage
 import coil3.compose.SubcomposeAsyncImageContent
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.connectors.impl.R
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotConnectedAccount
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotConnectedAccountProfile
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
+import io.element.android.libraries.ui.strings.CommonStrings
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 
@@ -71,10 +74,10 @@ fun ConnectorManageView(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("管理 ${state.toolkitName}", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(stringResource(R.string.connectors_manage_title, state.toolkitName), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = { state.eventSink(ConnectorManageEvents.Dismiss) }) {
-                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "返回")
+                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = stringResource(CommonStrings.action_go_back))
                     }
                 },
                 actions = {
@@ -85,7 +88,7 @@ fun ConnectorManageView(
                         if (state.connecting) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                         } else {
-                            Icon(imageVector = CompoundIcons.Plus(), contentDescription = "连接新账户")
+                            Icon(imageVector = CompoundIcons.Plus(), contentDescription = stringResource(R.string.connectors_connect_new_account))
                         }
                     }
                 },
@@ -105,7 +108,7 @@ fun ConnectorManageView(
                 state.accounts.isEmpty() -> {
                     Text(
                         modifier = Modifier.fillMaxWidth().padding(top = 48.dp, start = 16.dp, end = 16.dp),
-                        text = "暂无已连接的账户",
+                        text = stringResource(R.string.connectors_empty_accounts),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -130,24 +133,21 @@ fun ConnectorManageView(
         AlertDialog(
             onDismissRequest = { state.eventSink(ConnectorManageEvents.CancelDisconnect) },
             icon = { Icon(imageVector = CompoundIcons.Error(), contentDescription = null) },
-            title = { Text("确认断开连接") },
+            title = { Text(stringResource(R.string.connectors_disconnect_title)) },
             text = {
-                Text(
-                    "确定要断开此账户的连接吗？助手将无法再使用它。\n\n" +
-                        "使用此连接配置的所有触发器也将被永久删除。",
-                )
+                Text(stringResource(R.string.connectors_disconnect_message))
             },
             confirmButton = {
                 TextButton(
                     enabled = state.disconnectingId == null,
                     onClick = { state.eventSink(ConnectorManageEvents.Disconnect(accountId)) },
                 ) {
-                    Text("断开连接", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.connectors_disconnect), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { state.eventSink(ConnectorManageEvents.CancelDisconnect) }) {
-                    Text("取消")
+                    Text(stringResource(CommonStrings.action_cancel))
                 }
             },
         )
@@ -180,7 +180,7 @@ private fun ErrorBanner(error: String, onDismiss: () -> Unit) {
         IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
             Icon(
                 imageVector = CompoundIcons.Close(),
-                contentDescription = "关闭",
+                contentDescription = stringResource(CommonStrings.action_close),
                 tint = MaterialTheme.colorScheme.onErrorContainer,
                 modifier = Modifier.size(16.dp),
             )
@@ -214,7 +214,11 @@ private fun ConnectedAccountRow(state: ConnectorManageState, account: ChatbotCon
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = if (account.status == "ACTIVE") "已连接" else "已连接 · ${account.status}",
+                text = if (account.status == "ACTIVE") {
+                    stringResource(R.string.connectors_connected)
+                } else {
+                    stringResource(R.string.connectors_connected_status, account.status)
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = if (account.status == "ACTIVE") {
                     MaterialTheme.colorScheme.onSurfaceVariant
@@ -236,7 +240,7 @@ private fun ConnectedAccountRow(state: ConnectorManageState, account: ChatbotCon
                     modifier = Modifier.size(16.dp),
                 )
                 Spacer(Modifier.size(6.dp))
-                Text("断开连接", color = MaterialTheme.colorScheme.error)
+                Text(stringResource(R.string.connectors_disconnect), color = MaterialTheme.colorScheme.error)
             }
         }
     }

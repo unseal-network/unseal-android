@@ -53,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewParameter
@@ -63,11 +64,13 @@ import coil3.compose.AsyncImagePainter
 import coil3.compose.SubcomposeAsyncImage
 import coil3.compose.SubcomposeAsyncImageContent
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.connectors.impl.R
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotToolkit
 import io.element.android.libraries.chatbot.api.model.connectors.ChatbotToolkitCategory
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import io.element.android.libraries.designsystem.utils.OnLifecycleEvent
+import io.element.android.libraries.ui.strings.CommonStrings
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -99,10 +102,10 @@ fun ConnectorListView(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("外部集成") },
+                title = { Text(stringResource(R.string.connectors_title)) },
                 navigationIcon = {
                     IconButton(onClick = { state.eventSink(ConnectorListEvents.Dismiss) }) {
-                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "返回")
+                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = stringResource(CommonStrings.action_go_back))
                     }
                 },
             )
@@ -115,12 +118,12 @@ fun ConnectorListView(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 value = state.searchQuery,
                 onValueChange = { state.eventSink(ConnectorListEvents.SearchChanged(it)) },
-                placeholder = { Text("搜索工具包（至少 3 个字符）…") },
+                placeholder = { Text(stringResource(R.string.connectors_search_placeholder)) },
                 leadingIcon = { Icon(imageVector = CompoundIcons.Search(), contentDescription = null) },
                 trailingIcon = if (state.searchQuery.isNotEmpty()) {
                     {
                         IconButton(onClick = { state.eventSink(ConnectorListEvents.SearchChanged("")) }) {
-                            Icon(imageVector = CompoundIcons.Close(), contentDescription = "清除")
+                            Icon(imageVector = CompoundIcons.Close(), contentDescription = stringResource(CommonStrings.action_clear))
                         }
                     }
                 } else {
@@ -153,7 +156,7 @@ fun ConnectorListView(
                 state.toolkits.isEmpty() -> {
                     Text(
                         modifier = Modifier.fillMaxWidth().padding(top = 48.dp, start = 16.dp, end = 16.dp),
-                        text = "未找到工具包",
+                        text = stringResource(R.string.connectors_empty_toolkits),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -211,7 +214,7 @@ private fun CategoryFilterRow(
             FilterChip(
                 selected = selectedCategoryId.isEmpty(),
                 onClick = { onSelect("") },
-                label = { Text("全部") },
+                label = { Text(stringResource(R.string.connectors_filter_all)) },
             )
         }
         items(categories, key = { it.id }) { category ->
@@ -250,7 +253,7 @@ private fun SuccessBanner(message: String, onDismiss: () -> Unit) {
         IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
             Icon(
                 imageVector = CompoundIcons.Close(),
-                contentDescription = "关闭",
+                contentDescription = stringResource(CommonStrings.action_close),
                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
                 modifier = Modifier.size(16.dp),
             )
@@ -284,7 +287,7 @@ private fun ErrorBanner(error: String, onDismiss: () -> Unit) {
         IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
             Icon(
                 imageVector = CompoundIcons.Close(),
-                contentDescription = "关闭",
+                contentDescription = stringResource(CommonStrings.action_close),
                 tint = MaterialTheme.colorScheme.onErrorContainer,
                 modifier = Modifier.size(16.dp),
             )
@@ -329,7 +332,7 @@ private fun ToolkitRow(state: ConnectorListState, toolkit: ChatbotToolkit) {
             OutlinedButton(onClick = { state.eventSink(ConnectorListEvents.Manage(toolkit)) }) {
                 Icon(imageVector = CompoundIcons.Settings(), contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.size(6.dp))
-                Text("管理")
+                Text(stringResource(R.string.connectors_manage))
             }
         } else {
             val connecting = state.connectingSlug == toolkit.slug
@@ -343,7 +346,7 @@ private fun ToolkitRow(state: ConnectorListState, toolkit: ChatbotToolkit) {
                     Icon(imageVector = CompoundIcons.Link(), contentDescription = null, modifier = Modifier.size(16.dp))
                 }
                 Spacer(Modifier.size(6.dp))
-                Text(if (connecting) "连接中…" else "连接")
+                Text(if (connecting) stringResource(R.string.connectors_connecting) else stringResource(R.string.connectors_connect))
             }
         }
     }
@@ -434,7 +437,7 @@ internal class ConnectorListStateProvider : PreviewParameterProvider<ConnectorLi
             aConnectorListState(isLoading = true, toolkits = persistentListOf()),
             aConnectorListState(toolkits = persistentListOf()),
             aConnectorListState(error = "Failed to load connectors"),
-            aConnectorListState(successMessage = "Slack 已连接"),
+            aConnectorListState(successMessage = "Slack connected"),
         )
 }
 

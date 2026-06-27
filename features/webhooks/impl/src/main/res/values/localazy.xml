@@ -38,4 +38,13 @@
   <string name="webhook_trigger_edit_select_source">"Select source"</string>
   <string name="webhook_trigger_edit_search_source">"Search sources…"</string>
   <string name="webhook_trigger_edit_connect_now">"Connect now"</string>
+  <string name="webhook_trigger_edit_more_count">"+%1$d more"</string>
+  <string name="webhook_triggers_error_load">"Failed to load triggers"</string>
+  <string name="webhook_triggers_error_update_status">"Failed to update trigger status"</string>
+  <string name="webhook_triggers_error_delete">"Failed to delete trigger"</string>
+  <string name="webhook_trigger_edit_error_load_agents">"Failed to load room agents"</string>
+  <string name="webhook_trigger_edit_error_load_event_types">"Failed to load event types"</string>
+  <string name="webhook_trigger_edit_error_generate_draft">"Failed to generate trigger draft"</string>
+  <string name="webhook_trigger_edit_error_connect">"Connection failed. Please try again."</string>
+  <string name="webhook_trigger_edit_error_save">"Failed to save trigger"</string>
 </resources>

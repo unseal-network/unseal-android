@@ -17,7 +17,4 @@ data class VaultEditState(
     val isSaving: Boolean,
     val error: String?,
     val eventSink: (VaultEditEvents) -> Unit,
-) {
-    val title: String = if (isEditingExisting) "编辑条目" else "创建条目"
-    val saveButtonLabel: String = if (isEditingExisting) "保存修改" else "立即创建"
-}
+)

@@ -82,7 +82,7 @@ private fun ChatbotChannelPlatform.brandColor(): Color = when (this) {
 private fun ChatbotChannelPlatform.displayName(): String = when (this) {
     ChatbotChannelPlatform.Telegram -> "Telegram"
     ChatbotChannelPlatform.WeCom -> "WeCom"
-    ChatbotChannelPlatform.Feishu -> "飞书"
+    ChatbotChannelPlatform.Feishu -> "Feishu"
     ChatbotChannelPlatform.Discord -> "Discord"
 }
 
@@ -376,7 +376,7 @@ private fun CallbackPanel(sheet: ChannelSheetState, eventSink: (AgentChannelsEve
     ) {
         Icon(CompoundIcons.Link(), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
         Text(
-            "Paste these three values into the WeCom admin console (智能机器人 → 接收消息), then verify there. Updating credentials keeps the same Callback URL.",
+            "Paste these three values into the WeCom admin console (Bot > Receive messages), then verify there. Updating credentials keeps the same Callback URL.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSecondaryContainer,
         )

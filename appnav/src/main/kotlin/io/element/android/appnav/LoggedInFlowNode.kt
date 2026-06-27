@@ -75,6 +75,8 @@ import io.element.android.libraries.architecture.waitForChildAttached
 import io.element.android.libraries.architecture.waitForNavTargetAttached
 import io.element.android.libraries.core.meta.BuildMeta
 import io.element.android.libraries.designsystem.theme.ElementThemeApp
+import io.element.android.libraries.designsystem.utils.ForceOrientationInMobileDevices
+import io.element.android.libraries.designsystem.utils.ScreenOrientation
 import io.element.android.libraries.designsystem.utils.snackbar.SnackbarDispatcher
 import io.element.android.libraries.di.SessionScope
 import io.element.android.libraries.di.annotations.SessionCoroutineScope
@@ -686,6 +688,8 @@ class LoggedInFlowNode(
 
     @Composable
     override fun View(modifier: Modifier) {
+        ForceOrientationInMobileDevices(orientation = ScreenOrientation.PORTRAIT)
+
         val colors by remember {
             enterpriseService.semanticColorsFlow(sessionId = matrixClient.sessionId)
         }.collectAsState(SemanticColorsLightDark.default)

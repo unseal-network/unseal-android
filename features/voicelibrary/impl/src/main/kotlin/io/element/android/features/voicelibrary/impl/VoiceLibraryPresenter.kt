@@ -13,9 +13,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import io.element.android.features.voicelibrary.impl.R
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotCreateVoiceProfileRequest
@@ -70,6 +72,13 @@ class VoiceLibraryPresenter(
         var loadingPreviewId by remember { mutableStateOf<String?>(null) }
         var remotePreviewId by remember { mutableStateOf<String?>(null) }
         var error by remember { mutableStateOf<String?>(null) }
+        val loadError = stringResource(R.string.voice_library_error_load)
+        val loadPublicError = stringResource(R.string.voice_library_error_load_public)
+        val saveError = stringResource(R.string.voice_library_error_save)
+        val deleteError = stringResource(R.string.voice_library_error_delete)
+        val shareError = stringResource(R.string.voice_library_error_share)
+        val importError = stringResource(R.string.voice_library_error_import)
+        val uploadError = stringResource(R.string.voice_library_error_upload)
 
         suspend fun api() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
 
@@ -86,7 +95,7 @@ class VoiceLibraryPresenter(
                     profiles = it
                     error = null
                 }
-                .onFailure { error = errorMessage(it, "加载语音失败") }
+                .onFailure { error = errorMessage(it, loadError) }
             isLoading = false
         }
 
@@ -98,7 +107,7 @@ class VoiceLibraryPresenter(
                     catalog = it
                     error = null
                 }
-                .onFailure { error = errorMessage(it, "加载公开语音失败") }
+                .onFailure { error = errorMessage(it, loadPublicError) }
             isLoading = false
         }
 
@@ -122,7 +131,7 @@ class VoiceLibraryPresenter(
                     error = null
                     loadProfiles()
                 }
-                .onFailure { error = errorMessage(it, "保存语音失败") }
+                .onFailure { error = errorMessage(it, saveError) }
             busyId = null
         }
 
@@ -141,7 +150,7 @@ class VoiceLibraryPresenter(
                     }
                     error = null
                 }
-                .onFailure { error = errorMessage(it, "删除语音失败") }
+                .onFailure { error = errorMessage(it, deleteError) }
             busyId = null
         }
 
@@ -153,7 +162,7 @@ class VoiceLibraryPresenter(
                     lastShareId = it.id
                     error = null
                 }
-                .onFailure { error = errorMessage(it, "创建分享链接失败") }
+                .onFailure { error = errorMessage(it, shareError) }
             busyId = null
         }
 
@@ -167,7 +176,7 @@ class VoiceLibraryPresenter(
                     error = null
                     loadProfiles()
                 }
-                .onFailure { error = errorMessage(it, "导入分享语音失败") }
+                .onFailure { error = errorMessage(it, importError) }
             busyId = null
         }
 
@@ -214,7 +223,7 @@ class VoiceLibraryPresenter(
                     error = null
                     loadProfiles()
                 }
-                .onFailure { error = errorMessage(it, "上传录音失败") }
+                .onFailure { error = errorMessage(it, uploadError) }
             busyId = null
         }
 

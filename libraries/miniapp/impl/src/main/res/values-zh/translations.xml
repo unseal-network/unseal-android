@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="miniapp_action_close">"关闭"</string>
+  <string name="miniapp_action_retry">"重试"</string>
+</resources>

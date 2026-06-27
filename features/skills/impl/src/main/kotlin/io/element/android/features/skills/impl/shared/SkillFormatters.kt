@@ -7,6 +7,8 @@
 
 package io.element.android.features.skills.impl.shared
 
+import androidx.annotation.StringRes
+import io.element.android.features.skills.impl.R
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import java.time.Instant
@@ -23,10 +25,11 @@ fun ChatbotUserSkill.matchesSkillQuery(query: String): Boolean {
         .contains(trimmed, ignoreCase = true)
 }
 
-fun ChatbotSkillVisibility.displayName(): String = when (this) {
-    ChatbotSkillVisibility.Private -> "私密"
-    ChatbotSkillVisibility.Public -> "公开"
-    ChatbotSkillVisibility.Shared -> "共享"
+@StringRes
+fun ChatbotSkillVisibility.displayNameRes(): Int = when (this) {
+    ChatbotSkillVisibility.Private -> R.string.skill_visibility_private
+    ChatbotSkillVisibility.Public -> R.string.skill_visibility_public
+    ChatbotSkillVisibility.Shared -> R.string.skill_visibility_shared
 }
 
 fun ChatbotSkillVisibility.apiValue(): String = when (this) {

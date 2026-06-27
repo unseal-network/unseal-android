@@ -13,10 +13,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.features.webhooks.api.WebhookTriggerEditMode
+import io.element.android.features.webhooks.impl.R
 import io.element.android.features.webhooks.impl.shared.loadWebhookRoomAgents
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
@@ -67,6 +69,11 @@ class WebhookTriggerEditPresenter(
         var isSaving by remember { mutableStateOf(false) }
         var isDrafting by remember { mutableStateOf(false) }
         var error by remember { mutableStateOf<String?>(null) }
+        val loadAgentsError = stringResource(R.string.webhook_trigger_edit_error_load_agents)
+        val loadEventTypesError = stringResource(R.string.webhook_trigger_edit_error_load_event_types)
+        val generateDraftError = stringResource(R.string.webhook_trigger_edit_error_generate_draft)
+        val connectError = stringResource(R.string.webhook_trigger_edit_error_connect)
+        val saveError = stringResource(R.string.webhook_trigger_edit_error_save)
 
         suspend fun api() = chatbotApiServiceFactory.createForUnsealApi(matrixClient)
 
@@ -115,7 +122,7 @@ class WebhookTriggerEditPresenter(
                         selectedAgentId = selectedAfterLoad
                     }
                 }
-                .onFailure { error = errorMessage(it, "加载房间助手失败") }
+                .onFailure { error = errorMessage(it, loadAgentsError) }
         }
 
         fun selectSource(source: ChatbotWebhookEventSource) {
@@ -166,7 +173,7 @@ class WebhookTriggerEditPresenter(
                     error = null
                 }
                 .onFailure {
-                    error = errorMessage(it, "加载事件类型失败")
+                    error = errorMessage(it, loadEventTypesError)
                 }
             availableRooms = matrixClient.roomListService.allRooms.summaries.firstOrNull().orEmpty()
             seedFromMode(loadedSources)
@@ -193,7 +200,7 @@ class WebhookTriggerEditPresenter(
                     error = null
                 }
                 .onFailure {
-                    error = errorMessage(it, "生成触发器草稿失败")
+                    error = errorMessage(it, generateDraftError)
                 }
             isDrafting = false
         }
@@ -207,7 +214,7 @@ class WebhookTriggerEditPresenter(
                     error = null
                 }
                 .onFailure {
-                    error = errorMessage(it, "连接失败，请重试。")
+                    error = errorMessage(it, connectError)
                 }
         }
 
@@ -253,7 +260,7 @@ class WebhookTriggerEditPresenter(
                             error = null
                             navigator.onSaved(it)
                         }
-                        .onFailure { error = errorMessage(it, "保存触发器失败") }
+                        .onFailure { error = errorMessage(it, saveError) }
                 }
                 is WebhookTriggerEditMode.Edit -> {
                     val request = ChatbotUpdateWebhookTriggerRequest(
@@ -267,7 +274,7 @@ class WebhookTriggerEditPresenter(
                             error = null
                             navigator.onSaved(it)
                         }
-                        .onFailure { error = errorMessage(it, "保存触发器失败") }
+                        .onFailure { error = errorMessage(it, saveError) }
                 }
             }
             isSaving = false

@@ -318,7 +318,7 @@ private fun ChannelChip(channel: ChatbotChannelSummary, onClick: () -> Unit) {
     val platformName = when (channel.platform) {
         ChatbotChannelPlatform.Telegram -> "Telegram"
         ChatbotChannelPlatform.WeCom -> "WeCom"
-        ChatbotChannelPlatform.Feishu -> "飞书"
+        ChatbotChannelPlatform.Feishu -> "Feishu"
         ChatbotChannelPlatform.Discord -> "Discord"
     }
     Row(

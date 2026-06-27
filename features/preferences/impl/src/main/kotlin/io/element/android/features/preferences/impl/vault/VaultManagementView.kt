@@ -407,7 +407,7 @@ private fun aSampleVaultItems() = persistentListOf(
     ChatbotVaultItem(
         id = "1",
         key = "OPENAI_API_KEY",
-        description = "OpenAI 服务密钥",
+        description = "OpenAI service key",
         updatedAt = "2026-01-01T00:00:00Z",
     ),
     ChatbotVaultItem(

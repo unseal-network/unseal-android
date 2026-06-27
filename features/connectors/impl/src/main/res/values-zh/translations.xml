@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="connectors_title">"外部集成"</string>
+  <string name="connectors_search_placeholder">"搜索工具包（至少 3 个字符）…"</string>
+  <string name="connectors_empty_toolkits">"未找到工具包"</string>
+  <string name="connectors_filter_all">"全部"</string>
+  <string name="connectors_manage">"管理"</string>
+  <string name="connectors_connect">"连接"</string>
+  <string name="connectors_connecting">"连接中…"</string>
+  <string name="connectors_connected_success">"%1$s 已连接"</string>
+  <string name="connectors_manage_title">"管理 %1$s"</string>
+  <string name="connectors_connect_new_account">"连接新账户"</string>
+  <string name="connectors_empty_accounts">"暂无已连接的账户"</string>
+  <string name="connectors_disconnect_title">"确认断开连接"</string>
+  <string name="connectors_disconnect_message">"确定要断开此账户的连接吗？助手将无法再使用它。\n\n使用此连接配置的所有触发器也将被永久删除。"</string>
+  <string name="connectors_disconnect">"断开连接"</string>
+  <string name="connectors_connected">"已连接"</string>
+  <string name="connectors_connected_status">"已连接 · %1$s"</string>
+</resources>

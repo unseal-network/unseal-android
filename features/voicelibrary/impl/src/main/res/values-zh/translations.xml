@@ -35,4 +35,11 @@
   <string name="voice_library_saving">"保存中…"</string>
   <string name="voice_library_preview_voice">"试听语音"</string>
   <string name="voice_library_no_preview">"暂无试听"</string>
+  <string name="voice_library_error_load">"加载语音失败"</string>
+  <string name="voice_library_error_load_public">"加载公开语音失败"</string>
+  <string name="voice_library_error_save">"保存语音失败"</string>
+  <string name="voice_library_error_delete">"删除语音失败"</string>
+  <string name="voice_library_error_share">"创建分享链接失败"</string>
+  <string name="voice_library_error_import">"导入分享语音失败"</string>
+  <string name="voice_library_error_upload">"上传录音失败"</string>
 </resources>

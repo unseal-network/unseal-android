@@ -159,7 +159,7 @@ internal fun <T> CreditPillPicker(
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
     // Compact pills for the right-side range/period selectors (mirrors iOS bodyXS sizing); keeps the
-    // usage-card header on one line so labels like "全部" don't wrap to two lines.
+    // usage-card header on one line so short labels don't wrap to two lines.
     compact: Boolean = false,
 ) {
     Row(

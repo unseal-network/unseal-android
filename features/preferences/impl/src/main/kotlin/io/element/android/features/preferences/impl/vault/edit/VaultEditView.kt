@@ -60,7 +60,15 @@ fun VaultEditView(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(state.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = {
+                    Text(
+                        text = stringResource(
+                            if (state.isEditingExisting) R.string.screen_vault_edit_title_edit else R.string.screen_vault_edit_title_create,
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = stringResource(CommonStrings.action_go_back))
@@ -161,7 +169,7 @@ fun VaultEditView(
                 if (state.isSaving) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp))
                 } else {
-                    Text(state.saveButtonLabel)
+                    Text(stringResource(if (state.isEditingExisting) R.string.screen_vault_edit_save_changes else R.string.screen_vault_edit_create_now))
                 }
             }
         }
@@ -183,7 +191,7 @@ internal class VaultEditStateProvider : PreviewParameterProvider<VaultEditState>
         get() = sequenceOf(
             aVaultEditState(),
             aVaultEditState(isEditingExisting = true, isLoadingValue = true),
-            aVaultEditState(isEditingExisting = true, isLoadingValue = false, error = "Value不能为空。"),
+            aVaultEditState(isEditingExisting = true, isLoadingValue = false, error = "Value cannot be empty."),
         )
 }
 
@@ -195,7 +203,7 @@ private fun aVaultEditState(
     isEditingExisting = isEditingExisting,
     key = if (isEditingExisting) "OPENAI_API_KEY" else "",
     value = if (isEditingExisting && !isLoadingValue) "sk-1234567890" else "",
-    description = if (isEditingExisting) "OpenAI 服务密钥" else "",
+    description = if (isEditingExisting) "OpenAI service key" else "",
     isValueVisible = false,
     isLoadingValue = isLoadingValue,
     isSaving = false,

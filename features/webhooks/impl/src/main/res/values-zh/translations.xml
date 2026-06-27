@@ -38,4 +38,13 @@
   <string name="webhook_trigger_edit_select_source">"选择来源"</string>
   <string name="webhook_trigger_edit_search_source">"搜索来源…"</string>
   <string name="webhook_trigger_edit_connect_now">"立即连接"</string>
+  <string name="webhook_trigger_edit_more_count">"+%1$d 更多"</string>
+  <string name="webhook_triggers_error_load">"加载触发器失败"</string>
+  <string name="webhook_triggers_error_update_status">"更新触发器状态失败"</string>
+  <string name="webhook_triggers_error_delete">"删除触发器失败"</string>
+  <string name="webhook_trigger_edit_error_load_agents">"加载房间助手失败"</string>
+  <string name="webhook_trigger_edit_error_load_event_types">"加载事件类型失败"</string>
+  <string name="webhook_trigger_edit_error_generate_draft">"生成触发器草稿失败"</string>
+  <string name="webhook_trigger_edit_error_connect">"连接失败，请重试。"</string>
+  <string name="webhook_trigger_edit_error_save">"保存触发器失败"</string>
 </resources>

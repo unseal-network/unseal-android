@@ -35,4 +35,11 @@
   <string name="voice_library_saving">"Saving…"</string>
   <string name="voice_library_preview_voice">"Preview voice"</string>
   <string name="voice_library_no_preview">"No preview"</string>
+  <string name="voice_library_error_load">"Failed to load voices"</string>
+  <string name="voice_library_error_load_public">"Failed to load public voices"</string>
+  <string name="voice_library_error_save">"Failed to save voice"</string>
+  <string name="voice_library_error_delete">"Failed to delete voice"</string>
+  <string name="voice_library_error_share">"Failed to create share link"</string>
+  <string name="voice_library_error_import">"Failed to import shared voice"</string>
+  <string name="voice_library_error_upload">"Failed to upload recording"</string>
 </resources>

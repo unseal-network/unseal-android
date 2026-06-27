@@ -13,9 +13,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import io.element.android.features.skills.impl.R
 import io.element.android.features.skills.impl.shared.apiValue
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.chatbot.api.ChatbotApiError
@@ -56,6 +58,12 @@ class SkillCreatePresenter(
         var editingFileId by remember { mutableStateOf<String?>(null) }
         var pendingFileConflict by remember { mutableStateOf<SkillCreateFileConflict?>(null) }
         var error by remember { mutableStateOf<String?>(null) }
+        val emptyNameError = stringResource(R.string.skill_create_error_empty_name)
+        val invalidTextFileError = stringResource(R.string.skill_create_error_invalid_text_file)
+        val invalidZipError = stringResource(R.string.skill_create_error_invalid_zip)
+        val textFileTooLargeError = stringResource(R.string.skill_create_error_text_file_too_large)
+        val unsupportedExtensionTemplate = stringResource(R.string.skill_create_error_unsupported_extension)
+        val createFailedError = stringResource(R.string.skill_create_error_create_failed)
 
         suspend fun api(): ChatbotApiService = chatbotApiServiceFactory.createForHomeserver(matrixClient)
 
@@ -76,14 +84,20 @@ class SkillCreatePresenter(
         }
 
         fun handlePickedFile(fileName: String, bytes: ByteArray) {
-            val validationError = validateTextFileImport(fileName, bytes)
+            val validationError = validateTextFileImport(
+                fileName = fileName,
+                bytes = bytes,
+                textFileTooLargeError = textFileTooLargeError,
+                invalidTextFileError = invalidTextFileError,
+                unsupportedExtensionTemplate = unsupportedExtensionTemplate,
+            )
             if (validationError != null) {
                 error = validationError
                 return
             }
             val content = runCatching { bytes.toString(Charsets.UTF_8) }.getOrNull()
             if (content == null || !isValidUtf8(bytes)) {
-                error = ERROR_INVALID_TEXT_FILE
+                error = invalidTextFileError
                 return
             }
             val filePath = normalizedPath(fileName)
@@ -158,11 +172,11 @@ class SkillCreatePresenter(
 
         fun handlePickedZip(fileName: String, bytes: ByteArray) {
             if (!isZipArchive(fileName, bytes)) {
-                error = ERROR_INVALID_ZIP
+                error = invalidZipError
                 return
             }
             val extracted = runCatching { extractZip(bytes) }.getOrElse {
-                error = failureMessage(it, ERROR_INVALID_ZIP)
+                error = failureMessage(it, invalidZipError)
                 return
             }
             var skillMdContent: String? = null
@@ -184,7 +198,7 @@ class SkillCreatePresenter(
         fun submit() {
             val trimmedName = name.trim()
             if (trimmedName.isEmpty()) {
-                error = ERROR_EMPTY_NAME
+                error = emptyNameError
                 return
             }
             coroutineScope.launch {
@@ -210,11 +224,11 @@ class SkillCreatePresenter(
                         }
                         .onFailure {
                             phase = SkillCreatePhase.Editing
-                            error = failureMessage(it, ERROR_CREATE_FAILED)
+                            error = failureMessage(it, createFailedError)
                         }
                 } catch (t: Throwable) {
                     phase = SkillCreatePhase.Editing
-                    error = failureMessage(t, ERROR_CREATE_FAILED)
+                    error = failureMessage(t, createFailedError)
                 }
             }
         }
@@ -337,14 +351,20 @@ class SkillCreatePresenter(
         return files.sortedBy { it.path }
     }
 
-    private fun validateTextFileImport(fileName: String, bytes: ByteArray): String? {
-        if (bytes.size > MAX_TEXT_FILE_BYTES) return ERROR_TEXT_FILE_TOO_LARGE
-        if (bytes.contains(0.toByte())) return ERROR_INVALID_TEXT_FILE
+    private fun validateTextFileImport(
+        fileName: String,
+        bytes: ByteArray,
+        textFileTooLargeError: String,
+        invalidTextFileError: String,
+        unsupportedExtensionTemplate: String,
+    ): String? {
+        if (bytes.size > MAX_TEXT_FILE_BYTES) return textFileTooLargeError
+        if (bytes.contains(0.toByte())) return invalidTextFileError
         val ext = fileName.substringAfterLast('.', "").lowercase()
         if (ext.isNotEmpty() && ext !in ALLOWED_TEXT_EXTENSIONS) {
-            return ERROR_UNSUPPORTED_EXTENSION_PREFIX + ext + ERROR_UNSUPPORTED_EXTENSION_SUFFIX
+            return unsupportedExtensionTemplate.format(ext)
         }
-        if (!isValidUtf8(bytes)) return ERROR_INVALID_TEXT_FILE
+        if (!isValidUtf8(bytes)) return invalidTextFileError
         return null
     }
 
@@ -433,14 +453,5 @@ class SkillCreatePresenter(
             "py", "js", "ts", "tsx", "jsx", "sh", "bash", "zsh",
             "swift", "xml", "html", "htm", "css", "toml", "ini", "cfg", "env",
         )
-
-        // zh-CN strings sourced from iOS zh-Hans Localizable.strings.
-        const val ERROR_EMPTY_NAME = "名称不能为空。"
-        const val ERROR_INVALID_TEXT_FILE = "仅支持 UTF-8 文本文件。"
-        const val ERROR_INVALID_ZIP = "请选择 .zip 压缩包文件。"
-        const val ERROR_TEXT_FILE_TOO_LARGE = "文件过大（最大 2 MB）。"
-        const val ERROR_UNSUPPORTED_EXTENSION_PREFIX = "不支持 ."
-        const val ERROR_UNSUPPORTED_EXTENSION_SUFFIX = " 格式。请使用 .md、.txt、.json 等 UTF-8 文本文件。"
-        const val ERROR_CREATE_FAILED = "创建技能失败。"
     }
 }

@@ -534,7 +534,7 @@ private fun EventTypeRow(
                     val remaining = names.size - MAX_VISIBLE_EVENT_CHIPS
                     if (remaining > 0) {
                         Text(
-                            text = "+$remaining 更多",
+                            text = stringResource(R.string.webhook_trigger_edit_more_count, remaining),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.align(Alignment.CenterVertically),
