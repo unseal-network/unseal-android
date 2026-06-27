@@ -67,6 +67,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -76,12 +77,15 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.voicelibrary.impl.R
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotProviderVoice
 import io.element.android.libraries.chatbot.api.model.voices.ChatbotVoiceProfile
 import io.element.android.libraries.designsystem.components.media.WaveformPlaybackView
+import io.element.android.libraries.designsystem.components.management.ManagementCreateFloatingActionButton
 import io.element.android.libraries.designsystem.components.management.ManagementListRow
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
+import io.element.android.libraries.ui.strings.CommonStrings
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -143,13 +147,21 @@ fun VoiceLibraryView(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("语音库") },
+                title = { Text(stringResource(R.string.voice_library_title)) },
                 actions = {
                     TextButton(onClick = { state.eventSink(VoiceLibraryEvents.Dismiss) }) {
-                        Text("完成")
+                        Text(stringResource(CommonStrings.action_done))
                     }
                 },
             )
+        },
+        floatingActionButton = {
+            if (state.selectedTab == VoiceLibraryTab.Mine) {
+                ManagementCreateFloatingActionButton(
+                    text = stringResource(R.string.voice_library_record_voice),
+                    onClick = { state.eventSink(VoiceLibraryEvents.ShowCreateVoice) },
+                )
+            }
         },
     ) { padding ->
         Column(
@@ -173,7 +185,11 @@ fun VoiceLibraryView(
                 onValueChange = { state.eventSink(VoiceLibraryEvents.SearchChanged(it)) },
                 placeholder = {
                     Text(
-                        if (state.selectedTab == VoiceLibraryTab.Mine) "搜索我的语音" else "搜索公开语音"
+                        if (state.selectedTab == VoiceLibraryTab.Mine) {
+                            stringResource(R.string.voice_library_search_mine)
+                        } else {
+                            stringResource(R.string.voice_library_search_public)
+                        }
                     )
                 },
                 leadingIcon = { Icon(CompoundIcons.Search(), contentDescription = null) },
@@ -204,7 +220,10 @@ private fun TabPicker(
     onSelect: (VoiceLibraryTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val tabs = listOf(VoiceLibraryTab.Mine to "我的", VoiceLibraryTab.Public to "公开")
+    val tabs = listOf(
+        VoiceLibraryTab.Mine to stringResource(R.string.voice_library_tab_mine),
+        VoiceLibraryTab.Public to stringResource(R.string.voice_library_tab_public),
+    )
     SingleChoiceSegmentedButtonRow(modifier = modifier) {
         tabs.forEachIndexed { index, (tab, label) ->
             SegmentedButton(
@@ -229,7 +248,7 @@ private fun Notices(state: VoiceLibraryState) {
     }
     state.lastShareId?.let { shareId ->
         NoticeCard(
-            text = "分享 ID 已复制：$shareId",
+            text = stringResource(R.string.voice_library_share_id_copied, shareId),
             container = MaterialTheme.colorScheme.tertiaryContainer,
             content = MaterialTheme.colorScheme.onTertiaryContainer,
             onDismiss = { state.eventSink(VoiceLibraryEvents.ClearShareId) },
@@ -270,7 +289,7 @@ private fun NoticeCard(
                 color = content,
             )
             IconButton(onClick = onDismiss) {
-                Icon(CompoundIcons.Close(), contentDescription = "关闭", tint = content)
+                Icon(CompoundIcons.Close(), contentDescription = stringResource(CommonStrings.action_close), tint = content)
             }
         }
     }
@@ -291,18 +310,17 @@ private fun LoadingState() {
 private fun MyVoices(state: VoiceLibraryState) {
     val profiles = state.filteredProfiles
     Column(modifier = Modifier.fillMaxSize()) {
-        CreateVoiceRow(state)
         ImportRow(state)
         if (profiles.isEmpty()) {
-            EmptyState("暂无保存的语音")
+            EmptyState(stringResource(R.string.voice_library_empty_mine))
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 item {
-                    SectionHeader(title = "我的语音", trailing = null)
+                    SectionHeader(title = stringResource(R.string.voice_library_mine_section), trailing = null)
                 }
                 items(profiles, key = { it.id }) { profile ->
                     ProfileRow(state, profile)
@@ -310,35 +328,6 @@ private fun MyVoices(state: VoiceLibraryState) {
             }
         }
     }
-}
-
-@Composable
-private fun CreateVoiceRow(state: VoiceLibraryState) {
-    ManagementListRow(
-        modifier = Modifier
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        title = "创建语音克隆",
-        description = "录制一段样本并上传到语音库",
-        leadingContent = {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(12.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = CompoundIcons.MicOn(),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
-            }
-        },
-        trailingContent = {
-            FilledTonalButton(onClick = { state.eventSink(VoiceLibraryEvents.ShowCreateVoice) }) {
-                Text("录制")
-            }
-        },
-    )
 }
 
 @Composable
@@ -354,14 +343,14 @@ private fun ImportRow(state: VoiceLibraryState) {
             modifier = Modifier.weight(1f),
             value = state.importShareId,
             onValueChange = { state.eventSink(VoiceLibraryEvents.ImportShareChanged(it)) },
-            label = { Text("导入分享 ID") },
+            label = { Text(stringResource(R.string.voice_library_import_share_id)) },
             singleLine = true,
         )
         Button(
             enabled = state.busyId != "import" && state.importShareId.isNotBlank(),
             onClick = { state.eventSink(VoiceLibraryEvents.ImportShare) },
         ) {
-            Text(if (state.busyId == "import") "导入中…" else "导入")
+            Text(if (state.busyId == "import") stringResource(R.string.voice_library_importing) else stringResource(R.string.voice_library_import))
         }
     }
 }
@@ -450,14 +439,14 @@ private fun CreateVoiceDialog(
             clearRecordedSample()
             state.eventSink(VoiceLibraryEvents.DismissCreateVoice)
         },
-        title = { Text("创建语音") },
+        title = { Text(stringResource(R.string.voice_library_create_voice)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = state.recordingName,
                     onValueChange = { state.eventSink(VoiceLibraryEvents.RecordingNameChanged(it)) },
-                    label = { Text("语音名称") },
+                    label = { Text(stringResource(R.string.voice_library_voice_name)) },
                     singleLine = true,
                     enabled = state.busyId != VoiceLibraryBusyIds.RecordingUpload,
                 )
@@ -474,7 +463,7 @@ private fun CreateVoiceDialog(
                     ) {
                         if (state.isStartingRecording) {
                             CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp)
-                            Text("正在启动麦克风…", style = MaterialTheme.typography.bodyMedium)
+                            Text(stringResource(R.string.voice_library_starting_microphone), style = MaterialTheme.typography.bodyMedium)
                         } else {
                             Icon(
                                 imageVector = when (state.recordingState) {
@@ -492,9 +481,9 @@ private fun CreateVoiceDialog(
                             )
                             Text(
                                 text = when (state.recordingState) {
-                                    VoiceLibraryRecordingState.Idle -> "点击开始录音"
-                                    VoiceLibraryRecordingState.Recording -> "录音中，完成后点击停止"
-                                    VoiceLibraryRecordingState.Recorded -> "录音已准备好，可以上传"
+                                    VoiceLibraryRecordingState.Idle -> stringResource(R.string.voice_library_recording_idle)
+                                    VoiceLibraryRecordingState.Recording -> stringResource(R.string.voice_library_recording_recording)
+                                    VoiceLibraryRecordingState.Recorded -> stringResource(R.string.voice_library_recording_ready)
                                 },
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -533,10 +522,10 @@ private fun CreateVoiceDialog(
                     enabled = !state.isStartingRecording,
                     onClick = ::requestStartRecording,
                 ) {
-                    Text(if (state.isStartingRecording) "启动中…" else "开始录音")
+                    Text(if (state.isStartingRecording) stringResource(R.string.voice_library_starting) else stringResource(R.string.voice_library_start_recording))
                 }
                 VoiceLibraryRecordingState.Recording -> Button(onClick = ::stopRecording) {
-                    Text("停止")
+                    Text(stringResource(R.string.voice_library_stop))
                 }
                 VoiceLibraryRecordingState.Recorded -> Button(
                     enabled = state.canUploadRecording,
@@ -545,7 +534,7 @@ private fun CreateVoiceDialog(
                         state.eventSink(VoiceLibraryEvents.UploadCurrentRecording)
                     },
                 ) {
-                    Text(if (state.busyId == VoiceLibraryBusyIds.RecordingUpload) "上传中…" else "上传")
+                    Text(if (state.busyId == VoiceLibraryBusyIds.RecordingUpload) stringResource(R.string.voice_library_uploading) else stringResource(R.string.voice_library_upload))
                 }
             }
         },
@@ -557,7 +546,7 @@ private fun CreateVoiceDialog(
                         clearRecordedSample()
                         state.eventSink(VoiceLibraryEvents.DiscardRecording)
                     }) {
-                        Text("重录")
+                        Text(stringResource(R.string.voice_library_record_again))
                     }
                 }
                 TextButton(onClick = {
@@ -565,7 +554,7 @@ private fun CreateVoiceDialog(
                     clearRecordedSample()
                     state.eventSink(VoiceLibraryEvents.DismissCreateVoice)
                 }) {
-                    Text("取消")
+                    Text(stringResource(CommonStrings.action_cancel))
                 }
             }
         },
@@ -600,7 +589,11 @@ private fun RecordingWaveformPreview(
                 ) {
                     Icon(
                         imageVector = if (state.isRecordingPreviewPlaying) CompoundIcons.Pause() else CompoundIcons.Play(),
-                        contentDescription = if (state.isRecordingPreviewPlaying) "停止试听" else "试听录音",
+                        contentDescription = if (state.isRecordingPreviewPlaying) {
+                            stringResource(R.string.voice_library_stop_preview)
+                        } else {
+                            stringResource(R.string.voice_library_preview_recording)
+                        },
                         tint = if (isInteractive) ElementTheme.colors.iconSecondary else ElementTheme.colors.iconDisabled,
                     )
                 }
@@ -628,7 +621,7 @@ private fun RecordingWaveformPreview(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
-                    text = "Recording",
+                    text = stringResource(R.string.voice_library_recording_label),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -659,10 +652,10 @@ private fun ProfileRow(state: VoiceLibraryState, profile: ChatbotVoiceProfile) {
                 if (state.deleteConfirmationProfileId == profile.id) {
                     Column(horizontalAlignment = Alignment.End) {
                         TextButton(onClick = { state.eventSink(VoiceLibraryEvents.ConfirmDelete) }) {
-                            Text("删除", color = MaterialTheme.colorScheme.error)
+                            Text(stringResource(CommonStrings.action_delete), color = MaterialTheme.colorScheme.error)
                         }
                         TextButton(onClick = { state.eventSink(VoiceLibraryEvents.CancelDelete) }) {
-                            Text("取消")
+                            Text(stringResource(CommonStrings.action_cancel))
                         }
                     }
                 } else {
@@ -686,11 +679,11 @@ private fun ProfileOverflowMenu(
     var expanded by remember { mutableStateOf(false) }
     Box {
         IconButton(enabled = enabled, onClick = { expanded = true }) {
-            Icon(CompoundIcons.Share(), contentDescription = "语音操作")
+            Icon(CompoundIcons.Share(), contentDescription = stringResource(R.string.voice_library_voice_actions))
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(
-                text = { Text("分享") },
+                text = { Text(stringResource(R.string.voice_library_share)) },
                 leadingIcon = { Icon(CompoundIcons.Share(), contentDescription = null) },
                 onClick = {
                     expanded = false
@@ -698,7 +691,7 @@ private fun ProfileOverflowMenu(
                 },
             )
             DropdownMenuItem(
-                text = { Text("删除", color = MaterialTheme.colorScheme.error) },
+                text = { Text(stringResource(CommonStrings.action_delete), color = MaterialTheme.colorScheme.error) },
                 leadingIcon = {
                     Icon(CompoundIcons.Delete(), contentDescription = null, tint = MaterialTheme.colorScheme.error)
                 },
@@ -715,7 +708,7 @@ private fun ProfileOverflowMenu(
 private fun PublicVoices(state: VoiceLibraryState) {
     val catalog = state.filteredCatalog
     if (catalog.isEmpty()) {
-        EmptyState("暂无公开语音")
+        EmptyState(stringResource(R.string.voice_library_empty_public))
     } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -724,7 +717,7 @@ private fun PublicVoices(state: VoiceLibraryState) {
         ) {
             item {
                 // Trailing count mirrors iOS, which shows the full (unfiltered) catalog size.
-                SectionHeader(title = "公开语音", trailing = state.catalog.size.toString())
+                SectionHeader(title = stringResource(R.string.voice_library_public_section), trailing = state.catalog.size.toString())
             }
             items(catalog, key = { it.providerVoiceId }) { voice ->
                 CatalogRow(state, voice)
@@ -759,9 +752,9 @@ private fun CatalogRow(state: VoiceLibraryState, voice: ChatbotProviderVoice) {
                 ) {
                     Text(
                         when {
-                            isSaved -> "已保存"
-                            isBusy -> "保存中…"
-                            else -> "保存"
+                            isSaved -> stringResource(R.string.voice_library_saved)
+                            isBusy -> stringResource(R.string.voice_library_saving)
+                            else -> stringResource(CommonStrings.action_save)
                         }
                     )
                 }
@@ -792,7 +785,7 @@ private fun PreviewControl(state: VoiceLibraryState, item: VoiceLibraryPreviewIt
                     isPlaying -> CompoundIcons.Pause()
                     else -> CompoundIcons.Play()
                 },
-                contentDescription = if (hasPreview) "试听语音" else "暂无试听",
+                contentDescription = if (hasPreview) stringResource(R.string.voice_library_preview_voice) else stringResource(R.string.voice_library_no_preview),
                 tint = if (hasPreview) {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 } else {
@@ -830,7 +823,7 @@ private fun SavedBadge() {
     ) {
         Text(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-            text = "已保存",
+            text = stringResource(R.string.voice_library_saved),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onTertiaryContainer,
         )

@@ -26,10 +26,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.skills.impl.R
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -111,14 +113,14 @@ fun SkillFilterTokensRow(
                 trailingIcon = {
                     Icon(
                         imageVector = CompoundIcons.Close(),
-                        contentDescription = "移除筛选",
+                        contentDescription = stringResource(R.string.skills_filter_remove),
                         modifier = Modifier.size(16.dp),
                     )
                 },
             )
         }
         TextButton(onClick = onClear) {
-            Text("清除筛选")
+            Text(stringResource(R.string.skills_clear_filters))
         }
     }
 }
@@ -160,8 +162,9 @@ private fun TagLabel(
     )
 }
 
+@Composable
 private fun SkillFilterToken.label(): String = when (this) {
-    is SkillFilterToken.Category -> "分类: $value"
-    is SkillFilterToken.Tag -> "标签: $value"
-    is SkillFilterToken.Source -> "来源: $value"
+    is SkillFilterToken.Category -> stringResource(R.string.skills_filter_token_category, value)
+    is SkillFilterToken.Tag -> stringResource(R.string.skills_filter_token_tag, value)
+    is SkillFilterToken.Source -> stringResource(R.string.skills_filter_token_source, value)
 }

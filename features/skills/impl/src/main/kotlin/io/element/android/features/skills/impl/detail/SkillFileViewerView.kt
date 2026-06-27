@@ -35,10 +35,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.skills.impl.R
+import io.element.android.libraries.ui.strings.CommonStrings
 
 @Composable
 fun SkillFileViewerView(
@@ -62,7 +65,7 @@ fun SkillFileViewerView(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "返回")
+                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = stringResource(CommonStrings.action_go_back))
                     }
                 },
                 actions = {
@@ -71,7 +74,7 @@ fun SkillFileViewerView(
                             CircularProgressIndicator(modifier = Modifier.padding(end = 16.dp))
                         } else {
                             TextButton(onClick = { state.eventSink(SkillFileViewerEvents.Save) }) {
-                                Text("保存")
+                                Text(stringResource(CommonStrings.action_save))
                             }
                         }
                     }
@@ -128,7 +131,7 @@ fun SkillFileViewerView(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                 ) {
-                    Text("已保存")
+                    Text(stringResource(R.string.skill_file_saved))
                 }
             }
         }
@@ -137,11 +140,11 @@ fun SkillFileViewerView(
     state.saveError?.let { error ->
         AlertDialog(
             onDismissRequest = { state.eventSink(SkillFileViewerEvents.ClearSaveError) },
-            title = { Text("保存失败") },
+            title = { Text(stringResource(R.string.skill_file_save_failed)) },
             text = { Text(error) },
             confirmButton = {
                 TextButton(onClick = { state.eventSink(SkillFileViewerEvents.ClearSaveError) }) {
-                    Text("确定")
+                    Text(stringResource(CommonStrings.action_ok))
                 }
             },
         )
@@ -172,7 +175,7 @@ private fun LoadErrorContent(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         OutlinedButton(onClick = onRetry) {
-            Text("重试")
+            Text(stringResource(R.string.skill_file_retry))
         }
     }
 }

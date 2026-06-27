@@ -46,22 +46,24 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.skills.impl.R
 import io.element.android.features.skills.impl.shared.SkillFilterSheet
 import io.element.android.features.skills.impl.shared.SkillFilterState
 import io.element.android.features.skills.impl.shared.SkillFilterTokensRow
-import io.element.android.features.skills.impl.shared.SkillIconTile
 import io.element.android.features.skills.impl.shared.SkillListRow
 import io.element.android.features.skills.impl.shared.deriveSkillFacets
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibility
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
-import io.element.android.libraries.designsystem.components.management.ManagementListRow
+import io.element.android.libraries.designsystem.components.management.ManagementCreateFloatingActionButton
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
+import io.element.android.libraries.ui.strings.CommonStrings
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 
@@ -75,18 +77,33 @@ fun SkillsHomeView(
     LaunchedEffect(Unit) {
         state.eventSink(SkillsHomeEvents.OnAppear)
     }
+    val noMatchingSkills = stringResource(R.string.skills_no_matching_skills)
+    val noSkills = stringResource(R.string.skills_empty)
+    val noMatchingPublicSkills = stringResource(R.string.skills_no_matching_public_skills)
+    val noPublicSkills = stringResource(R.string.skills_empty_public)
+    val clearFilters = stringResource(R.string.skills_clear_filters)
+    val loadMore = stringResource(R.string.skills_load_more)
+    val publicCount: @Composable (Int) -> String = { count -> stringResource(R.string.skills_public_count, count) }
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("技能") },
+                title = { Text(stringResource(R.string.skills_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "返回")
+                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = stringResource(CommonStrings.action_go_back))
                     }
                 },
             )
+        },
+        floatingActionButton = {
+            if (state.selectedTab == SkillsHomeTab.Mine) {
+                ManagementCreateFloatingActionButton(
+                    text = stringResource(R.string.skills_create),
+                    onClick = { state.eventSink(SkillsHomeEvents.CreateSkill) },
+                )
+            }
         },
     ) { padding ->
         val isRefreshing = if (state.selectedTab == SkillsHomeTab.Mine) state.isLoading else state.isLoadingMarketplace
@@ -99,7 +116,7 @@ fun SkillsHomeView(
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 24.dp),
+                contentPadding = PaddingValues(bottom = 96.dp),
             ) {
                 item {
                     SkillsTabPicker(
@@ -135,10 +152,21 @@ fun SkillsHomeView(
                 }
 
                 if (state.selectedTab == SkillsHomeTab.Mine) {
-                    item { CreateSkillRow(state) }
-                    mineContent(state)
+                    mineContent(
+                        state = state,
+                        noMatchingSkills = noMatchingSkills,
+                        noSkills = noSkills,
+                        clearFilters = clearFilters,
+                    )
                 } else {
-                    marketplaceContent(state)
+                    marketplaceContent(
+                        state = state,
+                        noMatchingSkills = noMatchingPublicSkills,
+                        noSkills = noPublicSkills,
+                        clearFilters = clearFilters,
+                        loadMore = loadMore,
+                        publicCount = publicCount,
+                    )
                 }
             }
         }
@@ -158,7 +186,7 @@ private fun SearchAndFilterControls(state: SkillsHomeState) {
             value = state.searchQuery,
             onValueChange = { state.eventSink(SkillsHomeEvents.SearchQueryChanged(it)) },
             placeholder = {
-                Text(if (state.selectedTab == SkillsHomeTab.Mine) "搜索技能" else "搜索公开技能")
+                Text(if (state.selectedTab == SkillsHomeTab.Mine) stringResource(R.string.skills_search_placeholder) else stringResource(R.string.skills_search_public_placeholder))
             },
             leadingIcon = { Icon(imageVector = CompoundIcons.Search(), contentDescription = null) },
             singleLine = true,
@@ -168,12 +196,23 @@ private fun SearchAndFilterControls(state: SkillsHomeState) {
             enabled = state.filtersAvailable,
             onClick = { state.eventSink(SkillsHomeEvents.AddFilter) },
         ) {
-            Text(if (state.filterState.activeTokenCount > 0) "筛选 · ${state.filterState.activeTokenCount}" else "筛选")
+            Text(
+                if (state.filterState.activeTokenCount > 0) {
+                    stringResource(R.string.skills_filter_count, state.filterState.activeTokenCount)
+                } else {
+                    stringResource(R.string.skills_filter)
+                }
+            )
         }
     }
 }
 
-private fun androidx.compose.foundation.lazy.LazyListScope.mineContent(state: SkillsHomeState) {
+private fun androidx.compose.foundation.lazy.LazyListScope.mineContent(
+    state: SkillsHomeState,
+    noMatchingSkills: String,
+    noSkills: String,
+    clearFilters: String,
+) {
     when {
         state.isLoading && state.filteredSkills.isEmpty() -> {
             items(count = 5) { SkillSkeletonRow() }
@@ -181,8 +220,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.mineContent(state: Sk
         state.filteredSkills.isEmpty() -> {
             item {
                 EmptyMessage(
-                    text = if (state.showClearFiltersForEmptyMine) "没有符合条件的技能" else "暂无技能",
-                    actionText = if (state.showClearFiltersForEmptyMine) "清除筛选" else null,
+                    text = if (state.showClearFiltersForEmptyMine) noMatchingSkills else noSkills,
+                    actionText = if (state.showClearFiltersForEmptyMine) clearFilters else null,
                     onAction = if (state.showClearFiltersForEmptyMine) {
                         { state.eventSink(SkillsHomeEvents.ClearFilters) }
                     } else {
@@ -205,7 +244,14 @@ private fun androidx.compose.foundation.lazy.LazyListScope.mineContent(state: Sk
     }
 }
 
-private fun androidx.compose.foundation.lazy.LazyListScope.marketplaceContent(state: SkillsHomeState) {
+private fun androidx.compose.foundation.lazy.LazyListScope.marketplaceContent(
+    state: SkillsHomeState,
+    noMatchingSkills: String,
+    noSkills: String,
+    clearFilters: String,
+    loadMore: String,
+    publicCount: @Composable (Int) -> String,
+) {
     when {
         state.isLoadingMarketplace && state.marketplaceSkills.isEmpty() -> {
             items(count = 5) { SkillSkeletonRow() }
@@ -213,8 +259,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.marketplaceContent(st
         state.marketplaceSkills.isEmpty() -> {
             item {
                 EmptyMessage(
-                    text = if (state.hasActiveFiltersOrSearch) "没有匹配的技能" else "暂无公开技能",
-                    actionText = if (state.hasActiveFiltersOrSearch) "清除筛选" else null,
+                    text = if (state.hasActiveFiltersOrSearch) noMatchingSkills else noSkills,
+                    actionText = if (state.hasActiveFiltersOrSearch) clearFilters else null,
                     onAction = if (state.hasActiveFiltersOrSearch) {
                         { state.eventSink(SkillsHomeEvents.ClearFilters) }
                     } else {
@@ -228,7 +274,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.marketplaceContent(st
                 item {
                     Text(
                         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
-                        text = "$total 个公开技能",
+                        text = publicCount(total),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -256,7 +302,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.marketplaceContent(st
                             CircularProgressIndicator(modifier = Modifier.size(20.dp))
                         } else {
                             Text(
-                                text = "加载更多",
+                                text = loadMore,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -266,21 +312,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.marketplaceContent(st
             }
         }
     }
-}
-
-@Composable
-private fun CreateSkillRow(state: SkillsHomeState) {
-    ManagementListRow(
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        title = "创建技能",
-        description = "创建可复用的 Agent 能力并加入技能库",
-        leadingContent = { SkillIconTile() },
-        trailingContent = {
-            FilledTonalButton(onClick = { state.eventSink(SkillsHomeEvents.CreateSkill) }) {
-                Text("创建")
-            }
-        },
-    )
 }
 
 @Composable
@@ -298,7 +329,7 @@ private fun SkillsTabPicker(
                 selected = tab == selectedTab,
                 onClick = { onSelect(tab) },
                 shape = SegmentedButtonDefaults.itemShape(index = index, count = SkillsHomeTab.entries.size),
-                label = { Text(if (tab == SkillsHomeTab.Mine) "我的" else "公开") },
+                label = { Text(if (tab == SkillsHomeTab.Mine) stringResource(R.string.skills_tab_mine) else stringResource(R.string.skills_tab_public)) },
             )
         }
     }

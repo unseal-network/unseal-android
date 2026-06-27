@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="voice_library_title">"语音库"</string>
+  <string name="voice_library_record_voice">"录制语音"</string>
+  <string name="voice_library_search_mine">"搜索我的语音"</string>
+  <string name="voice_library_search_public">"搜索公开语音"</string>
+  <string name="voice_library_tab_mine">"我的"</string>
+  <string name="voice_library_tab_public">"公开"</string>
+  <string name="voice_library_share_id_copied">"分享 ID 已复制：%1$s"</string>
+  <string name="voice_library_empty_mine">"暂无保存的语音"</string>
+  <string name="voice_library_empty_public">"暂无公开语音"</string>
+  <string name="voice_library_mine_section">"我的语音"</string>
+  <string name="voice_library_public_section">"公开语音"</string>
+  <string name="voice_library_import_share_id">"导入分享 ID"</string>
+  <string name="voice_library_importing">"导入中…"</string>
+  <string name="voice_library_import">"导入"</string>
+  <string name="voice_library_create_voice">"创建语音"</string>
+  <string name="voice_library_voice_name">"语音名称"</string>
+  <string name="voice_library_starting_microphone">"正在启动麦克风…"</string>
+  <string name="voice_library_recording_idle">"点击开始录音"</string>
+  <string name="voice_library_recording_recording">"录音中，完成后点击停止"</string>
+  <string name="voice_library_recording_ready">"录音已准备好，可以上传"</string>
+  <string name="voice_library_starting">"启动中…"</string>
+  <string name="voice_library_start_recording">"开始录音"</string>
+  <string name="voice_library_stop">"停止"</string>
+  <string name="voice_library_uploading">"上传中…"</string>
+  <string name="voice_library_upload">"上传"</string>
+  <string name="voice_library_record_again">"重录"</string>
+  <string name="voice_library_stop_preview">"停止试听"</string>
+  <string name="voice_library_preview_recording">"试听录音"</string>
+  <string name="voice_library_recording_label">"录音"</string>
+  <string name="voice_library_voice_actions">"语音操作"</string>
+  <string name="voice_library_share">"分享"</string>
+  <string name="voice_library_saved">"已保存"</string>
+  <string name="voice_library_saving">"保存中…"</string>
+  <string name="voice_library_preview_voice">"试听语音"</string>
+  <string name="voice_library_no_preview">"暂无试听"</string>
+</resources>

@@ -47,6 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewParameter
@@ -54,9 +55,12 @@ import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import android.text.format.DateUtils
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.preferences.impl.R
 import io.element.android.libraries.chatbot.api.model.vault.ChatbotVaultItem
+import io.element.android.libraries.designsystem.components.management.ManagementCreateFloatingActionButton
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
+import io.element.android.libraries.ui.strings.CommonStrings
 import java.time.Instant
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -75,17 +79,18 @@ fun VaultManagementView(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Vault 管理", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(stringResource(R.string.screen_vault_management_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "返回")
+                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = stringResource(CommonStrings.action_go_back))
                     }
                 },
-                actions = {
-                    IconButton(onClick = { state.eventSink(VaultManagementEvents.AddEntry) }) {
-                        Icon(imageVector = CompoundIcons.Plus(), contentDescription = "添加")
-                    }
-                },
+            )
+        },
+        floatingActionButton = {
+            ManagementCreateFloatingActionButton(
+                text = stringResource(R.string.screen_vault_management_add_entry),
+                onClick = { state.eventSink(VaultManagementEvents.AddEntry) },
             )
         },
     ) { padding ->
@@ -105,7 +110,7 @@ fun VaultManagementView(
                 else -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 96.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         item {
@@ -113,12 +118,12 @@ fun VaultManagementView(
                                 modifier = Modifier.fillMaxWidth(),
                                 value = state.searchQuery,
                                 onValueChange = { state.eventSink(VaultManagementEvents.SearchQueryChanged(it)) },
-                                placeholder = { Text("搜索 Vault 条目") },
+                                placeholder = { Text(stringResource(R.string.screen_vault_management_search_placeholder)) },
                                 leadingIcon = { Icon(imageVector = CompoundIcons.Search(), contentDescription = null) },
                                 trailingIcon = if (state.searchQuery.isNotEmpty()) {
                                     {
                                         IconButton(onClick = { state.eventSink(VaultManagementEvents.SearchQueryChanged("")) }) {
-                                            Icon(imageVector = CompoundIcons.Close(), contentDescription = "清除")
+                                            Icon(imageVector = CompoundIcons.Close(), contentDescription = stringResource(CommonStrings.action_clear))
                                         }
                                     }
                                 } else {
@@ -143,7 +148,7 @@ fun VaultManagementView(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(vertical = 48.dp),
-                                    text = "没有匹配的 Vault 条目",
+                                    text = stringResource(R.string.screen_vault_management_no_matching_entries),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center,
@@ -167,19 +172,19 @@ fun VaultManagementView(
     state.pendingDelete?.let {
         AlertDialog(
             onDismissRequest = { state.eventSink(VaultManagementEvents.DismissDelete) },
-            title = { Text("删除条目") },
-            text = { Text("确定要删除此 Vault 条目吗？此操作无法撤销。") },
+            title = { Text(stringResource(R.string.screen_vault_management_delete_title)) },
+            text = { Text(stringResource(R.string.screen_vault_management_delete_message)) },
             confirmButton = {
                 TextButton(
                     onClick = { state.eventSink(VaultManagementEvents.DeleteConfirmed) },
                     enabled = !state.isDeleting,
                 ) {
-                    Text(if (state.isDeleting) "删除中…" else "删除")
+                    Text(if (state.isDeleting) stringResource(R.string.screen_vault_management_deleting) else stringResource(CommonStrings.action_delete))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { state.eventSink(VaultManagementEvents.DismissDelete) }) {
-                    Text("取消")
+                    Text(stringResource(CommonStrings.action_cancel))
                 }
             },
         )
@@ -188,11 +193,11 @@ fun VaultManagementView(
     state.successMessage?.let { message ->
         AlertDialog(
             onDismissRequest = { state.eventSink(VaultManagementEvents.ClearSuccess) },
-            title = { Text("Success") },
+            title = { Text(stringResource(CommonStrings.dialog_title_success)) },
             text = { Text(message) },
             confirmButton = {
                 TextButton(onClick = { state.eventSink(VaultManagementEvents.ClearSuccess) }) {
-                    Text("OK")
+                    Text(stringResource(CommonStrings.action_ok))
                 }
             },
         )
@@ -272,7 +277,7 @@ private fun VaultItemCard(
         }
         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
             DropdownMenuItem(
-                text = { Text("编辑") },
+                text = { Text(stringResource(CommonStrings.action_edit)) },
                 leadingIcon = { Icon(CompoundIcons.Edit(), null, modifier = Modifier.size(18.dp)) },
                 onClick = {
                     menuExpanded = false
@@ -280,7 +285,7 @@ private fun VaultItemCard(
                 },
             )
             DropdownMenuItem(
-                text = { Text("删除") },
+                text = { Text(stringResource(CommonStrings.action_delete)) },
                 leadingIcon = { Icon(CompoundIcons.Delete(), null, modifier = Modifier.size(18.dp)) },
                 onClick = {
                     menuExpanded = false
@@ -311,7 +316,7 @@ private fun VaultErrorContent(
         )
         Text(
             modifier = Modifier.padding(top = 16.dp),
-            text = "Error",
+            text = stringResource(CommonStrings.common_error),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
@@ -327,7 +332,7 @@ private fun VaultErrorContent(
             modifier = Modifier.padding(top = 20.dp),
             onClick = onRetry,
         ) {
-            Text("Retry")
+            Text(stringResource(CommonStrings.action_retry))
         }
     }
 }
@@ -349,14 +354,14 @@ private fun VaultEmptyContent() {
         )
         Text(
             modifier = Modifier.padding(top = 16.dp),
-            text = "暂无 Vault 条目",
+            text = stringResource(R.string.screen_vault_management_empty_title),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
         )
         Text(
             modifier = Modifier.padding(top = 8.dp),
-            text = "安全地存储你的密钥和 API 密钥。\n点击 + 创建你的第一个条目。",
+            text = stringResource(R.string.screen_vault_management_empty_message),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,

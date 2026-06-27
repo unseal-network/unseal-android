@@ -39,12 +39,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.skills.impl.R
 import io.element.android.features.skills.impl.shared.SkillIconTile
 import io.element.android.features.skills.impl.shared.skillCategory
 import io.element.android.features.skills.impl.shared.skillSourceLabel
@@ -54,6 +56,7 @@ import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import io.element.android.libraries.designsystem.components.management.ManagementListRow
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
+import io.element.android.libraries.ui.strings.CommonStrings
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableList
@@ -67,6 +70,10 @@ fun AgentSkillsView(
     LaunchedEffect(Unit) {
         state.eventSink(AgentSkillsEvents.OnAppear)
     }
+    val noSkills = stringResource(R.string.skills_empty)
+    val noPublicSkills = stringResource(R.string.skills_empty_public)
+    val loadMore = stringResource(R.string.skills_load_more)
+    val publicCount: @Composable (Int) -> String = { count -> stringResource(R.string.skills_public_count, count) }
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.surface,
@@ -74,7 +81,7 @@ fun AgentSkillsView(
             CenterAlignedTopAppBar(
                 title = {
                     Column {
-                        Text("智能体技能")
+                        Text(stringResource(R.string.agent_skills_title))
                         Text(
                             text = state.botName,
                             style = MaterialTheme.typography.labelMedium,
@@ -86,7 +93,7 @@ fun AgentSkillsView(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "返回")
+                        Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = stringResource(CommonStrings.action_go_back))
                     }
                 },
                 actions = {
@@ -94,7 +101,7 @@ fun AgentSkillsView(
                         CircularProgressIndicator(modifier = Modifier.size(20.dp).padding(end = 8.dp))
                     } else {
                         TextButton(onClick = { state.eventSink(AgentSkillsEvents.Save) }) {
-                            Text("保存")
+                            Text(stringResource(CommonStrings.action_save))
                         }
                     }
                 },
@@ -120,7 +127,7 @@ fun AgentSkillsView(
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     value = state.searchQuery,
                     onValueChange = { state.eventSink(AgentSkillsEvents.SearchQueryChanged(it)) },
-                    placeholder = { Text("搜索技能") },
+                    placeholder = { Text(stringResource(R.string.skills_search_placeholder)) },
                     leadingIcon = { Icon(imageVector = CompoundIcons.Search(), contentDescription = null) },
                     singleLine = true,
                     shape = RoundedCornerShape(28.dp),
@@ -130,7 +137,7 @@ fun AgentSkillsView(
                 item {
                     Text(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                        text = "已添加的技能暂时无法移除。",
+                        text = stringResource(R.string.agent_skills_cannot_remove_added),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -155,18 +162,18 @@ fun AgentSkillsView(
                 }
             }
             when (state.selectedTab) {
-                AgentSkillsTab.Mine -> mineSkills(state)
-                AgentSkillsTab.Public -> publicSkills(state)
+                AgentSkillsTab.Mine -> mineSkills(state, noSkills)
+                AgentSkillsTab.Public -> publicSkills(state, noPublicSkills, loadMore, publicCount)
             }
         }
     }
 }
 
-private fun androidx.compose.foundation.lazy.LazyListScope.mineSkills(state: AgentSkillsState) {
+private fun androidx.compose.foundation.lazy.LazyListScope.mineSkills(state: AgentSkillsState, noSkills: String) {
     val skills = state.filteredUserSkills
     when {
         state.isLoading && skills.isEmpty() -> item { LoadingRow() }
-        skills.isEmpty() -> item { EmptyRow("暂无技能") }
+        skills.isEmpty() -> item { EmptyRow(noSkills) }
         else -> items(items = skills, key = { "mine-${it.id}" }) { skill ->
             SelectableSkillRow(
                 modifier = Modifier.padding(horizontal = 16.dp),
@@ -178,12 +185,17 @@ private fun androidx.compose.foundation.lazy.LazyListScope.mineSkills(state: Age
     }
 }
 
-private fun androidx.compose.foundation.lazy.LazyListScope.publicSkills(state: AgentSkillsState) {
+private fun androidx.compose.foundation.lazy.LazyListScope.publicSkills(
+    state: AgentSkillsState,
+    noPublicSkills: String,
+    loadMore: String,
+    publicCount: @Composable (Int) -> String,
+) {
     state.publicTotal?.let { total ->
         item {
             Text(
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
-                text = "$total 个公开技能",
+                text = publicCount(total),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -191,7 +203,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.publicSkills(state: A
     }
     when {
         state.isLoadingPublic && state.publicSkills.isEmpty() -> item { LoadingRow() }
-        state.publicSkills.isEmpty() -> item { EmptyRow("暂无公开技能") }
+        state.publicSkills.isEmpty() -> item { EmptyRow(noPublicSkills) }
         else -> {
             items(items = state.publicSkills, key = { "public-${it.id}" }) { skill ->
                 SelectableSkillRow(
@@ -215,7 +227,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.publicSkills(state: A
                         if (state.isLoadingPublicNextPage) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp))
                         } else {
-                            Text("加载更多", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(loadMore, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -229,7 +241,10 @@ private fun AgentSkillsTabPicker(
     selectedTab: AgentSkillsTab,
     onSelect: (AgentSkillsTab) -> Unit,
 ) {
-    val tabs = listOf(AgentSkillsTab.Mine to "我的", AgentSkillsTab.Public to "公开")
+    val tabs = listOf(
+        AgentSkillsTab.Mine to stringResource(R.string.skills_tab_mine),
+        AgentSkillsTab.Public to stringResource(R.string.skills_tab_public),
+    )
     SingleChoiceSegmentedButtonRow(
         modifier = Modifier
             .fillMaxWidth()

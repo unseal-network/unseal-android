@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="voice_library_title">"Voice library"</string>
+  <string name="voice_library_record_voice">"Record voice"</string>
+  <string name="voice_library_search_mine">"Search my voices"</string>
+  <string name="voice_library_search_public">"Search public voices"</string>
+  <string name="voice_library_tab_mine">"Mine"</string>
+  <string name="voice_library_tab_public">"Public"</string>
+  <string name="voice_library_share_id_copied">"Share ID copied: %1$s"</string>
+  <string name="voice_library_empty_mine">"No saved voices"</string>
+  <string name="voice_library_empty_public">"No public voices"</string>
+  <string name="voice_library_mine_section">"My voices"</string>
+  <string name="voice_library_public_section">"Public voices"</string>
+  <string name="voice_library_import_share_id">"Import share ID"</string>
+  <string name="voice_library_importing">"Importing…"</string>
+  <string name="voice_library_import">"Import"</string>
+  <string name="voice_library_create_voice">"Create voice"</string>
+  <string name="voice_library_voice_name">"Voice name"</string>
+  <string name="voice_library_starting_microphone">"Starting microphone…"</string>
+  <string name="voice_library_recording_idle">"Tap to start recording"</string>
+  <string name="voice_library_recording_recording">"Recording. Tap stop when finished."</string>
+  <string name="voice_library_recording_ready">"Recording is ready to upload"</string>
+  <string name="voice_library_starting">"Starting…"</string>
+  <string name="voice_library_start_recording">"Start recording"</string>
+  <string name="voice_library_stop">"Stop"</string>
+  <string name="voice_library_uploading">"Uploading…"</string>
+  <string name="voice_library_upload">"Upload"</string>
+  <string name="voice_library_record_again">"Record again"</string>
+  <string name="voice_library_stop_preview">"Stop preview"</string>
+  <string name="voice_library_preview_recording">"Preview recording"</string>
+  <string name="voice_library_recording_label">"Recording"</string>
+  <string name="voice_library_voice_actions">"Voice actions"</string>
+  <string name="voice_library_share">"Share"</string>
+  <string name="voice_library_saved">"Saved"</string>
+  <string name="voice_library_saving">"Saving…"</string>
+  <string name="voice_library_preview_voice">"Preview voice"</string>
+  <string name="voice_library_no_preview">"No preview"</string>
+</resources>

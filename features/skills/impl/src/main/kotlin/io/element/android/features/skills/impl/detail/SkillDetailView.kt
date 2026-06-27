@@ -40,11 +40,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.skills.impl.R
 import io.element.android.features.skills.impl.shared.SkillMetadataChips
 import io.element.android.features.skills.impl.shared.displayName
 import io.element.android.features.skills.impl.shared.hasDiscoveryMetadata
@@ -53,6 +55,7 @@ import io.element.android.libraries.chatbot.api.model.skills.ChatbotSkillVisibil
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
+import io.element.android.libraries.ui.strings.CommonStrings
 
 @Composable
 fun SkillDetailView(
@@ -72,11 +75,11 @@ fun SkillDetailView(
                 navigationIcon = {
                     if (state.isEditing) {
                         TextButton(onClick = { state.eventSink(SkillDetailEvents.CancelEditing) }, enabled = !state.isSaving) {
-                            Text("取消")
+                            Text(stringResource(CommonStrings.action_cancel))
                         }
                     } else {
                         IconButton(onClick = onBackClick) {
-                            Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = "返回")
+                            Icon(imageVector = CompoundIcons.ChevronLeft(), contentDescription = stringResource(CommonStrings.action_go_back))
                         }
                     }
                 },
@@ -86,11 +89,11 @@ fun SkillDetailView(
                             if (state.isSaving) {
                                 CircularProgressIndicator(modifier = Modifier.size(20.dp).padding(end = 8.dp))
                             } else {
-                                TextButton(onClick = { state.eventSink(SkillDetailEvents.SaveEditing) }) { Text("保存") }
+                                TextButton(onClick = { state.eventSink(SkillDetailEvents.SaveEditing) }) { Text(stringResource(CommonStrings.action_save)) }
                             }
                         }
                         state.canEdit -> {
-                            TextButton(onClick = { state.eventSink(SkillDetailEvents.StartEditing) }) { Text("编辑") }
+                            TextButton(onClick = { state.eventSink(SkillDetailEvents.StartEditing) }) { Text(stringResource(CommonStrings.action_edit)) }
                         }
                     }
                 },
@@ -117,14 +120,14 @@ fun SkillDetailView(
                     ) {
                         Icon(CompoundIcons.Delete(), null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.size(8.dp))
-                        Text(if (state.isDeleting) "删除中…" else "删除技能")
+                        Text(if (state.isDeleting) stringResource(R.string.skill_detail_deleting) else stringResource(R.string.skill_detail_delete))
                     }
                 }
             }
             if (state.isLoading) {
                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp))
-                    Text("正在加载...", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.skill_detail_loading), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             state.error?.let { error ->
@@ -155,11 +158,11 @@ private fun InfoRow(label: String, value: String) {
 
 @Composable
 private fun SkillReadOnlyContent(state: SkillDetailState) {
-    SectionHeader("信息")
-    InfoRow("名称", state.title)
-    state.skill?.description?.takeIf { it.isNotBlank() }?.let { InfoRow("描述", it) }
-    state.visibilityLabel?.let { InfoRow("可见性", it) }
-    state.skill?.createdAt?.let { InfoRow("创建时间", it) }
+    SectionHeader(stringResource(R.string.skill_detail_info))
+    InfoRow(stringResource(R.string.skill_detail_name), state.title)
+    state.skill?.description?.takeIf { it.isNotBlank() }?.let { InfoRow(stringResource(R.string.skill_detail_description), it) }
+    state.visibilityLabel?.let { InfoRow(stringResource(R.string.skill_detail_visibility), it) }
+    state.skill?.createdAt?.let { InfoRow(stringResource(R.string.skill_detail_created_at), it) }
 
     state.skill?.takeIf { it.hasDiscoveryMetadata() }?.let { skill ->
         SectionHeader("Discovery")
@@ -197,7 +200,7 @@ private fun FilesSectionHeader(count: Int) {
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
         Text(
-            text = "文件",
+            text = stringResource(R.string.skill_detail_files),
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary,
@@ -256,12 +259,12 @@ private fun FileRow(name: String, onClick: () -> Unit) {
 
 @Composable
 private fun SkillEditForm(state: SkillDetailState) {
-    SectionHeader("编辑信息")
+    SectionHeader(stringResource(R.string.skill_detail_edit_info))
     OutlinedTextField(
         modifier = Modifier.fillMaxWidth(),
         value = state.editName,
         onValueChange = { state.eventSink(SkillDetailEvents.EditNameChanged(it)) },
-        label = { Text("名称") },
+        label = { Text(stringResource(R.string.skill_detail_name)) },
         singleLine = true,
         enabled = !state.isSaving,
     )
@@ -269,12 +272,12 @@ private fun SkillEditForm(state: SkillDetailState) {
         modifier = Modifier.fillMaxWidth(),
         value = state.editDescription,
         onValueChange = { state.eventSink(SkillDetailEvents.EditDescriptionChanged(it)) },
-        label = { Text("描述") },
-        placeholder = { Text("可选描述") },
+        label = { Text(stringResource(R.string.skill_detail_description)) },
+        placeholder = { Text(stringResource(R.string.skill_detail_optional_description)) },
         minLines = 3,
         enabled = !state.isSaving,
     )
-    Text("可见性", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+    Text(stringResource(R.string.skill_detail_visibility), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         ChatbotSkillVisibility.entries.forEach { visibility ->
             FilterChip(

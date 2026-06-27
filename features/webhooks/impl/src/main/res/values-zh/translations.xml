@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="webhook_triggers_title">"Webhook 触发器"</string>
+  <string name="webhook_triggers_room_title">"%1$s 触发器"</string>
+  <string name="webhook_triggers_create">"新建触发器"</string>
+  <string name="webhook_triggers_delete_title">"删除触发器"</string>
+  <string name="webhook_triggers_delete_message">"确定要删除此触发器吗？此操作无法撤销。"</string>
+  <string name="webhook_triggers_search_placeholder">"搜索触发器…"</string>
+  <string name="webhook_triggers_room_filter">"房间:"</string>
+  <string name="webhook_triggers_agent_filter">"助手:"</string>
+  <string name="webhook_triggers_all_rooms">"所有房间"</string>
+  <string name="webhook_triggers_all_agents">"所有助手"</string>
+  <string name="webhook_triggers_empty_title">"暂无触发器"</string>
+  <string name="webhook_triggers_empty_global_message">"创建您的第一个触发器，自动响应外部事件。"</string>
+  <string name="webhook_triggers_empty_room_message">"创建触发器以自动响应此房间中的外部事件。"</string>
+  <string name="webhook_trigger_edit_create_title">"新建触发器"</string>
+  <string name="webhook_trigger_edit_edit_title">"编辑触发器"</string>
+  <string name="webhook_trigger_edit_ai_generate">"AI 自动生成"</string>
+  <string name="webhook_trigger_edit_draft_prompt_label">"描述您想要的，例如“当我收到新邮件时，帮我总结内容”"</string>
+  <string name="webhook_trigger_edit_generating">"生成中…"</string>
+  <string name="webhook_trigger_edit_generate">"生成"</string>
+  <string name="webhook_trigger_edit_event_source">"事件来源"</string>
+  <string name="webhook_trigger_edit_source">"来源"</string>
+  <string name="webhook_trigger_edit_account">"账户"</string>
+  <string name="webhook_trigger_edit_event_type">"事件类型"</string>
+  <string name="webhook_trigger_edit_target">"目标"</string>
+  <string name="webhook_trigger_edit_room">"房间"</string>
+  <string name="webhook_trigger_edit_select_room">"选择房间"</string>
+  <string name="webhook_trigger_edit_agent">"助手"</string>
+  <string name="webhook_trigger_edit_select_agent">"选择助手"</string>
+  <string name="webhook_trigger_edit_details">"触发器详情"</string>
+  <string name="webhook_trigger_edit_name">"名称"</string>
+  <string name="webhook_trigger_edit_description">"描述"</string>
+  <string name="webhook_trigger_edit_action_prompt">"行动提示"</string>
+  <string name="webhook_trigger_edit_locked">"已锁定"</string>
+  <string name="webhook_trigger_edit_select_account">"选择账户"</string>
+  <string name="webhook_trigger_edit_select_event_type">"选择事件类型…"</string>
+  <string name="webhook_trigger_edit_select_source">"选择来源"</string>
+  <string name="webhook_trigger_edit_search_source">"搜索来源…"</string>
+  <string name="webhook_trigger_edit_connect_now">"立即连接"</string>
+</resources>

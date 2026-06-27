@@ -7,32 +7,42 @@
 
 package io.element.android.features.roomschedules.impl.edit
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.element.android.features.roomschedules.impl.R
 import io.element.android.features.roomschedules.impl.cron.CronPickerMode
 import io.element.android.features.roomschedules.impl.cron.CronPickerModel
+import io.element.android.libraries.ui.strings.CommonStrings
 
 @Composable
 fun ScheduleEditView(
@@ -47,60 +57,62 @@ fun ScheduleEditView(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface)
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Header(
             title = renderModel.title,
             onCancel = { state.eventSink(ScheduleEditEvents.Cancel) },
         )
-        state.error?.let {
-            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+        state.error?.let { ErrorBanner(it) }
+        ScheduleSection(title = stringResource(R.string.schedule_edit_basics)) {
+            if (state.isCreate) {
+                OutlinedTextField(
+                    value = state.name,
+                    onValueChange = { state.eventSink(ScheduleEditEvents.NameChanged(it)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(renderModel.nameLabel) },
+                    singleLine = true,
+                )
+                AgentSelector(renderModel, state.eventSink)
+            } else {
+                ReadOnlyValue(label = renderModel.nameLabel, value = state.name)
+                ReadOnlyValue(label = renderModel.agentLabel, value = renderModel.selectedAgentLabel)
+            }
+            renderModel.outOfRoomAgentWarning?.let {
+                ErrorBanner(it)
+            }
         }
-        if (state.isCreate) {
+        ScheduleSection(title = stringResource(R.string.schedule_edit_action)) {
             OutlinedTextField(
-                value = state.name,
-                onValueChange = { state.eventSink(ScheduleEditEvents.NameChanged(it)) },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(renderModel.nameLabel) },
-                singleLine = true,
-            )
-            AgentSelector(renderModel, state.eventSink)
-        } else {
-            ReadOnlyValue(label = renderModel.nameLabel, value = state.name)
-            ReadOnlyValue(label = renderModel.agentLabel, value = renderModel.selectedAgentLabel)
-        }
-        renderModel.outOfRoomAgentWarning?.let {
-            Text(
-                text = it,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
+                value = state.action,
+                onValueChange = { state.eventSink(ScheduleEditEvents.ActionChanged(it)) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp),
+                label = { Text(renderModel.actionLabel) },
+                minLines = 6,
             )
         }
-        OutlinedTextField(
-            value = state.action,
-            onValueChange = { state.eventSink(ScheduleEditEvents.ActionChanged(it)) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(180.dp),
-            label = { Text(renderModel.actionLabel) },
-            minLines = 6,
-        )
-        CronEditor(
-            model = state.cronModel,
-            renderModel = renderModel,
-            onModelChange = { state.eventSink(ScheduleEditEvents.CronModelChanged(it)) },
-        )
+        ScheduleSection(title = renderModel.repeatLabel) {
+            CronEditor(
+                model = state.cronModel,
+                renderModel = renderModel,
+                onModelChange = { state.eventSink(ScheduleEditEvents.CronModelChanged(it)) },
+            )
+        }
         Button(
             onClick = { state.eventSink(ScheduleEditEvents.Submit) },
             enabled = renderModel.canSubmit,
             modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 12.dp),
         ) {
             Text(renderModel.submitLabel)
         }
         if (state.isSubmitting) {
-            CircularProgressIndicator()
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
     }
 }
@@ -115,15 +127,43 @@ private fun Header(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        TextButton(onClick = onCancel) {
-            Text("Cancel")
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = stringResource(R.string.schedule_edit_description),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
-        Text(
-            text = title,
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold,
-        )
+        TextButton(onClick = onCancel) {
+            Text(stringResource(CommonStrings.action_cancel))
+        }
+    }
+}
+
+@Composable
+private fun ScheduleSection(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            content()
+        }
     }
 }
 
@@ -133,10 +173,10 @@ private fun AgentSelector(
     eventSink: (ScheduleEditEvents) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(renderModel.agentLabel, style = MaterialTheme.typography.titleMedium)
+        Text(renderModel.agentLabel, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (renderModel.agentOptions.isEmpty()) {
             Text(
-                text = "No agents available",
+                text = stringResource(R.string.schedule_edit_no_agents),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -172,7 +212,6 @@ private fun CronEditor(
     onModelChange: (CronPickerModel) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(renderModel.repeatLabel, style = MaterialTheme.typography.titleMedium)
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -195,11 +234,18 @@ private fun CronEditor(
             CronPickerMode.Workdays,
             CronPickerMode.EveryDay -> TimeControls(model, onModelChange)
         }
-        Text(
-            text = renderModel.cronSummary,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+        ) {
+            Text(
+                text = renderModel.cronSummary,
+                modifier = Modifier.padding(12.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
     }
 }
 
@@ -210,13 +256,13 @@ private fun TimeControls(
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         NumberField(
-            label = "Hour",
+            label = stringResource(R.string.schedule_edit_hour),
             value = model.hour,
             onValueChange = { onModelChange(model.copy(hour = it.coerceIn(0, 23))) },
             modifier = Modifier.weight(1f),
         )
         NumberField(
-            label = "Minute",
+            label = stringResource(R.string.schedule_edit_minute),
             value = model.minute,
             onValueChange = { onModelChange(model.copy(minute = it.coerceIn(0, 59))) },
             modifier = Modifier.weight(1f),
@@ -230,7 +276,7 @@ private fun MinuteControl(
     onModelChange: (CronPickerModel) -> Unit,
 ) {
     NumberField(
-        label = "Minute",
+        label = stringResource(R.string.schedule_edit_minute),
         value = model.minute,
         onValueChange = { onModelChange(model.copy(minute = it.coerceIn(0, 59))) },
         modifier = Modifier.fillMaxWidth(),
@@ -289,4 +335,20 @@ private fun NumberField(
         label = { Text(label) },
         singleLine = true,
     )
+}
+
+@Composable
+private fun ErrorBanner(message: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.55f),
+    ) {
+        Text(
+            text = message,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
 }

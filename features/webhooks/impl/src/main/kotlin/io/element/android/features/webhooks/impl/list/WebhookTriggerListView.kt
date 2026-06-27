@@ -50,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewParameter
@@ -61,14 +62,17 @@ import coil3.compose.SubcomposeAsyncImageContent
 import coil3.request.ImageRequest
 import coil3.svg.SvgDecoder
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.webhooks.impl.R
 import io.element.android.features.webhooks.impl.shared.composioLogoUrl
 import io.element.android.features.webhooks.impl.shared.isEnabled
 import io.element.android.features.webhooks.impl.shared.resolveSourceSlug
 import io.element.android.libraries.chatbot.api.model.rooms.ChatbotRoomAgent
 import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookTrigger
 import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookTriggerStatus
+import io.element.android.libraries.designsystem.components.management.ManagementCreateFloatingActionButton
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
+import io.element.android.libraries.ui.strings.CommonStrings
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 
@@ -89,23 +93,24 @@ fun WebhookTriggerListView(
                 title = {
                     Text(
                         text = when (val mode = state.mode) {
-                            WebhookTriggerListMode.Global -> "触发器管理"
-                            is WebhookTriggerListMode.Room -> "${mode.roomName} 触发器"
+                            WebhookTriggerListMode.Global -> stringResource(R.string.webhook_triggers_title)
+                            is WebhookTriggerListMode.Room -> stringResource(R.string.webhook_triggers_room_title, mode.roomName)
                         },
                     )
                 },
                 navigationIcon = {
                     if (state.mode is WebhookTriggerListMode.Room) {
                         IconButton(onClick = { state.eventSink(WebhookTriggerListEvents.Dismiss) }) {
-                            Icon(CompoundIcons.Close(), contentDescription = "关闭")
+                            Icon(CompoundIcons.Close(), contentDescription = stringResource(CommonStrings.action_close))
                         }
                     }
                 },
-                actions = {
-                    IconButton(onClick = { state.eventSink(WebhookTriggerListEvents.CreateTrigger) }) {
-                        Icon(CompoundIcons.Plus(), contentDescription = "新建触发器")
-                    }
-                },
+            )
+        },
+        floatingActionButton = {
+            ManagementCreateFloatingActionButton(
+                text = stringResource(R.string.webhook_triggers_create),
+                onClick = { state.eventSink(WebhookTriggerListEvents.CreateTrigger) },
             )
         },
     ) { padding ->
@@ -149,7 +154,7 @@ fun WebhookTriggerListView(
                 ) {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 96.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items(state.filteredTriggers, key = { it.triggerId }) { trigger ->
@@ -173,20 +178,20 @@ fun WebhookTriggerListView(
     if (state.deleteConfirmationTriggerId != null) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { state.eventSink(WebhookTriggerListEvents.CancelDelete) },
-            title = { Text("删除触发器") },
-            text = { Text("确定要删除此触发器吗？此操作无法撤销。") },
+            title = { Text(stringResource(R.string.webhook_triggers_delete_title)) },
+            text = { Text(stringResource(R.string.webhook_triggers_delete_message)) },
             confirmButton = {
                 androidx.compose.material3.TextButton(
                     onClick = { state.eventSink(WebhookTriggerListEvents.ConfirmDelete) },
                 ) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(CommonStrings.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(
                     onClick = { state.eventSink(WebhookTriggerListEvents.CancelDelete) },
                 ) {
-                    Text("取消")
+                    Text(stringResource(CommonStrings.action_cancel))
                 }
             },
         )
@@ -202,34 +207,36 @@ private fun FilterSection(state: WebhookTriggerListState) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (state.mode is WebhookTriggerListMode.Global) {
+            val allRoomsLabel = stringResource(R.string.webhook_triggers_all_rooms)
             OutlinedTextField(
                 modifier = Modifier.fillMaxWidth(),
                 value = state.searchQuery,
                 onValueChange = { state.eventSink(WebhookTriggerListEvents.SearchChanged(it)) },
-                placeholder = { Text("搜索触发器...") },
+                placeholder = { Text(stringResource(R.string.webhook_triggers_search_placeholder)) },
                 leadingIcon = { Icon(CompoundIcons.Search(), contentDescription = null) },
                 singleLine = true,
                 shape = RoundedCornerShape(28.dp),
             )
             FilterDropdown(
-                label = "房间:",
+                label = stringResource(R.string.webhook_triggers_room_filter),
                 value = state.availableRooms.firstOrNull { it.roomId.value == state.selectedRoomId }
                     ?.let { it.info.name ?: it.roomId.value }
-                    ?: "所有房间",
+                    ?: allRoomsLabel,
                 options = buildList {
-                    add(null to "所有房间")
+                    add(null to allRoomsLabel)
                     state.availableRooms.forEach { add(it.roomId.value to (it.info.name ?: it.roomId.value)) }
                 },
                 onSelect = { state.eventSink(WebhookTriggerListEvents.SelectRoomFilter(it)) },
             )
         } else {
+            val allAgentsLabel = stringResource(R.string.webhook_triggers_all_agents)
             FilterDropdown(
-                label = "助手:",
+                label = stringResource(R.string.webhook_triggers_agent_filter),
                 value = state.availableAgents.firstOrNull { it.agentId == state.selectedAgentId }
                     ?.let { it.displayName ?: it.agentId }
-                    ?: "所有助手",
+                    ?: allAgentsLabel,
                 options = buildList {
-                    add(null to "所有助手")
+                    add(null to allAgentsLabel)
                     state.availableAgents.forEach { add(it.agentId to (it.displayName ?: it.agentId)) }
                 },
                 onSelect = { state.eventSink(WebhookTriggerListEvents.SelectAgentFilter(it)) },
@@ -353,7 +360,7 @@ private fun WebhookTriggerItem(
                     IconButton(onClick = onEdit, modifier = Modifier.size(28.dp)) {
                         Icon(
                             CompoundIcons.Edit(),
-                            contentDescription = "编辑",
+                            contentDescription = stringResource(CommonStrings.action_edit),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp),
                         )
@@ -361,7 +368,7 @@ private fun WebhookTriggerItem(
                     IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
                         Icon(
                             CompoundIcons.Delete(),
-                            contentDescription = "删除",
+                            contentDescription = stringResource(CommonStrings.action_delete),
                             tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(18.dp),
                         )
@@ -463,14 +470,14 @@ private fun EmptyState(mode: WebhookTriggerListMode) {
             modifier = Modifier.size(40.dp),
         )
         Text(
-            text = "暂无触发器",
+            text = stringResource(R.string.webhook_triggers_empty_title),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
             text = when (mode) {
-                WebhookTriggerListMode.Global -> "创建您的第一个触发器，自动响应外部事件。"
-                is WebhookTriggerListMode.Room -> "创建触发器以自动响应此房间中的外部事件。"
+                WebhookTriggerListMode.Global -> stringResource(R.string.webhook_triggers_empty_global_message)
+                is WebhookTriggerListMode.Room -> stringResource(R.string.webhook_triggers_empty_room_message)
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

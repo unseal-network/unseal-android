@@ -61,10 +61,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.agentmanagement.impl.R
 import io.element.android.features.agentmanagement.impl.shared.AgentVoiceSelection
 import io.element.android.features.agentmanagement.impl.shared.shapeAwareClickable
 import io.element.android.libraries.chatbot.api.model.agent.AgentSandboxMode
@@ -77,6 +79,7 @@ import io.element.android.libraries.designsystem.components.avatar.AvatarSize
 import io.element.android.libraries.designsystem.components.avatar.AvatarType
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
+import io.element.android.libraries.ui.strings.CommonStrings
 import kotlinx.collections.immutable.persistentListOf
 
 @Composable
@@ -93,9 +96,9 @@ fun AgentEditView(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(renderModel.title) },
+                title = { Text(stringResource(if (state.isCreate) R.string.agent_edit_title_create else R.string.agent_edit_title_edit)) },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) { Icon(CompoundIcons.ChevronLeft(), "返回") }
+                    IconButton(onClick = onBackClick) { Icon(CompoundIcons.ChevronLeft(), stringResource(CommonStrings.action_go_back)) }
                 },
             )
         },
@@ -125,12 +128,11 @@ fun AgentEditView(
 private fun AgentForm(state: AgentEditState, submittingStep: AgentEditSubmittingStep?, onSetAvatar: () -> Unit) {
     val form = state.form
     val renderModel = state.renderModel
-    val labels = renderModel.sectionLabels
     val isSubmitting = submittingStep != null
     var showSkillSheet by remember { mutableStateOf(false) }
     var showVaultSheet by remember { mutableStateOf(false) }
 
-    SectionHeader(labels.avatar)
+    SectionHeader(stringResource(R.string.agent_edit_avatar))
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Avatar(
             avatarData = AvatarData(form.botName.ifEmpty { "agent" }, form.displayName.ifEmpty { form.botName }, form.avatarUrl.ifEmpty { null }, AvatarSize.SelectedRoom),
@@ -140,20 +142,20 @@ private fun AgentForm(state: AgentEditState, submittingStep: AgentEditSubmitting
         TextButton(onClick = onSetAvatar, enabled = !isSubmitting) {
             Icon(CompoundIcons.Image(), null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.size(8.dp))
-            Text("设置头像")
+            Text(stringResource(R.string.agent_edit_set_avatar))
         }
     }
 
-    SectionHeader(labels.basicInfo)
+    SectionHeader(stringResource(R.string.agent_edit_basic_info))
     if (state.isCreate) {
         OutlinedTextField(
             modifier = Modifier.fillMaxWidth(),
             value = form.botName,
             onValueChange = { state.eventSink(AgentEditEvents.BotNameChanged(it)) },
-            label = { Text(renderModel.botNameLabel) },
+            label = { Text(stringResource(R.string.agent_edit_identifier_required)) },
             singleLine = true,
             isError = state.nameAvailability == AgentNameAvailability.Taken,
-            supportingText = renderModel.botNameAvailabilityLabel?.let { { Text(it) } },
+            supportingText = availabilitySupport(state.nameAvailability)?.let { { Text(it) } },
             enabled = !isSubmitting,
         )
     } else {
@@ -161,7 +163,7 @@ private fun AgentForm(state: AgentEditState, submittingStep: AgentEditSubmitting
             modifier = Modifier.fillMaxWidth(),
             value = "@${form.botName}",
             onValueChange = {},
-            label = { Text(renderModel.botNameLabel) },
+            label = { Text(stringResource(R.string.agent_edit_identifier)) },
             singleLine = true,
             readOnly = true,
             enabled = false,
@@ -171,7 +173,7 @@ private fun AgentForm(state: AgentEditState, submittingStep: AgentEditSubmitting
         modifier = Modifier.fillMaxWidth(),
         value = form.displayName,
         onValueChange = { state.eventSink(AgentEditEvents.DisplayNameChanged(it)) },
-        label = { Text("显示名称") },
+        label = { Text(stringResource(R.string.agent_edit_display_name)) },
         singleLine = true,
         enabled = !isSubmitting,
     )
@@ -179,29 +181,41 @@ private fun AgentForm(state: AgentEditState, submittingStep: AgentEditSubmitting
         modifier = Modifier.fillMaxWidth(),
         value = form.description,
         onValueChange = { state.eventSink(AgentEditEvents.DescriptionChanged(it)) },
-        label = { Text("描述") },
+        label = { Text(stringResource(R.string.agent_edit_description)) },
         minLines = 2,
         enabled = !isSubmitting,
     )
     if (state.isCreate) {
         Text(
-            renderModel.botNameHelper.orEmpty(),
+            stringResource(R.string.agent_edit_identifier_helper),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 
-    SectionHeader(labels.accessControl)
-    ToggleRow("公开 Agent", "所有用户都可以发现并使用此 Agent", CompoundIcons.Public(), form.isPublic, !isSubmitting) {
+    SectionHeader(stringResource(R.string.agent_edit_access_control))
+    ToggleRow(
+        stringResource(R.string.agent_edit_public_agent),
+        stringResource(R.string.agent_edit_public_agent_description),
+        CompoundIcons.Public(),
+        form.isPublic,
+        !isSubmitting,
+    ) {
         state.eventSink(AgentEditEvents.IsPublicChanged(it))
     }
-    ToggleRow("自动加入房间", "自动接受邀请，无需手动批准", CompoundIcons.Devices(), form.autoJoin, !isSubmitting && form.isPublic) {
+    ToggleRow(
+        stringResource(R.string.agent_edit_auto_join),
+        stringResource(R.string.agent_edit_auto_join_description),
+        CompoundIcons.Devices(),
+        form.autoJoin,
+        !isSubmitting && form.isPublic,
+    ) {
         state.eventSink(AgentEditEvents.AutoJoinChanged(it))
     }
 
-    SectionHeader(labels.aiEngine)
+    SectionHeader(stringResource(R.string.agent_edit_ai_engine))
     DropdownField(
-        label = "提供商",
+        label = stringResource(R.string.agent_edit_provider),
         value = renderModel.selectedProviderLabel,
         options = renderModel.providerOptions.map { it.id to it.label },
         enabled = !isSubmitting && renderModel.providerOptions.isNotEmpty(),
@@ -209,7 +223,7 @@ private fun AgentForm(state: AgentEditState, submittingStep: AgentEditSubmitting
     )
     if (state.availableModels.isNotEmpty()) {
         DropdownField(
-            label = "模型",
+            label = stringResource(R.string.agent_edit_model),
             value = renderModel.selectedModelLabel,
             options = renderModel.modelOptions.map { it.id to it.label },
             enabled = !isSubmitting,
@@ -220,7 +234,7 @@ private fun AgentForm(state: AgentEditState, submittingStep: AgentEditSubmitting
             modifier = Modifier.fillMaxWidth(),
             value = form.model,
             onValueChange = { state.eventSink(AgentEditEvents.ModelChanged(it)) },
-            label = { Text("模型") },
+            label = { Text(stringResource(R.string.agent_edit_model)) },
             singleLine = true,
             enabled = !isSubmitting,
         )
@@ -230,7 +244,7 @@ private fun AgentForm(state: AgentEditState, submittingStep: AgentEditSubmitting
             modifier = Modifier.fillMaxWidth(),
             value = form.baseUrl,
             onValueChange = { state.eventSink(AgentEditEvents.BaseUrlChanged(it)) },
-            label = { Text("API 地址") },
+            label = { Text(stringResource(R.string.agent_edit_base_url)) },
             singleLine = true,
             enabled = !isSubmitting,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
@@ -241,7 +255,7 @@ private fun AgentForm(state: AgentEditState, submittingStep: AgentEditSubmitting
             modifier = Modifier.fillMaxWidth(),
             value = form.apiKey,
             onValueChange = { state.eventSink(AgentEditEvents.ApiKeyChanged(it)) },
-            label = { Text("API 密钥") },
+            label = { Text(stringResource(R.string.agent_edit_api_key)) },
             singleLine = true,
             enabled = !isSubmitting,
             visualTransformation = remember { PasswordVisualTransformation() },
@@ -249,35 +263,35 @@ private fun AgentForm(state: AgentEditState, submittingStep: AgentEditSubmitting
         )
     }
 
-    SectionHeader(labels.voice)
+    SectionHeader(stringResource(R.string.agent_edit_voice))
     DropdownField(
-        label = "语音",
-        value = renderModel.selectedVoiceLabel,
-        options = renderModel.voiceOptions.map { it.id to it.label },
+        label = stringResource(R.string.agent_edit_voice),
+        value = selectedVoiceLabel(state),
+        options = renderModel.voiceOptions.map { it.id to voiceOptionLabel(it) },
         enabled = !isSubmitting,
         onSelect = { state.eventSink(AgentEditEvents.VoiceSelectionChanged(it)) },
     )
 
-    SectionHeader(labels.soul)
+    SectionHeader(stringResource(R.string.agent_edit_role))
     OutlinedTextField(
         modifier = Modifier.fillMaxWidth(),
         value = form.soul,
         onValueChange = { state.eventSink(AgentEditEvents.SoulChanged(it)) },
-        label = { Text("角色设定") },
+        label = { Text(stringResource(R.string.agent_edit_role)) },
         minLines = 4,
         enabled = !isSubmitting,
     )
 
-    SectionHeader(labels.runtime)
+    SectionHeader(stringResource(R.string.agent_edit_runtime))
     DropdownField(
-        label = "运行环境",
-        value = renderModel.sandbox.modeLabel,
-        options = renderModel.sandbox.modeOptions.map { it.id to it.label },
+        label = stringResource(R.string.agent_edit_runtime),
+        value = sandboxModeLabel(form.sandboxMode),
+        options = renderModel.sandbox.modeOptions.map { it.id to sandboxModeLabel(AgentSandboxMode.valueOf(it.id)) },
         enabled = !isSubmitting,
         onSelect = { state.eventSink(AgentEditEvents.SandboxModeChanged(AgentSandboxMode.valueOf(it))) },
     )
     Text(
-        text = renderModel.sandbox.description,
+        text = sandboxDescription(form.sandboxMode),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -292,17 +306,17 @@ private fun AgentForm(state: AgentEditState, submittingStep: AgentEditSubmitting
         ) {
             Icon(CompoundIcons.Error(), null, tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.size(18.dp))
             Text(
-                renderModel.sandbox.warning.orEmpty(),
+                stringResource(R.string.agent_edit_runtime_dedicated_warning),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onErrorContainer,
             )
         }
         if (state.isCreate) {
-            Text("初始化方式", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
+            Text(stringResource(R.string.agent_edit_runtime_init_method), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
             renderModel.sandbox.initOptions.forEach { option ->
                 SandboxInitOption(
-                    title = option.title,
-                    subtitle = option.subtitle,
+                    title = sandboxInitTitle(option.method),
+                    subtitle = sandboxInitSubtitle(option.method),
                     selected = option.isSelected,
                     enabled = !isSubmitting,
                     onClick = { state.eventSink(AgentEditEvents.SandboxInitMethodChanged(option.method)) },
@@ -311,22 +325,22 @@ private fun AgentForm(state: AgentEditState, submittingStep: AgentEditSubmitting
         } else {
             if (renderModel.sandbox.statusLabel != null) {
                 Text(
-                    renderModel.sandbox.statusLabel,
+                    sandboxStatusLabel(state),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
             } else {
-                Text("尚未初始化 Agent 专属环境。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.agent_edit_runtime_not_initialized), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(
                     enabled = !renderModel.sandbox.isBusy,
                     onClick = { state.eventSink(AgentEditEvents.SandboxActionRequested(AgentSandboxInitMethod.Empty)) },
-                ) { Text("创建空白环境") }
+                ) { Text(stringResource(R.string.agent_edit_runtime_create_empty)) }
                 TextButton(
                     enabled = !renderModel.sandbox.isBusy,
                     onClick = { state.eventSink(AgentEditEvents.SandboxActionRequested(AgentSandboxInitMethod.CloneOwner)) },
-                ) { Text("从我的环境复制") }
+                ) { Text(stringResource(R.string.agent_edit_runtime_clone_owner)) }
                 if (renderModel.sandbox.isBusy) CircularProgressIndicator(modifier = Modifier.size(18.dp))
             }
             renderModel.sandbox.message?.let { message ->
@@ -342,35 +356,35 @@ private fun AgentForm(state: AgentEditState, submittingStep: AgentEditSubmitting
             title = {
                 Text(
                     when {
-                        hasExisting && cloning -> "覆盖运行环境"
-                        hasExisting -> "替换现有环境"
-                        cloning -> "复制运行环境"
-                        else -> "创建专属运行环境"
+                        hasExisting && cloning -> stringResource(R.string.agent_edit_runtime_overwrite_title)
+                        hasExisting -> stringResource(R.string.agent_edit_runtime_replace_title)
+                        cloning -> stringResource(R.string.agent_edit_runtime_clone_title)
+                        else -> stringResource(R.string.agent_edit_runtime_create_title)
                     },
                 )
             },
             text = {
                 Text(
                     when {
-                        hasExisting && cloning -> "你当前的运行环境将覆盖 Agent 现有的环境，原有数据将被替换。"
-                        hasExisting -> "Agent 已有运行环境，此操作将替换其中的全部数据。请确认没有重要文件遗留。"
-                        cloning -> "将复制你当前的运行环境作为 Agent 的专属起点。所有用户将共享此环境。"
-                        else -> "将为 Agent 创建一个空白、隔离的运行环境。所有用户将共享此环境，请确保不包含私有数据。"
+                        hasExisting && cloning -> stringResource(R.string.agent_edit_runtime_overwrite_message)
+                        hasExisting -> stringResource(R.string.agent_edit_runtime_replace_message)
+                        cloning -> stringResource(R.string.agent_edit_runtime_clone_message)
+                        else -> stringResource(R.string.agent_edit_runtime_create_message)
                     },
                 )
             },
             confirmButton = {
                 TextButton(onClick = { state.eventSink(AgentEditEvents.SandboxActionConfirmed) }) {
-                    Text(if (cloning) "复制我的环境" else "创建")
+                    Text(stringResource(if (cloning) R.string.agent_edit_runtime_clone_confirm else R.string.agent_edit_create))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { state.eventSink(AgentEditEvents.SandboxActionDismissed) }) { Text("取消") }
+                TextButton(onClick = { state.eventSink(AgentEditEvents.SandboxActionDismissed) }) { Text(stringResource(CommonStrings.action_cancel)) }
             },
         )
     }
 
-    SectionHeader(labels.vault)
+    SectionHeader(stringResource(R.string.agent_edit_vault))
     if (renderModel.selectedVaultKeys.isNotEmpty()) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             renderModel.selectedVaultKeys.forEach { item ->
@@ -391,7 +405,7 @@ private fun AgentForm(state: AgentEditState, submittingStep: AgentEditSubmitting
     ) {
         Icon(CompoundIcons.Key(), null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.size(8.dp))
-        Text(renderModel.vaultPickerLabel)
+        Text(stringResource(if (state.personalVaultKeys.isEmpty()) R.string.agent_edit_no_vault else R.string.agent_edit_choose_vault))
     }
     if (!state.isCreate) {
         form.vaultEntries.forEachIndexed { index, entry ->
@@ -400,7 +414,7 @@ private fun AgentForm(state: AgentEditState, submittingStep: AgentEditSubmitting
                     modifier = Modifier.weight(1f),
                     value = entry.key,
                     onValueChange = { state.eventSink(AgentEditEvents.UpdateVaultEntry(index, it, entry.value, entry.description.orEmpty())) },
-                    label = { Text("键") },
+                    label = { Text(stringResource(R.string.agent_edit_key)) },
                     singleLine = true,
                     enabled = !isSubmitting,
                 )
@@ -408,26 +422,26 @@ private fun AgentForm(state: AgentEditState, submittingStep: AgentEditSubmitting
                     modifier = Modifier.weight(1f),
                     value = entry.value,
                     onValueChange = { state.eventSink(AgentEditEvents.UpdateVaultEntry(index, entry.key, it, entry.description.orEmpty())) },
-                    label = { Text("值") },
+                    label = { Text(stringResource(R.string.agent_edit_value)) },
                     singleLine = true,
                     enabled = !isSubmitting,
                 )
                 IconButton(onClick = { state.eventSink(AgentEditEvents.RemoveVaultEntry(index)) }) {
-                    Icon(CompoundIcons.Close(), "删除", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(CompoundIcons.Close(), stringResource(R.string.agent_edit_delete), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
         OutlinedButton(onClick = { state.eventSink(AgentEditEvents.AddVaultEntry) }, enabled = !isSubmitting) {
             Icon(CompoundIcons.Plus(), null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.size(8.dp))
-            Text("手动添加密钥")
+            Text(stringResource(R.string.agent_edit_add_manual_vault))
         }
     }
     if (showVaultSheet) {
         VaultKeyPickerSheet(state = state, onDismiss = { showVaultSheet = false })
     }
 
-    SectionHeader(labels.skills)
+    SectionHeader(stringResource(R.string.agent_edit_owned_skills))
     if (renderModel.selectedSkills.isNotEmpty()) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             renderModel.selectedSkills.forEach { skill ->
@@ -448,7 +462,7 @@ private fun AgentForm(state: AgentEditState, submittingStep: AgentEditSubmitting
     ) {
         Icon(CompoundIcons.Plus(), null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.size(8.dp))
-        Text(renderModel.skillPickerLabel)
+        Text(stringResource(if (state.availableSkills.isEmpty()) R.string.agent_edit_no_skills else R.string.agent_edit_add_skill))
     }
 
     if (showSkillSheet) {
@@ -460,8 +474,8 @@ private fun AgentForm(state: AgentEditState, submittingStep: AgentEditSubmitting
             CircularProgressIndicator(modifier = Modifier.size(20.dp))
             Text(
                 when (submittingStep) {
-                    AgentEditSubmittingStep.CreateAgent -> renderModel.submittingLabel.orEmpty()
-                    AgentEditSubmittingStep.CreateDM -> renderModel.submittingLabel.orEmpty()
+                    AgentEditSubmittingStep.CreateAgent -> stringResource(R.string.agent_edit_saving_agent)
+                    AgentEditSubmittingStep.CreateDM -> stringResource(R.string.agent_edit_creating_dm)
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -475,7 +489,7 @@ private fun AgentForm(state: AgentEditState, submittingStep: AgentEditSubmitting
         onClick = { state.eventSink(AgentEditEvents.Submit) },
         enabled = !isSubmitting,
     ) {
-        Text(renderModel.submitLabel)
+        Text(stringResource(if (state.isCreate) R.string.agent_edit_create else R.string.agent_edit_save_changes))
     }
 }
 
@@ -556,12 +570,12 @@ private fun VaultKeyPickerSheet(state: AgentEditState, onDismiss: () -> Unit) {
     var query by remember { mutableStateOf("") }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
-            Text("选择密钥", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+            Text(stringResource(R.string.agent_edit_choose_key), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
             OutlinedTextField(
                 modifier = Modifier.fillMaxWidth(),
                 value = query,
                 onValueChange = { query = it },
-                placeholder = { Text("搜索…") },
+                placeholder = { Text(stringResource(R.string.agent_edit_search)) },
                 leadingIcon = { Icon(CompoundIcons.Search(), null) },
                 singleLine = true,
             )
@@ -572,7 +586,7 @@ private fun VaultKeyPickerSheet(state: AgentEditState, onDismiss: () -> Unit) {
             if (filtered.isEmpty()) {
                 Text(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                    text = "密钥库为空，你可以在「设置 → 密钥库」中添加。",
+                    text = stringResource(R.string.agent_edit_empty_vault_sheet),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -603,12 +617,12 @@ private fun SkillPickerSheet(state: AgentEditState, onDismiss: () -> Unit) {
     var query by remember { mutableStateOf("") }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
-            Text("添加技能", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+            Text(stringResource(R.string.agent_edit_add_skill), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
             OutlinedTextField(
                 modifier = Modifier.fillMaxWidth(),
                 value = query,
                 onValueChange = { query = it },
-                placeholder = { Text("搜索…") },
+                placeholder = { Text(stringResource(R.string.agent_edit_search)) },
                 leadingIcon = { Icon(CompoundIcons.Search(), null) },
                 singleLine = true,
             )
@@ -619,7 +633,7 @@ private fun SkillPickerSheet(state: AgentEditState, onDismiss: () -> Unit) {
             if (filtered.isEmpty()) {
                 Text(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                    text = "没有结果",
+                    text = stringResource(R.string.agent_edit_no_results),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -651,25 +665,18 @@ private fun AgentCreateSuccess(state: AgentEditState, summary: AgentCreateSucces
         Spacer(Modifier.height(16.dp))
         Text(summary.displayName ?: summary.botName, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
         Text(
-            listOfNotNull(summary.provider, summary.model).joinToString(" · ").ifBlank { "Agent 创建成功" },
+            listOfNotNull(summary.provider, summary.model).joinToString(" · ").ifBlank { stringResource(R.string.agent_edit_create_success) },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(4.dp))
         Button(modifier = Modifier.fillMaxWidth(), enabled = summary.directRoomId != null, onClick = { state.eventSink(AgentEditEvents.GoToChat) }) {
-            Text("开始对话")
+            Text(stringResource(R.string.agent_edit_start_conversation))
         }
         OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = { state.eventSink(AgentEditEvents.CreateAnother) }) {
-            Text("再创建一个")
+            Text(stringResource(R.string.agent_edit_create_another))
         }
     }
-}
-
-private fun availabilitySupport(availability: AgentNameAvailability): String? = when (availability) {
-    AgentNameAvailability.Unknown -> null
-    AgentNameAvailability.Checking -> "检查中..."
-    AgentNameAvailability.Available -> "可用"
-    AgentNameAvailability.Taken -> "已被占用"
 }
 
 @Composable
@@ -696,9 +703,64 @@ private fun SandboxInitOption(
     }
 }
 
+@Composable
+private fun availabilitySupport(availability: AgentNameAvailability): String? = when (availability) {
+    AgentNameAvailability.Unknown -> null
+    AgentNameAvailability.Checking -> stringResource(R.string.agent_edit_checking)
+    AgentNameAvailability.Available -> stringResource(R.string.agent_edit_available)
+    AgentNameAvailability.Taken -> stringResource(R.string.agent_edit_taken)
+}
+
+@Composable
 private fun sandboxModeLabel(mode: AgentSandboxMode): String = when (mode) {
-    AgentSandboxMode.PerUser -> "每用户各自的环境"
-    AgentSandboxMode.AgentDedicated -> "Agent 专属环境"
+    AgentSandboxMode.PerUser -> stringResource(R.string.agent_edit_runtime_per_user)
+    AgentSandboxMode.AgentDedicated -> stringResource(R.string.agent_edit_runtime_dedicated)
+}
+
+@Composable
+private fun sandboxDescription(mode: AgentSandboxMode): String = when (mode) {
+    AgentSandboxMode.PerUser -> stringResource(R.string.agent_edit_runtime_per_user_description)
+    AgentSandboxMode.AgentDedicated -> stringResource(R.string.agent_edit_runtime_dedicated_description)
+}
+
+@Composable
+private fun sandboxStatusLabel(state: AgentEditState): String {
+    val labelRes = if (state.sandboxStatus?.sourceUserId != null) {
+        R.string.agent_edit_runtime_configured_clone
+    } else {
+        R.string.agent_edit_runtime_configured_empty
+    }
+    return stringResource(labelRes)
+}
+
+@Composable
+private fun sandboxInitTitle(method: AgentSandboxInitMethod): String = when (method) {
+    AgentSandboxInitMethod.Empty -> stringResource(R.string.agent_edit_runtime_create_empty)
+    AgentSandboxInitMethod.CloneOwner -> stringResource(R.string.agent_edit_runtime_clone_owner)
+}
+
+@Composable
+private fun sandboxInitSubtitle(method: AgentSandboxInitMethod): String = when (method) {
+    AgentSandboxInitMethod.Empty -> stringResource(R.string.agent_edit_runtime_create_empty_subtitle)
+    AgentSandboxInitMethod.CloneOwner -> stringResource(R.string.agent_edit_runtime_clone_owner_subtitle)
+}
+
+@Composable
+private fun selectedVoiceLabel(state: AgentEditState): String {
+    return if (state.voiceSelection == AgentVoiceSelection.DEFAULT) {
+        stringResource(R.string.agent_edit_voice_default)
+    } else {
+        state.renderModel.selectedVoiceLabel
+    }
+}
+
+@Composable
+private fun voiceOptionLabel(option: AgentEditOption): String {
+    return if (option.id == AgentVoiceSelection.DEFAULT) {
+        stringResource(R.string.agent_edit_voice_default)
+    } else {
+        option.label
+    }
 }
 
 internal class AgentEditStateProvider : PreviewParameterProvider<AgentEditState> {

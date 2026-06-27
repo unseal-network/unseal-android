@@ -32,17 +32,16 @@ data class AgentListItemRenderModel(
     val providerModelLabel: String?,
     val description: String?,
     val isPublic: Boolean,
-    val visibilityLabel: String,
-    val relativeTimeLabel: String?,
+    val relativeTime: AgentRelativeTime?,
 )
 
 fun AgentListState.toRenderModel(nowMillis: Long = System.currentTimeMillis()): AgentListRenderModel {
     return AgentListRenderModel(
-        title = "Agent 列表",
-        searchPlaceholder = "搜索 Agent",
-        createLabel = "创建 Agent",
-        skillsLabel = "技能",
-        emptyLabel = "暂无 Agent",
+        title = "",
+        searchPlaceholder = "",
+        createLabel = "",
+        skillsLabel = "",
+        emptyLabel = "",
         isLoading = isLoading,
         query = searchQuery,
         items = filteredAgents.toRenderItems(nowMillis),
@@ -59,13 +58,25 @@ fun List<ChatbotAgent>.toRenderItems(nowMillis: Long = System.currentTimeMillis(
             providerModelLabel = agent.providerModelText(),
             description = agent.description?.takeIf { it.isNotBlank() },
             isPublic = isPublic,
-            visibilityLabel = if (isPublic) "公开" else "私密",
-            relativeTimeLabel = agent.relativeTimeLabel(nowMillis),
+            relativeTime = agent.relativeTime(nowMillis),
         )
     }.toImmutableList()
 }
 
-private fun ChatbotAgent.relativeTimeLabel(nowMillis: Long): String? {
+data class AgentRelativeTime(
+    val amount: Long,
+    val unit: AgentRelativeTimeUnit,
+    val isFuture: Boolean,
+)
+
+enum class AgentRelativeTimeUnit {
+    Now,
+    Minute,
+    Hour,
+    Day,
+}
+
+private fun ChatbotAgent.relativeTime(nowMillis: Long): AgentRelativeTime? {
     val timestamp = updatedAt ?: createdAt ?: return null
     if (timestamp <= 0L) return null
     val diffMillis = nowMillis - timestamp
@@ -74,16 +85,11 @@ private fun ChatbotAgent.relativeTimeLabel(nowMillis: Long): String? {
     val minute = 60_000L
     val hour = 60 * minute
     val day = 24 * hour
-    val label = when {
-        absMillis < minute -> "刚刚"
-        absMillis < hour -> "${absMillis / minute}分钟前"
-        absMillis < day -> "${absMillis / hour}小时前"
-        absMillis < 30 * day -> "${absMillis / day}天前"
-        else -> null
-    }
     return when {
-        label == null -> null
-        future -> label.removeSuffix("前") + "后"
-        else -> label
+        absMillis < minute -> AgentRelativeTime(0, AgentRelativeTimeUnit.Now, future)
+        absMillis < hour -> AgentRelativeTime(absMillis / minute, AgentRelativeTimeUnit.Minute, future)
+        absMillis < day -> AgentRelativeTime(absMillis / hour, AgentRelativeTimeUnit.Hour, future)
+        absMillis < 30 * day -> AgentRelativeTime(absMillis / day, AgentRelativeTimeUnit.Day, future)
+        else -> null
     }
 }

@@ -421,22 +421,23 @@ private fun UserQrCodeDialog(
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Surface(
-                    color = ElementTheme.colors.bgCanvasDefault,
-                    shape = RoundedCornerShape(16.dp),
-                ) {
-                    QrCodeImage(
-                        data = qrCodeData,
-                        modifier = Modifier
-                            .padding(16.dp)
-                            .size(220.dp),
-                    )
-                }
+                QrCodeImage(
+                    data = qrCodeData,
+                    modifier = Modifier.size(236.dp),
+                )
+                Text(
+                    text = matrixUser.getBestName(),
+                    style = ElementTheme.typography.fontBodyLgMedium,
+                    color = ElementTheme.colors.textPrimary,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 Text(
                     text = matrixUser.userId.value,
-                    style = ElementTheme.typography.fontBodyMdRegular,
+                    style = ElementTheme.typography.fontBodySmRegular,
                     color = ElementTheme.colors.textSecondary,
                     textAlign = TextAlign.Center,
                     maxLines = 2,
