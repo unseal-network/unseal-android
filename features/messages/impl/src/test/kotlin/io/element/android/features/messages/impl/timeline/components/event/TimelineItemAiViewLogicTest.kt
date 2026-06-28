@@ -53,6 +53,52 @@ class TimelineItemAiViewLogicTest {
         assertThat("Here are the current market quotes for Apple and NVIDIA.".looksLikeDuplicateToolCardPayload()).isFalse()
     }
 
+    @Test
+    fun `streaming reveal advances in small adaptive steps`() {
+        assertThat(streamingRevealCodePointStep(remainingTextUnits = 12, totalTextUnits = 120)).isEqualTo(1)
+        assertThat(streamingRevealCodePointStep(remainingTextUnits = 60, totalTextUnits = 120)).isEqualTo(2)
+        assertThat(streamingRevealCodePointStep(remainingTextUnits = 180, totalTextUnits = 240)).isEqualTo(4)
+        assertThat(streamingRevealCodePointStep(remainingTextUnits = 400, totalTextUnits = 600)).isEqualTo(8)
+        assertThat(streamingRevealCodePointStep(remainingTextUnits = 900, totalTextUnits = 1_000)).isEqualTo(16)
+        assertThat(streamingRevealCodePointStep(remainingTextUnits = 1_800, totalTextUnits = 2_000)).isEqualTo(32)
+    }
+
+    @Test
+    fun `streaming reveal caps frame rate for long markdown`() {
+        assertThat(streamingRevealFrameDelayMs(120)).isEqualTo(28L)
+        assertThat(streamingRevealFrameDelayMs(800)).isEqualTo(40L)
+        assertThat(streamingRevealFrameDelayMs(1_600)).isEqualTo(56L)
+    }
+
+    @Test
+    fun `streaming reveal does not split surrogate pairs`() {
+        val text = "A\uD83E\uDD16B"
+
+        val first = nextStreamingRevealEndIndex(currentEndIndex = 0, text = text)
+        val second = nextStreamingRevealEndIndex(currentEndIndex = first, text = text)
+
+        assertThat(text.substring(0, first)).isEqualTo("A")
+        assertThat(text.substring(0, second)).isEqualTo("A\uD83E\uDD16")
+    }
+
+    @Test
+    fun `streaming reveal catches up large snapshots without showing the whole paragraph at once`() {
+        val text = "x".repeat(320)
+
+        val nextIndex = nextStreamingRevealEndIndex(currentEndIndex = 0, text = text)
+
+        assertThat(nextIndex).isEqualTo(8)
+    }
+
+    @Test
+    fun `streaming reveal catches up very large snapshots in bounded chunks`() {
+        val text = "x".repeat(2_000)
+
+        val nextIndex = nextStreamingRevealEndIndex(currentEndIndex = 0, text = text)
+
+        assertThat(nextIndex).isEqualTo(32)
+    }
+
     private fun aiContent(body: String, streamId: String?): TimelineItemAiContent {
         return TimelineItemAiContent(
             body = body,

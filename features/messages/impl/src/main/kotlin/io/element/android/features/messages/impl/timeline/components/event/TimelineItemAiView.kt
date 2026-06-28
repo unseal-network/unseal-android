@@ -176,9 +176,15 @@ fun TimelineItemAiView(
                 onLongClick = onLongClick,
             )
         } else if (content.shouldRenderBodyFallback()) {
+            val visibleBody = rememberStreamingRevealText(
+                key = content.streamId ?: content.eventId ?: "body",
+                targetText = content.body,
+                isStreaming = content.isStreaming,
+            )
+            val isRevealingBody = visibleBody.length < content.body.length
             MarkdownBody(
-                text = content.body,
-                renderMode = if (content.isStreaming) MarkdownRenderMode.Streaming else MarkdownRenderMode.Stable,
+                text = visibleBody,
+                renderMode = if (content.isStreaming || isRevealingBody) MarkdownRenderMode.Streaming else MarkdownRenderMode.Stable,
                 onLinkClick = onLinkClick,
                 onLongClick = onLongClick,
             )
@@ -408,13 +414,127 @@ private fun TextPart(
     onLinkLongClick: (Link) -> Unit,
     onLongClick: (() -> Unit)?,
 ) {
-    if (part.text.isNotBlank()) {
-        MarkdownBody(
-            text = part.text,
-            renderMode = if (part.state == "streaming") MarkdownRenderMode.Streaming else MarkdownRenderMode.Stable,
-            onLinkClick = onLinkClick,
-            onLongClick = onLongClick,
-        )
+    val isStreaming = part.state == "streaming"
+    if (part.text.isBlank()) {
+        if (isStreaming) {
+            StreamingCursor()
+        }
+        return
+    }
+    val visibleText = rememberStreamingRevealText(
+        key = part.id,
+        targetText = part.text,
+        isStreaming = isStreaming,
+    )
+    val isRevealing = visibleText.length < part.text.length
+    MarkdownBody(
+        text = visibleText,
+        renderMode = if (isStreaming || isRevealing) MarkdownRenderMode.Streaming else MarkdownRenderMode.Stable,
+        onLinkClick = onLinkClick,
+        onLongClick = onLongClick,
+    )
+    if (isStreaming) {
+        StreamingCursor()
+    }
+}
+
+@Composable
+private fun rememberStreamingRevealText(
+    key: String,
+    targetText: String,
+    isStreaming: Boolean,
+): String {
+    var hasAnimatedThisSession by remember(key) { mutableStateOf(isStreaming) }
+    var visibleText by remember(key) {
+        mutableStateOf(if (isStreaming) "" else targetText)
+    }
+
+    LaunchedEffect(key, targetText, isStreaming) {
+        if (targetText.isEmpty()) {
+            visibleText = ""
+            return@LaunchedEffect
+        }
+
+        val shouldAnimate = isStreaming || hasAnimatedThisSession
+        if (!shouldAnimate) {
+            visibleText = targetText
+            return@LaunchedEffect
+        }
+        hasAnimatedThisSession = true
+
+        if (!targetText.startsWith(visibleText)) {
+            visibleText = targetText
+            return@LaunchedEffect
+        }
+
+        val frameDelayMs = streamingRevealFrameDelayMs(targetText.length)
+        while (visibleText.length < targetText.length) {
+            val nextIndex = nextStreamingRevealEndIndex(
+                currentEndIndex = visibleText.length,
+                text = targetText,
+            )
+            if (nextIndex <= visibleText.length) {
+                visibleText = targetText
+                return@LaunchedEffect
+            }
+            if (nextIndex >= targetText.length) {
+                visibleText = targetText
+                return@LaunchedEffect
+            } else {
+                visibleText = targetText.substring(0, nextIndex)
+            }
+            delay(frameDelayMs)
+        }
+    }
+
+    return visibleText
+}
+
+internal fun nextStreamingRevealEndIndex(
+    currentEndIndex: Int,
+    text: String,
+): Int {
+    if (currentEndIndex >= text.length) return text.length
+    val safeCurrentEndIndex = currentEndIndex.coerceIn(0, text.length)
+    val step = streamingRevealCodePointStep(
+        remainingTextUnits = text.length - safeCurrentEndIndex,
+        totalTextUnits = text.length,
+    )
+    var nextIndex = safeCurrentEndIndex
+    repeat(step) {
+        if (nextIndex >= text.length) return text.length
+        nextIndex += Character.charCount(text.codePointAt(nextIndex))
+    }
+    return nextIndex.coerceAtMost(text.length)
+}
+
+internal fun streamingRevealCodePointStep(
+    remainingTextUnits: Int,
+    totalTextUnits: Int,
+): Int {
+    val normalizedRemaining = remainingTextUnits.coerceAtLeast(0)
+    val catchUpStep = when {
+        normalizedRemaining <= 24 -> 1
+        normalizedRemaining <= 96 -> 2
+        normalizedRemaining <= 240 -> 4
+        normalizedRemaining <= 600 -> 8
+        normalizedRemaining <= 1_200 -> 16
+        else -> 32
+    }
+    val maxStep = when {
+        totalTextUnits <= 280 -> 8
+        totalTextUnits <= 800 -> 16
+        totalTextUnits <= 1_600 -> 24
+        else -> 32
+    }
+    return catchUpStep.coerceAtMost(maxStep).coerceAtLeast(1)
+}
+
+internal fun streamingRevealFrameDelayMs(totalTextUnits: Int): Long {
+    return when {
+        totalTextUnits <= 280 -> 28L
+        totalTextUnits <= 1_200 -> 40L
+        else -> 56L
     }
 }
 
@@ -422,6 +542,11 @@ private fun TextPart(
 private fun ReasoningPart(part: AiReasoningStreamPart) {
     if (part.text.isBlank()) return
     val isStreaming = part.state == "streaming"
+    val visibleText = rememberStreamingRevealText(
+        key = part.id,
+        targetText = part.text,
+        isStreaming = isStreaming,
+    )
     var expanded by remember(part.id) { mutableStateOf(isStreaming) }
     val shape = RoundedCornerShape(8.dp)
     Surface(
@@ -453,7 +578,7 @@ private fun ReasoningPart(part: AiReasoningStreamPart) {
             }
             if (expanded) {
                 Text(
-                    text = part.text,
+                    text = visibleText,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
