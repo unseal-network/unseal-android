@@ -618,7 +618,7 @@ private fun TimelineEventMetadataRow(
             ),
             renderReadReceipts = renderReadReceipts,
             onReadReceiptsClick = onReadReceiptsClick,
-            modifier = Modifier.padding(end = 4.dp),
+            modifier = Modifier,
         )
         TimelineEventTimestampView(
             event = event,

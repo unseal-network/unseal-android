@@ -142,5 +142,5 @@ internal fun TimelineEventTimestampViewPreview(@PreviewParameter(TimelineItemEve
 }
 
 object TimelineEventTimestampViewDefaults {
-    val spacing = 16.dp
+    val spacing = 6.dp
 }
