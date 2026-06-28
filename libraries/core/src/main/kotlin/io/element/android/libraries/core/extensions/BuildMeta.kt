@@ -13,7 +13,7 @@ import io.element.android.libraries.core.meta.BuildType
 
 fun BuildMeta.isElement(): Boolean {
     return when (buildType) {
-        BuildType.RELEASE -> applicationId == "network.unseal.android"
+        BuildType.RELEASE -> applicationId == "network.unseal" || applicationId == "network.unseal.android"
         BuildType.NIGHTLY -> applicationId == "network.unseal.android.nightly"
         BuildType.DEBUG -> applicationId == "network.unseal.android.debug"
     }

@@ -54,7 +54,7 @@ android {
         uploadKeyPassword.isPresent
 
     defaultConfig {
-        applicationId = BuildTimeConfig.APPLICATION_ID
+        applicationId = providers.gradleProperty("unsealApplicationId").orElse(BuildTimeConfig.APPLICATION_ID).get()
         targetSdk = Versions.TARGET_SDK
         versionCode = Versions.VERSION_CODE
         versionName = Versions.VERSION_NAME
@@ -153,7 +153,7 @@ android {
             signingConfig = signingConfigs.getByName(if (hasUploadSigning) "upload" else "debug")
 
             optimization {
-                enable = true
+                enable = providers.gradleProperty("unsealDisableReleaseOptimization").orNull?.toBoolean() != true
                 keepRules {
                     files.add(File(projectDir, "common-proguard-rules.pro"))
                     files.add(getDefaultProguardFile("proguard-android-optimize.txt"))

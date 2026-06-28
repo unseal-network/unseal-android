@@ -9,7 +9,7 @@
 package config
 
 object BuildTimeConfig {
-    const val APPLICATION_ID = "network.unseal.android"
+    const val APPLICATION_ID = "network.unseal"
     const val APPLICATION_NAME = "Unseal"
     const val GOOGLE_APP_ID_RELEASE = "1:912726360885:android:d097de99a4c23d2700427c"
     const val GOOGLE_APP_ID_DEBUG = "1:912726360885:android:def0a4e454042e9b00427c"

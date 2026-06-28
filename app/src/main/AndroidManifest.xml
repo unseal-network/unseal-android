@@ -70,6 +70,7 @@
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:host="open"
                     android:scheme="unseal" />
@@ -96,23 +97,6 @@
 
                 <data android:scheme="https" />
                 <data android:host="app.unseal.network" />
-                <data android:host="develop.unseal.network" />
-                <data android:host="staging.unseal.network" />
-            </intent-filter>
-            <!--
-              Unseal mobile links
-              Example: https://mobile.unseal.network/unseal/?account_provider=example.org&login_hint=mxid:@alice:example.org
-            -->
-            <intent-filter android:autoVerify="true">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data android:scheme="https" />
-                <data android:host="mobile.unseal.network" />
-                <data android:path="/unseal/" />
-                <data android:path="/element/" />
             </intent-filter>
             <!--
               matrix: links
