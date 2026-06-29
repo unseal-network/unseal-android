@@ -18,7 +18,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -28,8 +27,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -166,12 +163,9 @@ internal fun PptGenerationWorkflowCard(
             }
         }
 
-        // Slide cards row
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 0.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            items(data.totalSlides, key = { it }) { index ->
+        // Slide cards — vertical, full width
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            repeat(data.totalSlides) { index ->
                 ShimmerSlideCard(index = index, isDark = isDark)
             }
         }
@@ -304,7 +298,7 @@ private fun ShimmerSlideCard(index: Int, isDark: Boolean) {
 
     Box(
         modifier = Modifier
-            .width(192.dp)
+            .fillMaxWidth()
             .aspectRatio(16f / 9f)
             .clip(RoundedCornerShape(10.dp))
             .background(shimmerBrush),
