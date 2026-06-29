@@ -34,6 +34,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -138,23 +139,26 @@ private const val EAGER_LOAD_SLIDES = 2
 private const val SLIDE_STAGGER_MS = 250L
 
 /**
- * Ensures the HTML has a viewport meta tag declaring the design width so that
- * WebView's useWideViewPort + loadWithOverviewMode scales it correctly to fit.
+ * Injects a <style> block that:
+ *  1. Locks the document to the design canvas size (1280×720 CSS px).
+ *  2. Applies a CSS scale transform so the canvas fills [cardWidthDp] CSS px exactly.
+ *
+ * Scale is computed on the Kotlin side from the card's measured width, so the WebView
+ * never needs to measure itself (avoids window.innerWidth=0 in onPageFinished).
  */
-private fun injectViewportMeta(html: String): String {
-    val meta = """<meta name="viewport" content="width=$SLIDE_DESIGN_WIDTH_PX, initial-scale=1.0">"""
-    // Already has a viewport meta — replace it so we control the width.
-    if (html.contains("name=\"viewport\"", ignoreCase = true)) {
-        return html.replace(
-            Regex("""<meta[^>]+name=["']viewport["'][^>]*>""", RegexOption.IGNORE_CASE),
-            meta,
-        )
-    }
-    // Inject after <head> if present, otherwise prepend.
+private fun injectScaledStyle(html: String, cardWidthDp: Float): String {
+    val scale = cardWidthDp / SLIDE_DESIGN_WIDTH_PX
+    val designHeight = SLIDE_DESIGN_WIDTH_PX * 9 / 16
+    val style = """
+<style>
+html,body{margin:0;padding:0;width:${SLIDE_DESIGN_WIDTH_PX}px;height:${designHeight}px;overflow:hidden;}
+html{transform-origin:0 0;transform:scale($scale);}
+</style>
+""".trimIndent()
     return if (html.contains("<head>", ignoreCase = true)) {
-        html.replaceFirst("<head>", "<head>$meta", ignoreCase = true)
+        html.replaceFirst("<head>", "<head>$style", ignoreCase = true)
     } else {
-        "<head>$meta</head>$html"
+        "<head>$style</head>$html"
     }
 }
 
@@ -1535,43 +1539,49 @@ private fun PptSlidesView(slides: List<String>, totalSlides: Int) {
 private fun SlideHtmlCard(index: Int, html: String) {
     // Stagger WebView creation: first 2 slides load immediately, the rest load after a
     // delay proportional to index so they don't all hit the WebView renderer at once.
-    var shouldLoad by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(index < EAGER_LOAD_SLIDES) }
-    androidx.compose.runtime.LaunchedEffect(index) {
+    var shouldLoad by remember { mutableStateOf(index < EAGER_LOAD_SLIDES) }
+    LaunchedEffect(index) {
         if (!shouldLoad) {
             kotlinx.coroutines.delay(index * SLIDE_STAGGER_MS)
             shouldLoad = true
         }
     }
 
-    Box(
+    // BoxWithConstraints gives us the real card width in dp (= CSS px at default density).
+    // We compute the CSS transform scale on the Kotlin side and bake it into the HTML so
+    // the WebView never needs to measure itself — avoids the window.innerWidth=0 problem.
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(16f / 9f)
             .clip(RoundedCornerShape(10.dp))
             .background(Color.White),
     ) {
-        if (shouldLoad) {
+        val cardWidthDp = maxWidth.value   // dp ≈ CSS px
+        if (shouldLoad && cardWidthDp > 0) {
+            val scaledHtml = remember(html, cardWidthDp) {
+                injectScaledStyle(html, cardWidthDp)
+            }
             androidx.compose.ui.viewinterop.AndroidView(
                 factory = { context ->
                     android.webkit.WebView(context).apply {
                         settings.javaScriptEnabled = true
-                        // useWideViewPort + loadWithOverviewMode scale injected-viewport
-                        // content (width=SLIDE_DESIGN_WIDTH_PX) to fit the WebView bounds.
-                        settings.useWideViewPort = true
-                        settings.loadWithOverviewMode = true
                         settings.domStorageEnabled = true
+                        // Disable built-in zoom — we handle scaling via CSS transform.
+                        settings.useWideViewPort = false
+                        settings.loadWithOverviewMode = false
                         isVerticalScrollBarEnabled = false
                         isHorizontalScrollBarEnabled = false
                         setInitialScale(0)
                     }
                 },
                 update = { webView ->
-                    webView.loadDataWithBaseURL(null, injectViewportMeta(html), "text/html", "UTF-8", null)
+                    webView.loadDataWithBaseURL(null, scaledHtml, "text/html", "UTF-8", null)
                 },
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
-            // Lightweight placeholder while the stagger delay is pending
+            // Lightweight placeholder while the stagger delay is pending or width not yet known
             Box(
                 modifier = Modifier
                     .fillMaxSize()

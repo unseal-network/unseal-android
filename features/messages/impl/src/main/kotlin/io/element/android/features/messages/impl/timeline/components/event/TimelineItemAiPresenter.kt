@@ -165,7 +165,17 @@ class TimelineItemAiPresenter(
                 val loaded = mutableMapOf<String, List<String>>()
                 workflowTasks.keys.forEach { taskId ->
                     val record = workflowTaskStore.load(taskId)
-                    if (record != null && record.slides.isNotEmpty()) loaded[taskId] = record.slides
+                    if (record != null && record.slides.isNotEmpty()) {
+                        // Truncate to totalSlides when known — guards against historical
+                        // accumulation bugs that stored more slides than the task had.
+                        val cap = record.totalSlides.takeIf { it > 0 } ?: record.slides.size
+                        val clean = record.slides.take(cap)
+                        loaded[taskId] = clean
+                        // Persist the truncated list so the corruption doesn't re-appear.
+                        if (clean.size < record.slides.size) {
+                            workflowTaskStore.saveSlides(taskId, record.taskType, clean, record.status)
+                        }
+                    }
                 }
                 if (loaded.isNotEmpty()) workflowSlides = workflowSlides + loaded
                 persistedSlidesLoaded = true
