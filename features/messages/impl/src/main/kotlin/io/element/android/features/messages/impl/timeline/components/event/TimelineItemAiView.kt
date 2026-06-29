@@ -149,12 +149,13 @@ private const val SLIDE_STAGGER_MS = 250L
 private fun injectScaledStyle(html: String, cardWidthDp: Float): String {
     val scale = cardWidthDp / SLIDE_DESIGN_WIDTH_PX
     val designHeight = SLIDE_DESIGN_WIDTH_PX * 9 / 16
-    val style = """
-<style>
-html,body{margin:0;padding:0;width:${SLIDE_DESIGN_WIDTH_PX}px;height:${designHeight}px;overflow:hidden;}
-html{transform-origin:0 0;transform:scale($scale);}
-</style>
-""".trimIndent()
+    // Force html/body to the design canvas size so useWideViewPort picks up 1280px as the
+    // layout width. The CSS transform then scales the fully-laid-out canvas down to the card.
+    // !important overrides any width/height the slide itself sets on html or body.
+    val style = """<style>
+html,body{margin:0!important;padding:0!important;width:${SLIDE_DESIGN_WIDTH_PX}px!important;height:${designHeight}px!important;overflow:hidden!important;}
+html{transform-origin:0 0;transform:scale($scale)!important;}
+</style>"""
     return if (html.contains("<head>", ignoreCase = true)) {
         html.replaceFirst("<head>", "<head>$style", ignoreCase = true)
     } else {
@@ -1567,8 +1568,10 @@ private fun SlideHtmlCard(index: Int, html: String) {
                     android.webkit.WebView(context).apply {
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true
-                        // Disable built-in zoom — we handle scaling via CSS transform.
-                        settings.useWideViewPort = false
+                        // useWideViewPort=true tells WebView to respect the 1280px
+                        // body width we inject — layout happens at 1280px, then
+                        // CSS transform scale() shrinks it to the card width.
+                        settings.useWideViewPort = true
                         settings.loadWithOverviewMode = false
                         isVerticalScrollBarEnabled = false
                         isHorizontalScrollBarEnabled = false
