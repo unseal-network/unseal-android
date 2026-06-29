@@ -128,6 +128,7 @@ import kotlinx.coroutines.delay
 import org.json.JSONObject
 
 private val ToolCallContentMaxHeight = 320.dp
+private const val SLIDE_LIST_MAX_HEIGHT_DP = 480
 
 /** Allows [PptGenerationWorkflowCard] (deep in the tool card chain) to read workflow progress. */
 internal val LocalWorkflowMessages = androidx.compose.runtime.compositionLocalOf<Map<String, WorkflowMessage>> { emptyMap() }
@@ -1489,7 +1490,12 @@ private fun PptSlidesView(slides: List<String>, totalSlides: Int) {
                 color = textSecondary,
             )
         }
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(
+            modifier = Modifier
+                .heightIn(max = SLIDE_LIST_MAX_HEIGHT_DP.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             slides.forEachIndexed { index, html ->
                 SlideHtmlCard(index = index, html = html)
             }

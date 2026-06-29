@@ -16,6 +16,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -163,8 +166,13 @@ internal fun PptGenerationWorkflowCard(
             }
         }
 
-        // Slide cards — vertical, full width
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // Slide cards — vertical, full width, max height with internal scroll
+        Column(
+            modifier = Modifier
+                .heightIn(max = SLIDE_LIST_MAX_HEIGHT_DP.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             repeat(data.totalSlides) { index ->
                 ShimmerSlideCard(index = index, isDark = isDark)
             }
@@ -372,3 +380,6 @@ private fun ShimmerSlideCard(index: Int, isDark: Boolean) {
         }
     }
 }
+
+// ~2.5 slides visible on typical phones before scroll kicks in
+private const val SLIDE_LIST_MAX_HEIGHT_DP = 480
