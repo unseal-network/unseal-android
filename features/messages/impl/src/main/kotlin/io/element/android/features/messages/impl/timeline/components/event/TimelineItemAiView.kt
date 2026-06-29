@@ -1489,11 +1489,8 @@ private fun PptSlidesView(slides: List<String>, totalSlides: Int) {
                 color = textSecondary,
             )
         }
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 0.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            itemsIndexed(slides) { index, html ->
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            slides.forEachIndexed { index, html ->
                 SlideHtmlCard(index = index, html = html)
             }
         }
@@ -1504,7 +1501,7 @@ private fun PptSlidesView(slides: List<String>, totalSlides: Int) {
 private fun SlideHtmlCard(index: Int, html: String) {
     Box(
         modifier = Modifier
-            .width(192.dp)
+            .fillMaxWidth()
             .aspectRatio(16f / 9f)
             .clip(RoundedCornerShape(10.dp))
             .background(Color.White),
