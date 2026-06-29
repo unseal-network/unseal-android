@@ -146,20 +146,22 @@ private const val SLIDE_STAGGER_MS = 250L
  * Scale is computed on the Kotlin side from the card's measured width, so the WebView
  * never needs to measure itself (avoids window.innerWidth=0 in onPageFinished).
  */
-private fun injectScaledStyle(html: String, cardWidthDp: Float): String {
-    val scale = cardWidthDp / SLIDE_DESIGN_WIDTH_PX
-    val designHeight = SLIDE_DESIGN_WIDTH_PX * 9 / 16
-    // Force html/body to the design canvas size so useWideViewPort picks up 1280px as the
-    // layout width. The CSS transform then scales the fully-laid-out canvas down to the card.
-    // !important overrides any width/height the slide itself sets on html or body.
-    val style = """<style>
-html,body{margin:0!important;padding:0!important;width:${SLIDE_DESIGN_WIDTH_PX}px!important;height:${designHeight}px!important;overflow:hidden!important;}
-html{transform-origin:0 0;transform:scale($scale)!important;}
-</style>"""
-    return if (html.contains("<head>", ignoreCase = true)) {
-        html.replaceFirst("<head>", "<head>$style", ignoreCase = true)
+/**
+ * Ensures a viewport meta for [SLIDE_DESIGN_WIDTH_PX] is the first thing in <head>.
+ * Combined with useWideViewPort=true + setInitialScale(percent), this tells the WebView:
+ *   1. Layout at 1280px (slides are designed for this canvas).
+ *   2. Zoom to the computed percent so the canvas fits the card.
+ */
+private fun injectViewportMeta(html: String): String {
+    val meta = """<meta name="viewport" content="width=$SLIDE_DESIGN_WIDTH_PX">"""
+    // Strip any existing viewport meta first to avoid conflicts.
+    val stripped = html.replace(
+        Regex("""<meta[^>]+name=["']viewport["'][^>]*/?>""", RegexOption.IGNORE_CASE), ""
+    )
+    return if (stripped.contains("<head>", ignoreCase = true)) {
+        stripped.replaceFirst("<head>", "<head>$meta", ignoreCase = true)
     } else {
-        "<head>$style</head>$html"
+        "<head>$meta</head>$stripped"
     }
 }
 
@@ -1548,9 +1550,9 @@ private fun SlideHtmlCard(index: Int, html: String) {
         }
     }
 
-    // BoxWithConstraints gives us the real card width in dp (= CSS px at default density).
-    // We compute the CSS transform scale on the Kotlin side and bake it into the HTML so
-    // the WebView never needs to measure itself — avoids the window.innerWidth=0 problem.
+    // BoxWithConstraints gives us the real card width in dp == CSS px at default density.
+    // setInitialScale(percent) tells WebView to zoom the already-correct 1280px layout
+    // down to the card width — native zoom, no CSS transform on html element.
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
@@ -1558,33 +1560,41 @@ private fun SlideHtmlCard(index: Int, html: String) {
             .clip(RoundedCornerShape(10.dp))
             .background(Color.White),
     ) {
-        val cardWidthDp = maxWidth.value   // dp ≈ CSS px
-        if (shouldLoad && cardWidthDp > 0) {
-            val scaledHtml = remember(html, cardWidthDp) {
-                injectScaledStyle(html, cardWidthDp)
+        val cardWidthDp = maxWidth.value
+        // scale percent: e.g. card=300dp → 300/1280*100 ≈ 23
+        val scalePercent = remember(cardWidthDp) {
+            if (cardWidthDp > 0) ((cardWidthDp / SLIDE_DESIGN_WIDTH_PX) * 100).toInt().coerceAtLeast(1) else 0
+        }
+        // Inject viewport meta once per html string (stable across recompositions).
+        val htmlWithViewport = remember(html) { injectViewportMeta(html) }
+
+        if (shouldLoad && scalePercent > 0) {
+            // key(scalePercent) forces WebView recreation if card width changes.
+            androidx.compose.runtime.key(scalePercent) {
+                androidx.compose.ui.viewinterop.AndroidView(
+                    factory = { context ->
+                        android.webkit.WebView(context).apply {
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            // useWideViewPort makes WebView use the injected viewport
+                            // width (1280px) as the layout viewport — elements with
+                            // absolute positioning are placed correctly at full resolution.
+                            settings.useWideViewPort = true
+                            settings.loadWithOverviewMode = false
+                            isVerticalScrollBarEnabled = false
+                            isHorizontalScrollBarEnabled = false
+                            // setInitialScale zooms the correctly-laid-out 1280px canvas
+                            // down to the card width — native browser zoom, preserves layout.
+                            setInitialScale(scalePercent)
+                        }
+                    },
+                    update = { webView ->
+                        webView.loadDataWithBaseURL(null, htmlWithViewport, "text/html", "UTF-8", null)
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                )
             }
-            androidx.compose.ui.viewinterop.AndroidView(
-                factory = { context ->
-                    android.webkit.WebView(context).apply {
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        // useWideViewPort=true tells WebView to respect the 1280px
-                        // body width we inject — layout happens at 1280px, then
-                        // CSS transform scale() shrinks it to the card width.
-                        settings.useWideViewPort = true
-                        settings.loadWithOverviewMode = false
-                        isVerticalScrollBarEnabled = false
-                        isHorizontalScrollBarEnabled = false
-                        setInitialScale(0)
-                    }
-                },
-                update = { webView ->
-                    webView.loadDataWithBaseURL(null, scaledHtml, "text/html", "UTF-8", null)
-                },
-                modifier = Modifier.fillMaxSize(),
-            )
         } else {
-            // Lightweight placeholder while the stagger delay is pending or width not yet known
             Box(
                 modifier = Modifier
                     .fillMaxSize()
