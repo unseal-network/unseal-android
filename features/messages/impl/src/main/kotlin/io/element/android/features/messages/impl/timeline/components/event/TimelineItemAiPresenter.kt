@@ -166,14 +166,18 @@ class TimelineItemAiPresenter(
                 workflowTasks.keys.forEach { taskId ->
                     val record = workflowTaskStore.load(taskId)
                     if (record != null && record.slides.isNotEmpty()) {
-                        // Truncate to totalSlides when known — guards against historical
-                        // accumulation bugs that stored more slides than the task had.
-                        val cap = record.totalSlides.takeIf { it > 0 } ?: record.slides.size
-                        val clean = record.slides.take(cap)
+                        // Only truncate when totalSlides > 1 AND slides exceed it — guards against
+                        // the old WS-reconnect accumulation bug (e.g. 84 stored vs 12 expected).
+                        // When totalSlides <= 1 it was likely stored wrong (new bug), so trust
+                        // the actual slides count instead of truncating.
+                        val clean = if (record.totalSlides > 1 && record.slides.size > record.totalSlides) {
+                            record.slides.take(record.totalSlides)
+                        } else {
+                            record.slides
+                        }
                         loaded[taskId] = clean
-                        // Persist the truncated list so the corruption doesn't re-appear.
                         if (clean.size < record.slides.size) {
-                            workflowTaskStore.saveSlides(taskId, record.taskType, clean, record.status)
+                            workflowTaskStore.saveSlides(taskId, record.taskType, clean, record.status, knownTotal = record.totalSlides)
                         }
                     }
                 }
@@ -207,10 +211,12 @@ class TimelineItemAiPresenter(
                                         } else {
                                             val updated = current + html
                                             workflowSlides = workflowSlides + (taskId to updated)
-                                            workflowTaskStore.saveSlides(taskId, taskType, updated, "running")
+                                            // Pass totalSlides from WS so it's correctly persisted
+                                            // from the very first partial save.
+                                            workflowTaskStore.saveSlides(taskId, taskType, updated, "running", knownTotal = msg.totalSlides)
                                         }
                                         wsSlideCount++
-                                        Timber.tag("WsDbg").d("slide PROGRESS taskId=%s wsIdx=%d total=%d", taskId, wsSlideCount, workflowSlides[taskId]?.size)
+                                        Timber.tag("WsDbg").d("slide PROGRESS taskId=%s wsIdx=%d total=%d wsTotal=%s", taskId, wsSlideCount, workflowSlides[taskId]?.size, msg.totalSlides)
                                     }
                                 }
                                 is WorkflowMessage.Completed -> {
@@ -218,7 +224,7 @@ class TimelineItemAiPresenter(
                                     if (finalSlides.isNotEmpty()) {
                                         workflowSlides = workflowSlides + (taskId to finalSlides)
                                     }
-                                    workflowTaskStore.saveSlides(taskId, taskType, finalSlides, "completed")
+                                    workflowTaskStore.saveSlides(taskId, taskType, finalSlides, "completed", knownTotal = finalSlides.size)
                                     Timber.tag("WsDbg").d("COMPLETED taskId=%s slides=%d", taskId, finalSlides.size)
                                 }
                                 is WorkflowMessage.Error -> {

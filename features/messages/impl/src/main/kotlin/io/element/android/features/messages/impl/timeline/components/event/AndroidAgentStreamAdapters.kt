@@ -322,8 +322,10 @@ interface WorkflowTaskStore {
     suspend fun save(record: WorkflowTaskRecord)
     /** Convenience: load just the slides list for a task. */
     suspend fun loadSlides(taskId: String): List<String>
-    /** Convenience: update only the slides + status fields, keeping other fields intact. */
-    suspend fun saveSlides(taskId: String, taskType: String, slides: List<String>, status: String = "running")
+    /** Convenience: update only the slides + status fields, keeping other fields intact.
+     *  Pass [knownTotal] when the server has told us the expected slide count so it is
+     *  persisted correctly from the very first partial save. */
+    suspend fun saveSlides(taskId: String, taskType: String, slides: List<String>, status: String = "running", knownTotal: Int? = null)
 }
 
 @SingleIn(AppScope::class)
@@ -389,14 +391,21 @@ class DefaultWorkflowTaskStore(
         taskType: String,
         slides: List<String>,
         status: String,
+        knownTotal: Int?,
     ) {
         val existing = load(taskId)
+        // Priority: explicit knownTotal (from WS) > existing DB value > slides.size.
+        // maxOf ensures we never shrink a previously-set totalSlides.
+        val resolvedTotal = when {
+            knownTotal != null && knownTotal > 0 -> maxOf(knownTotal, existing?.totalSlides ?: 0)
+            else -> maxOf(existing?.totalSlides ?: 0, slides.size)
+        }
         save(WorkflowTaskRecord(
             taskId = taskId,
             taskType = taskType,
             status = status,
             slides = slides,
-            totalSlides = existing?.totalSlides ?: slides.size,
+            totalSlides = resolvedTotal,
             resultJson = existing?.resultJson ?: "{}",
             updatedAtMs = System.currentTimeMillis(),
         ))
