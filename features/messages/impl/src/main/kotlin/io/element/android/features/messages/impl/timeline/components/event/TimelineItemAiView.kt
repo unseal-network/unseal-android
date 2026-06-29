@@ -130,6 +130,29 @@ import org.json.JSONObject
 private val ToolCallContentMaxHeight = 320.dp
 private const val SLIDE_LIST_MAX_HEIGHT_DP = 480
 
+// HTML slides are authored at 1280×720 CSS px (standard 16:9 presentation canvas).
+private const val SLIDE_DESIGN_WIDTH_PX = 1280
+
+// Injected after page load: scale the entire document to fill the card width while
+// keeping the 16:9 aspect ratio. The card's CSS pixel width is measured at runtime
+// via window.innerWidth so the JS doesn't depend on the Kotlin-side scale value.
+private val SLIDE_SCALE_JS = """
+(function() {
+  var designW = $SLIDE_DESIGN_WIDTH_PX;
+  var actualW = window.innerWidth || document.documentElement.clientWidth || designW;
+  var scale = actualW / designW;
+  var s = document.documentElement.style;
+  s.transformOrigin = '0 0';
+  s.transform = 'scale(' + scale + ')';
+  s.width = designW + 'px';
+  s.height = (designW * 9 / 16) + 'px';
+  s.overflow = 'hidden';
+  document.body.style.margin = '0';
+  document.body.style.padding = '0';
+  document.body.style.overflow = 'hidden';
+})();
+""".trimIndent()
+
 /** Allows [PptGenerationWorkflowCard] (deep in the tool card chain) to read workflow progress. */
 internal val LocalWorkflowMessages = androidx.compose.runtime.compositionLocalOf<Map<String, WorkflowMessage>> { emptyMap() }
 internal val LocalWorkflowSlides = androidx.compose.runtime.compositionLocalOf<Map<String, List<String>>> { emptyMap() }
@@ -1505,6 +1528,7 @@ private fun PptSlidesView(slides: List<String>, totalSlides: Int) {
 
 @Composable
 private fun SlideHtmlCard(index: Int, html: String) {
+    val density = LocalDensity.current
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -1515,15 +1539,29 @@ private fun SlideHtmlCard(index: Int, html: String) {
         androidx.compose.ui.viewinterop.AndroidView(
             factory = { context ->
                 android.webkit.WebView(context).apply {
-                    settings.javaScriptEnabled = false
-                    settings.loadWithOverviewMode = true
-                    settings.useWideViewPort = true
+                    settings.javaScriptEnabled = true
+                    settings.loadWithOverviewMode = false
+                    settings.useWideViewPort = false
+                    settings.domStorageEnabled = true
                     isVerticalScrollBarEnabled = false
                     isHorizontalScrollBarEnabled = false
-                    setInitialScale(1)
+                    setInitialScale(0)
+                    webViewClient = object : android.webkit.WebViewClient() {
+                        override fun onPageFinished(view: android.webkit.WebView, url: String) {
+                            // Scale entire slide to fill the card width.
+                            // Slides are designed at SLIDE_DESIGN_WIDTH_PX (1280px CSS px).
+                            // After load we measure the card's CSS pixel width and apply a
+                            // CSS transform so the slide content fills exactly.
+                            view.evaluateJavascript(SLIDE_SCALE_JS, null)
+                        }
+                    }
                 }
             },
             update = { webView ->
+                // Compute card width in CSS px (dp == CSS px at mdpi; adjust for density)
+                val cardWidthDp = with(density) { webView.width.toDp().value.toInt() }
+                val scale = if (cardWidthDp > 0) cardWidthDp.toFloat() / SLIDE_DESIGN_WIDTH_PX else 1f
+                webView.tag = scale
                 webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
             },
             modifier = Modifier.fillMaxSize(),
