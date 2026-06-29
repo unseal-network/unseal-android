@@ -26,6 +26,7 @@ import io.element.android.features.messages.impl.timeline.factories.event.AiStre
 import io.element.android.features.messages.impl.timeline.factories.event.AiStreamHandleStore
 import io.element.android.features.messages.impl.timeline.factories.event.AiSdkStreamReducer
 import io.element.android.features.messages.impl.timeline.model.event.AiDataStreamPart
+import io.element.android.features.messages.impl.timeline.model.event.AiPptWorkflowStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiToolStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.libraries.agentstream.api.StreamRequest
@@ -36,9 +37,11 @@ import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.di.RoomScope
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
+import timber.log.Timber
 
 @BindingContainer
 @ContributesTo(RoomScope::class)
@@ -53,11 +56,15 @@ interface TimelineItemAiPresenterModule {
 
     @Binds
     fun bindWorkflowProgressProvider(impl: WorkflowProgressManager): WorkflowProgressProvider
+
+    @Binds
+    fun bindWorkflowTaskStore(impl: DefaultWorkflowTaskStore): WorkflowTaskStore
 }
 
 data class TimelineItemAiState(
     val content: TimelineItemAiContent,
     val workflowMessages: Map<String, WorkflowMessage> = emptyMap(),
+    val workflowSlides: Map<String, List<String>> = emptyMap(),
 )
 
 @AssistedInject
@@ -68,6 +75,7 @@ class TimelineItemAiPresenter(
     private val aiSdkStreamReducer: AiSdkStreamReducer,
     private val dispatchers: CoroutineDispatchers,
     private val workflowProgressManager: WorkflowProgressProvider,
+    private val workflowTaskStore: WorkflowTaskStore,
 ) : Presenter<TimelineItemAiState> {
     @AssistedFactory
     fun interface Factory : TimelineItemPresenterFactory<TimelineItemAiContent, TimelineItemAiState> {
@@ -88,6 +96,8 @@ class TimelineItemAiPresenter(
             )
         }
         var workflowMessages by remember { mutableStateOf<Map<String, WorkflowMessage>>(emptyMap()) }
+        var workflowSlides by remember { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
+        var persistedSlidesLoaded by remember { mutableStateOf(false) }
 
         LaunchedEffect(contentIdentity) {
             if (streamId == null) {
@@ -113,34 +123,95 @@ class TimelineItemAiPresenter(
             )
         }
 
-        // Collect all workflow task_ids that need WebSocket tracking:
-        // 1. ppt_planning data parts (existing)
-        // 2. generate_ppt_html_presentation tool output (task_id starts with "ppt_gen_")
-        val workflowTaskIds = remember(currentContent.visibleParts) {
-            buildSet {
+        // Map of taskId → Pair(wsBaseUrl, taskType) for WebSocket tracking.
+        // wsBaseUrl null falls back to resolveHomeserverBaseUrl in WorkflowProgressManager.
+        val workflowTasks = remember(currentContent.visibleParts) {
+            buildMap<String, Pair<String?, String>> {
+                Timber.tag("WsDbg").d("workflowTasks BUILD visibleParts=%d streamId=%s", currentContent.visibleParts.size, currentContent.streamId)
                 currentContent.visibleParts.forEach { part ->
+                    Timber.tag("WsDbg").d("workflowTasks PART type=%s", part::class.simpleName)
                     when {
                         part is AiDataStreamPart && part.type == "data" && part.payload.isPptPlanningPayload() ->
-                            extractPptTaskId(part.payload)?.let { add(it) }
+                            extractPptTaskId(part.payload)?.let {
+                                Timber.tag("WsDbg").d("workflowTasks ADD ppt_planning taskId=%s", it)
+                                put(it, null to TASK_TYPE_PPT_PLANNING)
+                            }
                         part is AiToolStreamPart && part.toolName == "generate_ppt_html_presentation" ->
-                            part.output?.let { extractPptTaskId(it) }?.let { add(it) }
+                            part.output?.let { output ->
+                                extractPptTaskId(output)?.let { taskId ->
+                                    Timber.tag("WsDbg").d("workflowTasks ADD ppt_gen (tool) taskId=%s", taskId)
+                                    put(taskId, extractWsBaseUrl(output) to TASK_TYPE_PPT_GENERATION)
+                                }
+                            }
+                        part is AiPptWorkflowStreamPart -> {
+                            Timber.tag("WsDbg").d("workflowTasks ADD ppt_gen (AiPpt) taskId=%s wsUrl=%s", part.taskId, part.websocketUrl)
+                            put(part.taskId, part.websocketUrl?.let { extractWsBaseUrlFromString(it) } to TASK_TYPE_PPT_GENERATION)
+                        }
                         else -> Unit
                     }
                 }
+            }.also { Timber.tag("WsDbg").d("workflowTasks RESULT size=%d keys=%s", it.size, it.keys) }
+        }
+
+        // Load persisted task results from DB once when workflowTasks are first known.
+        LaunchedEffect(workflowTasks) {
+            if (!persistedSlidesLoaded && workflowTasks.isNotEmpty()) {
+                val loaded = mutableMapOf<String, List<String>>()
+                workflowTasks.keys.forEach { taskId ->
+                    val record = workflowTaskStore.load(taskId)
+                    if (record != null && record.slides.isNotEmpty()) loaded[taskId] = record.slides
+                }
+                if (loaded.isNotEmpty()) workflowSlides = workflowSlides + loaded
+                persistedSlidesLoaded = true
             }
         }
 
-        LaunchedEffect(workflowTaskIds) {
-            workflowTaskIds.forEach { taskId ->
-                workflowProgressManager.progressFlow(taskId).collect { msg ->
-                    if (msg !is WorkflowMessage.Empty) {
-                        workflowMessages = workflowMessages + (taskId to msg)
+        LaunchedEffect(workflowTasks) {
+            Timber.tag("WsDbg").d("LaunchedEffect WS tasks=%d", workflowTasks.size)
+            // Each task gets its own child coroutine; the LaunchedEffect scope is the parent.
+            // Do NOT wrap in coroutineScope{} — that would block until all children finish,
+            // causing LeftCompositionCancellationException to propagate when the key changes.
+            workflowTasks.forEach { (taskId, wsBaseUrlAndType) ->
+                val (wsBaseUrl, taskType) = wsBaseUrlAndType
+                launch {
+                    Timber.tag("WsDbg").d("launch collect taskId=%s type=%s", taskId, taskType)
+                    workflowProgressManager.progressFlow(taskId, wsBaseUrl).collect { msg ->
+                        if (msg !is WorkflowMessage.Empty) {
+                            Timber.tag("WsDbg").d("collect MSG taskId=%s type=%s", taskId, msg::class.simpleName)
+                            workflowMessages = workflowMessages + (taskId to msg)
+                            when (msg) {
+                                is WorkflowMessage.Progress -> {
+                                    msg.slideHtml?.let { html ->
+                                        val existing = workflowSlides[taskId] ?: emptyList()
+                                        val updated = existing + html
+                                        workflowSlides = workflowSlides + (taskId to updated)
+                                        Timber.tag("WsDbg").d("saveSlides PROGRESS taskId=%s slides=%d", taskId, updated.size)
+                                        workflowTaskStore.saveSlides(taskId, taskType, updated, "running")
+                                    } ?: Timber.tag("WsDbg").d("collect Progress NO slideHtml taskId=%s stage=%s", taskId, msg.stage)
+                                }
+                                is WorkflowMessage.Completed -> {
+                                    val finalSlides = msg.slides.ifEmpty { workflowSlides[taskId] ?: emptyList() }
+                                    if (finalSlides.isNotEmpty()) {
+                                        workflowSlides = workflowSlides + (taskId to finalSlides)
+                                    }
+                                    Timber.tag("WsDbg").d("saveSlides COMPLETED taskId=%s slides=%d", taskId, finalSlides.size)
+                                    workflowTaskStore.saveSlides(taskId, taskType, finalSlides, "completed")
+                                }
+                                is WorkflowMessage.Error -> {
+                                    val currentSlides = workflowSlides[taskId] ?: emptyList()
+                                    Timber.tag("WsDbg").d("saveSlides ERROR taskId=%s reason=%s", taskId, msg.reason)
+                                    workflowTaskStore.saveSlides(taskId, taskType, currentSlides, "error")
+                                }
+                                else -> Unit
+                            }
+                        }
                     }
+                    Timber.tag("WsDbg").d("collect DONE taskId=%s", taskId)
                 }
             }
         }
 
-        return TimelineItemAiState(currentContent, workflowMessages)
+        return TimelineItemAiState(currentContent, workflowMessages, workflowSlides)
     }
 
     private suspend fun loadCompletedCachedContent(
@@ -236,6 +307,8 @@ class TimelineItemAiPresenter(
 
     private companion object {
         const val STREAMING_TEXT_PATCH_COALESCE_MS = 120L
+        const val TASK_TYPE_PPT_GENERATION = "ppt_generation"
+        const val TASK_TYPE_PPT_PLANNING = "ppt_planning"
     }
 }
 
@@ -255,10 +328,31 @@ private fun extractPptTaskId(payload: String): String? {
     }
 }
 
+/** Extracts scheme+host from a full websocket_url, e.g. "wss://keepsecret.io/path" → "wss://keepsecret.io". */
+private fun extractWsBaseUrl(payload: String): String? {
+    return try {
+        val url = JSONObject(payload).optString("websocket_url").takeIf { it.isNotEmpty() } ?: return null
+        extractWsBaseUrlFromString(url)
+    } catch (_: Exception) {
+        null
+    }
+}
+
+private fun extractWsBaseUrlFromString(url: String): String? {
+    val schemeEnd = url.indexOf("://")
+    if (schemeEnd < 0) return null
+    val hostStart = schemeEnd + 3
+    val hostEnd = url.indexOf('/', hostStart).let { if (it < 0) url.length else it }
+    return url.substring(0, hostEnd)
+}
+
 private fun TimelineItemAiContent.isTerminalRenderableStream(streamId: String): Boolean {
+    // Only skip re-loading when the full snapshot has been mapped into parts.
+    // hasRichParts also fires on toolCalls from the Matrix event JSON, which does NOT include
+    // visibleParts — checking parts.isNotEmpty() ensures the snapshot was actually hydrated.
     return this.streamId == streamId &&
         isTerminal &&
-        (hasRichParts || body.isNotBlank())
+        parts.isNotEmpty()
 }
 
 private fun TimelineItemAiContent.withFallbackMetadata(fallback: TimelineItemAiContent): TimelineItemAiContent {

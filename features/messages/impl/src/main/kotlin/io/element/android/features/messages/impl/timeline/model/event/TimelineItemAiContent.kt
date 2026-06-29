@@ -236,6 +236,16 @@ data class AiCustomStreamPart(
 ) : AiStreamPart
 
 @Immutable
+data class AiPptWorkflowStreamPart(
+    override val id: String,
+    override val state: String,
+    val taskId: String,
+    val totalSlides: Int,
+    val websocketUrl: String?,
+    val isStreaming: Boolean,
+) : AiStreamPart
+
+@Immutable
 data class AiThinkingStep(
     val title: String,
     val description: String,

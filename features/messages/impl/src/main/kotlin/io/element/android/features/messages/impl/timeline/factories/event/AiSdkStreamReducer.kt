@@ -13,6 +13,7 @@ import io.element.android.features.messages.impl.timeline.components.event.toolc
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.isRegisteredToolName
 import io.element.android.features.messages.impl.timeline.model.event.AiCustomStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiDataStreamPart
+import io.element.android.features.messages.impl.timeline.model.event.AiPptWorkflowStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiErrorStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiFileStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiMarkdownBlock
@@ -34,8 +35,10 @@ import io.element.android.libraries.agentstream.api.StreamSnapshotParser
 import io.element.android.libraries.agentstream.api.StreamStatus
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 
 /**
  * Adapts SDK AI stream snapshots to the existing Android AI timeline renderer.
@@ -162,16 +165,52 @@ class AiSdkStreamReducer {
             )
             is StreamPart.Tool -> {
                 val name = toolName ?: type.removePrefix("tool-").takeIf { it != type && it.isNotBlank() } ?: id
-                AiToolStreamPart(
-                    id = id,
-                    state = state,
-                    toolName = name,
-                    title = title,
-                    input = input?.asDisplayString(),
-                    output = output?.asDisplayString(),
-                    errorText = error?.message,
-                    rawInput = rawInput?.asDisplayString(),
-                )
+                if (name == TOOL_PPT) {
+                    val outputObj = output as? JsonObject
+                    val inputObj = input as? JsonObject
+                    val outline = inputObj?.get("outline") as? JsonObject
+                    val isOutputAvailable = state == "output-available"
+                    val websocketUrl = (outputObj?.get("websocket_url") as? JsonPrimitive)?.contentOrNull
+                    // Extract task_id from websocket_url path ("/ws/workflow/<task_id>") as authoritative fallback,
+                    // since the output may omit task_id while the URL always encodes it.
+                    val taskIdFromUrl = websocketUrl?.trimEnd('/')?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
+                    val taskId = if (isOutputAvailable) {
+                        (outputObj?.get("task_id") as? JsonPrimitive)?.contentOrNull
+                            ?: taskIdFromUrl
+                            ?: (outline?.get("task_id") as? JsonPrimitive)?.contentOrNull
+                            ?: id
+                    } else {
+                        (outline?.get("task_id") as? JsonPrimitive)?.contentOrNull
+                            ?: (inputObj?.get("task_id") as? JsonPrimitive)?.contentOrNull
+                            ?: id
+                    }
+                    val totalSlides = if (isOutputAvailable) {
+                        (outputObj?.get("total_slides") as? JsonPrimitive)?.intOrNull
+                            ?: (outline?.get("total_slides") as? JsonPrimitive)?.intOrNull
+                            ?: 5
+                    } else {
+                        (outline?.get("total_slides") as? JsonPrimitive)?.intOrNull ?: 5
+                    }
+                    AiPptWorkflowStreamPart(
+                        id = id,
+                        state = state,
+                        taskId = taskId,
+                        totalSlides = totalSlides,
+                        websocketUrl = websocketUrl,
+                        isStreaming = !isOutputAvailable,
+                    )
+                } else {
+                    AiToolStreamPart(
+                        id = id,
+                        state = state,
+                        toolName = name,
+                        title = title,
+                        input = input?.asDisplayString(),
+                        output = output?.asDisplayString(),
+                        errorText = error?.message,
+                        rawInput = rawInput?.asDisplayString(),
+                    )
+                }
             }
             is StreamPart.Source -> AiSourceStreamPart(
                 id = id,
@@ -266,10 +305,12 @@ class AiSdkStreamReducer {
             is AiDataStreamPart -> listOf(type, payload).joinToString()
             is AiFileStreamPart -> listOf(mediaType, filename, url).joinToString()
             is AiCustomStreamPart -> listOf(type, payload).joinToString()
+            is AiPptWorkflowStreamPart -> listOf(taskId, totalSlides.toString(), websocketUrl, isStreaming.toString()).joinToString()
         }
     }
 
     private companion object {
+        const val TOOL_PPT = "generate_ppt_html_presentation"
         const val DEFAULT_DONE_STATE = "done"
         const val DEFAULT_ERROR_STATE = "error"
         const val DEFAULT_STREAM_ERROR_MESSAGE = "Stream error"

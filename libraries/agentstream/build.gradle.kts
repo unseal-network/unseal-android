@@ -13,7 +13,7 @@ plugins {
 }
 
 group = "network.unseal"
-version = "0.1.0-rc.10"
+version = "0.1.0-rc.18"
 
 android {
     namespace = "io.element.android.libraries.agentstream"
@@ -40,7 +40,7 @@ publishing {
         register<MavenPublication>("agentstreamRelease") {
             groupId = "network.unseal"
             artifactId = "agent-stream-android"
-            version = "0.1.0-rc.10"
+            version = "0.1.0-rc.18"
 
             afterEvaluate {
                 from(components["release"])

@@ -78,6 +78,7 @@ fun TimelineItemEventContentView(
             TimelineItemAiView(
                 content = state.content,
                 workflowMessages = state.workflowMessages,
+                workflowSlides = state.workflowSlides,
                 onLinkClick = onLinkClick,
                 onLinkLongClick = onLinkLongClick,
                 onLongClick = onLongClick,

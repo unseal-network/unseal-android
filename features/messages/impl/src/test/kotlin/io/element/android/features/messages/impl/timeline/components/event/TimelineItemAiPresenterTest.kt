@@ -462,7 +462,7 @@ class TimelineItemAiPresenterTest {
     }
 
     private class FakeWorkflowProgressProvider : WorkflowProgressProvider {
-        override fun progressFlow(taskId: String) = kotlinx.coroutines.flow.flowOf<WorkflowMessage>()
+        override fun progressFlow(taskId: String, wsBaseUrl: String?) = kotlinx.coroutines.flow.flowOf<WorkflowMessage>()
     }
 
     private class FakeAgentStreamClient(

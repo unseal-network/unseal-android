@@ -301,6 +301,151 @@ class SQLiteStreamStorageProvider(
     }
 }
 
+// ─── WorkflowTaskStore ───────────────────────────────────────────────────────
+//
+// Unified persistence for ALL workflow task types (ppt_generation, ppt_planning, …).
+// One row per task_id; task-specific payload lives in result_json for extensibility.
+
+/** A persisted snapshot of one workflow task's result. */
+data class WorkflowTaskRecord(
+    val taskId: String,
+    val taskType: String,       // "ppt_generation" | "ppt_planning" | …
+    val status: String,         // "running" | "completed" | "error"
+    val slides: List<String>,   // HTML slide list (empty when task has no slides)
+    val totalSlides: Int,       // expected total (0 when unknown)
+    val resultJson: String,     // extensible JSON for task-specific data (sections, etc.)
+    val updatedAtMs: Long,
+)
+
+interface WorkflowTaskStore {
+    suspend fun load(taskId: String): WorkflowTaskRecord?
+    suspend fun save(record: WorkflowTaskRecord)
+    /** Convenience: load just the slides list for a task. */
+    suspend fun loadSlides(taskId: String): List<String>
+    /** Convenience: update only the slides + status fields, keeping other fields intact. */
+    suspend fun saveSlides(taskId: String, taskType: String, slides: List<String>, status: String = "running")
+}
+
+@SingleIn(AppScope::class)
+@ContributesBinding(AppScope::class)
+@Inject
+class DefaultWorkflowTaskStore(
+    @ApplicationContext context: Context,
+    private val dispatchers: CoroutineDispatchers,
+) : WorkflowTaskStore {
+
+    private val helper = WorkflowTaskSQLiteOpenHelper(context)
+
+    override suspend fun load(taskId: String): WorkflowTaskRecord? = withContext(dispatchers.io) {
+        try {
+            helper.readableDatabase.query(
+                TABLE_NAME,
+                arrayOf(COLUMN_TASK_TYPE, COLUMN_STATUS, COLUMN_SLIDES_JSON,
+                        COLUMN_TOTAL_SLIDES, COLUMN_RESULT_JSON, COLUMN_UPDATED_AT_MS),
+                "$COLUMN_TASK_ID = ?",
+                arrayOf(taskId),
+                null, null, null,
+            ).use { cursor ->
+                if (!cursor.moveToFirst()) return@withContext null
+                WorkflowTaskRecord(
+                    taskId = taskId,
+                    taskType = cursor.getString(0),
+                    status = cursor.getString(1),
+                    slides = parseJsonArray(cursor.getString(2)),
+                    totalSlides = cursor.getInt(3),
+                    resultJson = cursor.getString(4),
+                    updatedAtMs = cursor.getLong(5),
+                )
+            }
+        } catch (e: Exception) {
+            Timber.tag("WorkflowTaskStore").w(e, "load failed task=%s", taskId)
+            null
+        }
+    }
+
+    override suspend fun save(record: WorkflowTaskRecord) = withContext(dispatchers.io) {
+        runCatching {
+            val values = ContentValues().apply {
+                put(COLUMN_TASK_ID, record.taskId)
+                put(COLUMN_TASK_TYPE, record.taskType)
+                put(COLUMN_STATUS, record.status)
+                put(COLUMN_SLIDES_JSON, org.json.JSONArray(record.slides).toString())
+                put(COLUMN_TOTAL_SLIDES, record.totalSlides)
+                put(COLUMN_RESULT_JSON, record.resultJson)
+                put(COLUMN_UPDATED_AT_MS, record.updatedAtMs)
+            }
+            helper.writableDatabase.insertWithOnConflict(
+                TABLE_NAME, null, values, SQLiteDatabase.CONFLICT_REPLACE,
+            )
+        }.onFailure { Timber.tag("WorkflowTaskStore").w(it, "save failed task=%s", record.taskId) }
+        Unit
+    }
+
+    override suspend fun loadSlides(taskId: String): List<String> =
+        load(taskId)?.slides ?: emptyList()
+
+    override suspend fun saveSlides(
+        taskId: String,
+        taskType: String,
+        slides: List<String>,
+        status: String,
+    ) {
+        val existing = load(taskId)
+        save(WorkflowTaskRecord(
+            taskId = taskId,
+            taskType = taskType,
+            status = status,
+            slides = slides,
+            totalSlides = existing?.totalSlides ?: slides.size,
+            resultJson = existing?.resultJson ?: "{}",
+            updatedAtMs = System.currentTimeMillis(),
+        ))
+    }
+
+    private fun parseJsonArray(json: String): List<String> = runCatching {
+        org.json.JSONArray(json).let { arr -> List(arr.length()) { i -> arr.getString(i) } }
+    }.getOrElse { emptyList() }
+
+    private class WorkflowTaskSQLiteOpenHelper(
+        context: Context,
+    ) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
+        override fun onCreate(database: SQLiteDatabase) {
+            database.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS $TABLE_NAME (
+                    $COLUMN_TASK_ID       TEXT NOT NULL PRIMARY KEY,
+                    $COLUMN_TASK_TYPE     TEXT NOT NULL DEFAULT '',
+                    $COLUMN_STATUS        TEXT NOT NULL DEFAULT 'running',
+                    $COLUMN_SLIDES_JSON   TEXT NOT NULL DEFAULT '[]',
+                    $COLUMN_TOTAL_SLIDES  INTEGER NOT NULL DEFAULT 0,
+                    $COLUMN_RESULT_JSON   TEXT NOT NULL DEFAULT '{}',
+                    $COLUMN_UPDATED_AT_MS INTEGER NOT NULL DEFAULT 0
+                )
+                """.trimIndent()
+            )
+        }
+        override fun onUpgrade(database: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+            database.execSQL("DROP TABLE IF EXISTS $TABLE_NAME")
+            onCreate(database)
+        }
+    }
+
+    private companion object {
+        const val DATABASE_NAME = "workflow_tasks.db"
+        const val DATABASE_VERSION = 1
+        const val TABLE_NAME = "workflow_task_results"
+        const val COLUMN_TASK_ID = "task_id"
+        const val COLUMN_TASK_TYPE = "task_type"
+        const val COLUMN_STATUS = "status"
+        const val COLUMN_SLIDES_JSON = "slides_json"
+        const val COLUMN_TOTAL_SLIDES = "total_slides"
+        const val COLUMN_RESULT_JSON = "result_json"
+        const val COLUMN_UPDATED_AT_MS = "updated_at_ms"
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 private val StreamStatus.wireValue: String
     get() = when (this) {
         StreamStatus.Idle -> "idle"

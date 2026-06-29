@@ -31,6 +31,7 @@ import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -110,6 +111,7 @@ import io.element.android.features.messages.impl.timeline.model.event.AiThinking
 import io.element.android.features.messages.impl.timeline.model.event.AiTextStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiToolCardEntry
 import io.element.android.features.messages.impl.timeline.model.event.AiToolCall
+import io.element.android.features.messages.impl.timeline.model.event.AiPptWorkflowStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiToolStreamPart
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.LocalToolCardEmbeddedInRoot
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.ToolCard
@@ -129,6 +131,7 @@ private val ToolCallContentMaxHeight = 320.dp
 
 /** Allows [PptGenerationWorkflowCard] (deep in the tool card chain) to read workflow progress. */
 internal val LocalWorkflowMessages = androidx.compose.runtime.compositionLocalOf<Map<String, WorkflowMessage>> { emptyMap() }
+internal val LocalWorkflowSlides = androidx.compose.runtime.compositionLocalOf<Map<String, List<String>>> { emptyMap() }
 
 private data class ToolRootUiState(
     val selectedIndex: Int,
@@ -152,6 +155,7 @@ fun TimelineItemAiView(
     onLongClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
     workflowMessages: Map<String, WorkflowMessage> = emptyMap(),
+    workflowSlides: Map<String, List<String>> = emptyMap(),
 ) {
     val toolRootUiStates = remember { mutableStateMapOf<String, ToolRootUiState>() }
     Column(
@@ -171,6 +175,7 @@ fun TimelineItemAiView(
                 isStreaming = content.isStreaming,
                 rootUiStates = toolRootUiStates,
                 workflowMessages = workflowMessages,
+                workflowSlides = workflowSlides,
                 onLinkClick = onLinkClick,
                 onLinkLongClick = onLinkLongClick,
                 onLongClick = onLongClick,
@@ -284,6 +289,7 @@ private fun AiStreamPartsView(
     isStreaming: Boolean,
     rootUiStates: MutableMap<String, ToolRootUiState>,
     workflowMessages: Map<String, WorkflowMessage>,
+    workflowSlides: Map<String, List<String>> = emptyMap(),
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
     onLongClick: (() -> Unit)?,
@@ -292,7 +298,10 @@ private fun AiStreamPartsView(
     // first tool part's position; render every other part inline in order; trailing streaming
     // cursor unless the last part is already a streaming text (which carries its own cursor).
     val toolCardInserted = toolCallRoot != null
-    androidx.compose.runtime.CompositionLocalProvider(LocalWorkflowMessages provides workflowMessages) {
+    androidx.compose.runtime.CompositionLocalProvider(
+        LocalWorkflowMessages provides workflowMessages,
+        LocalWorkflowSlides provides workflowSlides,
+    ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -323,6 +332,7 @@ private fun AiStreamPartsView(
                     is AiFileStreamPart -> FilePart(part, onLinkClick, onLinkLongClick)
                     is AiErrorStreamPart -> ErrorPart(part)
                     is AiDataStreamPart -> DataPart(part, onLinkClick, onLinkLongClick, toolCardInserted, workflowMessages)
+                    is AiPptWorkflowStreamPart -> PptActivityWorkflowCard(part)
                     is AiCustomStreamPart -> Unit
                 }
             }
@@ -1445,6 +1455,121 @@ private fun ToolCardItem(
                 onLinkLongClick = onLinkLongClick,
             )
         }
+    }
+}
+
+/** 已收到 slide HTML 时的横向滑动查看器（WebView 渲染每张幻灯片）。 */
+@Composable
+private fun PptSlidesView(slides: List<String>, totalSlides: Int) {
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val cardBg = if (isDark) Color(0xFF1C1C1E) else Color.White
+    val textSecondary = if (isDark) Color(0xFF8E8E93) else Color(0xFF6B7280)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(cardBg)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = "演示文稿已生成",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = "${slides.size}/$totalSlides",
+                style = MaterialTheme.typography.labelSmall,
+                color = textSecondary,
+            )
+        }
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 0.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            itemsIndexed(slides) { index, html ->
+                SlideHtmlCard(index = index, html = html)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SlideHtmlCard(index: Int, html: String) {
+    Box(
+        modifier = Modifier
+            .width(192.dp)
+            .aspectRatio(16f / 9f)
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.White),
+    ) {
+        androidx.compose.ui.viewinterop.AndroidView(
+            factory = { context ->
+                android.webkit.WebView(context).apply {
+                    settings.javaScriptEnabled = false
+                    settings.loadWithOverviewMode = true
+                    settings.useWideViewPort = true
+                    isVerticalScrollBarEnabled = false
+                    isHorizontalScrollBarEnabled = false
+                    setInitialScale(1)
+                }
+            },
+            update = { webView ->
+                webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
+            },
+            modifier = Modifier.fillMaxSize(),
+        )
+        // Slide number badge
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(6.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(Color(0xFF60A5FA).copy(alpha = 0.85f))
+                .padding(horizontal = 6.dp, vertical = 2.dp),
+        ) {
+            Text(
+                text = (index + 1).toString(),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PptActivityWorkflowCard(part: AiPptWorkflowStreamPart) {
+    val slides = LocalWorkflowSlides.current[part.taskId] ?: emptyList()
+    val workflowMsg = LocalWorkflowMessages.current[part.taskId]
+    // Derive status from WebSocket messages:
+    //   Progress/Empty → still generating (tool output-available just means task_id returned)
+    //   Completed      → workflow finished on server side
+    // Fall back to part.isStreaming only when no WS messages exist AND stream is already
+    // terminal (historical load), to avoid showing "running" forever for old messages.
+    val status = when (workflowMsg) {
+        is WorkflowMessage.Completed -> "completed"
+        is WorkflowMessage.Progress  -> "running"
+        else -> if (slides.isNotEmpty()) "completed" else "running"
+    }
+    val data = remember(part.id, part.taskId, part.totalSlides, part.websocketUrl, status) {
+        PptGenerationWorkflowData(
+            taskId = part.taskId,
+            totalSlides = part.totalSlides,
+            websocketUrl = part.websocketUrl.orEmpty(),
+            status = status,
+        )
+    }
+    if (slides.isNotEmpty()) {
+        PptSlidesView(slides = slides, totalSlides = part.totalSlides)
+    } else {
+        PptGenerationWorkflowCard(data = data)
     }
 }
 

@@ -82,19 +82,14 @@ internal fun PptGenerationWorkflowCard(
 
     // Read live WebSocket progress via CompositionLocal set in AiStreamPartsView
     val workflowMessages = LocalWorkflowMessages.current
+    val workflowSlides = LocalWorkflowSlides.current
     val latestMessage = workflowMessages[data.taskId]
 
-    val liveGeneratedCount = remember(latestMessage) {
-        when (latestMessage) {
-            is WorkflowMessage.Progress -> latestMessage.totalSlides?.let { _ ->
-                // count generated slides from message stage; approximate from "generating" stage index
-                null
-            }
-            is WorkflowMessage.Completed -> data.totalSlides
-            else -> null
-        }
+    // Use received slide count as progress; jump to totalSlides on Completed.
+    val generatedCount = when (latestMessage) {
+        is WorkflowMessage.Completed -> data.totalSlides
+        else -> workflowSlides[data.taskId]?.size ?: 0
     }
-    val generatedCount = liveGeneratedCount ?: 0
     val isCompleted = latestMessage is WorkflowMessage.Completed
     val isGenerating = !isCompleted && data.status != "completed" && data.status != "complete"
 

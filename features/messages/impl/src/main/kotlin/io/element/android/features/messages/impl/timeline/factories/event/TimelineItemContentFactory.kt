@@ -114,18 +114,33 @@ class TimelineItemContentFactory(
 
     private suspend fun hydrateAiContent(aiContent: TimelineItemAiContent): TimelineItemAiContent {
         val streamId = aiContent.streamId ?: return aiContent
-        if (aiContent.isTerminalRenderableStream(streamId)) {
+        // Only skip DB load when the full stream snapshot has already been mapped into parts.
+        // hasRichParts also triggers on toolCalls populated from the Matrix event JSON, which does
+        // NOT include visibleParts — so we must check parts directly.
+        if (aiContent.isTerminal && aiContent.parts.isNotEmpty()) {
+            Timber.tag("WsDbg").d("hydrateAi SKIP stream=%s parts=%d (snapshot already mapped)", streamId, aiContent.parts.size)
             return aiContent
         }
-        aiStreamContentCache.get(streamId)?.let { return it.withFallbackMetadata(aiContent) }
-        val cachedSnapshot = aiStreamHandleStore.cachedCompletedSnapshot(streamId) ?: return aiContent
+        aiStreamContentCache.get(streamId)?.let {
+            Timber.tag("WsDbg").d("hydrateAi CACHE HIT stream=%s parts=%d", streamId, it.parts.size)
+            return it.withFallbackMetadata(aiContent)
+        }
+        val cachedSnapshot = aiStreamHandleStore.cachedCompletedSnapshot(streamId)
+        if (cachedSnapshot == null) {
+            Timber.tag("WsDbg").w("hydrateAi NO SNAPSHOT stream=%s body=%s", streamId, aiContent.body.take(40))
+            return aiContent
+        }
+        Timber.tag("WsDbg").d("hydrateAi LOADED snapshot stream=%s parts=%d", streamId, cachedSnapshot.parts.size)
         return aiSdkStreamReducer.mapSnapshot(
             snapshot = cachedSnapshot,
             isEdited = aiContent.isEdited,
             sender = aiContent.sender,
         )
             .withFallbackMetadata(aiContent)
-            .also(aiStreamContentCache::put)
+            .also {
+                Timber.tag("WsDbg").d("hydrateAi MAPPED stream=%s visibleParts=%d", streamId, it.visibleParts.size)
+                aiStreamContentCache.put(it)
+            }
     }
 
     suspend fun create(
@@ -217,12 +232,6 @@ class TimelineItemContentFactory(
             else -> false
         }
     }
-}
-
-private fun TimelineItemAiContent.isTerminalRenderableStream(streamId: String): Boolean {
-    return this.streamId == streamId &&
-        isTerminal &&
-        (hasRichParts || body.isNotBlank())
 }
 
 private fun TimelineItemAiContent.withFallbackMetadata(fallback: TimelineItemAiContent): TimelineItemAiContent {
