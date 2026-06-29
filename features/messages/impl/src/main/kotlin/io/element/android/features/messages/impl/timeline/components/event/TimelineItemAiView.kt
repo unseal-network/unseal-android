@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -53,6 +54,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.filled.PriorityHigh
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.CircularProgressIndicator
@@ -1501,6 +1505,9 @@ private fun PptSlidesView(slides: List<String>, totalSlides: Int) {
     val cardBg = if (isDark) Color(0xFF1C1C1E) else Color.White
     val textSecondary = if (isDark) Color(0xFF8E8E93) else Color(0xFF6B7280)
 
+    var currentIndex by rememberSaveable { mutableStateOf(0) }
+    val safeIndex = if (slides.isEmpty()) 0 else currentIndex.coerceIn(0, slides.size - 1)
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1510,8 +1517,9 @@ private fun PptSlidesView(slides: List<String>, totalSlides: Int) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
                 text = "演示文稿已生成",
@@ -1525,25 +1533,50 @@ private fun PptSlidesView(slides: List<String>, totalSlides: Int) {
                 color = textSecondary,
             )
         }
-        Column(
-            modifier = Modifier
-                .heightIn(max = SLIDE_LIST_MAX_HEIGHT_DP.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            slides.forEachIndexed { index, html ->
-                SlideHtmlCard(index = index, html = html)
+
+        if (slides.isNotEmpty()) {
+            SlideHtmlCard(index = safeIndex, html = slides[safeIndex], forceLoad = true)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(
+                    onClick = { currentIndex = safeIndex - 1 },
+                    enabled = safeIndex > 0,
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                        contentDescription = "上一页",
+                        tint = if (safeIndex > 0) MaterialTheme.colorScheme.primary else textSecondary,
+                    )
+                }
+                Text(
+                    text = "${safeIndex + 1} / ${slides.size}",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = textSecondary,
+                )
+                IconButton(
+                    onClick = { currentIndex = safeIndex + 1 },
+                    enabled = safeIndex < slides.size - 1,
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "下一页",
+                        tint = if (safeIndex < slides.size - 1) MaterialTheme.colorScheme.primary else textSecondary,
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun SlideHtmlCard(index: Int, html: String) {
-    // Stagger WebView creation: first 2 slides load immediately, the rest load after a
-    // delay proportional to index so they don't all hit the WebView renderer at once.
-    var shouldLoad by remember { mutableStateOf(index < EAGER_LOAD_SLIDES) }
-    LaunchedEffect(index) {
+private fun SlideHtmlCard(index: Int, html: String, forceLoad: Boolean = false) {
+    var shouldLoad by remember(index) { mutableStateOf(forceLoad || index < EAGER_LOAD_SLIDES) }
+    LaunchedEffect(index, forceLoad) {
         if (!shouldLoad) {
             kotlinx.coroutines.delay(index * SLIDE_STAGGER_MS)
             shouldLoad = true
