@@ -133,25 +133,30 @@ private const val SLIDE_LIST_MAX_HEIGHT_DP = 480
 // HTML slides are authored at 1280×720 CSS px (standard 16:9 presentation canvas).
 private const val SLIDE_DESIGN_WIDTH_PX = 1280
 
-// Injected after page load: scale the entire document to fill the card width while
-// keeping the 16:9 aspect ratio. The card's CSS pixel width is measured at runtime
-// via window.innerWidth so the JS doesn't depend on the Kotlin-side scale value.
-private val SLIDE_SCALE_JS = """
-(function() {
-  var designW = $SLIDE_DESIGN_WIDTH_PX;
-  var actualW = window.innerWidth || document.documentElement.clientWidth || designW;
-  var scale = actualW / designW;
-  var s = document.documentElement.style;
-  s.transformOrigin = '0 0';
-  s.transform = 'scale(' + scale + ')';
-  s.width = designW + 'px';
-  s.height = (designW * 9 / 16) + 'px';
-  s.overflow = 'hidden';
-  document.body.style.margin = '0';
-  document.body.style.padding = '0';
-  document.body.style.overflow = 'hidden';
-})();
-""".trimIndent()
+// First N slides load immediately; the rest are staggered to avoid a renderer spike.
+private const val EAGER_LOAD_SLIDES = 2
+private const val SLIDE_STAGGER_MS = 250L
+
+/**
+ * Ensures the HTML has a viewport meta tag declaring the design width so that
+ * WebView's useWideViewPort + loadWithOverviewMode scales it correctly to fit.
+ */
+private fun injectViewportMeta(html: String): String {
+    val meta = """<meta name="viewport" content="width=$SLIDE_DESIGN_WIDTH_PX, initial-scale=1.0">"""
+    // Already has a viewport meta — replace it so we control the width.
+    if (html.contains("name=\"viewport\"", ignoreCase = true)) {
+        return html.replace(
+            Regex("""<meta[^>]+name=["']viewport["'][^>]*>""", RegexOption.IGNORE_CASE),
+            meta,
+        )
+    }
+    // Inject after <head> if present, otherwise prepend.
+    return if (html.contains("<head>", ignoreCase = true)) {
+        html.replaceFirst("<head>", "<head>$meta", ignoreCase = true)
+    } else {
+        "<head>$meta</head>$html"
+    }
+}
 
 /** Allows [PptGenerationWorkflowCard] (deep in the tool card chain) to read workflow progress. */
 internal val LocalWorkflowMessages = androidx.compose.runtime.compositionLocalOf<Map<String, WorkflowMessage>> { emptyMap() }
@@ -1528,7 +1533,16 @@ private fun PptSlidesView(slides: List<String>, totalSlides: Int) {
 
 @Composable
 private fun SlideHtmlCard(index: Int, html: String) {
-    val density = LocalDensity.current
+    // Stagger WebView creation: first 2 slides load immediately, the rest load after a
+    // delay proportional to index so they don't all hit the WebView renderer at once.
+    var shouldLoad by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(index < EAGER_LOAD_SLIDES) }
+    androidx.compose.runtime.LaunchedEffect(index) {
+        if (!shouldLoad) {
+            kotlinx.coroutines.delay(index * SLIDE_STAGGER_MS)
+            shouldLoad = true
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -1536,36 +1550,34 @@ private fun SlideHtmlCard(index: Int, html: String) {
             .clip(RoundedCornerShape(10.dp))
             .background(Color.White),
     ) {
-        androidx.compose.ui.viewinterop.AndroidView(
-            factory = { context ->
-                android.webkit.WebView(context).apply {
-                    settings.javaScriptEnabled = true
-                    settings.loadWithOverviewMode = false
-                    settings.useWideViewPort = false
-                    settings.domStorageEnabled = true
-                    isVerticalScrollBarEnabled = false
-                    isHorizontalScrollBarEnabled = false
-                    setInitialScale(0)
-                    webViewClient = object : android.webkit.WebViewClient() {
-                        override fun onPageFinished(view: android.webkit.WebView, url: String) {
-                            // Scale entire slide to fill the card width.
-                            // Slides are designed at SLIDE_DESIGN_WIDTH_PX (1280px CSS px).
-                            // After load we measure the card's CSS pixel width and apply a
-                            // CSS transform so the slide content fills exactly.
-                            view.evaluateJavascript(SLIDE_SCALE_JS, null)
-                        }
+        if (shouldLoad) {
+            androidx.compose.ui.viewinterop.AndroidView(
+                factory = { context ->
+                    android.webkit.WebView(context).apply {
+                        settings.javaScriptEnabled = true
+                        // useWideViewPort + loadWithOverviewMode scale injected-viewport
+                        // content (width=SLIDE_DESIGN_WIDTH_PX) to fit the WebView bounds.
+                        settings.useWideViewPort = true
+                        settings.loadWithOverviewMode = true
+                        settings.domStorageEnabled = true
+                        isVerticalScrollBarEnabled = false
+                        isHorizontalScrollBarEnabled = false
+                        setInitialScale(0)
                     }
-                }
-            },
-            update = { webView ->
-                // Compute card width in CSS px (dp == CSS px at mdpi; adjust for density)
-                val cardWidthDp = with(density) { webView.width.toDp().value.toInt() }
-                val scale = if (cardWidthDp > 0) cardWidthDp.toFloat() / SLIDE_DESIGN_WIDTH_PX else 1f
-                webView.tag = scale
-                webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
-            },
-            modifier = Modifier.fillMaxSize(),
-        )
+                },
+                update = { webView ->
+                    webView.loadDataWithBaseURL(null, injectViewportMeta(html), "text/html", "UTF-8", null)
+                },
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            // Lightweight placeholder while the stagger delay is pending
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(androidx.compose.ui.graphics.Color(0xFFF0F4F8)),
+            )
+        }
         // Slide number badge
         Box(
             modifier = Modifier

@@ -153,9 +153,15 @@ class TimelineItemAiPresenter(
             }.also { Timber.tag("WsDbg").d("workflowTasks RESULT size=%d keys=%s", it.size, it.keys) }
         }
 
-        // Load persisted task results from DB once when workflowTasks are first known.
-        LaunchedEffect(workflowTasks) {
-            if (!persistedSlidesLoaded && workflowTasks.isNotEmpty()) {
+        // Single effect keyed on task IDs (stable Set<String>).
+        // Loads DB first (sequential), then connects WS only for tasks with no local data.
+        // Keying on .keys instead of the full Map prevents reconnects when wsBaseUrl reference
+        // changes on recomposition while task IDs stay the same.
+        LaunchedEffect(workflowTasks.keys) {
+            if (workflowTasks.isEmpty()) return@LaunchedEffect
+
+            // Step 1: load persisted slides from DB before deciding on WS connection.
+            if (!persistedSlidesLoaded) {
                 val loaded = mutableMapOf<String, List<String>>()
                 workflowTasks.keys.forEach { taskId ->
                     val record = workflowTaskStore.load(taskId)
@@ -164,43 +170,51 @@ class TimelineItemAiPresenter(
                 if (loaded.isNotEmpty()) workflowSlides = workflowSlides + loaded
                 persistedSlidesLoaded = true
             }
-        }
 
-        LaunchedEffect(workflowTasks) {
-            Timber.tag("WsDbg").d("LaunchedEffect WS tasks=%d", workflowTasks.size)
-            // Each task gets its own child coroutine; the LaunchedEffect scope is the parent.
-            // Do NOT wrap in coroutineScope{} — that would block until all children finish,
-            // causing LeftCompositionCancellationException to propagate when the key changes.
+            // Step 2: connect WS only for tasks that have no local slides yet.
             workflowTasks.forEach { (taskId, wsBaseUrlAndType) ->
                 val (wsBaseUrl, taskType) = wsBaseUrlAndType
+                // Skip if DB already has slides — avoids re-accumulating on WS reconnect.
+                if ((workflowSlides[taskId]?.size ?: 0) > 0) {
+                    Timber.tag("WsDbg").d("skip WS taskId=%s (DB has %d slides)", taskId, workflowSlides[taskId]?.size)
+                    return@forEach
+                }
                 launch {
                     Timber.tag("WsDbg").d("launch collect taskId=%s type=%s", taskId, taskType)
+                    // Track WS slide count separately so re-delivery doesn't append to DB data.
+                    var wsSlideCount = 0
                     workflowProgressManager.progressFlow(taskId, wsBaseUrl).collect { msg ->
                         if (msg !is WorkflowMessage.Empty) {
-                            Timber.tag("WsDbg").d("collect MSG taskId=%s type=%s", taskId, msg::class.simpleName)
                             workflowMessages = workflowMessages + (taskId to msg)
                             when (msg) {
                                 is WorkflowMessage.Progress -> {
                                     msg.slideHtml?.let { html ->
-                                        val existing = workflowSlides[taskId] ?: emptyList()
-                                        val updated = existing + html
-                                        workflowSlides = workflowSlides + (taskId to updated)
-                                        Timber.tag("WsDbg").d("saveSlides PROGRESS taskId=%s slides=%d", taskId, updated.size)
-                                        workflowTaskStore.saveSlides(taskId, taskType, updated, "running")
-                                    } ?: Timber.tag("WsDbg").d("collect Progress NO slideHtml taskId=%s stage=%s", taskId, msg.stage)
+                                        // Use WS slide index as position to prevent duplicates
+                                        // if the effect somehow restarts mid-stream.
+                                        val current = workflowSlides[taskId] ?: emptyList()
+                                        if (wsSlideCount < current.size) {
+                                            // Already have this slide (from a prior partial run)
+                                        } else {
+                                            val updated = current + html
+                                            workflowSlides = workflowSlides + (taskId to updated)
+                                            workflowTaskStore.saveSlides(taskId, taskType, updated, "running")
+                                        }
+                                        wsSlideCount++
+                                        Timber.tag("WsDbg").d("slide PROGRESS taskId=%s wsIdx=%d total=%d", taskId, wsSlideCount, workflowSlides[taskId]?.size)
+                                    }
                                 }
                                 is WorkflowMessage.Completed -> {
                                     val finalSlides = msg.slides.ifEmpty { workflowSlides[taskId] ?: emptyList() }
                                     if (finalSlides.isNotEmpty()) {
                                         workflowSlides = workflowSlides + (taskId to finalSlides)
                                     }
-                                    Timber.tag("WsDbg").d("saveSlides COMPLETED taskId=%s slides=%d", taskId, finalSlides.size)
                                     workflowTaskStore.saveSlides(taskId, taskType, finalSlides, "completed")
+                                    Timber.tag("WsDbg").d("COMPLETED taskId=%s slides=%d", taskId, finalSlides.size)
                                 }
                                 is WorkflowMessage.Error -> {
-                                    val currentSlides = workflowSlides[taskId] ?: emptyList()
-                                    Timber.tag("WsDbg").d("saveSlides ERROR taskId=%s reason=%s", taskId, msg.reason)
-                                    workflowTaskStore.saveSlides(taskId, taskType, currentSlides, "error")
+                                    val current = workflowSlides[taskId] ?: emptyList()
+                                    workflowTaskStore.saveSlides(taskId, taskType, current, "error")
+                                    Timber.tag("WsDbg").d("ERROR taskId=%s reason=%s", taskId, msg.reason)
                                 }
                                 else -> Unit
                             }
