@@ -346,6 +346,9 @@ private fun AiStreamPartsView(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        // First pass: render all non-PPT parts in stream order (text, tool cards, etc.).
+        // AiPptWorkflowStreamPart is deferred to always appear below the text response,
+        // matching the web layout where text is shown above the slides card.
         visibleParts.forEachIndexed { index, part ->
             key("${part.id}#$index") {
                 when (part) {
@@ -372,8 +375,16 @@ private fun AiStreamPartsView(
                     is AiFileStreamPart -> FilePart(part, onLinkClick, onLinkLongClick)
                     is AiErrorStreamPart -> ErrorPart(part)
                     is AiDataStreamPart -> DataPart(part, onLinkClick, onLinkLongClick, toolCardInserted, workflowMessages)
-                    is AiPptWorkflowStreamPart -> PptActivityWorkflowCard(part)
+                    is AiPptWorkflowStreamPart -> Unit // rendered in second pass below
                     is AiCustomStreamPart -> Unit
+                }
+            }
+        }
+        // Second pass: PPT workflow cards always rendered after all text/tool content.
+        visibleParts.forEachIndexed { index, part ->
+            if (part is AiPptWorkflowStreamPart) {
+                key("ppt-${part.id}#$index") {
+                    PptActivityWorkflowCard(part)
                 }
             }
         }
