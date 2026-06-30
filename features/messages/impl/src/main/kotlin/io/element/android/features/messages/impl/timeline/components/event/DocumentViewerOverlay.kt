@@ -79,7 +79,7 @@ fun DocumentViewerOverlay(
             val resolvedConfig = config
             if (resolvedConfig == null) {
                 MiniAppLoadingOverlay(
-                    state = MiniAppLoadingState.Loading,
+                    state = MiniAppLoadingState.Loading(),
                     onClose = onDismiss,
                     modifier = Modifier.fillMaxSize(),
                 )

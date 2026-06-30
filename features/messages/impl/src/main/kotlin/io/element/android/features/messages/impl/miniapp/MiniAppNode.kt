@@ -234,7 +234,7 @@ class MiniAppNode @AssistedInject constructor(
         if (config == null) {
             // Phase 1 — covers the full screen while pkg.app.check.update is in-flight.
             MiniAppLoadingOverlay(
-                state = MiniAppLoadingState.Loading,
+                state = MiniAppLoadingState.Loading(),
                 onClose = { navigateUp() },
                 modifier = modifier,
             )
