@@ -103,11 +103,15 @@ fun MiniAppView(
     val scope = rememberCoroutineScope()
 
     // ── Bundle state ─────────────────────────────────────────────────────────
-    // Initial state: if no zipUrl, we are ready immediately.
     var bundleState by remember(config.appId, config.zipUrl) {
         mutableStateOf<BundleState>(
-            if (config.zipUrl.isNullOrBlank()) BundleState.Ready(config.url)
-            else BundleState.Downloading(0f)
+            when {
+                !config.zipUrl.isNullOrBlank() -> BundleState.Downloading(0f)
+                !config.url.isBlank() -> BundleState.Ready(config.url)
+                // Both url and zipUrl are empty — bundle could not be resolved.
+                // Show an error overlay instead of a silent blank WebView.
+                else -> BundleState.Error("Bundle URL not available (appId=${config.appId})")
+            }
         )
     }
     // WebView and bridge holders: set in AndroidView factory.

@@ -67,8 +67,16 @@ internal class MiniAppJsBridge(
      */
     @JavascriptInterface
     fun appInfo(params: String): String {
+        val bundleDir = java.io.File(context.filesDir, "miniapp/app_${config.appId}")
+        val indexFile = java.io.File(bundleDir, "index.html")
+        val localExist = indexFile.exists()
+
         val obj = JSONObject()
         obj.put("app_id", config.appId)
+        // Mirror iOS: include url (local file:// or remote), path, local_exist
+        obj.put("url", if (localExist) indexFile.toURI().toString() else config.url)
+        obj.put("path", bundleDir.absolutePath)
+        obj.put("local_exist", localExist)
         config.token?.let { token ->
             obj.put("token", JSONObject().apply {
                 put("accessToken", token.accessToken)

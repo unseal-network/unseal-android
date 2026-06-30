@@ -176,6 +176,16 @@ internal fun buildStartupScript(config: MiniAppConfig): String {
         "systemName":"Android"
     }"""
 
+    // Compatibility shim: maps iOS-style window.webkit.messageHandlers.X.postMessage(body)
+    // → Android window.webkit.X(JSON.stringify(body)) so a single JS bundle runs on both.
+    val shimScript = """
+(function(){
+    var w=window.webkit;
+    if(!w||w.messageHandlers)return;
+    try{w.messageHandlers=new Proxy({},{get:function(_,n){return{postMessage:function(b){var f=w[n];if(typeof f==='function')f(typeof b==='string'?b:JSON.stringify(b));}};}})}catch(e){}
+})();
+""".trimIndent()
+
     return buildString {
         append("window.___platform='android';")
         append("window.___device=$deviceJson;")
@@ -183,6 +193,7 @@ internal fun buildStartupScript(config: MiniAppConfig): String {
         append("window.___token=$tokenJson;")
         append("window.___user=$userJson;")
         append("window.___options=$optionsJson;")
+        append(shimScript)
     }
 }
 
