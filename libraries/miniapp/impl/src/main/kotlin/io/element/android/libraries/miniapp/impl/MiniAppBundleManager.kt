@@ -121,7 +121,11 @@ internal class MiniAppBundleManager(
             zipFile.delete()
             val resolved = if (indexFile.exists()) indexFile else findIndexHtml(destDir)
             if (resolved != null) {
-                if (serverVersion.isNotEmpty()) saveLocalVersion(appId, serverVersion)
+                // Always save a local version marker so the next launch gets a cache hit.
+                // When the server returns no version (""), store "0" as a sentinel — this
+                // satisfies needsUpdate("0","") → false (keep cache) and still upgrades
+                // correctly when the server later returns a real version like "1.0.5" (0 < 1).
+                saveLocalVersion(appId, serverVersion.ifEmpty { "0" })
                 Timber.d("MiniApp: bundle ready → ${resolved.absolutePath} version=$serverVersion")
                 onProgress(1f)
                 Result.success(resolved)
@@ -156,8 +160,8 @@ internal class MiniAppBundleManager(
      * Empty [serverVersion] always returns false (server has no version info → keep cache).
      */
     private fun needsUpdate(localVersion: String, serverVersion: String): Boolean {
+        if (serverVersion.isEmpty()) return localVersion.isEmpty()  // no server version: only download if nothing cached
         if (localVersion.isEmpty()) return true
-        if (serverVersion.isEmpty()) return false
         val local = localVersion.split(".").map { it.toIntOrNull() ?: 0 }
         val server = serverVersion.split(".").map { it.toIntOrNull() ?: 0 }
         val len = maxOf(local.size, server.size)
