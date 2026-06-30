@@ -59,12 +59,16 @@ interface TimelineItemAiPresenterModule {
 
     @Binds
     fun bindWorkflowTaskStore(impl: DefaultWorkflowTaskStore): WorkflowTaskStore
+
+    @Binds
+    fun bindMiniAppDocumentLauncher(impl: DefaultMiniAppDocumentLauncher): MiniAppDocumentLauncher
 }
 
 data class TimelineItemAiState(
     val content: TimelineItemAiContent,
     val workflowMessages: Map<String, WorkflowMessage> = emptyMap(),
     val workflowSlides: Map<String, List<String>> = emptyMap(),
+    val miniAppDocumentLauncher: MiniAppDocumentLauncher? = null,
 )
 
 @AssistedInject
@@ -76,6 +80,7 @@ class TimelineItemAiPresenter(
     private val dispatchers: CoroutineDispatchers,
     private val workflowProgressManager: WorkflowProgressProvider,
     private val workflowTaskStore: WorkflowTaskStore,
+    private val miniAppDocumentLauncher: MiniAppDocumentLauncher,
 ) : Presenter<TimelineItemAiState> {
     @AssistedFactory
     fun interface Factory : TimelineItemPresenterFactory<TimelineItemAiContent, TimelineItemAiState> {
@@ -241,7 +246,7 @@ class TimelineItemAiPresenter(
             }
         }
 
-        return TimelineItemAiState(currentContent, workflowMessages, workflowSlides)
+        return TimelineItemAiState(currentContent, workflowMessages, workflowSlides, miniAppDocumentLauncher)
     }
 
     private suspend fun loadCompletedCachedContent(

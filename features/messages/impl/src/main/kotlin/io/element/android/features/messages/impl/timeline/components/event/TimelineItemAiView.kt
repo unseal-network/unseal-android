@@ -56,7 +56,15 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material3.IconButton
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material.icons.filled.PriorityHigh
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.CircularProgressIndicator
@@ -169,6 +177,9 @@ private fun injectViewportMeta(html: String): String {
     }
 }
 
+internal enum class PptFullscreenMode { CAROUSEL, MINIAPP }
+internal val PPT_FULLSCREEN_MODE = PptFullscreenMode.CAROUSEL
+
 /** Allows [PptGenerationWorkflowCard] (deep in the tool card chain) to read workflow progress. */
 internal val LocalWorkflowMessages = androidx.compose.runtime.compositionLocalOf<Map<String, WorkflowMessage>> { emptyMap() }
 internal val LocalWorkflowSlides = androidx.compose.runtime.compositionLocalOf<Map<String, List<String>>> { emptyMap() }
@@ -196,6 +207,7 @@ fun TimelineItemAiView(
     modifier: Modifier = Modifier,
     workflowMessages: Map<String, WorkflowMessage> = emptyMap(),
     workflowSlides: Map<String, List<String>> = emptyMap(),
+    miniAppDocumentLauncher: MiniAppDocumentLauncher? = null,
 ) {
     val toolRootUiStates = remember { mutableStateMapOf<String, ToolRootUiState>() }
     Column(
@@ -216,6 +228,7 @@ fun TimelineItemAiView(
                 rootUiStates = toolRootUiStates,
                 workflowMessages = workflowMessages,
                 workflowSlides = workflowSlides,
+                miniAppDocumentLauncher = miniAppDocumentLauncher,
                 onLinkClick = onLinkClick,
                 onLinkLongClick = onLinkLongClick,
                 onLongClick = onLongClick,
@@ -330,6 +343,7 @@ private fun AiStreamPartsView(
     rootUiStates: MutableMap<String, ToolRootUiState>,
     workflowMessages: Map<String, WorkflowMessage>,
     workflowSlides: Map<String, List<String>> = emptyMap(),
+    miniAppDocumentLauncher: MiniAppDocumentLauncher? = null,
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
     onLongClick: (() -> Unit)?,
@@ -341,6 +355,7 @@ private fun AiStreamPartsView(
     androidx.compose.runtime.CompositionLocalProvider(
         LocalWorkflowMessages provides workflowMessages,
         LocalWorkflowSlides provides workflowSlides,
+        LocalDocumentLauncher provides miniAppDocumentLauncher,
     ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -1519,6 +1534,8 @@ private fun PptSlidesView(slides: List<String>, totalSlides: Int) {
     var currentIndex by rememberSaveable { mutableStateOf(0) }
     val safeIndex = if (slides.isEmpty()) 0 else currentIndex.coerceIn(0, slides.size - 1)
 
+    var showFullscreen by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1538,11 +1555,26 @@ private fun PptSlidesView(slides: List<String>, totalSlides: Int) {
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
             )
-            Text(
-                text = "${slides.size}/$totalSlides",
-                style = MaterialTheme.typography.labelSmall,
-                color = textSecondary,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "${slides.size}/$totalSlides",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = textSecondary,
+                )
+                if (slides.isNotEmpty()) {
+                    IconButton(
+                        onClick = { showFullscreen = true },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Fullscreen,
+                            contentDescription = "全屏查看",
+                            tint = textSecondary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+            }
         }
 
         if (slides.isNotEmpty()) {
@@ -1582,10 +1614,104 @@ private fun PptSlidesView(slides: List<String>, totalSlides: Int) {
             }
         }
     }
+
+    // Fullscreen overlay — triggered by the expand button above.
+    if (showFullscreen && slides.isNotEmpty()) {
+        when (PPT_FULLSCREEN_MODE) {
+            PptFullscreenMode.CAROUSEL -> PptCarouselFullscreen(
+                slides = slides,
+                initialIndex = safeIndex,
+                onDismiss = { showFullscreen = false },
+            )
+            PptFullscreenMode.MINIAPP -> {
+                val launcher = LocalDocumentLauncher.current
+                if (launcher != null) {
+                    DocumentViewerOverlay(
+                        appId = MiniAppIds.PPT,
+                        options = mapOf("htmls" to slides, "initialIndex" to safeIndex),
+                        launcher = launcher,
+                        onDismiss = { showFullscreen = false },
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
-private fun SlideHtmlCard(index: Int, html: String, forceLoad: Boolean = false) {
+private fun PptCarouselFullscreen(
+    slides: List<String>,
+    initialIndex: Int,
+    onDismiss: () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnClickOutside = false,
+        ),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .systemBarsPadding(),
+        ) {
+            BackHandler(onBack = onDismiss)
+
+            val pagerState = rememberPagerState(initialPage = initialIndex) { slides.size }
+
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize(),
+                beyondViewportPageCount = 1,
+            ) { page ->
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    SlideHtmlCard(
+                        index = page,
+                        html = slides[page],
+                        forceLoad = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 9f),
+                    )
+                }
+            }
+
+            // Top bar: close + page counter
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "关闭",
+                        tint = Color.White,
+                    )
+                }
+                Text(
+                    text = "${pagerState.currentPage + 1} / ${slides.size}",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Medium,
+                )
+                // Spacer to balance the close button on the left
+                Box(modifier = Modifier.size(48.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun SlideHtmlCard(index: Int, html: String, forceLoad: Boolean = false, modifier: Modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
     var shouldLoad by remember(index) { mutableStateOf(forceLoad || index < EAGER_LOAD_SLIDES) }
     LaunchedEffect(index, forceLoad) {
         if (!shouldLoad) {
@@ -1598,9 +1724,7 @@ private fun SlideHtmlCard(index: Int, html: String, forceLoad: Boolean = false) 
     // setInitialScale(percent) tells WebView to zoom the already-correct 1280px layout
     // down to the card width — native zoom, no CSS transform on html element.
     BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(16f / 9f)
+        modifier = modifier
             .clip(RoundedCornerShape(10.dp))
             .background(Color.White),
     ) {
