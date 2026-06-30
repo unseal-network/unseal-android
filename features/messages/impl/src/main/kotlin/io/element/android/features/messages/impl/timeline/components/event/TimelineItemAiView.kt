@@ -178,7 +178,7 @@ private fun injectViewportMeta(html: String): String {
 }
 
 internal enum class PptFullscreenMode { CAROUSEL, MINIAPP }
-internal val PPT_FULLSCREEN_MODE = PptFullscreenMode.CAROUSEL
+internal val PPT_FULLSCREEN_MODE = PptFullscreenMode.MINIAPP
 
 /** Allows [PptGenerationWorkflowCard] (deep in the tool card chain) to read workflow progress. */
 internal val LocalWorkflowMessages = androidx.compose.runtime.compositionLocalOf<Map<String, WorkflowMessage>> { emptyMap() }

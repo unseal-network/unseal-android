@@ -121,18 +121,35 @@ fun MiniAppView(
     // ── Startup script ────────────────────────────────────────────────────────
     val startupScript = remember(config) { buildStartupScript(config) }
 
-    val webViewClient = remember(config, startupScript) {
+    // For bundle mode: serve the extracted directory via https://appassets.androidplatform.net/
+    // so the WebApp's fetch() calls (e.g. loading WASM) work correctly.
+    // The Fetch API blocks file:// URLs; HTTPS served via WebViewAssetLoader is the fix,
+    // mirroring how iOS uses GCDWebServer to serve the local bundle over http://localhost:PORT.
+    val bundleDir = remember(config.appId) { java.io.File(context.filesDir, "miniapp/app_${config.appId}") }
+    val assetLoader = remember(config.appId, config.zipUrl) {
+        if (config.zipUrl.isNullOrBlank()) null
+        else androidx.webkit.WebViewAssetLoader.Builder()
+            .addPathHandler("/") { path ->
+                val file = java.io.File(bundleDir, path)
+                if (file.exists() && file.isFile) {
+                    val mime = guessBundleMimeType(path)
+                    android.webkit.WebResourceResponse(mime, null, file.inputStream())
+                } else null
+            }
+            .build()
+    }
+
+    val webViewClient = remember(config, startupScript, assetLoader) {
         MiniAppWebViewClient(
             config = config,
             startupScript = startupScript,
+            assetLoader = assetLoader,
             onPageStarted = { },
             onPageFinished = { },
         )
     }
 
     // ── ZIP download ──────────────────────────────────────────────────────────
-    // Runs only when zipUrl is set; cancelled automatically when config changes
-    // or this Composable leaves the composition.
     LaunchedEffect(config.appId, config.zipUrl) {
         Timber.d("MiniApp: LaunchedEffect appId=${config.appId} zipUrl=${config.zipUrl} url=${config.url}")
         val zipUrl = config.zipUrl?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
@@ -146,10 +163,16 @@ fun MiniAppView(
                 bundleState = BundleState.Downloading(progress)
             },
         ).onSuccess { indexFile ->
-            val fileUrl = indexFile.toUri().toString()
-            Timber.d("MiniApp: bundle ready, loading $fileUrl")
-            bundleState = BundleState.Ready(fileUrl)
-            webViewHolder[0]?.loadUrl(fileUrl)
+            // Serve via HTTPS asset loader URL if in bundle mode, otherwise file://.
+            val loadUrl = if (assetLoader != null) {
+                val relativePath = runCatching { indexFile.relativeTo(bundleDir).path }.getOrElse { "index.html" }
+                "https://appassets.androidplatform.net/$relativePath"
+            } else {
+                indexFile.toUri().toString()
+            }
+            Timber.d("MiniApp: bundle ready, loading $loadUrl")
+            bundleState = BundleState.Ready(loadUrl)
+            webViewHolder[0]?.loadUrl(loadUrl)
         }.onFailure { error ->
             Timber.e(error, "MiniApp: bundle preparation failed")
             bundleState = BundleState.Error(error.message ?: "Failed to load bundle")

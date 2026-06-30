@@ -12,8 +12,10 @@ import android.webkit.ConsoleMessage
 import android.webkit.JsPromptResult
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.webkit.WebViewAssetLoader
 import io.element.android.libraries.miniapp.api.MiniAppConfig
 import org.json.JSONObject
 import timber.log.Timber
@@ -30,7 +32,13 @@ internal class MiniAppWebViewClient(
     private val startupScript: String,
     private val onPageFinished: () -> Unit,
     private val onPageStarted: () -> Unit,
+    private val assetLoader: WebViewAssetLoader? = null,
 ) : WebViewClient() {
+
+    override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+        assetLoader?.shouldInterceptRequest(request.url)?.let { return it }
+        return super.shouldInterceptRequest(view, request)
+    }
 
     override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
         super.onPageStarted(view, url, favicon)
@@ -195,6 +203,23 @@ internal fun buildStartupScript(config: MiniAppConfig): String {
         append("window.___options=$optionsJson;")
         append(shimScript)
     }
+}
+
+internal fun guessBundleMimeType(path: String): String = when {
+    path.endsWith(".wasm") -> "application/wasm"
+    path.endsWith(".js") || path.endsWith(".mjs") -> "application/javascript"
+    path.endsWith(".css") -> "text/css"
+    path.endsWith(".html") || path.endsWith(".htm") -> "text/html"
+    path.endsWith(".json") -> "application/json"
+    path.endsWith(".png") -> "image/png"
+    path.endsWith(".jpg") || path.endsWith(".jpeg") -> "image/jpeg"
+    path.endsWith(".svg") -> "image/svg+xml"
+    path.endsWith(".gif") -> "image/gif"
+    path.endsWith(".ico") -> "image/x-icon"
+    path.endsWith(".woff") -> "font/woff"
+    path.endsWith(".woff2") -> "font/woff2"
+    path.endsWith(".ttf") -> "font/ttf"
+    else -> "application/octet-stream"
 }
 
 private fun String.jsonQuote(): String =
