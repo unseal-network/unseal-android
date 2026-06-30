@@ -193,5 +193,9 @@ private fun Any.toJsonLiteral(): String = when (this) {
     is String -> jsonQuote()
     is Boolean -> toString()
     is Number -> toString()
-    else -> "\"${toString().replace("\"", "\\\"")}\""
+    is List<*> -> joinToString(",", "[", "]") { it?.toJsonLiteral() ?: "null" }
+    is Map<*, *> -> entries.joinToString(",", "{", "}") { (k, v) ->
+        "${k.toString().jsonQuote()}:${v?.toJsonLiteral() ?: "null"}"
+    }
+    else -> "\"${toString().replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")}\""
 }
