@@ -48,6 +48,9 @@ private sealed interface BundleState {
     /** ZIP is being downloaded; [progress] is in `[0.0, 1.0]`. */
     data class Downloading(val progress: Float) : BundleState
 
+    /** ZIP extracted, WebView loading the page — overlay stays until onPageFinished. */
+    data class WebLoading(val loadUrl: String) : BundleState
+
     /** Download or extraction failed. */
     data class Error(val message: String) : BundleState
 }
@@ -117,6 +120,9 @@ fun MiniAppView(
     // WebView and bridge holders: set in AndroidView factory.
     val webViewHolder = remember { arrayOfNulls<WebView>(1) }
     val bridgeHolder = remember { arrayOfNulls<MiniAppJsBridge>(1) }
+    // Mutable slot: filled by LaunchedEffect once the load URL is known.
+    // Called by MiniAppWebViewClient.onPageFinished to switch bundleState → Ready.
+    val pageFinishedAction = remember { arrayOfNulls<() -> Unit>(1) }
 
     // ── Startup script ────────────────────────────────────────────────────────
     val startupScript = remember(config) { buildStartupScript(config) }
@@ -145,7 +151,7 @@ fun MiniAppView(
             startupScript = startupScript,
             assetLoader = assetLoader,
             onPageStarted = { },
-            onPageFinished = { },
+            onPageFinished = { pageFinishedAction[0]?.invoke() },
         )
     }
 
@@ -160,18 +166,25 @@ fun MiniAppView(
             zipUrl = zipUrl,
             serverVersion = config.bundleVersion ?: "",
             onProgress = { progress ->
+                val pct = (progress * 100).toInt()
+                Timber.d("MiniApp: downloading appId=${config.appId} $pct%%")
                 bundleState = BundleState.Downloading(progress)
             },
         ).onSuccess { indexFile ->
-            // Serve via HTTPS asset loader URL if in bundle mode, otherwise file://.
             val loadUrl = if (assetLoader != null) {
                 val relativePath = runCatching { indexFile.relativeTo(bundleDir).path }.getOrElse { "index.html" }
                 "https://appassets.androidplatform.net/$relativePath"
             } else {
                 indexFile.toUri().toString()
             }
-            Timber.d("MiniApp: bundle ready, loading $loadUrl")
-            bundleState = BundleState.Ready(loadUrl)
+            Timber.d("MiniApp: download done, loading WebView appId=${config.appId} url=$loadUrl")
+            // Stay on overlay (WebLoading) until onPageFinished fires.
+            pageFinishedAction[0] = {
+                Timber.d("MiniApp: page loaded appId=${config.appId}")
+                bundleState = BundleState.Ready(loadUrl)
+                pageFinishedAction[0] = null
+            }
+            bundleState = BundleState.WebLoading(loadUrl)
             webViewHolder[0]?.loadUrl(loadUrl)
         }.onFailure { error ->
             Timber.e(error, "MiniApp: bundle preparation failed")
@@ -183,6 +196,7 @@ fun MiniAppView(
     DisposableEffect(config.appId) {
         onDispose {
             Timber.d("MiniApp: disposing WebView for appId=${config.appId}")
+            pageFinishedAction[0] = null
             bridgeHolder[0]?.release()
             bridgeHolder[0] = null
             webViewHolder[0]?.let { wv ->
@@ -219,7 +233,11 @@ fun MiniAppView(
         // Loading / error overlay — drawn on top of the WebView.
         when (val state = bundleState) {
             is BundleState.Downloading -> MiniAppLoadingOverlay(
-                state = MiniAppLoadingState.Loading,
+                state = MiniAppLoadingState.Loading(progress = state.progress),
+                onClose = onClose,
+            )
+            is BundleState.WebLoading -> MiniAppLoadingOverlay(
+                state = MiniAppLoadingState.Loading(progress = null),
                 onClose = onClose,
             )
             is BundleState.Error -> MiniAppLoadingOverlay(

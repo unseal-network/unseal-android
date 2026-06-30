@@ -62,7 +62,8 @@ private val MiniAppLoadingTheme.btnBgColor get() = if (this == MiniAppLoadingThe
 // ── State ─────────────────────────────────────────────────────────────────────
 
 sealed interface MiniAppLoadingState {
-    data object Loading : MiniAppLoadingState
+    /** [progress] in [0,1]; null = indeterminate (page loading phase). */
+    data class Loading(val progress: Float? = null) : MiniAppLoadingState
     data class Error(val message: String, val onRetry: () -> Unit) : MiniAppLoadingState
 }
 
@@ -124,6 +125,17 @@ fun MiniAppLoadingOverlay(
             }
 
             Spacer(Modifier.height(24.dp))
+
+            // Download progress percentage
+            if (state is MiniAppLoadingState.Loading && state.progress != null) {
+                Text(
+                    text = "${(state.progress * 100).toInt()}%",
+                    color = theme.labelColor,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(8.dp))
+            }
 
             // Error message
             if (state is MiniAppLoadingState.Error) {
