@@ -59,9 +59,6 @@ interface TimelineItemAiPresenterModule {
 
     @Binds
     fun bindWorkflowTaskStore(impl: DefaultWorkflowTaskStore): WorkflowTaskStore
-
-    @Binds
-    fun bindMiniAppDocumentLauncher(impl: DefaultMiniAppDocumentLauncher): MiniAppDocumentLauncher
 }
 
 data class TimelineItemAiState(
