@@ -1665,6 +1665,8 @@ private fun PptCarouselFullscreen(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize(),
                 beyondViewportPageCount = 1,
+                pageSpacing = 24.dp,
+                contentPadding = PaddingValues(horizontal = 16.dp),
             ) { page ->
                 Box(
                     modifier = Modifier.fillMaxSize(),
