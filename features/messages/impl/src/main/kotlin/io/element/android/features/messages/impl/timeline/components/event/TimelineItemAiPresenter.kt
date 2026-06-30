@@ -138,6 +138,16 @@ class TimelineItemAiPresenter(
                                 Timber.tag("WsDbg").d("workflowTasks ADD ppt_planning taskId=%s", it)
                                 put(it, null to TASK_TYPE_PPT_PLANNING)
                             }
+                        part is AiDataStreamPart && part.type == "data" && part.payload.isWritingPlanningPayload() ->
+                            extractPptTaskId(part.payload)?.let {
+                                Timber.tag("WsDbg").d("workflowTasks ADD writing_planning taskId=%s", it)
+                                put(it, null to TASK_TYPE_WRITING_PLANNING)
+                            }
+                        part is AiDataStreamPart && part.type == "data" && part.payload.isSearchResultsPayload() ->
+                            extractPptTaskId(part.payload)?.let {
+                                Timber.tag("WsDbg").d("workflowTasks ADD search_results taskId=%s", it)
+                                put(it, null to TASK_TYPE_SEARCH_RESULTS)
+                            }
                         part is AiToolStreamPart && part.toolName == "generate_ppt_html_presentation" ->
                             part.output?.let { output ->
                                 extractPptTaskId(output)?.let { taskId ->
@@ -341,12 +351,30 @@ class TimelineItemAiPresenter(
         const val STREAMING_TEXT_PATCH_COALESCE_MS = 120L
         const val TASK_TYPE_PPT_GENERATION = "ppt_generation"
         const val TASK_TYPE_PPT_PLANNING = "ppt_planning"
+        const val TASK_TYPE_WRITING_PLANNING = "writing_planning"
+        const val TASK_TYPE_SEARCH_RESULTS = "search_results"
     }
 }
 
 private fun String.isPptPlanningPayload(): Boolean {
     return try {
         JSONObject(this).optString("content_type") == "ppt_planning"
+    } catch (_: Exception) {
+        false
+    }
+}
+
+private fun String.isWritingPlanningPayload(): Boolean {
+    return try {
+        JSONObject(this).optString("content_type") == "writing_planning"
+    } catch (_: Exception) {
+        false
+    }
+}
+
+private fun String.isSearchResultsPayload(): Boolean {
+    return try {
+        JSONObject(this).optString("content_type") == "search_results"
     } catch (_: Exception) {
         false
     }

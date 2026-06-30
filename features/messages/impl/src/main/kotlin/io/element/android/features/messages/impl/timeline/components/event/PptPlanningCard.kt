@@ -543,7 +543,7 @@ private fun DropdownDisplayBox(value: String, isDark: Boolean) {
 // ── Workflow progress section ─────────────────────────────────────────────────
 
 @Composable
-private fun WorkflowProgressSection(progress: WorkflowMessage, accentColor: Color) {
+internal fun WorkflowProgressSection(progress: WorkflowMessage, accentColor: Color) {
     when (progress) {
         is WorkflowMessage.Empty -> Unit
 
@@ -636,7 +636,7 @@ private fun WorkflowProgressSection(progress: WorkflowMessage, accentColor: Colo
 }
 
 @Composable
-private fun WorkflowSpinner(color: Color) {
+internal fun WorkflowSpinner(color: Color) {
     val transition = rememberInfiniteTransition(label = "workflow-spinner")
     val alpha by transition.animateFloat(
         initialValue = 0.3f,

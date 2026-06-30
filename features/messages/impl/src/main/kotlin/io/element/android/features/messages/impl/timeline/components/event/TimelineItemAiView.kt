@@ -178,7 +178,7 @@ private fun injectViewportMeta(html: String): String {
 }
 
 internal enum class PptFullscreenMode { CAROUSEL, MINIAPP }
-internal val PPT_FULLSCREEN_MODE = PptFullscreenMode.MINIAPP
+internal val PPT_FULLSCREEN_MODE = PptFullscreenMode.CAROUSEL
 
 /** Allows [PptGenerationWorkflowCard] (deep in the tool card chain) to read workflow progress. */
 internal val LocalWorkflowMessages = androidx.compose.runtime.compositionLocalOf<Map<String, WorkflowMessage>> { emptyMap() }
@@ -1852,6 +1852,29 @@ private fun DataPart(
                             data = pptData,
                             workflowProgress = progress,
                             onLinkClick = onLinkClick,
+                        )
+                    }
+                }
+                "writing_planning" -> {
+                    val writingData = remember(part.id, part.payload) { WritingPlanningData.fromJson(part.payload) }
+                    if (writingData != null) {
+                        val progress = workflowMessages[writingData.taskId] ?: WorkflowMessage.Empty
+                        WritingPlanningCard(
+                            data = writingData,
+                            workflowProgress = progress,
+                            onLinkClick = onLinkClick,
+                        )
+                    }
+                }
+                "search_results" -> {
+                    val searchData = remember(part.id, part.payload) { SearchResultsData.fromJson(part.payload) }
+                    if (searchData != null) {
+                        val progress = workflowMessages[searchData.taskId] ?: WorkflowMessage.Empty
+                        SearchResultsCard(
+                            data = searchData,
+                            workflowProgress = progress,
+                            onLinkClick = onLinkClick,
+                            openFileMode = SearchResultsOpenMode.PreviewDialog,
                         )
                     }
                 }
