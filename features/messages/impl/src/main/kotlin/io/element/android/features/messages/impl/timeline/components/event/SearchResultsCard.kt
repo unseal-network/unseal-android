@@ -292,7 +292,7 @@ internal fun SearchResultsCard(
                         )
                     }
 
-                    // Export to Doc button
+                    // Open Doc button
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
@@ -321,7 +321,7 @@ internal fun SearchResultsCard(
                                 modifier = Modifier.size(16.dp),
                             )
                             Text(
-                                text = "Export",
+                                text = "Open",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Medium,
                                 color = if (isDark) Color(0xFF60A5FA) else Color(0xFF2563EB),
