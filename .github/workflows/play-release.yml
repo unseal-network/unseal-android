@@ -163,3 +163,32 @@ jobs:
             --title "${title}" \
             --notes-file "${notes_file}" \
             "${args[@]}"
+
+      - name: Notify Synapse download catalog
+        env:
+          WEBHOOK_URL: ${{ vars.SYNAPSE_DOWNLOAD_WEBHOOK_URL }}
+          WEBHOOK_SECRET: ${{ secrets.SYNAPSE_DOWNLOAD_WEBHOOK_SECRET }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${WEBHOOK_URL}" ] || [ -z "${WEBHOOK_SECRET}" ]; then
+            echo "::error::Missing SYNAPSE_DOWNLOAD_WEBHOOK_URL or SYNAPSE_DOWNLOAD_WEBHOOK_SECRET"
+            exit 1
+          fi
+
+          body=$(jq -nc --arg repo "${GITHUB_REPOSITORY}" '{action:"published", repository:{full_name:$repo}}')
+          signature=$(BODY="${body}" SECRET="${WEBHOOK_SECRET}" python3 - <<'PY'
+          import hashlib
+          import hmac
+          import os
+
+          print("sha256=" + hmac.new(os.environ["SECRET"].encode(), os.environ["BODY"].encode(), hashlib.sha256).hexdigest())
+          PY
+          )
+
+          curl --fail-with-body -sS -X POST "${WEBHOOK_URL}" \
+            -H "Content-Type: application/json" \
+            -H "X-GitHub-Event: release" \
+            -H "X-GitHub-Delivery: ${GITHUB_REPOSITORY}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            -H "X-Hub-Signature-256: ${signature}" \
+            --data "${body}"
