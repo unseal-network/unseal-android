@@ -30,6 +30,7 @@ dependencies {
     implementation(libs.maplibre.compose)
     implementation(libs.coil)
     implementation(projects.libraries.architecture)
+    implementation(projects.libraries.chatbot.api)
     implementation(projects.libraries.matrix.api)
     implementation(projects.libraries.di)
     implementation(projects.libraries.designsystem)
@@ -47,6 +48,8 @@ dependencies {
     implementation(projects.libraries.sessionStorage.api)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.datetime)
+    implementation(platform(libs.network.okhttp.bom))
+    implementation(libs.network.okhttp)
 
     testCommonDependencies(libs, true)
     testImplementation(projects.libraries.matrix.test)

@@ -75,7 +75,7 @@ class FirebasePushProviderTest {
     }
 
     @Test
-    fun `register ko no token`() = runTest {
+    fun `register skips when no token`() = runTest {
         val firebasePushProvider = createFirebasePushProvider(
             firebaseStore = InMemoryFirebaseStore(
                 token = null
@@ -85,7 +85,7 @@ class FirebasePushProviderTest {
             )
         )
         val result = firebasePushProvider.registerWith(FakeMatrixClient(), Distributor("value", "Name"))
-        assertThat(result.isFailure).isTrue()
+        assertThat(result.isSuccess).isTrue()
     }
 
     @Test

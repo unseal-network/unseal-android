@@ -1,6 +1,6 @@
-# AGENTS.md — Element X Android
+# AGENTS.md — Unseal Android
 
-> **Repo:** `element-hq/element-x-android` — Android Matrix client (Compose UI + `matrix-rust-sdk`).
+> **Repo:** `unseal-android` — Unseal's Android Matrix client, based on Element X Android (Compose UI + `matrix-rust-sdk`).
 
 ---
 
@@ -126,7 +126,7 @@ adb install -r <APK_PATH>
 Launch the debug app:
 
 ```bash
-adb shell monkey -p network.unseal.android.debug -c android.intent.category.LAUNCHER 1
+adb shell monkey -p network.unseal -c android.intent.category.LAUNCHER 1
 ```
 
 If launch fails, confirm the package and launchable activity from the APK:
@@ -231,17 +231,32 @@ Verify after updating the SDK binary:
 ./gradlew :app:installGplayDebug
 ```
 
-More context and the current handoff are in `HANDOFF_AGENT_MANAGEMENT.md`.
-
 ---
 
-## Unseal Android Handoff
+## Unseal Android Project Notes
 
-Use `HANDOFF_AGENT_MANAGEMENT.md` as the single current handoff for Unseal-specific Android work. Older one-off specs and migration plans were intentionally removed because they had stale branch names, stale worktree paths, and contradictory guidance.
+These are stable project rules. Do not add temporary transfer/status files for normal work; fold durable facts into this file or a focused document under `docs/`.
 
-Project skill:
+### App Identity
 
-- `.agents/skills/android-device-debugging/SKILL.md`: use for real-device connection, `scrcpy` mirroring, APK install, simulated UI operations, logs, frame stats, CPU, memory, and resource monitoring.
+- Android application id is `network.unseal`.
+- The Kotlin/Android namespace remains `network.unseal.android`; do not rename source packages just to change the installed package.
+- Nightly builds may use `network.unseal.nightly`. Debug builds intentionally use the production package id unless a task explicitly says otherwise.
+- The launcher command is:
+
+```bash
+adb shell monkey -p network.unseal -c android.intent.category.LAUNCHER 1
+```
+
+### Unseal Data Boundaries
+
+- iOS is the product-parity reference, but do not implement from screenshots alone. Check the iOS data source first, then align Android client/domain models, reducer/render models, and finally Compose UI.
+- Homeserver-backed Chatbot APIs (`/chatbot/v1/*`) resolve from `.well-known/matrix/client` `m.homeserver.base_url`.
+- Unseal agent-api features such as credits, voice, environment, vault, connectors, and triggers resolve from `.well-known/matrix/client` `org.unseal.api.base_url`; when absent they fall back to the same homeserver host, not an unrelated production host.
+- Matrix room data such as members, timeline events, read receipts, typing, and encryption state must continue to come from the Matrix SDK / room wrappers.
+- UI code must not hardcode API hosts or bypass the resolver layer.
+
+### Agent Stream Rendering
 
 Stable stream-render assets remain in the repo:
 
@@ -249,12 +264,51 @@ Stable stream-render assets remain in the repo:
 - Fixture replay tool: `tools/agent-stream-parity/README.md`
 - Android stream wrapper: `libraries/agentstream`
 
-Android AI stream rendering must still consume `libraries/agentstream` through `AgentStreamClient`:
+Android AI stream rendering consumes `libraries/agentstream` through `AgentStreamClient`:
 
 1. Matrix timeline event exposes `streamId`.
-2. Room/timeline binding calls `AgentStreamClient.getStream(StreamRequest(...))`.
-3. The binding subscribes to `StreamHandle` snapshots.
-4. `AiSdkStreamReducer.mapSnapshot()` converts SDK `StreamSnapshot` to `TimelineItemAiContent`.
+2. Room/timeline binding uses `AiStreamHandleStore`, which calls `AgentStreamClient.getStream(StreamRequest(...))`.
+3. The binding subscribes to `StreamHandle` snapshots and normalizes terminal snapshots with `normalizedForTerminalState()`.
+4. `AiSdkStreamReducer.mapSnapshot()` converts SDK `StreamSnapshot` to `TimelineItemAiContent`; `mapRenderModel()` owns the lower-level render model conversion.
 5. Compose renders `TimelineItemAiContent` only.
 
-Do not fetch SSE, parse full stream JSON, or write stream store from Compose or messages UI code.
+Do not fetch SSE, parse full stream JSON, run reducers, create HTTP tasks, or write stream storage from Compose or messages UI code. UI should render `UI = f(renderModel)`.
+
+Stream update policy:
+
+- Terminal snapshots emit immediately.
+- State changes emit immediately.
+- Text-only streaming patches are coalesced in the timeline presenter with `STREAMING_TEXT_PATCH_COALESCE_MS = 120L`; the generic library default is 500 ms.
+- Completed snapshots loaded from memory or storage should render as completed content immediately. If a completed stream still has non-terminal part states, fix SDK normalization or `StreamSnapshot.normalizedForTerminalState()`, not the UI layer.
+
+### Tool Cards And Fixtures
+
+Tool-card rendering is intentionally native on Android while matching the iOS field model:
+
+- `AiToolCardLogic.kt` extracts AI SDK tool entries, including nested `COMPOSIO_MULTI_EXECUTE_TOOL` / `renderUI` payloads.
+- `toolcards/CardTransforms.kt` mirrors iOS `ToolCardsIOS/CardTransforms` and normalizes payloads before rendering.
+- `toolcards/ToolCardDispatcher.kt`, `ToolCardKit.kt`, and the `*Cards.kt` files own card selection, shells, tabs, status indicators, and card-specific layout.
+- Supported fixture families include web search, images, shopping, events, places, hotels, weather, GitHub, Gmail/Drive, Linear, Twitter/X, schedules, files, generic data, and failure details.
+- Do not show raw JSON to normal users. Raw payloads are allowed only as explicit failure/detail developer affordances.
+
+When changing stream or tool-card behavior, prefer these checks:
+
+```bash
+./gradlew --no-daemon --no-configuration-cache :libraries:agentstream:testDebugUnitTest
+./gradlew --no-daemon --no-configuration-cache :features:messages:impl:testDebugUnitTest --tests '*AgentStreamParityReplayTest*'
+./gradlew --no-daemon --no-configuration-cache :features:messages:impl:testDebugUnitTest --tests '*ToolCardDispatcherTest*'
+./gradlew --no-daemon --no-configuration-cache :features:messages:impl:testDebugUnitTest --tests '*TimelineItemAiPresenterTest*'
+```
+
+### Room And Timeline Rules
+
+- Keep timeline rows on a single layout policy. Avatar, content, metadata, read receipts, warnings, and overlays should have fixed regions so one event type cannot push another into a different layout system.
+- Bottom composer and top room bar are overlays. Timeline content should use measured padding/insets so first and last messages remain reachable without adding arbitrary whitespace.
+- Read receipts and timestamps belong to metadata layout, not inside event content rows.
+- Markdown and tool cards should be parsed/transformed outside hot Compose paths when possible; avoid creating regexes, date formatters, image decoders, or large JSON objects during recomposition.
+- Use stable LazyColumn keys and keep image/markdown work cached to protect room-list, timeline, and stream performance.
+
+### Project Skills And Device QA
+
+- `.agents/skills/android-device-debugging/SKILL.md`: use for real-device connection, `scrcpy` mirroring, APK install, simulated UI operations, logs, frame stats, CPU, memory, and resource monitoring.
+- For timeline or room-list performance work, verify with a real device or emulator screenshot/recording and, when relevant, `adb shell dumpsys gfxinfo network.unseal framestats`.

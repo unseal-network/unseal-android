@@ -46,6 +46,8 @@ dependencies {
     implementation(projects.features.lockscreen.api)
     implementation(projects.libraries.permissions.api)
     implementation(projects.libraries.permissions.noop)
+    implementation(projects.libraries.push.api)
+    implementation(projects.libraries.pushproviders.api)
     implementation(projects.services.toolbox.api)
     implementation(projects.appconfig)
 
@@ -55,6 +57,8 @@ dependencies {
     testImplementation(projects.services.analytics.noop)
     testImplementation(projects.libraries.permissions.test)
     testImplementation(projects.libraries.preferences.test)
+    testImplementation(projects.libraries.push.test)
+    testImplementation(projects.libraries.pushproviders.test)
     testImplementation(projects.features.lockscreen.test)
     testImplementation(projects.services.toolbox.test)
 }

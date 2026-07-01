@@ -11,6 +11,7 @@ import io.element.android.features.messages.impl.timeline.model.event.AiCustomSt
 import io.element.android.features.messages.impl.timeline.model.event.AiDataStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiErrorStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiFileStreamPart
+import io.element.android.features.messages.impl.timeline.model.event.AiPptWorkflowStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiReasoningStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiSourceStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiStreamPart
@@ -81,6 +82,13 @@ internal object AgentStreamParityExport {
                 .put("id", part.id)
                 .put("state", part.state)
                 .put("mediaType", part.mediaType)
+            is AiPptWorkflowStreamPart -> JSONObject()
+                .put("type", "ppt-workflow")
+                .put("id", part.id)
+                .put("state", part.state)
+                .put("taskId", part.taskId)
+                .put("totalSlides", part.totalSlides)
+                .put("isStreaming", part.isStreaming)
             is AiCustomStreamPart -> JSONObject()
                 .put("type", part.type)
                 .put("id", part.id)

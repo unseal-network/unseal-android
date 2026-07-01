@@ -24,6 +24,7 @@ import io.element.android.libraries.dateformatter.api.DateFormatterMode
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.libraries.matrix.api.core.UserId
+import io.element.android.libraries.matrix.api.room.location.AssetType
 import io.element.android.libraries.matrix.api.timeline.item.event.CallNotifyContent
 import io.element.android.libraries.matrix.api.timeline.item.event.EventContent
 import io.element.android.libraries.matrix.api.timeline.item.event.EventTimelineItem
@@ -44,6 +45,11 @@ import io.element.android.libraries.matrix.api.timeline.item.event.UnknownConten
 import io.element.android.libraries.matrix.api.timeline.item.event.getDisambiguatedDisplayName
 import io.element.android.libraries.ui.strings.CommonStrings
 import io.element.android.services.toolbox.api.strings.StringProvider
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
 import timber.log.Timber
 
 @Inject
@@ -68,6 +74,7 @@ class TimelineItemContentFactory(
     private val stringProvider: StringProvider,
 ) {
     private val roomKeyRecoveryRequestParser = RoomKeyRecoveryRequestParser()
+    private val json = Json { ignoreUnknownKeys = true }
 
     suspend fun create(
         eventTimelineItem: EventTimelineItem,
@@ -84,6 +91,10 @@ class TimelineItemContentFactory(
             fallbackSender = eventTimelineItem.sender.value,
         )?.let { aiContent ->
             return hydrateAiContent(aiContent)
+        }
+
+        parseBeaconInfoContent(eventTimelineItem, originalJson)?.let { liveLocationContent ->
+            return liveLocationContent
         }
 
         // Game invite messages use custom fields not exposed by the typed SDK.
@@ -217,6 +228,69 @@ class TimelineItemContentFactory(
         }
     }
 
+    private fun parseBeaconInfoContent(
+        eventTimelineItem: EventTimelineItem,
+        originalJson: String?,
+    ): TimelineItemLocationContent? {
+        val raw = originalJson?.takeIf { it.isNotBlank() } ?: return null
+        val root = runCatching { json.parseToJsonElement(raw).jsonObject }.getOrNull() ?: return null
+        if (root.string("type") != EVENT_TYPE_BEACON_INFO) return null
+        val content = root.obj("content") ?: return null
+        val beaconInfo = content.obj("m.beacon_info") ?: content
+        val startTimestamp = content.long("org.matrix.msc3488.ts")
+            ?: content.long("m.ts")
+            ?: root.long("origin_server_ts")
+            ?: eventTimelineItem.timestamp
+        val timeout = beaconInfo.long("timeout") ?: content.long("timeout") ?: 0L
+        val endTimestamp = startTimestamp + timeout
+        val lastKnownLocation = content.location() ?: beaconInfo.location()
+        val endsAt = dateFormatter.format(
+            timestamp = endTimestamp,
+            mode = DateFormatterMode.TimeOnly
+        )
+        return TimelineItemLocationContent(
+            description = beaconInfo.string("description")?.trimEnd()
+                ?: content.string("description")?.trimEnd(),
+            assetType = beaconInfo.assetType() ?: content.assetType(),
+            senderId = eventTimelineItem.sender,
+            senderProfile = eventTimelineItem.senderProfile,
+            mode = TimelineItemLocationContent.Mode.Live(
+                lastKnownLocation = lastKnownLocation,
+                isActive = beaconInfo.boolean("live") ?: content.boolean("live") ?: true,
+                endsAt = stringProvider.getString(CommonStrings.common_ends_at, endsAt),
+                endTimestamp = endTimestamp,
+                isOwnUser = sessionId == eventTimelineItem.sender,
+            ),
+        )
+    }
+
+    private fun JsonObject.obj(key: String): JsonObject? = this[key] as? JsonObject
+
+    private fun JsonObject.string(key: String): String? =
+        (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
+
+    private fun JsonObject.long(key: String): Long? =
+        (this[key] as? JsonPrimitive)?.contentOrNull?.toLongOrNull()
+
+    private fun JsonObject.boolean(key: String): Boolean? =
+        (this[key] as? JsonPrimitive)?.contentOrNull?.toBooleanStrictOrNull()
+
+    private fun JsonObject.assetType(): AssetType? {
+        return when (obj("m.asset")?.string("type") ?: string("asset_type")) {
+            "m.self", "sender" -> AssetType.SENDER
+            "m.pin", "pin" -> AssetType.PIN
+            null -> null
+            else -> AssetType.UNKNOWN
+        }
+    }
+
+    private fun JsonObject.location(): Location? {
+        val geoUri = obj("m.location")?.string("uri")
+            ?: obj("org.matrix.msc3488.location")?.string("uri")
+            ?: string("geo_uri")
+        return geoUri?.let(Location::fromGeoUri)
+    }
+
     private fun EventTimelineItem.roomKeyRecoveryStatus(
         roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
     ): RoomKeyRecoveryStatus? {
@@ -242,3 +316,5 @@ private fun TimelineItemAiContent.withFallbackMetadata(fallback: TimelineItemAiC
         eventId = eventId ?: fallback.eventId,
     )
 }
+
+private const val EVENT_TYPE_BEACON_INFO = "org.matrix.msc3672.beacon_info"

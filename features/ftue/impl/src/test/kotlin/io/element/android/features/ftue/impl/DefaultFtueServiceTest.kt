@@ -22,6 +22,9 @@ import io.element.android.libraries.matrix.api.verification.SessionVerifiedStatu
 import io.element.android.libraries.matrix.test.verification.FakeSessionVerificationService
 import io.element.android.libraries.permissions.api.PermissionStateProvider
 import io.element.android.libraries.permissions.test.FakePermissionStateProvider
+import io.element.android.libraries.push.api.PushService
+import io.element.android.libraries.push.test.FakePushService
+import io.element.android.libraries.pushproviders.test.FakePushProvider
 import io.element.android.libraries.preferences.api.store.SessionPreferencesStore
 import io.element.android.libraries.preferences.test.InMemorySessionPreferencesStore
 import io.element.android.services.analytics.api.AnalyticsService
@@ -273,6 +276,31 @@ class DefaultFtueServiceTest {
             assertThat(awaitItem()).isEqualTo(InternalFtueState.Complete)
         }
     }
+
+    @Test
+    fun `if no push distributor is available we don't display the notification opt in screen`() = runTest {
+        val sessionVerificationService = FakeSessionVerificationService()
+        val analyticsService = FakeAnalyticsService()
+        val lockScreenService = FakeLockScreenService()
+        val pushService = FakePushService(availablePushProviders = listOf(FakePushProvider(distributors = emptyList())))
+
+        val service = createDefaultFtueService(
+            sessionVerificationService = sessionVerificationService,
+            analyticsService = analyticsService,
+            lockScreenService = lockScreenService,
+            pushService = pushService,
+        )
+
+        sessionVerificationService.emitVerifiedStatus(SessionVerifiedStatus.Verified)
+        lockScreenService.setIsPinSetup(true)
+
+        service.ftueStepStateFlow.test {
+            assertThat(awaitItem()).isEqualTo(InternalFtueState.Unknown)
+            assertThat(awaitItem()).isEqualTo(InternalFtueState.Incomplete(FtueStep.AnalyticsOptIn))
+            analyticsService.setDidAskUserConsent()
+            assertThat(awaitItem()).isEqualTo(InternalFtueState.Complete)
+        }
+    }
 }
 
 internal fun TestScope.createDefaultFtueService(
@@ -281,6 +309,7 @@ internal fun TestScope.createDefaultFtueService(
     permissionStateProvider: PermissionStateProvider = FakePermissionStateProvider(permissionGranted = false),
     lockScreenService: LockScreenService = FakeLockScreenService(),
     sessionPreferencesStore: SessionPreferencesStore = InMemorySessionPreferencesStore(),
+    pushService: PushService = FakePushService(availablePushProviders = listOf(FakePushProvider())),
     // First version where notification permission is required
     sdkIntVersion: Int = Build.VERSION_CODES.TIRAMISU,
 ) = DefaultFtueService(
@@ -289,6 +318,7 @@ internal fun TestScope.createDefaultFtueService(
     sdkVersionProvider = FakeBuildVersionSdkIntProvider(sdkIntVersion),
     analyticsService = analyticsService,
     permissionStateProvider = permissionStateProvider,
+    pushService = pushService,
     lockScreenService = lockScreenService,
     sessionPreferencesStore = sessionPreferencesStore,
 )

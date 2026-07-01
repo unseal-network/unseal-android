@@ -13,6 +13,7 @@ import androidx.datastore.preferences.core.emptyPreferences
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.location.impl.live.service.LiveLocationSharingCoordinator
+import io.element.android.libraries.chatbot.api.ChatbotBaseUrlResolver
 import io.element.android.libraries.matrix.api.room.location.BeaconInfoUpdate
 import io.element.android.libraries.matrix.test.AN_EVENT_ID
 import io.element.android.libraries.matrix.test.A_ROOM_ID
@@ -30,12 +31,12 @@ import io.element.android.tests.testutils.WarmUpRule
 import io.element.android.tests.testutils.lambda.assert
 import io.element.android.tests.testutils.lambda.lambdaRecorder
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import okhttp3.OkHttpClient
 import org.junit.Rule
 import org.junit.Test
 import kotlin.time.Duration.Companion.minutes
@@ -47,7 +48,7 @@ class DefaultActiveLiveLocationShareManagerTest {
     val warmUpRule = WarmUpRule()
 
     @Test
-    fun `starting the first share starts the coordinator service after the beacon echo and adds an active share`() = runTest {
+    fun `starting the first share starts the coordinator service immediately and adds an active share`() = runTest {
         val startServiceRecorder = lambdaRecorder<Unit> { }
         val stopServiceRecorder = lambdaRecorder<Unit> { }
         val coordinator = createCoordinator(
@@ -70,10 +71,9 @@ class DefaultActiveLiveLocationShareManagerTest {
         )
         advanceUntilIdle()
 
-        val result = async { manager.startShare(A_ROOM_ID, 60.minutes) }
-        beaconInfoUpdates.emit(BeaconInfoUpdate(roomId = A_ROOM_ID, beaconId = AN_EVENT_ID, isLive = true))
+        val result = manager.startShare(A_ROOM_ID, 60.minutes)
 
-        assertThat(result.await().isSuccess).isTrue()
+        assertThat(result.isSuccess).isTrue()
         assertThat(manager.sharingRoomIds.value).containsExactly(A_ROOM_ID)
         assert(startServiceRecorder).isCalledOnce()
         assert(stopServiceRecorder).isNeverCalled()
@@ -102,9 +102,8 @@ class DefaultActiveLiveLocationShareManagerTest {
         )
         advanceUntilIdle()
 
-        val startResult = async { manager.startShare(A_ROOM_ID, 15.minutes) }
-        beaconInfoUpdates.emit(BeaconInfoUpdate(roomId = A_ROOM_ID, beaconId = AN_EVENT_ID, isLive = true))
-        assertThat(startResult.await().isSuccess).isTrue()
+        val startResult = manager.startShare(A_ROOM_ID, 15.minutes)
+        assertThat(startResult.isSuccess).isTrue()
 
         val result = manager.stopShare(A_ROOM_ID)
 
@@ -153,16 +152,15 @@ class DefaultActiveLiveLocationShareManagerTest {
         )
         advanceUntilIdle()
 
-        val startResult = async { managerOne.startShare(A_ROOM_ID, 15.minutes) }
-        beaconInfoUpdatesOne.emit(BeaconInfoUpdate(roomId = A_ROOM_ID, beaconId = AN_EVENT_ID, isLive = true))
-        assertThat(startResult.await().isSuccess).isTrue()
+        val startResult = managerOne.startShare(A_ROOM_ID, 15.minutes)
+        assertThat(startResult.isSuccess).isTrue()
 
         assertThat(managerOne.sharingRoomIds.value).containsExactly(A_ROOM_ID)
         assertThat(managerTwo.sharingRoomIds.value).isEmpty()
     }
 
     @Test
-    fun `start share persists room expiry after beacon echo`() = runTest {
+    fun `start share persists room expiry immediately`() = runTest {
         val liveLocationStore = createLiveLocationStore()
         val coordinator = createCoordinator()
         val beaconInfoUpdates = MutableSharedFlow<BeaconInfoUpdate>(replay = 1)
@@ -186,10 +184,9 @@ class DefaultActiveLiveLocationShareManagerTest {
         )
         advanceUntilIdle()
 
-        val result = async { manager.startShare(A_ROOM_ID, 15.minutes) }
-        beaconInfoUpdates.emit(BeaconInfoUpdate(roomId = A_ROOM_ID, beaconId = AN_EVENT_ID, isLive = true))
+        val result = manager.startShare(A_ROOM_ID, 15.minutes)
 
-        assertThat(result.await().isSuccess).isTrue()
+        assertThat(result.isSuccess).isTrue()
         assertThat(liveLocationStore.getLiveLocationExpiries()).containsKey(A_ROOM_ID)
     }
 
@@ -217,9 +214,8 @@ class DefaultActiveLiveLocationShareManagerTest {
         )
         advanceUntilIdle()
 
-        val startResult = async { manager.startShare(A_ROOM_ID, 15.minutes) }
-        beaconInfoUpdates.emit(BeaconInfoUpdate(roomId = A_ROOM_ID, beaconId = AN_EVENT_ID, isLive = true))
-        assertThat(startResult.await().isSuccess).isTrue()
+        val startResult = manager.startShare(A_ROOM_ID, 15.minutes)
+        assertThat(startResult.isSuccess).isTrue()
 
         manager.stopShare(A_ROOM_ID)
 
@@ -328,9 +324,8 @@ class DefaultActiveLiveLocationShareManagerTest {
         )
         advanceUntilIdle()
 
-        val startResult = async { manager.startShare(A_ROOM_ID, 1.minutes) }
-        beaconInfoUpdates.emit(BeaconInfoUpdate(roomId = A_ROOM_ID, beaconId = AN_EVENT_ID, isLive = true))
-        assertThat(startResult.await().isSuccess).isTrue()
+        val startResult = manager.startShare(A_ROOM_ID, 1.minutes)
+        assertThat(startResult.isSuccess).isTrue()
 
         manager.sharingRoomIds.test {
             assertThat(awaitItem()).containsExactly(A_ROOM_ID)
@@ -403,9 +398,8 @@ class DefaultActiveLiveLocationShareManagerTest {
         )
         advanceUntilIdle()
 
-        val firstStart = async { manager.startShare(A_ROOM_ID, 15.minutes) }
-        beaconInfoUpdates.emit(BeaconInfoUpdate(roomId = A_ROOM_ID, beaconId = AN_EVENT_ID, isLive = true))
-        assertThat(firstStart.await().isSuccess).isTrue()
+        val firstStart = manager.startShare(A_ROOM_ID, 15.minutes)
+        assertThat(firstStart.isSuccess).isTrue()
 
         sessionObserver.onSessionDeleted(A_SESSION_ID.value)
         advanceUntilIdle()
@@ -415,12 +409,8 @@ class DefaultActiveLiveLocationShareManagerTest {
         assert(startServiceRecorder).isCalledOnce()
         assert(stopServiceRecorder).isCalledOnce()
 
-        val secondStart = async { manager.startShare(A_ROOM_ID, 15.minutes) }
-        advanceUntilIdle()
-        assertThat(secondStart.isCompleted).isFalse()
-
-        beaconInfoUpdates.emit(BeaconInfoUpdate(roomId = A_ROOM_ID, beaconId = AN_EVENT_ID, isLive = true))
-        assertThat(secondStart.await().isSuccess).isTrue()
+        val secondStart = manager.startShare(A_ROOM_ID, 15.minutes)
+        assertThat(secondStart.isSuccess).isTrue()
     }
 
     private suspend fun createManager(
@@ -436,6 +426,11 @@ class DefaultActiveLiveLocationShareManagerTest {
             liveLocationStore = liveLocationStore,
             clock = clock,
             sessionObserver = sessionObserver,
+            baseUrlResolver = object : ChatbotBaseUrlResolver {
+                override suspend fun resolveUnsealApiBaseUrl(serverName: String?): String = "https://example.org"
+                override suspend fun resolveHomeserverBaseUrl(serverName: String?): String = "https://example.org"
+            },
+            okHttpClient = { OkHttpClient() },
         ).apply {
             setup()
         }

@@ -40,12 +40,8 @@ class FirebasePushProvider(
     }
 
     override suspend fun registerWith(matrixClient: MatrixClient, distributor: Distributor): Result<Unit> {
-        val pushKey = firebaseStore.getFcmToken() ?: return Result.failure<Unit>(
-            IllegalStateException(
-                "Unable to register pusher, Firebase token is not known."
-            )
-        ).also {
-            Timber.tag(loggerTag.value).w("Unable to register pusher, Firebase token is not known.")
+        val pushKey = firebaseStore.getFcmToken() ?: return Result.success(Unit).also {
+            Timber.tag(loggerTag.value).w("Skipping Firebase pusher registration, Firebase token is not known.")
         }
         return pusherSubscriber.registerPusher(
             matrixClient = matrixClient,

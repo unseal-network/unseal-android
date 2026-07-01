@@ -10,7 +10,7 @@
 
 ## Configuration
 
-The nightly build will contain what's on develop, in release mode, for the main variant. It is signed using a dedicated signature, and has a dedicated appId (`network.unseal.android.nightly`), so it can be installed along with the production version of Element X Android. The only other difference compared to ElementX Android is a different app name. We do not want to change the app name since it will also affect some strings in the app, and we do want to do that. (TODO today, the app name is changed.)
+The nightly build will contain what's on develop, in release mode, for the main variant. It is signed using a dedicated signature, and has a dedicated appId (`network.unseal.nightly`), so it can be installed along with the production version of Element X Android. The only other difference compared to ElementX Android is a different app name. We do not want to change the app name since it will also affect some strings in the app, and we do want to do that. (TODO today, the app name is changed.)
 
 Nightly builds are built and released to Firebase every days, and automatically.
 

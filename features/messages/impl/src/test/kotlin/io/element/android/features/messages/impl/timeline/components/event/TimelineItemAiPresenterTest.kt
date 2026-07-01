@@ -27,6 +27,7 @@ import io.element.android.libraries.agentstream.api.StreamSubscription
 import io.element.android.libraries.agentstream.api.TextPartState
 import io.element.android.libraries.agentstream.api.ToolPartState
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
+import io.element.android.libraries.miniapp.api.MiniAppConfig
 import io.element.android.tests.testutils.test
 import io.element.android.tests.testutils.testCoroutineDispatchers
 import kotlinx.collections.immutable.ImmutableList
@@ -458,11 +459,28 @@ class TimelineItemAiPresenterTest {
             aiSdkStreamReducer = AiSdkStreamReducer(),
             dispatchers = dispatchers,
             workflowProgressManager = workflowProgressProvider,
+            workflowTaskStore = FakeWorkflowTaskStore(),
+            miniAppDocumentLauncher = FakeMiniAppDocumentLauncher(),
         )
     }
 
     private class FakeWorkflowProgressProvider : WorkflowProgressProvider {
         override fun progressFlow(taskId: String, wsBaseUrl: String?) = kotlinx.coroutines.flow.flowOf<WorkflowMessage>()
+    }
+
+    private class FakeWorkflowTaskStore : WorkflowTaskStore {
+        override suspend fun load(taskId: String): WorkflowTaskRecord? = null
+        override suspend fun save(record: WorkflowTaskRecord) = Unit
+        override suspend fun loadSlides(taskId: String): List<String> = emptyList()
+        override suspend fun saveSlides(taskId: String, taskType: String, slides: List<String>, status: String, knownTotal: Int?) = Unit
+    }
+
+    private class FakeMiniAppDocumentLauncher : MiniAppDocumentLauncher {
+        override suspend fun buildConfig(appId: Long, options: Map<String, Any>): MiniAppConfig {
+            return MiniAppConfig(appId = appId, url = "", options = options)
+        }
+
+        override fun okHttpClient() = okhttp3.OkHttpClient()
     }
 
     private class FakeAgentStreamClient(

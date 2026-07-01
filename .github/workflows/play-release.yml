@@ -1,6 +1,9 @@
 name: Build signed Play release
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       tag_name:
@@ -31,7 +34,7 @@ jobs:
     name: Build signed GPlay release and create GitHub Release
     runs-on: ubuntu-latest
     concurrency:
-      group: ${{ format('play-release-{0}', inputs.tag_name) }}
+      group: ${{ format('play-release-{0}', github.event_name == 'push' && github.ref_name || inputs.tag_name) }}
       cancel-in-progress: false
     steps:
       - name: Free Disk Space (Ubuntu)
@@ -62,7 +65,8 @@ jobs:
 
       - name: Validate release inputs and secrets
         env:
-          TAG_NAME: ${{ inputs.tag_name }}
+          TAG_NAME: ${{ github.event_name == 'push' && github.ref_name || inputs.tag_name }}
+          EVENT_NAME: ${{ github.event_name }}
           ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
           ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
           ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
@@ -77,7 +81,7 @@ jobs:
             fi
           done
 
-          if git rev-parse --verify --quiet "refs/tags/${TAG_NAME}" >/dev/null; then
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ] && git rev-parse --verify --quiet "refs/tags/${TAG_NAME}" >/dev/null; then
             echo "::error::Tag ${TAG_NAME} already exists."
             exit 1
           fi
@@ -113,7 +117,7 @@ jobs:
 
       - name: Prepare release files
         env:
-          TAG_NAME: ${{ inputs.tag_name }}
+          TAG_NAME: ${{ github.event_name == 'push' && github.ref_name || inputs.tag_name }}
         run: |
           set -euo pipefail
           version="${TAG_NAME#v}"
@@ -129,14 +133,14 @@ jobs:
       - name: Upload release files as workflow artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: unseal-android-${{ inputs.tag_name }}-signed-gplay
+          name: unseal-android-${{ github.event_name == 'push' && github.ref_name || inputs.tag_name }}-signed-gplay
           path: release/*
 
       - name: Create GitHub Release
         env:
-          TAG_NAME: ${{ inputs.tag_name }}
-          RELEASE_NAME: ${{ inputs.release_name }}
-          PRERELEASE: ${{ inputs.prerelease }}
+          TAG_NAME: ${{ github.event_name == 'push' && github.ref_name || inputs.tag_name }}
+          RELEASE_NAME: ${{ github.event_name == 'push' && github.ref_name || inputs.release_name }}
+          PRERELEASE: ${{ github.event_name == 'push' && 'true' || inputs.prerelease }}
         run: |
           set -euo pipefail
           title="${RELEASE_NAME:-${TAG_NAME}}"

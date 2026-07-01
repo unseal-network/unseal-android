@@ -10,11 +10,13 @@ package io.element.android.features.messages.impl.timeline.components.event
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.IconButtonDefaults
@@ -38,6 +40,7 @@ import io.element.android.libraries.designsystem.theme.components.Icon
 import io.element.android.libraries.designsystem.theme.components.IconButton
 import io.element.android.libraries.designsystem.theme.components.Text
 import io.element.android.libraries.ui.strings.CommonStrings
+import java.util.Locale
 
 @Composable
 fun TimelineItemLocationView(
@@ -63,8 +66,38 @@ fun TimelineItemLocationView(
                     onStopClick = onStopLiveLocationClick,
                     modifier = Modifier.align(Alignment.BottomStart)
                 )
+            } else {
+                StaticLocationOverlay(
+                    content = content,
+                    modifier = Modifier.align(Alignment.BottomStart)
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun StaticLocationOverlay(
+    content: TimelineItemLocationContent,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(ElementTheme.colors.bgCanvasDefault.copy(alpha = 0.9f))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(
+            text = content.description?.takeIf { it.isNotBlank() } ?: stringResource(CommonStrings.common_shared_location),
+            style = ElementTheme.typography.fontBodySmMedium,
+            color = ElementTheme.colors.textPrimary,
+        )
+        Text(
+            text = content.location?.coordinatesLabel().orEmpty(),
+            style = ElementTheme.typography.fontBodySmRegular,
+            color = ElementTheme.colors.textSecondary,
+        )
     }
 }
 
@@ -138,6 +171,13 @@ private fun LiveLocationOverlay(
                     color = ElementTheme.colors.textPrimary,
                 )
             }
+            mode.lastKnownLocation?.let { location ->
+                Text(
+                    text = location.coordinatesLabel(),
+                    style = ElementTheme.typography.fontBodySmRegular,
+                    color = ElementTheme.colors.textSecondary,
+                )
+            }
         }
 
         if (mode.canStopSharing) {
@@ -158,6 +198,10 @@ private fun LiveLocationOverlay(
             }
         }
     }
+}
+
+private fun io.element.android.features.location.api.Location.coordinatesLabel(): String {
+    return String.format(Locale.US, "%.5f, %.5f", lat, lon)
 }
 
 @PreviewsDayNight

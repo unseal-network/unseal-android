@@ -41,7 +41,7 @@ class UserPushStoreDataStore(
     init {
         // Migrate legacy data. Previous file can be too long if the userId is too long. The userId can be up to 255 chars.
         // Example of long file path, with `averylonguserid` replacing a very longer name
-        // /data/user/0/network.unseal.android.debug/files/datastore/push_store_@averylonguserid:example.org.preferences_pb
+        // /data/user/0/network.unseal/files/datastore/push_store_@averylonguserid:example.org.preferences_pb
         val legacyFile = context.preferencesDataStoreFile("push_store_$userId")
         if (legacyFile.exists()) {
             Timber.d("Migrating legacy push data store for $userId")

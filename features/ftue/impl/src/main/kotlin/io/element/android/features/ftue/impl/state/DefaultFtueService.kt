@@ -21,6 +21,7 @@ import io.element.android.libraries.di.annotations.SessionCoroutineScope
 import io.element.android.libraries.matrix.api.verification.SessionVerificationService
 import io.element.android.libraries.matrix.api.verification.SessionVerifiedStatus
 import io.element.android.libraries.permissions.api.PermissionStateProvider
+import io.element.android.libraries.push.api.PushService
 import io.element.android.libraries.preferences.api.store.SessionPreferencesStore
 import io.element.android.services.analytics.api.AnalyticsService
 import io.element.android.services.toolbox.api.sdk.BuildVersionSdkIntProvider
@@ -40,6 +41,7 @@ class DefaultFtueService(
     @SessionCoroutineScope private val sessionCoroutineScope: CoroutineScope,
     private val analyticsService: AnalyticsService,
     private val permissionStateProvider: PermissionStateProvider,
+    private val pushService: PushService,
     private val lockScreenService: LockScreenService,
     private val sessionVerificationService: SessionVerificationService,
     private val sessionPreferencesStore: SessionPreferencesStore,
@@ -135,6 +137,11 @@ class DefaultFtueService(
     }
 
     private suspend fun shouldAskNotificationPermissions(): Boolean {
+        val hasAvailablePushDistributor = pushService.getAvailablePushProviders()
+            .any { it.getDistributors().isNotEmpty() }
+        if (!hasAvailablePushDistributor) {
+            return false
+        }
         return if (sdkVersionProvider.isAtLeast(Build.VERSION_CODES.TIRAMISU)) {
             val permission = Manifest.permission.POST_NOTIFICATIONS
             val isPermissionDenied = permissionStateProvider.isPermissionDenied(permission).first()

@@ -11,6 +11,7 @@ import com.google.common.truth.Truth.assertThat
 import io.element.android.features.messages.impl.fixtures.aTimelineItemContentFactory
 import io.element.android.features.messages.impl.timeline.factories.event.AiStreamHandleStore
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
 import io.element.android.libraries.agentstream.api.AGENT_STREAM_SCHEMA_VERSION
 import io.element.android.libraries.agentstream.api.StreamPart
 import io.element.android.libraries.agentstream.api.StreamSnapshot
@@ -93,6 +94,39 @@ class TimelineItemContentFactoryTest {
         assertThat(aiContent.isTerminal).isTrue()
         assertThat(aiContent.body).isEqualTo("Loaded from cache")
         assertThat(aiContent.visibleParts.map { it.id }).containsExactly("text-1")
+    }
+
+    @Test
+    fun `create parses live location from beacon info state location fallback`() = runTest {
+        val originalJson = """
+            {
+              "type": "org.matrix.msc3672.beacon_info",
+              "origin_server_ts": 1782901612517,
+              "content": {
+                "description": "Live location",
+                "live": true,
+                "timeout": 900000,
+                "m.asset": { "type": "m.self" },
+                "org.matrix.msc3488.location": {
+                  "uri": "geo:22.27292352,113.52691051;u=35.497997"
+                }
+              }
+            }
+        """.trimIndent()
+        val factory = aTimelineItemContentFactory()
+        val event = anEventTimelineItem(
+            content = UnknownContent,
+            sender = A_USER_ID,
+            debugInfoProvider = { aTimelineItemDebugInfo(originalJson = originalJson) },
+        )
+
+        val content = factory.create(event)
+
+        assertThat(content).isInstanceOf(TimelineItemLocationContent::class.java)
+        val locationContent = content as TimelineItemLocationContent
+        val mode = locationContent.mode as TimelineItemLocationContent.Mode.Live
+        assertThat(mode.lastKnownLocation?.lat).isEqualTo(22.27292352)
+        assertThat(mode.lastKnownLocation?.lon).isEqualTo(113.52691051)
     }
 }
 

@@ -48,7 +48,7 @@ data class NotifiableMessageEvent(
     override val description: String = body ?: ""
 
     // Example of value:
-    // content://network.unseal.android.debug.notifications.fileprovider/downloads/temp/notif/matrix.org/XGItzSDOnSyXjYtOPfiKexDJ
+    // content://network.unseal.notifications.fileprovider/downloads/temp/notif/matrix.org/XGItzSDOnSyXjYtOPfiKexDJ
     val imageUri: Uri?
         get() = imageUriString?.toUri()
 }
