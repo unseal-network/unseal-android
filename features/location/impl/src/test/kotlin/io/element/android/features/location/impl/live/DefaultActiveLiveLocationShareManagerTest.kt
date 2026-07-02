@@ -13,7 +13,6 @@ import androidx.datastore.preferences.core.emptyPreferences
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.location.impl.live.service.LiveLocationSharingCoordinator
-import io.element.android.libraries.chatbot.api.ChatbotBaseUrlResolver
 import io.element.android.libraries.matrix.api.room.location.BeaconInfoUpdate
 import io.element.android.libraries.matrix.test.AN_EVENT_ID
 import io.element.android.libraries.matrix.test.A_ROOM_ID
@@ -36,7 +35,6 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import okhttp3.OkHttpClient
 import org.junit.Rule
 import org.junit.Test
 import kotlin.time.Duration.Companion.minutes
@@ -332,7 +330,7 @@ class DefaultActiveLiveLocationShareManagerTest {
             assertThat(awaitItem()).isEmpty()
             advanceUntilIdle()
             assertThat(liveLocationStore.getLiveLocationExpiries()).doesNotContainKey(A_ROOM_ID)
-            assert(stopLiveLocationShareResult).isCalledExactly(2)
+            assert(stopLiveLocationShareResult).isCalledOnce()
         }
     }
 
@@ -426,11 +424,6 @@ class DefaultActiveLiveLocationShareManagerTest {
             liveLocationStore = liveLocationStore,
             clock = clock,
             sessionObserver = sessionObserver,
-            baseUrlResolver = object : ChatbotBaseUrlResolver {
-                override suspend fun resolveUnsealApiBaseUrl(serverName: String?): String = "https://example.org"
-                override suspend fun resolveHomeserverBaseUrl(serverName: String?): String = "https://example.org"
-            },
-            okHttpClient = { OkHttpClient() },
         ).apply {
             setup()
         }

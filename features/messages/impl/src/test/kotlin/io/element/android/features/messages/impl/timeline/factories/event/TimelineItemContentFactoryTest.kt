@@ -17,6 +17,8 @@ import io.element.android.libraries.agentstream.api.StreamPart
 import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.agentstream.api.StreamStatus
 import io.element.android.libraries.agentstream.api.StreamStorageProvider
+import io.element.android.libraries.matrix.api.room.location.AssetType
+import io.element.android.libraries.matrix.api.timeline.item.event.LiveLocationContent
 import io.element.android.libraries.matrix.api.timeline.item.event.UnknownContent
 import io.element.android.libraries.matrix.test.A_USER_ID
 import io.element.android.libraries.matrix.test.timeline.aTimelineItemDebugInfo
@@ -127,6 +129,43 @@ class TimelineItemContentFactoryTest {
         val mode = locationContent.mode as TimelineItemLocationContent.Mode.Live
         assertThat(mode.lastKnownLocation?.lat).isEqualTo(22.27292352)
         assertThat(mode.lastKnownLocation?.lon).isEqualTo(113.52691051)
+    }
+
+    @Test
+    fun `create does not let raw beacon info override SDK live location content`() = runTest {
+        val originalJson = """
+            {
+              "type": "org.matrix.msc3672.beacon_info",
+              "origin_server_ts": 1782901612517,
+              "content": {
+                "description": "Live location ended",
+                "live": false,
+                "timeout": 0,
+                "m.asset": { "type": "m.self" }
+              }
+            }
+        """.trimIndent()
+        val factory = aTimelineItemContentFactory()
+        val event = anEventTimelineItem(
+            content = LiveLocationContent(
+                isLive = true,
+                description = "Live location",
+                startTimestamp = 1782901612517,
+                timeout = 900000,
+                assetType = AssetType.SENDER,
+                locations = emptyList(),
+            ),
+            sender = A_USER_ID,
+            debugInfoProvider = { aTimelineItemDebugInfo(originalJson = originalJson) },
+        )
+
+        val content = factory.create(event)
+
+        assertThat(content).isInstanceOf(TimelineItemLocationContent::class.java)
+        val locationContent = content as TimelineItemLocationContent
+        val mode = locationContent.mode as TimelineItemLocationContent.Mode.Live
+        assertThat(mode.isActive).isTrue()
+        assertThat(locationContent.description).isEqualTo("Live location")
     }
 }
 

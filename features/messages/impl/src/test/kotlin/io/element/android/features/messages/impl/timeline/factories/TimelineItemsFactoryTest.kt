@@ -21,6 +21,8 @@ import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.agentstream.api.StreamStatus
 import io.element.android.libraries.agentstream.api.StreamStorageProvider
 import io.element.android.libraries.matrix.api.timeline.MatrixTimelineItem
+import io.element.android.libraries.matrix.api.timeline.item.event.OtherState
+import io.element.android.libraries.matrix.api.timeline.item.event.StateContent
 import io.element.android.libraries.matrix.api.timeline.item.event.UnableToDecryptContent
 import io.element.android.libraries.matrix.api.timeline.item.event.UnknownContent
 import io.element.android.libraries.matrix.test.A_UNIQUE_ID
@@ -127,6 +129,31 @@ class TimelineItemsFactoryTest {
         assertThat(initialContent.body).isEqualTo("Stored stream")
         assertThat(updatedContent).isSameInstanceAs(initialContent)
         assertThat(storage.loadCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `replaceWith hides beacon info state events`() = runTest {
+        val factory = aTimelineItemsFactory(
+            config = TimelineItemsFactoryConfig(
+                computeReadReceipts = true,
+                computeReactions = true,
+                roomId = "!room:keepsecret.io",
+            )
+        )
+        val event = MatrixTimelineItem.Event(
+            A_UNIQUE_ID,
+            anEventTimelineItem(
+                content = StateContent(
+                    stateKey = A_USER_ID.value,
+                    content = OtherState.Custom("org.matrix.msc3672.beacon_info"),
+                ),
+                sender = A_USER_ID,
+            )
+        )
+
+        factory.replaceWith(listOf(event), roomMembers = emptyList())
+
+        assertThat(factory.timelineItems.first()).isEmpty()
     }
 }
 

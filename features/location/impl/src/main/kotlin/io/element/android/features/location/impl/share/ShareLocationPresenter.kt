@@ -145,8 +145,11 @@ class ShareLocationPresenter(
                     locationActions.openLocationSettings()
                     dialogState = ShareLocationState.Dialog.None
                 }
-                ShareLocationEvent.InitiateLiveLocationShare -> scope.launch {
-                    dialogState = computeLiveLocationDialogState()
+                ShareLocationEvent.InitiateLiveLocationShare -> {
+                    if (startLiveLocationAction.value is AsyncAction.Loading) return
+                    scope.launch {
+                        dialogState = computeLiveLocationDialogState()
+                    }
                 }
                 ShareLocationEvent.AcceptLiveLocationDisclaimer -> scope.launch {
                     liveLocationStore.setAcceptedLiveLocationDisclaimer()
@@ -155,6 +158,7 @@ class ShareLocationPresenter(
                         }
                 }
                 is ShareLocationEvent.StartLiveLocationShare -> scope.launch {
+                    if (startLiveLocationAction.value is AsyncAction.Loading) return@launch
                     dialogState = ShareLocationState.Dialog.None
                     startLiveLocationAction.runUpdatingState {
                         liveLocationShareManager.startShare(

@@ -23,6 +23,10 @@ import io.element.android.libraries.androidutils.diff.MutableListDiffCache
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.matrix.api.room.RoomMember
 import io.element.android.libraries.matrix.api.timeline.MatrixTimelineItem
+import io.element.android.libraries.matrix.api.timeline.item.event.FailedToParseStateContent
+import io.element.android.libraries.matrix.api.timeline.item.event.LiveLocationContent
+import io.element.android.libraries.matrix.api.timeline.item.event.OtherState
+import io.element.android.libraries.matrix.api.timeline.item.event.StateContent
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.Flow
@@ -81,16 +85,21 @@ class TimelineItemsFactory(
     ) {
         val newTimelineItemStates = ArrayList<TimelineItem>()
         for (index in diffCache.indices().reversed()) {
+            val matrixTimelineItem = timelineItems[index]
+            if (matrixTimelineItem is MatrixTimelineItem.Event && matrixTimelineItem.isHiddenMetadataEvent()) {
+                diffCache[index] = null
+                continue
+            }
             val cacheItem = diffCache.get(index)
             if (cacheItem == null) {
                 buildAndCacheItem(timelineItems, index, roomMembers, roomKeyRecoveryStatuses)?.also { timelineItemState ->
                     newTimelineItemStates.add(timelineItemState)
                 }
             } else {
-                val updatedItem = if (cacheItem is TimelineItem.Event && shouldUpdateCachedEvent(cacheItem, timelineItems[index], roomMembers)) {
+                val updatedItem = if (cacheItem is TimelineItem.Event && shouldUpdateCachedEvent(cacheItem, matrixTimelineItem, roomMembers)) {
                     eventItemFactory.update(
                         timelineItem = cacheItem,
-                        receivedMatrixTimelineItem = timelineItems[index] as MatrixTimelineItem.Event,
+                        receivedMatrixTimelineItem = matrixTimelineItem as MatrixTimelineItem.Event,
                         roomMembers = roomMembers,
                         roomKeyRecoveryStatuses = roomKeyRecoveryStatuses,
                     )
@@ -131,4 +140,22 @@ class TimelineItemsFactory(
             roomMembers.isNotEmpty() &&
             matrixTimelineItem.event.receipts.isNotEmpty()
     }
+
+    private fun MatrixTimelineItem.Event.isHiddenMetadataEvent(): Boolean {
+        if (event.content !is LiveLocationContent && event.timelineItemDebugInfoProvider().originalJson?.contains(EVENT_TYPE_BEACON_INFO) == true) {
+            return true
+        }
+        return event.content.isBeaconInfoStateContent()
+    }
+
+    private fun io.element.android.libraries.matrix.api.timeline.item.event.EventContent.isBeaconInfoStateContent(): Boolean {
+        if (this is FailedToParseStateContent) {
+            return eventType == EVENT_TYPE_BEACON_INFO
+        }
+        val stateContent = this as? StateContent ?: return false
+        val customState = stateContent.content as? OtherState.Custom ?: return false
+        return customState.eventType == EVENT_TYPE_BEACON_INFO
+    }
 }
+
+private const val EVENT_TYPE_BEACON_INFO = "org.matrix.msc3672.beacon_info"

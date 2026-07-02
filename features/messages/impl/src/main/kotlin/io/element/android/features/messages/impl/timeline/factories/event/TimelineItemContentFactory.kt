@@ -93,8 +93,10 @@ class TimelineItemContentFactory(
             return hydrateAiContent(aiContent)
         }
 
-        parseBeaconInfoContent(eventTimelineItem, originalJson)?.let { liveLocationContent ->
-            return liveLocationContent
+        if (itemContent !is LiveLocationContent) {
+            parseBeaconInfoContent(eventTimelineItem, originalJson)?.let { liveLocationContent ->
+                return liveLocationContent
+            }
         }
 
         // Game invite messages use custom fields not exposed by the typed SDK.
