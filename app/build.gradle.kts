@@ -272,6 +272,18 @@ androidComponents {
     configureLicensesTasks(reportingExtension)
 }
 
+tasks.matching { task ->
+    task.name.matches(Regex("merge.*ReleaseAssets"))
+}.configureEach {
+    doLast {
+        outputs.files.files.forEach { output ->
+            delete(fileTree(output) {
+                include("element-call/**/*.map")
+            })
+        }
+    }
+}
+
 setupDependencyInjection()
 
 dependencies {

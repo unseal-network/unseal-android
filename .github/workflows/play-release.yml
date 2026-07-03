@@ -123,10 +123,57 @@ jobs:
           version="${TAG_NAME#v}"
           mkdir -p release
 
-          cp app/build/outputs/bundle/gplayRelease/app-gplay-release.aab "release/unseal-android-${version}-gplay-release.aab"
-          find app/build/outputs/apk/gplay/release -name '*.apk' -print0 | while IFS= read -r -d '' apk; do
-            cp "${apk}" "release/unseal-android-${version}-$(basename "${apk}")"
+          cp app/build/outputs/bundle/gplayRelease/app-gplay-release.aab \
+            "release/unseal-android-${version}-play-store.aab"
+
+          expected_apks=(
+            "app-gplay-arm64-v8a-release.apk"
+            "app-gplay-armeabi-v7a-release.apk"
+            "app-gplay-x86_64-release.apk"
+            "app-gplay-x86-release.apk"
+            "app-gplay-universal-release.apk"
+          )
+
+          for source_name in "${expected_apks[@]}"; do
+            source_path="app/build/outputs/apk/gplay/release/${source_name}"
+            if [ ! -f "${source_path}" ]; then
+              echo "::error::Missing expected release APK: ${source_path}"
+              exit 1
+            fi
+            case "${source_name}" in
+              app-gplay-arm64-v8a-release.apk) target_name="android-arm64-v8a.apk" ;;
+              app-gplay-armeabi-v7a-release.apk) target_name="android-armeabi-v7a.apk" ;;
+              app-gplay-x86_64-release.apk) target_name="android-x86_64.apk" ;;
+              app-gplay-x86-release.apk) target_name="android-x86.apk" ;;
+              app-gplay-universal-release.apk) target_name="android-universal-fallback.apk" ;;
+              *)
+                echo "::error::Unexpected release APK: ${source_name}"
+                exit 1
+                ;;
+            esac
+            cp "${source_path}" "release/unseal-android-${version}-${target_name}"
           done
+
+          cat > release/DOWNLOADS.md <<EOF
+          # Unseal Android ${version}
+
+          ## Google Play
+
+          Upload \`unseal-android-${version}-play-store.aab\` to Google Play Console.
+          Google Play will keep the full app functionality and deliver only the APK splits needed by each device.
+
+          ## Direct APK downloads
+
+          These APKs are complete app builds. They differ only by CPU architecture.
+
+          - \`unseal-android-${version}-android-arm64-v8a.apk\`: recommended for most modern Android phones.
+          - \`unseal-android-${version}-android-armeabi-v7a.apk\`: for older 32-bit ARM Android devices.
+          - \`unseal-android-${version}-android-x86_64.apk\`: for x86_64 emulators and devices.
+          - \`unseal-android-${version}-android-x86.apk\`: for legacy x86 emulators and devices.
+          - \`unseal-android-${version}-android-universal-fallback.apk\`: contains every ABI and is much larger; use only when the device architecture is unknown.
+
+          Prefer the ABI-specific APKs for direct downloads. Do not publish the universal APK as the primary download.
+          EOF
 
           (cd release && sha256sum * > SHA256SUMS.txt)
 
@@ -150,7 +197,8 @@ jobs:
           Signed GPlay release built by GitHub Actions.
 
           Upload the AAB file to Google Play Console when creating the Play release.
-          APK files are attached for installation and smoke testing outside Google Play.
+          ABI-specific APK files are attached for full-feature direct installation outside Google Play.
+          Use arm64-v8a for most Android phones; use the universal fallback only when the device architecture is unknown.
           EOF
 
           args=()
