@@ -11,16 +11,17 @@ package io.element.android.features.messages.impl.timeline.factories
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryStatus
 import io.element.android.features.messages.impl.timeline.diff.TimelineItemsCacheInvalidator
 import io.element.android.features.messages.impl.timeline.factories.event.TimelineItemEventFactory
 import io.element.android.features.messages.impl.timeline.factories.virtual.TimelineItemVirtualFactory
 import io.element.android.features.messages.impl.timeline.groups.TimelineItemGrouper
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContent
-import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryStatus
 import io.element.android.libraries.androidutils.diff.DiffCacheUpdater
 import io.element.android.libraries.androidutils.diff.MutableListDiffCache
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
+import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.room.RoomMember
 import io.element.android.libraries.matrix.api.timeline.MatrixTimelineItem
 import io.element.android.libraries.matrix.api.timeline.item.event.FailedToParseStateContent
@@ -83,6 +84,7 @@ class TimelineItemsFactory(
         roomMembers: List<RoomMember>,
         roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
     ) {
+        val roomMembersByUserId = roomMembersByUserId(roomMembers)
         val newTimelineItemStates = ArrayList<TimelineItem>()
         for (index in diffCache.indices().reversed()) {
             val matrixTimelineItem = timelineItems[index]
@@ -92,15 +94,15 @@ class TimelineItemsFactory(
             }
             val cacheItem = diffCache.get(index)
             if (cacheItem == null) {
-                buildAndCacheItem(timelineItems, index, roomMembers, roomKeyRecoveryStatuses)?.also { timelineItemState ->
+                buildAndCacheItem(timelineItems, index, roomMembersByUserId, roomKeyRecoveryStatuses)?.also { timelineItemState ->
                     newTimelineItemStates.add(timelineItemState)
                 }
             } else {
-                val updatedItem = if (cacheItem is TimelineItem.Event && shouldUpdateCachedEvent(cacheItem, matrixTimelineItem, roomMembers)) {
+                val updatedItem = if (cacheItem is TimelineItem.Event && shouldUpdateCachedEvent(cacheItem, matrixTimelineItem, roomMembersByUserId)) {
                     eventItemFactory.update(
                         timelineItem = cacheItem,
                         receivedMatrixTimelineItem = matrixTimelineItem as MatrixTimelineItem.Event,
-                        roomMembers = roomMembers,
+                        roomMembersByUserId = roomMembersByUserId,
                         roomKeyRecoveryStatuses = roomKeyRecoveryStatuses,
                     )
                 } else {
@@ -116,12 +118,12 @@ class TimelineItemsFactory(
     private suspend fun buildAndCacheItem(
         timelineItems: List<MatrixTimelineItem>,
         index: Int,
-        roomMembers: List<RoomMember>,
+        roomMembersByUserId: Map<UserId, RoomMember>,
         roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
     ): TimelineItem? {
         val timelineItem =
             when (val currentTimelineItem = timelineItems[index]) {
-                is MatrixTimelineItem.Event -> eventItemFactory.create(currentTimelineItem, index, timelineItems, roomMembers, roomKeyRecoveryStatuses)
+                is MatrixTimelineItem.Event -> eventItemFactory.create(currentTimelineItem, index, timelineItems, roomMembersByUserId, roomKeyRecoveryStatuses)
                 is MatrixTimelineItem.Virtual -> virtualItemFactory.create(currentTimelineItem)
                 MatrixTimelineItem.Other -> null
             }
@@ -132,13 +134,20 @@ class TimelineItemsFactory(
     private fun shouldUpdateCachedEvent(
         cachedItem: TimelineItem.Event,
         matrixTimelineItem: MatrixTimelineItem,
-        roomMembers: List<RoomMember>,
+        roomMembersByUserId: Map<UserId, RoomMember>,
     ): Boolean {
         if (matrixTimelineItem !is MatrixTimelineItem.Event) return false
         if (cachedItem.content is TimelineItemEncryptedContent) return true
         return config.computeReadReceipts &&
-            roomMembers.isNotEmpty() &&
+            roomMembersByUserId.isNotEmpty() &&
             matrixTimelineItem.event.receipts.isNotEmpty()
+    }
+
+    private fun roomMembersByUserId(roomMembers: List<RoomMember>): Map<UserId, RoomMember> {
+        if (!config.computeReadReceipts || roomMembers.isEmpty()) {
+            return emptyMap()
+        }
+        return roomMembers.associateBy { it.userId }
     }
 
     private fun MatrixTimelineItem.Event.isHiddenMetadataEvent(): Boolean {

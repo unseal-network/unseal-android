@@ -22,9 +22,9 @@ import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.IntoMap
 import io.element.android.features.messages.impl.timeline.di.TimelineItemEventContentKey
 import io.element.android.features.messages.impl.timeline.di.TimelineItemPresenterFactory
+import io.element.android.features.messages.impl.timeline.factories.event.AiSdkStreamReducer
 import io.element.android.features.messages.impl.timeline.factories.event.AiStreamContentCache
 import io.element.android.features.messages.impl.timeline.factories.event.AiStreamHandleStore
-import io.element.android.features.messages.impl.timeline.factories.event.AiSdkStreamReducer
 import io.element.android.features.messages.impl.timeline.model.event.AiDataStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiPptWorkflowStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiToolStreamPart
@@ -228,7 +228,13 @@ class TimelineItemAiPresenter(
                                             workflowTaskStore.saveSlides(taskId, taskType, updated, "running", knownTotal = msg.totalSlides)
                                         }
                                         wsSlideCount++
-                                        Timber.tag("WsDbg").d("slide PROGRESS taskId=%s wsIdx=%d total=%d wsTotal=%s", taskId, wsSlideCount, workflowSlides[taskId]?.size, msg.totalSlides)
+                                        Timber.tag("WsDbg").d(
+                                            "slide PROGRESS taskId=%s wsIdx=%d total=%d wsTotal=%s",
+                                            taskId,
+                                            wsSlideCount,
+                                            workflowSlides[taskId]?.size,
+                                            msg.totalSlides,
+                                        )
                                     }
                                 }
                                 is WorkflowMessage.Completed -> {
@@ -278,7 +284,7 @@ class TimelineItemAiPresenter(
     ) {
         // Map snapshots (JSON → parts) off the main thread; only the state write hops to main.
         withContext(dispatchers.io) {
-            val snapshots = Channel<StreamSnapshot>(Channel.UNLIMITED)
+            val snapshots = Channel<StreamSnapshot>(Channel.CONFLATED)
             val updatePolicy = StreamSnapshotUpdatePolicy(
                 // iOS writes every text-delta into the observed message model, which gives the
                 // visible type-on effect. Keep Android bounded for markdown parse cost, but flush

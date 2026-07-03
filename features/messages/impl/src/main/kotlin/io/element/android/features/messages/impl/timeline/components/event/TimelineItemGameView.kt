@@ -57,25 +57,25 @@ internal fun TimelineItemGameView(
     val context = LocalContext.current
     val iconImageLoader = remember(content.homeserverHost) {
         val host = content.homeserverHost
+        val client = OkHttpClient.Builder()
+            .apply {
+                if (host != null) {
+                    addInterceptor { chain ->
+                        val request = chain.request()
+                        val requestBuilder = request.newBuilder()
+                        if (request.url.host == host) {
+                            requestBuilder.header("APP-U", "s=$host")
+                        }
+                        chain.proceed(requestBuilder.build())
+                    }
+                }
+            }
+            .build()
         ImageLoader.Builder(context)
             .components {
                 add(
                     OkHttpNetworkFetcherFactory(
-                        callFactory = {
-                            OkHttpClient.Builder()
-                                .apply {
-                                    if (host != null) {
-                                        addInterceptor { chain ->
-                                            chain.proceed(
-                                                chain.request().newBuilder()
-                                                    .header("APP-U", "s=$host")
-                                                    .build()
-                                            )
-                                        }
-                                    }
-                                }
-                                .build()
-                        }
+                        callFactory = { client }
                     )
                 )
             }
@@ -157,8 +157,11 @@ internal fun TimelineItemGameView(
                 }
                 Text(
                     text = stringResource(
-                        if (clicked) R.string.screen_room_game_card_opened
-                        else R.string.screen_room_game_card_start
+                        if (clicked) {
+                            R.string.screen_room_game_card_opened
+                        } else {
+                            R.string.screen_room_game_card_start
+                        }
                     ),
                     style = ElementTheme.typography.fontBodySmMedium,
                     color = ElementTheme.colors.textLinkExternal,

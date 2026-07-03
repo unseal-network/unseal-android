@@ -248,10 +248,9 @@ class TimelineItemContentMessageFactory(
                 val dom = messageType.formatted?.toHtmlDocument(permalinkParser = permalinkParser)
                 val formattedBody = dom?.let(::parseHtml)
                     ?: textPillificationHelper.pillify(body).safeLinkify()
-                val htmlDocument = messageType.formatted?.toHtmlDocument(permalinkParser = permalinkParser)
                 TimelineItemNoticeContent(
                     body = body,
-                    htmlDocument = htmlDocument,
+                    htmlDocument = dom,
                     formattedBody = formattedBody,
                     isEdited = content.isEdited,
                 )
@@ -261,10 +260,9 @@ class TimelineItemContentMessageFactory(
                 val dom = messageType.formatted?.toHtmlDocument(permalinkParser = permalinkParser)
                 val formattedBody = dom?.let(::parseHtml)
                     ?: textPillificationHelper.pillify(body).safeLinkify()
-                val htmlDocument = messageType.formatted?.toHtmlDocument(permalinkParser = permalinkParser)
                 TimelineItemTextContent(
                     body = body,
-                    htmlDocument = htmlDocument,
+                    htmlDocument = dom,
                     formattedBody = formattedBody,
                     isEdited = content.isEdited,
                     linkPreviewUrls = formattedBody.extractLinkPreviewUrls(permalinkParser),
