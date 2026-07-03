@@ -46,9 +46,13 @@ import java.util.Locale
 fun TimelineItemLocationView(
     content: TimelineItemLocationContent,
     onStopLiveLocationClick: () -> Unit,
+    onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    TimelineCardSurface(modifier = modifier) {
+    TimelineCardSurface(
+        modifier = modifier,
+        onClick = onClick,
+    ) {
         Box(modifier = Modifier.fillMaxWidth()) {
             StaticMapView(
                 modifier = Modifier
@@ -193,7 +197,7 @@ private fun LiveLocationOverlay(
             ) {
                 Icon(
                     imageVector = CompoundIcons.Stop(),
-                    contentDescription = null,
+                    contentDescription = stringResource(CommonStrings.action_stop),
                 )
             }
         }
@@ -211,5 +215,6 @@ internal fun TimelineItemLocationViewPreview(@PreviewParameter(TimelineItemLocat
         TimelineItemLocationView(
             content = content,
             onStopLiveLocationClick = {},
+            onClick = {},
         )
     }

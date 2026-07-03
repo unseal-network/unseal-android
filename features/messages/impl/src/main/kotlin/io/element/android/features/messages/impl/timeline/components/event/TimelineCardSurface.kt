@@ -19,15 +19,27 @@ import io.element.android.compound.theme.ElementTheme
 @Composable
 internal fun TimelineCardSurface(
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = TimelineCardShape,
-        color = ElementTheme.colors.bgSubtleSecondary,
-        border = BorderStroke(1.dp, ElementTheme.colors.borderInteractiveSecondary),
-        content = content,
-    )
+    if (onClick == null) {
+        Surface(
+            modifier = modifier.fillMaxWidth(),
+            shape = TimelineCardShape,
+            color = ElementTheme.colors.bgSubtleSecondary,
+            border = BorderStroke(1.dp, ElementTheme.colors.borderInteractiveSecondary),
+            content = content,
+        )
+    } else {
+        Surface(
+            onClick = onClick,
+            modifier = modifier.fillMaxWidth(),
+            shape = TimelineCardShape,
+            color = ElementTheme.colors.bgSubtleSecondary,
+            border = BorderStroke(1.dp, ElementTheme.colors.borderInteractiveSecondary),
+            content = content,
+        )
+    }
 }
 
 internal val TimelineCardShape = RoundedCornerShape(12.dp)

@@ -22,6 +22,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.messages.impl.timeline.aTimelineItemEvent
 import io.element.android.features.messages.impl.timeline.aTimelineRoomInfo
+import io.element.android.features.messages.impl.timeline.model.event.aStaticLocationMode
+import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemLocationContent
 import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemTextContent
 import io.element.android.features.messages.impl.timeline.protection.aTimelineProtectionState
 import io.element.android.libraries.matrix.api.timeline.Timeline
@@ -32,6 +34,15 @@ import org.junit.runner.RunWith
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 class TimelineItemEventRowTest {
+    @Test
+    fun `location events let their content handle clicks`() {
+        val event = aTimelineItemEvent(
+            content = aTimelineItemLocationContent(mode = aStaticLocationMode())
+        )
+
+        assertThat(event.isWholeContentClickable).isFalse()
+    }
+
     @Test
     fun `clicking an interactive standalone child does not trigger row click`() = runAndroidComposeUiTest<ComponentActivity> {
         var rowClicks = 0

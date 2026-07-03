@@ -12,6 +12,7 @@ import androidx.compose.runtime.Immutable
 import io.element.android.features.messages.impl.timeline.components.MessageShieldData
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEventContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemImageContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemStickerContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextBasedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVideoContent
@@ -121,6 +122,7 @@ sealed interface TimelineItem {
          *  This is `true` for all events except for visual media events with a caption or formatted caption.
          */
         val isWholeContentClickable = when (content) {
+            is TimelineItemLocationContent -> false
             is TimelineItemStickerContent -> content.formattedCaption == null && content.caption == null
             is TimelineItemImageContent -> content.formattedCaption == null && content.caption == null
             is TimelineItemVideoContent -> content.formattedCaption == null && content.caption == null

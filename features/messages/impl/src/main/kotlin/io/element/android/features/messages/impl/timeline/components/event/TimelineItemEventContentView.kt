@@ -103,6 +103,7 @@ fun TimelineItemEventContentView(
             TimelineItemLocationView(
                 content = content.ensureActiveLiveLocation(),
                 onStopLiveLocationClick = { eventSink(TimelineEvent.StopLiveLocationShare) },
+                onClick = onContentClick,
                 modifier = modifier
             )
         }

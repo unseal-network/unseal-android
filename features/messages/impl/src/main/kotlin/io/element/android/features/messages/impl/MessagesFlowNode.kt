@@ -9,6 +9,7 @@
 package io.element.android.features.messages.impl
 
 import android.content.Context
+import android.net.Uri
 import android.os.Parcelable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -107,6 +108,7 @@ import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.withContext
 import kotlinx.parcelize.Parcelize
+import java.util.Locale
 import kotlin.time.Duration.Companion.milliseconds
 
 @ContributesNode(RoomScope::class)
@@ -705,7 +707,7 @@ class MessagesFlowNode(
                 )
             }
             is TimelineItemLocationContent -> {
-                if (hasVulkanSupport()) {
+                if (locationService.canRenderMaps() && hasVulkanSupport()) {
                     val mode = when (event.content.mode) {
                         is TimelineItemLocationContent.Mode.Live -> ShowLocationMode.Live(event.senderId)
                         is TimelineItemLocationContent.Mode.Static -> ShowLocationMode.Static(
@@ -717,9 +719,15 @@ class MessagesFlowNode(
                             assetType = event.content.assetType,
                         )
                     }
-                    NavTarget.LocationViewer(mode = mode).takeIf { locationService.canRenderMaps() }
+                    NavTarget.LocationViewer(mode = mode)
                 } else {
-                    displayVulkanNotSupportedError = true
+                    event.content.location?.let { location ->
+                        context.openUrlInExternalApp(location.toGeoIntentUri(label = event.content.description ?: event.safeSenderName))
+                        return true
+                    }
+                    if (!hasVulkanSupport()) {
+                        displayVulkanNotSupportedError = true
+                    }
                     null
                 }
             }
@@ -779,6 +787,11 @@ class MessagesFlowNode(
             thumbnailSource = thumbnailSource,
             canUseOverlay = canUseOverlay,
         )
+    }
+
+    private fun io.element.android.features.location.api.Location.toGeoIntentUri(label: String?): String {
+        val encodedLabel = Uri.encode(label.orEmpty())
+        return "geo:0,0?q=%.6f,%.6f (%s)".format(Locale.ENGLISH, lat, lon, encodedLabel)
     }
 
     override suspend fun attachThread(threadId: ThreadId, focusedEventId: EventId?) {
