@@ -10,7 +10,11 @@ package io.element.android.features.messages.impl.timeline.cache
 internal class BoundedTimelineCache<K, V>(
     private val maxEntries: Int,
 ) {
-    private val store = object : LinkedHashMap<K, V>(maxEntries, LOAD_FACTOR, true) {
+    init {
+        require(maxEntries > 0) { "maxEntries must be positive" }
+    }
+
+    private val store = object : LinkedHashMap<K, V>(initialCapacity(maxEntries), LOAD_FACTOR, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<K, V>?): Boolean {
             return size > maxEntries
         }
@@ -29,5 +33,9 @@ internal class BoundedTimelineCache<K, V>(
 
     private companion object {
         const val LOAD_FACTOR = 0.75f
+
+        fun initialCapacity(maxEntries: Int): Int {
+            return (maxEntries / LOAD_FACTOR).toInt() + 1
+        }
     }
 }

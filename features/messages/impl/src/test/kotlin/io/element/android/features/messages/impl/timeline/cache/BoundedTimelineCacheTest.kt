@@ -8,9 +8,17 @@
 package io.element.android.features.messages.impl.timeline.cache
 
 import com.google.common.truth.Truth.assertThat
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class BoundedTimelineCacheTest {
+    @Test
+    fun `cache requires a positive max entry count`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            BoundedTimelineCache<String, Int>(maxEntries = 0)
+        }
+    }
+
     @Test
     fun `cache evicts least recently used entries once full`() {
         val cache = BoundedTimelineCache<String, Int>(maxEntries = 2)

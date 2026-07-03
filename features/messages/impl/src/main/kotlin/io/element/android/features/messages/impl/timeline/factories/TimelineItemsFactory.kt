@@ -84,7 +84,8 @@ class TimelineItemsFactory(
         roomMembers: List<RoomMember>,
         roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
     ) {
-        val roomMembersByUserId = roomMembersByUserId(roomMembers)
+        val roomMembersByUserId = lazy(LazyThreadSafetyMode.NONE) { roomMembersByUserId(roomMembers) }
+        val hasRoomMembers = roomMembers.isNotEmpty()
         val newTimelineItemStates = ArrayList<TimelineItem>()
         for (index in diffCache.indices().reversed()) {
             val matrixTimelineItem = timelineItems[index]
@@ -98,7 +99,7 @@ class TimelineItemsFactory(
                     newTimelineItemStates.add(timelineItemState)
                 }
             } else {
-                val updatedItem = if (cacheItem is TimelineItem.Event && shouldUpdateCachedEvent(cacheItem, matrixTimelineItem, roomMembersByUserId)) {
+                val updatedItem = if (cacheItem is TimelineItem.Event && shouldUpdateCachedEvent(cacheItem, matrixTimelineItem, hasRoomMembers)) {
                     eventItemFactory.update(
                         timelineItem = cacheItem,
                         receivedMatrixTimelineItem = matrixTimelineItem as MatrixTimelineItem.Event,
@@ -118,7 +119,7 @@ class TimelineItemsFactory(
     private suspend fun buildAndCacheItem(
         timelineItems: List<MatrixTimelineItem>,
         index: Int,
-        roomMembersByUserId: Map<UserId, RoomMember>,
+        roomMembersByUserId: Lazy<Map<UserId, RoomMember>>,
         roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
     ): TimelineItem? {
         val timelineItem =
@@ -134,12 +135,12 @@ class TimelineItemsFactory(
     private fun shouldUpdateCachedEvent(
         cachedItem: TimelineItem.Event,
         matrixTimelineItem: MatrixTimelineItem,
-        roomMembersByUserId: Map<UserId, RoomMember>,
+        hasRoomMembers: Boolean,
     ): Boolean {
         if (matrixTimelineItem !is MatrixTimelineItem.Event) return false
         if (cachedItem.content is TimelineItemEncryptedContent) return true
         return config.computeReadReceipts &&
-            roomMembersByUserId.isNotEmpty() &&
+            hasRoomMembers &&
             matrixTimelineItem.event.receipts.isNotEmpty()
     }
 

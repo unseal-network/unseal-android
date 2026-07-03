@@ -44,6 +44,8 @@ import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import io.element.android.libraries.designsystem.theme.components.Icon
 import io.element.android.libraries.designsystem.theme.components.Text
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 
 @Composable
@@ -63,8 +65,8 @@ internal fun TimelineItemGameView(
                     addInterceptor { chain ->
                         val request = chain.request()
                         val requestBuilder = request.newBuilder()
-                        if (request.url.host == host) {
-                            requestBuilder.header("APP-U", "s=$host")
+                        appUHeaderValueForUrl(host, request.url)?.let { headerValue ->
+                            requestBuilder.header("APP-U", headerValue)
                         }
                         chain.proceed(requestBuilder.build())
                     }
@@ -169,6 +171,78 @@ internal fun TimelineItemGameView(
             }
         }
     }
+}
+
+internal fun appUHeaderValueForUrl(
+    homeserverHost: String?,
+    requestUrl: HttpUrl,
+): String? {
+    val target = homeserverHost?.toAppUHeaderTarget() ?: return null
+    if (requestUrl.host != target.host) {
+        return null
+    }
+    if (target.port != null && requestUrl.port != target.port) {
+        return null
+    }
+    return "s=${target.authority}"
+}
+
+private data class AppUHeaderTarget(
+    val host: String,
+    val port: Int?,
+    val authority: String,
+)
+
+private fun String.toAppUHeaderTarget(): AppUHeaderTarget? {
+    val raw = trim()
+    if (raw.isBlank() || raw.containsHeaderUnsafeCharacter()) {
+        return null
+    }
+    val url = raw.withHttpScheme().toHttpUrlOrNull() ?: return null
+    val explicitPort = url.port.takeIf { raw.hasExplicitPort() }
+    val authority = if (explicitPort == null) {
+        url.host
+    } else {
+        "${url.host}:$explicitPort"
+    }
+    return AppUHeaderTarget(
+        host = url.host,
+        port = explicitPort,
+        authority = authority,
+    )
+}
+
+private fun String.withHttpScheme(): String {
+    return if (startsWith("http://", ignoreCase = true) || startsWith("https://", ignoreCase = true)) {
+        this
+    } else {
+        "https://$this"
+    }
+}
+
+private fun String.hasExplicitPort(): Boolean {
+    val authority = withoutHttpScheme()
+        .substringBefore('/')
+        .substringBefore('?')
+        .substringBefore('#')
+        .substringAfterLast('@')
+    if (authority.startsWith("[")) {
+        return authority.substringAfter("]", missingDelimiterValue = "").startsWith(":")
+    }
+    val colonIndex = authority.lastIndexOf(':')
+    return colonIndex >= 0 && authority.substring(colonIndex + 1).toIntOrNull() != null
+}
+
+private fun String.withoutHttpScheme(): String {
+    return when {
+        startsWith("https://", ignoreCase = true) -> drop("https://".length)
+        startsWith("http://", ignoreCase = true) -> drop("http://".length)
+        else -> this
+    }
+}
+
+private fun String.containsHeaderUnsafeCharacter(): Boolean {
+    return any { it == '\r' || it == '\n' }
 }
 
 // ── Previews ──────────────────────────────────────────────────────────────────

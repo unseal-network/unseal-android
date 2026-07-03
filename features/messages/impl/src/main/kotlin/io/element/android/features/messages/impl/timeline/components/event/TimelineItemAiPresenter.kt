@@ -284,7 +284,7 @@ class TimelineItemAiPresenter(
     ) {
         // Map snapshots (JSON → parts) off the main thread; only the state write hops to main.
         withContext(dispatchers.io) {
-            val snapshots = Channel<StreamSnapshot>(Channel.CONFLATED)
+            val snapshots = Channel<StreamSnapshot>(Channel.UNLIMITED)
             val updatePolicy = StreamSnapshotUpdatePolicy(
                 // iOS writes every text-delta into the observed message model, which gives the
                 // visible type-on effect. Keep Android bounded for markdown parse cost, but flush

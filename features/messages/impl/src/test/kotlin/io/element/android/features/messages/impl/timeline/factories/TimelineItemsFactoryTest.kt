@@ -20,6 +20,7 @@ import io.element.android.libraries.agentstream.api.StreamRequest
 import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.agentstream.api.StreamStatus
 import io.element.android.libraries.agentstream.api.StreamStorageProvider
+import io.element.android.libraries.matrix.api.room.RoomMember
 import io.element.android.libraries.matrix.api.timeline.MatrixTimelineItem
 import io.element.android.libraries.matrix.api.timeline.item.event.OtherState
 import io.element.android.libraries.matrix.api.timeline.item.event.StateContent
@@ -35,6 +36,30 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
 class TimelineItemsFactoryTest {
+    @Test
+    fun `replaceWith does not index room members when no read receipts are present`() = runTest {
+        val factory = aTimelineItemsFactory(
+            config = TimelineItemsFactoryConfig(
+                computeReadReceipts = true,
+                computeReactions = true,
+                roomId = "!room:keepsecret.io",
+            )
+        )
+        val event = MatrixTimelineItem.Event(
+            A_UNIQUE_ID,
+            anEventTimelineItem(
+                sender = A_USER_ID,
+            )
+        )
+
+        factory.replaceWith(
+            timelineItems = listOf(event),
+            roomMembers = roomMembersThatFailOnIteration(aRoomMember(userId = A_USER_ID)),
+        )
+
+        assertThat(factory.timelineItems.first()).hasSize(1)
+    }
+
     @Test
     fun `replaceWith keeps cached event instance when member update cannot affect rendering`() = runTest {
         val factory = aTimelineItemsFactory(
@@ -160,6 +185,16 @@ class TimelineItemsFactoryTest {
 private fun List<TimelineItem>.singleAiContent(): TimelineItemAiContent {
     val event = single() as TimelineItem.Event
     return event.content as TimelineItemAiContent
+}
+
+private fun roomMembersThatFailOnIteration(member: RoomMember): List<RoomMember> {
+    return object : AbstractList<RoomMember>() {
+        override val size: Int = 1
+
+        override fun get(index: Int): RoomMember {
+            error("Room members should not be indexed when no read receipts are present: $member")
+        }
+    }
 }
 
 private fun streamEventJson(streamId: String): String {

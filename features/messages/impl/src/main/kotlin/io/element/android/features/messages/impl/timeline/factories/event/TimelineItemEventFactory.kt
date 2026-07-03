@@ -61,7 +61,7 @@ class TimelineItemEventFactory(
         currentTimelineItem: MatrixTimelineItem.Event,
         index: Int,
         timelineItems: List<MatrixTimelineItem>,
-        roomMembersByUserId: Map<UserId, RoomMember>,
+        roomMembersByUserId: Lazy<Map<UserId, RoomMember>>,
         roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
     ): TimelineItem.Event {
         val currentSender = currentTimelineItem.event.sender
@@ -148,7 +148,7 @@ class TimelineItemEventFactory(
     suspend fun update(
         timelineItem: TimelineItem.Event,
         receivedMatrixTimelineItem: MatrixTimelineItem.Event,
-        roomMembersByUserId: Map<UserId, RoomMember>,
+        roomMembersByUserId: Lazy<Map<UserId, RoomMember>>,
         roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
     ): TimelineItem.Event {
         val updatedContent = when (timelineItem.content) {
@@ -209,15 +209,16 @@ class TimelineItemEventFactory(
     }
 
     private fun MatrixTimelineItem.Event.computeReadReceiptState(
-        roomMembersByUserId: Map<UserId, RoomMember>,
+        roomMembersByUserId: Lazy<Map<UserId, RoomMember>>,
     ): TimelineItemReadReceipts {
-        if (!config.computeReadReceipts) {
+        if (!config.computeReadReceipts || event.receipts.isEmpty()) {
             return TimelineItemReadReceipts(receipts = persistentListOf())
         }
+        val roomMembers = roomMembersByUserId.value
         return TimelineItemReadReceipts(
             receipts = event.receipts
                 .map { receipt ->
-                    val roomMember = roomMembersByUserId[receipt.userId]
+                    val roomMember = roomMembers[receipt.userId]
                     ReadReceiptData(
                         avatarData = AvatarData(
                             id = receipt.userId.value,
