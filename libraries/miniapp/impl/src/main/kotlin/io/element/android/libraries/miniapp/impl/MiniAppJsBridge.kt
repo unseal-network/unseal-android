@@ -88,6 +88,7 @@ internal class MiniAppJsBridge(
             obj.put("user", user.toMap().toJsonObject())
         }
         obj.put("options", config.options.toJsonObject())
+        config.homeserver?.let { obj.put("homeserver", it) }
         return obj.toString()
     }
 

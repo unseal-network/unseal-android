@@ -141,6 +141,7 @@ internal class MiniAppChromeClient(
  * - `window.___token = <tokenJSON | null>`
  * - `window.___user  = <userJSON  | null>`
  * - `window.___options = <optionsJSON>`
+ * - `window.___homeserver = <homeserverUrl | null>`
  *
  * Also installs a `window.webkit.messageHandlers` compatibility shim so that
  * iOS-style `window.webkit.messageHandlers.X.postMessage(body)` calls are
@@ -194,6 +195,9 @@ internal fun buildStartupScript(config: MiniAppConfig): String {
 })();
 """.trimIndent()
 
+    val homeserverJson = config.homeserver?.jsonQuote() ?: "null"
+    Timber.d("MiniApp: buildStartupScript appId=%d homeserver=%s", config.appId, config.homeserver)
+
     return buildString {
         append("window.___platform='android';")
         append("window.___device=$deviceJson;")
@@ -201,6 +205,7 @@ internal fun buildStartupScript(config: MiniAppConfig): String {
         append("window.___token=$tokenJson;")
         append("window.___user=$userJson;")
         append("window.___options=$optionsJson;")
+        append("window.___homeserver=$homeserverJson;")
         append(shimScript)
     }
 }

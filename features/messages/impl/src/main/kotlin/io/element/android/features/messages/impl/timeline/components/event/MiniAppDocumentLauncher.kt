@@ -92,6 +92,7 @@ class DefaultMiniAppDocumentLauncher(
                         options = options,
                         token = token,
                         appBundleData = info.toBundleDataMap(),
+                        homeserver = homeserverUrl,
                     )
                     AppBundleInfo.LoadMode.Local -> MiniAppConfig(
                         appId = appId,
@@ -101,6 +102,7 @@ class DefaultMiniAppDocumentLauncher(
                         token = token,
                         appBundleData = info.toBundleDataMap(),
                         bundleVersion = info.version,
+                        homeserver = homeserverUrl,
                     )
                 }
             }

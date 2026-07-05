@@ -271,6 +271,11 @@ class MiniAppNode @AssistedInject constructor(
             .find { matrixClient.isMe(it.userId) }
             ?.toMiniAppUser()
 
+        // Resolve homeserver for all paths so JS always has window.___homeserver available.
+        val homeserverUrl = runCatching {
+            baseUrlResolver.resolveHomeserverBaseUrl(matrixClient.userIdServerName())
+        }.getOrNull()
+
         // No appId → load remoteUrl directly.
         if (inputs.appId <= 0L) {
             return MiniAppConfig(
@@ -279,12 +284,9 @@ class MiniAppNode @AssistedInject constructor(
                 zipUrl = null,
                 token = token,
                 user = selfUser,
+                homeserver = homeserverUrl,
             )
         }
-
-        val homeserverUrl = runCatching {
-            baseUrlResolver.resolveHomeserverBaseUrl(matrixClient.userIdServerName())
-        }.getOrNull()
 
         if (homeserverUrl.isNullOrBlank()) {
             Timber.w("MiniApp: homeserver URL unavailable — loading remoteUrl directly")
@@ -314,6 +316,7 @@ class MiniAppNode @AssistedInject constructor(
                         token = token,
                         user = selfUser,
                         appBundleData = info.toBundleDataMap(),
+                        homeserver = homeserverUrl,
                     )
                     AppBundleInfo.LoadMode.Local -> MiniAppConfig(
                         appId = inputs.appId,
@@ -323,12 +326,13 @@ class MiniAppNode @AssistedInject constructor(
                         user = selfUser,
                         appBundleData = info.toBundleDataMap(),
                         bundleVersion = info.version,
+                        homeserver = homeserverUrl,
                     )
                 }
             }
             .getOrElse { error ->
                 Timber.e(error, "MiniApp: fetchAppBundle failed — falling back to remoteUrl")
-                MiniAppConfig(appId = inputs.appId, url = inputs.remoteUrl, zipUrl = null, token = token, user = selfUser)
+                MiniAppConfig(appId = inputs.appId, url = inputs.remoteUrl, zipUrl = null, token = token, user = selfUser, homeserver = homeserverUrl)
             }
     }
 
