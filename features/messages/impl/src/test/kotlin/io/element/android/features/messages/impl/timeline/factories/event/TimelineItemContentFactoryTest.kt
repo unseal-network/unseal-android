@@ -9,18 +9,24 @@ package io.element.android.features.messages.impl.timeline.factories.event
 
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.messages.impl.fixtures.aTimelineItemContentFactory
+import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryStatus
 import io.element.android.features.messages.impl.timeline.factories.event.AiStreamHandleStore
 import io.element.android.features.messages.impl.timeline.factories.event.AiStreamContentCache
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
 import io.element.android.libraries.agentstream.api.AGENT_STREAM_SCHEMA_VERSION
 import io.element.android.libraries.agentstream.api.StreamPart
 import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.agentstream.api.StreamStatus
 import io.element.android.libraries.agentstream.api.StreamStorageProvider
+import io.element.android.libraries.matrix.api.encryption.roomkey.RoomKeyRecoveryRequest
 import io.element.android.libraries.matrix.api.room.location.AssetType
 import io.element.android.libraries.matrix.api.timeline.item.event.LiveLocationContent
+import io.element.android.libraries.matrix.api.timeline.item.event.UtdCause
+import io.element.android.libraries.matrix.api.timeline.item.event.UnableToDecryptContent
 import io.element.android.libraries.matrix.api.timeline.item.event.UnknownContent
+import io.element.android.libraries.matrix.test.A_ROOM_ID
 import io.element.android.libraries.matrix.test.A_USER_ID
 import io.element.android.libraries.matrix.test.timeline.aTimelineItemDebugInfo
 import io.element.android.libraries.matrix.test.timeline.anEventTimelineItem
@@ -28,6 +34,56 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
 class TimelineItemContentFactoryTest {
+    @Test
+    fun `create attaches room key recovery status when encrypted event JSON omits room id`() = runTest {
+        val request = RoomKeyRecoveryRequest(
+            roomId = A_ROOM_ID,
+            senderUserId = A_USER_ID,
+            senderDeviceId = "DEVICE",
+            senderKey = "senderKey",
+            sessionId = "session",
+            ciphertext = "ciphertext",
+        )
+        val originalJson = """
+            {
+              "type": "m.room.encrypted",
+              "sender": "${A_USER_ID.value}",
+              "content": {
+                "algorithm": "m.megolm.v1.aes-sha2",
+                "sender_key": "senderKey",
+                "device_id": "DEVICE",
+                "session_id": "session",
+                "ciphertext": "ciphertext"
+              }
+            }
+        """.trimIndent()
+        val factory = aTimelineItemContentFactory()
+        val event = anEventTimelineItem(
+            content = UnableToDecryptContent(
+                data = UnableToDecryptContent.Data.MegolmV1AesSha2(
+                    sessionId = "session",
+                    utdCause = UtdCause.Unknown,
+                ),
+                threadInfo = null,
+            ),
+            sender = A_USER_ID,
+            debugInfoProvider = { aTimelineItemDebugInfo(originalJson = originalJson) },
+        )
+
+        val content = factory.create(
+            eventTimelineItem = event,
+            roomKeyRecoveryStatuses = mapOf(
+                request.identityKey to RoomKeyRecoveryStatus.DeviceUnverified(
+                    request = request,
+                    eventCount = 1,
+                )
+            ),
+        )
+
+        assertThat(content).isInstanceOf(TimelineItemEncryptedContent::class.java)
+        assertThat((content as TimelineItemEncryptedContent).recovery).isNotNull()
+    }
+
     @Test
     fun `create parses top level stream event before falling back to non-message content`() = runTest {
         val originalJson = """

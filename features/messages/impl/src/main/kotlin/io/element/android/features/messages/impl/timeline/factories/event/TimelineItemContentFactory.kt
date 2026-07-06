@@ -297,8 +297,15 @@ class TimelineItemContentFactory(
     private fun EventTimelineItem.roomKeyRecoveryStatus(
         roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
     ): RoomKeyRecoveryStatus? {
-        if (content !is UnableToDecryptContent) return null
-        val request = roomKeyRecoveryRequestParser.parse(timelineItemDebugInfoProvider().originalJson) ?: return null
+        val unableToDecryptContent = content as? UnableToDecryptContent ?: return null
+        val megolmData = unableToDecryptContent.data as? UnableToDecryptContent.Data.MegolmV1AesSha2
+        val fallbackRoomId = roomKeyRecoveryStatuses.values.firstOrNull()?.request?.roomId
+        val request = roomKeyRecoveryRequestParser.parse(
+            originalJson = timelineItemDebugInfoProvider().originalJson,
+            fallbackRoomId = fallbackRoomId,
+            fallbackSenderId = sender,
+            fallbackSessionId = megolmData?.sessionId,
+        ) ?: return null
         return roomKeyRecoveryStatuses[request.identityKey]
     }
 

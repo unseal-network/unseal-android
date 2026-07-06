@@ -29,6 +29,17 @@ class RoomKeyRecoveryRequestParserTest {
     }
 
     @Test
+    fun `parse uses fallback room id when event JSON omits room id`() {
+        val result = parser.parse(
+            originalJson = aMegolmJson(roomId = null),
+            fallbackRoomId = RoomId("!fallback:example.org"),
+        )
+
+        assertThat(result!!.roomId).isEqualTo(RoomId("!fallback:example.org"))
+        assertThat(result.identityKey).isEqualTo("!fallback:example.org|session|senderKey")
+    }
+
+    @Test
     fun `parse returns null for missing JSON`() {
         assertThat(parser.parse(null)).isNull()
     }

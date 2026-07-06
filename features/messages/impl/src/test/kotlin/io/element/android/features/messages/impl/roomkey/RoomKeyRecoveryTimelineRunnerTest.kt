@@ -85,6 +85,26 @@ class RoomKeyRecoveryTimelineRunnerTest {
     }
 
     @Test
+    fun `recoverVisibleItems - uses room id fallback when encrypted event JSON omits room id`() = runTest {
+        val runner = createRunner()
+        runner.statuses.test {
+            assertThat(awaitItem()).isEmpty()
+
+            runner.recoverVisibleItems(
+                roomId = A_ROOM_ID,
+                timelineItems = listOf(aUtdTimelineItem(originalJson = originalJson(roomId = null))),
+                roomMembers = listOf(aRoomMember(userId = A_USER_ID, membership = RoomMembershipState.JOIN)),
+                sessionVerifiedStatus = SessionVerifiedStatus.NotVerified,
+                backupState = BackupState.ENABLED,
+            )
+
+            val statuses = awaitItem()
+            assertThat(statuses.keys.single()).isEqualTo(ROOM_KEY_REQUEST.identityKey)
+            assertThat(statuses.values.single()).isInstanceOf(RoomKeyRecoveryStatus.DeviceUnverified::class.java)
+        }
+    }
+
+    @Test
     fun `verifyCurrentSession - requests device verification`() = runTest {
         val requestDeviceVerification = lambdaRecorder<Unit> {}
         val runner = createRunner(
@@ -544,10 +564,11 @@ class RoomKeyRecoveryTimelineRunnerTest {
         fun originalJson(
             sender: UserId = A_USER_ID,
             deviceId: String = "SENDER_DEVICE",
+            roomId: String? = A_ROOM_ID.value,
         ) = """
             {
               "type": "m.room.encrypted",
-              "room_id": "${A_ROOM_ID.value}",
+              ${roomId?.let { "\"room_id\": \"$it\"," }.orEmpty()}
               "sender": "${sender.value}",
               "content": {
                 "algorithm": "m.megolm.v1.aes-sha2",
