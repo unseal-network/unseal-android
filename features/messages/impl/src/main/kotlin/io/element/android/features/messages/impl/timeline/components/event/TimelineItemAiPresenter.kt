@@ -27,6 +27,7 @@ import io.element.android.features.messages.impl.timeline.factories.event.AiStre
 import io.element.android.features.messages.impl.timeline.factories.event.AiStreamHandleStore
 import io.element.android.features.messages.impl.timeline.model.event.AiDataStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiPptWorkflowStreamPart
+import io.element.android.features.messages.impl.timeline.model.event.AiTextStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiToolStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.libraries.agentstream.api.StreamRequest
@@ -68,6 +69,16 @@ data class TimelineItemAiState(
     val miniAppDocumentLauncher: MiniAppDocumentLauncher? = null,
 )
 
+private data class TimelineItemAiContentIdentity(
+    val streamId: String?,
+    val fallbackBody: String,
+    val isEdited: Boolean,
+    val sender: String?,
+    val roomId: String?,
+    val eventId: String?,
+    val parts: Any,
+)
+
 @AssistedInject
 class TimelineItemAiPresenter(
     @Assisted private val content: TimelineItemAiContent,
@@ -88,7 +99,15 @@ class TimelineItemAiPresenter(
     override fun present(): TimelineItemAiState {
         val initialContent = content
         val streamId = initialContent.streamId
-        val contentIdentity = streamId ?: initialContent.parts
+        val contentIdentity = TimelineItemAiContentIdentity(
+            streamId = streamId,
+            fallbackBody = initialContent.body,
+            isEdited = initialContent.isEdited,
+            sender = initialContent.sender,
+            roomId = initialContent.roomId,
+            eventId = initialContent.eventId,
+            parts = initialContent.parts,
+        )
         val cachedContent = remember(contentIdentity) {
             streamId?.let(aiStreamContentCache::get)?.withFallbackMetadata(initialContent)
         }
@@ -272,7 +291,8 @@ class TimelineItemAiPresenter(
                     snapshot = snapshot,
                     isEdited = fallbackContent.isEdited,
                     sender = fallbackContent.sender,
-                ).also(aiStreamContentCache::put)
+                ).withFallbackMetadata(fallbackContent)
+                    .also(aiStreamContentCache::put)
             }
         }
     }
@@ -297,7 +317,7 @@ class TimelineItemAiPresenter(
                     snapshot = snapshot,
                     isEdited = fallbackContent.isEdited,
                     sender = fallbackContent.sender,
-                )
+                ).withFallbackMetadata(fallbackContent)
                 aiStreamContentCache.put(updated)
                 withContext(dispatchers.main) {
                     updateContent(updated)
@@ -423,9 +443,19 @@ private fun TimelineItemAiContent.isTerminalRenderableStream(streamId: String): 
 
 private fun TimelineItemAiContent.withFallbackMetadata(fallback: TimelineItemAiContent): TimelineItemAiContent {
     return copy(
+        body = bodyWithCurrentFallback(fallback),
         isEdited = fallback.isEdited,
         sender = sender ?: fallback.sender,
         roomId = roomId ?: fallback.roomId,
         eventId = eventId ?: fallback.eventId,
     )
+}
+
+private fun TimelineItemAiContent.bodyWithCurrentFallback(fallback: TimelineItemAiContent): String {
+    val hasSdkTextBody = parts.any { it is AiTextStreamPart && it.text.isNotBlank() }
+    return if (!hasSdkTextBody && fallback.body.isNotBlank()) {
+        fallback.body
+    } else {
+        body
+    }
 }

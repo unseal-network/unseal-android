@@ -10,6 +10,7 @@ package io.element.android.features.messages.impl.timeline.factories.event
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.messages.impl.fixtures.aTimelineItemContentFactory
 import io.element.android.features.messages.impl.timeline.factories.event.AiStreamHandleStore
+import io.element.android.features.messages.impl.timeline.factories.event.AiStreamContentCache
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
 import io.element.android.libraries.agentstream.api.AGENT_STREAM_SCHEMA_VERSION
@@ -96,6 +97,89 @@ class TimelineItemContentFactoryTest {
         assertThat(aiContent.isTerminal).isTrue()
         assertThat(aiContent.body).isEqualTo("Loaded from cache")
         assertThat(aiContent.visibleParts.map { it.id }).containsExactly("text-1")
+    }
+
+    @Test
+    fun `create keeps matrix body when completed stream snapshot has no renderable parts`() = runTest {
+        val originalJson = """
+            {
+              "type": "m.room.message",
+              "content": {
+                "msgtype": "m.text",
+                "stream": { "id": "stream-1" },
+                "body": "Final assistant text from Matrix"
+              }
+            }
+        """.trimIndent()
+        val storage = HydratingStreamStorageProvider(
+            StreamSnapshot(
+                schemaVersion = AGENT_STREAM_SCHEMA_VERSION,
+                streamId = "stream-1",
+                status = StreamStatus.Completed,
+                parts = emptyList(),
+                rawEvents = emptyList(),
+                updatedAtMs = 1L,
+                completedAtMs = 2L,
+                error = null,
+            )
+        )
+        val factory = aTimelineItemContentFactory(
+            aiStreamHandleStore = AiStreamHandleStore(NoopAgentStreamClient, storage),
+        )
+        val event = anEventTimelineItem(
+            content = UnknownContent,
+            sender = A_USER_ID,
+            debugInfoProvider = { aTimelineItemDebugInfo(originalJson = originalJson) },
+        )
+
+        val content = factory.create(event)
+
+        assertThat(content).isInstanceOf(TimelineItemAiContent::class.java)
+        val aiContent = content as TimelineItemAiContent
+        assertThat(aiContent.body).isEqualTo("Final assistant text from Matrix")
+        assertThat(aiContent.visibleParts).isEmpty()
+        assertThat(aiContent.isTerminal).isTrue()
+    }
+
+    @Test
+    fun `create uses latest matrix body when cached stream content only has fallback body`() = runTest {
+        val contentCache = AiStreamContentCache().apply {
+            put(
+                TimelineItemAiContent(
+                    body = "Old assistant text",
+                    isEdited = false,
+                    isStreaming = false,
+                    isTerminal = true,
+                    streamId = "stream-1",
+                    thinkingSteps = kotlinx.collections.immutable.persistentListOf(),
+                    toolCalls = kotlinx.collections.immutable.persistentListOf(),
+                    sources = kotlinx.collections.immutable.persistentListOf(),
+                    quickActions = kotlinx.collections.immutable.persistentListOf(),
+                )
+            )
+        }
+        val originalJson = """
+            {
+              "type": "m.room.message",
+              "content": {
+                "msgtype": "m.text",
+                "stream": { "id": "stream-1" },
+                "body": "Edited assistant text"
+              }
+            }
+        """.trimIndent()
+        val factory = aTimelineItemContentFactory(aiStreamContentCache = contentCache)
+        val event = anEventTimelineItem(
+            content = UnknownContent,
+            sender = A_USER_ID,
+            debugInfoProvider = { aTimelineItemDebugInfo(originalJson = originalJson) },
+        )
+
+        val content = factory.create(event)
+
+        assertThat(content).isInstanceOf(TimelineItemAiContent::class.java)
+        val aiContent = content as TimelineItemAiContent
+        assertThat(aiContent.body).isEqualTo("Edited assistant text")
     }
 
     @Test

@@ -12,6 +12,7 @@ import dev.zacsweers.metro.Inject
 import io.element.android.features.location.api.Location
 import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryRequestParser
 import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryStatus
+import io.element.android.features.messages.impl.timeline.model.event.AiTextStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.RtcNotificationState
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEventContent
@@ -312,11 +313,21 @@ class TimelineItemContentFactory(
 
 private fun TimelineItemAiContent.withFallbackMetadata(fallback: TimelineItemAiContent): TimelineItemAiContent {
     return copy(
+        body = bodyWithCurrentFallback(fallback),
         isEdited = fallback.isEdited,
         sender = sender ?: fallback.sender,
         roomId = roomId ?: fallback.roomId,
         eventId = eventId ?: fallback.eventId,
     )
+}
+
+private fun TimelineItemAiContent.bodyWithCurrentFallback(fallback: TimelineItemAiContent): String {
+    val hasSdkTextBody = parts.any { it is AiTextStreamPart && it.text.isNotBlank() }
+    return if (!hasSdkTextBody && fallback.body.isNotBlank()) {
+        fallback.body
+    } else {
+        body
+    }
 }
 
 private const val EVENT_TYPE_BEACON_INFO = "org.matrix.msc3672.beacon_info"

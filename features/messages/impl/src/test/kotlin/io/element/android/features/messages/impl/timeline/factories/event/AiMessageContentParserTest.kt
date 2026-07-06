@@ -67,6 +67,70 @@ class AiMessageContentParserTest {
     }
 
     @Test
+    fun `parses replacement new content as effective ai message`() {
+        val json = """
+            {
+              "type": "m.room.message",
+              "content": {
+                "msgtype": "m.text",
+                "body": "* placeholder",
+                "m.new_content": {
+                  "msgtype": "m.text",
+                  "body": "edited final body",
+                  "content": "edited stream body",
+                  "stream": { "id": "stream-1", "status": "done" }
+                },
+                "m.relates_to": {
+                  "rel_type": "m.replace",
+                  "event_id": "${'$'}original"
+                }
+              }
+            }
+        """.trimIndent()
+
+        val result = parser.parse(json, isEdited = true)
+
+        assertThat(result).isNotNull()
+        requireNotNull(result)
+        assertThat(result.streamId).isEqualTo("stream-1")
+        assertThat(result.body).isEqualTo("edited stream body")
+        assertThat(result.isEdited).isTrue()
+        assertThat(result.isStreaming).isFalse()
+    }
+
+    @Test
+    fun `does not treat non text messages with stream id as ai`() {
+        val json = """
+            {
+              "type": "m.room.message",
+              "content": {
+                "msgtype": "m.image",
+                "body": "image.png",
+                "stream": { "id": "stream-1" }
+              }
+            }
+        """.trimIndent()
+
+        assertThat(parser.parse(json, isEdited = false)).isNull()
+    }
+
+    @Test
+    fun `does not treat text stream object without id as ai`() {
+        val json = """
+            {
+              "type": "m.room.message",
+              "content": {
+                "msgtype": "m.text",
+                "body": "normal text with malformed stream marker",
+                "stream": { "status": "active" }
+              }
+            }
+        """.trimIndent()
+
+        assertThat(parser.parse(json, isEdited = false)).isNull()
+    }
+
+    @Test
     fun `parses stream object terminal statuses as completed`() {
         val terminalStatuses = listOf("FAILED", "cancelled", "canceled")
 

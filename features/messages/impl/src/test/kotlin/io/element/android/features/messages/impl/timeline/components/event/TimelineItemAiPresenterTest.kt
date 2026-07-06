@@ -89,6 +89,44 @@ class TimelineItemAiPresenterTest {
     }
 
     @Test
+    fun `present - keeps matrix body while stream snapshot has no renderable parts`() = runTest {
+        val client = FakeAgentStreamClient(
+            initialSnapshot = snapshot(
+                streamId = "stream-1",
+                status = StreamStatus.Loading,
+            )
+        )
+        val presenter = createPresenter(
+            content = aTimelineItemAiContent(
+                body = "Final assistant text from Matrix",
+                streamId = "stream-1",
+                sender = "@bot:keepsecret.io",
+            ),
+            agentStreamClient = client,
+            dispatchers = testCoroutineDispatchers(useUnconfinedTestDispatcher = true),
+        )
+
+        presenter.test {
+            assertThat(awaitItem().content.body).isEqualTo("Final assistant text from Matrix")
+
+            client.handle.emit(
+                snapshot(
+                    streamId = "stream-1",
+                    status = StreamStatus.Completed,
+                    parts = emptyList(),
+                )
+            )
+
+            val updated = awaitItem().content
+            assertThat(updated.body).isEqualTo("Final assistant text from Matrix")
+            assertThat(updated.visibleParts).isEmpty()
+            assertThat(updated.isTerminal).isTrue()
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `present - subscribes to sdk stream when initial parts are populated`() = runTest {
         val client = FakeAgentStreamClient()
         val content = aTimelineItemAiContent(
@@ -406,6 +444,46 @@ class TimelineItemAiPresenterTest {
     }
 
     @Test
+    fun `present - cached fallback body does not override edited matrix body`() = runTest {
+        val client = FakeAgentStreamClient(
+            initialSnapshot = snapshot(
+                streamId = "stream-1",
+                status = StreamStatus.Loading,
+            )
+        )
+        val contentCache = AiStreamContentCache().apply {
+            put(
+                aTimelineItemAiContent(
+                    body = "Old assistant text",
+                    streamId = "stream-1",
+                ).copy(
+                    isStreaming = false,
+                    isTerminal = true,
+                )
+            )
+        }
+        val presenter = createPresenter(
+            content = aTimelineItemAiContent(
+                body = "Edited assistant text",
+                streamId = "stream-1",
+                sender = "@bot:keepsecret.io",
+            ),
+            agentStreamClient = client,
+            streamContentCache = contentCache,
+            dispatchers = testCoroutineDispatchers(useUnconfinedTestDispatcher = true),
+        )
+
+        presenter.test {
+            val initial = awaitItem().content
+
+            assertThat(initial.body).isEqualTo("Edited assistant text")
+            assertThat(initial.isTerminal).isTrue()
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `present - completed durable snapshot renders before binding sdk stream`() = runTest {
         val client = FakeAgentStreamClient(
             initialSnapshot = snapshot(
@@ -540,6 +618,7 @@ class TimelineItemAiPresenterTest {
 
     private companion object {
         fun aTimelineItemAiContent(
+            body: String = "",
             streamId: String? = null,
             sender: String? = null,
             roomId: String? = null,
@@ -547,7 +626,7 @@ class TimelineItemAiPresenterTest {
             parts: ImmutableList<AiStreamPart> = persistentListOf(),
         ): TimelineItemAiContent {
             return TimelineItemAiContent(
-                body = "",
+                body = body,
                 isEdited = false,
                 isStreaming = true,
                 streamId = streamId,
