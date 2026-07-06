@@ -12,6 +12,7 @@ import android.content.Context
 import android.webkit.WebSettings
 import android.webkit.WebView
 import androidx.compose.foundation.background
+import androidx.webkit.WebViewCompat
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -343,6 +344,12 @@ private fun createWebView(
         // viewport height (e.g. the game's error / loading screen).
         setBackgroundColor(android.graphics.Color.BLACK)
     }
+
+    // Inject startup globals (platform, token, user, homeserver, shim) before ANY
+    // page script runs — including Vite ESM modules loaded as <script type="module">.
+    // evaluateJavascript in onPageStarted races with async module execution; this API
+    // wins that race unconditionally (API 26+).
+    WebViewCompat.addDocumentStartJavaScript(webViewInstance, buildStartupScript(config), setOf("*"))
 
     return Pair(webViewInstance, bridge)
 }

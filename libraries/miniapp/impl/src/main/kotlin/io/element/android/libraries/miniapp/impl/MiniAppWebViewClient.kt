@@ -196,7 +196,6 @@ internal fun buildStartupScript(config: MiniAppConfig): String {
 """.trimIndent()
 
     val homeserverJson = config.homeserver?.jsonQuote() ?: "null"
-    Timber.d("MiniApp: buildStartupScript appId=%d homeserver=%s", config.appId, config.homeserver)
 
     return buildString {
         append("window.___platform='android';")

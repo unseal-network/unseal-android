@@ -20,6 +20,7 @@ import io.element.android.libraries.miniapp.api.toMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import org.json.JSONObject
 import timber.log.Timber
@@ -77,11 +78,18 @@ internal class MiniAppJsBridge(
         obj.put("url", if (localExist) indexFile.toURI().toString() else config.url)
         obj.put("path", bundleDir.absolutePath)
         obj.put("local_exist", localExist)
-        config.token?.let { token ->
+        // Always use the live token so JS gets the current Matrix session token,
+        // not the snapshot baked into config at bridge-creation time. The bridge
+        // may outlive a token refresh if the composable re-renders with a new config
+        // while the AndroidView factory (and thus the bridge) is not re-created.
+        val liveToken = runCatching {
+            kotlinx.coroutines.runBlocking { hostBridge?.getAccessToken() }
+        }.getOrNull()?.takeIf { it.isNotBlank() } ?: config.token?.accessToken
+        liveToken?.let { at ->
             obj.put("token", JSONObject().apply {
-                put("accessToken", token.accessToken)
-                token.refreshToken?.let { put("refreshToken", it) }
-                token.platform?.let { put("platform", it) }
+                put("accessToken", at)
+                config.token?.refreshToken?.let { put("refreshToken", it) }
+                config.token?.platform?.let { put("platform", it) }
             })
         }
         config.user?.let { user ->
@@ -300,7 +308,11 @@ internal class MiniAppJsBridge(
     @JavascriptInterface
     fun request(params: String) {
         val from = FromJsData(params)
-        val webView = webViewRef() ?: return
+        Timber.d("MiniApp: request handleId=%s url=%s", from.handleId, from.data.optString("url"))
+        val webView = webViewRef() ?: run {
+            Timber.w("MiniApp: request called but webView is null, dropping handleId=%s", from.handleId)
+            return
+        }
         scope.launch(Dispatchers.IO) {
             MiniAppRequest.execute(from, okHttpClient, webView)
         }
