@@ -29,12 +29,18 @@ import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.features.messages.impl.timeline.TimelineEvent
 import io.element.android.features.messages.impl.timeline.TimelineRoomInfo
+import io.element.android.features.messages.impl.timeline.aTimelineItemEvent
+import io.element.android.features.messages.impl.timeline.aTimelineRoomInfo
 import io.element.android.features.messages.impl.timeline.components.event.TimelineItemEventContentView
+import io.element.android.features.messages.impl.timeline.components.event.TimelineItemStateView
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemPollContent
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemStateContent
+import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemStateEventContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVoiceContent
 import io.element.android.features.messages.impl.timeline.protection.TimelineProtectionEvent
 import io.element.android.features.messages.impl.timeline.protection.TimelineProtectionState
+import io.element.android.features.messages.impl.timeline.protection.aTimelineProtectionState
 import io.element.android.libraries.designsystem.colors.gradientSubtleColors
 import io.element.android.libraries.designsystem.modifiers.onKeyboardContextMenuAction
 import io.element.android.libraries.designsystem.preview.ElementPreview
@@ -107,59 +113,69 @@ internal fun TimelineItemRow(
                 )
             }
             is TimelineItem.Event -> {
-                val a11yVoiceMessage = stringResource(CommonStrings.a11y_voice_message)
-                TimelineItemEventRow(
-                    modifier = Modifier
-                        .semantics(mergeDescendants = true) {
-                            contentDescription = if (timelineItem.content is TimelineItemVoiceContent) {
-                                val voiceMessageText = String.format(a11yVoiceMessage, timelineItem.content.duration.toString(DurationUnit.MINUTES))
-                                "${timelineItem.safeSenderName}, $voiceMessageText"
-                            } else {
-                                timelineItem.safeSenderName
+                val stateContent = timelineItem.content as? TimelineItemStateContent
+                if (stateContent != null) {
+                    TimelineItemStateView(
+                        content = stateContent,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 36.dp, vertical = 8.dp),
+                    )
+                } else {
+                    val a11yVoiceMessage = stringResource(CommonStrings.a11y_voice_message)
+                    TimelineItemEventRow(
+                        modifier = Modifier
+                            .semantics(mergeDescendants = true) {
+                                contentDescription = if (timelineItem.content is TimelineItemVoiceContent) {
+                                    val voiceMessageText = String.format(a11yVoiceMessage, timelineItem.content.duration.toString(DurationUnit.MINUTES))
+                                    "${timelineItem.safeSenderName}, $voiceMessageText"
+                                } else {
+                                    timelineItem.safeSenderName
+                                }
+                                // For Polls, allow the answers to be traversed by Talkback
+                                isTraversalGroup = timelineItem.content is TimelineItemPollContent ||
+                                    timelineItem.failedToSend ||
+                                    timelineItem.messageShield != null
+                                // TODO Also set to true when the event has link(s)
                             }
-                            // For Polls, allow the answers to be traversed by Talkback
-                            isTraversalGroup = timelineItem.content is TimelineItemPollContent ||
-                                timelineItem.failedToSend ||
-                                timelineItem.messageShield != null
-                            // TODO Also set to true when the event has link(s)
-                        }
-                        // Custom clickable that applies over the whole item for accessibility
-                        .then(
-                            if (isTalkbackActive()) {
-                                Modifier
-                                    .combinedClickable(
-                                        onClick = { onContentClick(timelineItem) },
-                                        onLongClick = { onLongClick(timelineItem) },
-                                        onLongClickLabel = stringResource(CommonStrings.action_open_context_menu),
-                                    )
-                                    .onKeyboardContextMenuAction { onLongClick(timelineItem) }
-                            } else {
-                                Modifier
-                            }
-                        ),
-                    event = timelineItem,
-                    timelineMode = timelineMode,
-                    timelineRoomInfo = timelineRoomInfo,
-                    renderReadReceipts = renderReadReceipts,
-                    timelineProtectionState = timelineProtectionState,
-                    isLastOutgoingMessage = isLastOutgoingMessage,
-                    displayThreadSummaries = displayThreadSummaries,
-                    onEventClick = { onContentClick(timelineItem) },
-                    onLongClick = { onLongClick(timelineItem) },
-                    onLinkClick = onLinkClick,
-                    onLinkLongClick = onLinkLongClick,
-                    onUserDataClick = onUserDataClick,
-                    inReplyToClick = inReplyToClick,
-                    onReactionClick = onReactionClick,
-                    onReactionLongClick = onReactionLongClick,
-                    onMoreReactionsClick = onMoreReactionsClick,
-                    onReadReceiptClick = onReadReceiptClick,
-                    onSwipeToReply = { onSwipeToReply(timelineItem) },
-                    eventSink = eventSink,
-                    eventContentView = { contentModifier ->
-                        eventContentView(timelineItem, contentModifier)
-                    },
-                )
+                            // Custom clickable that applies over the whole item for accessibility
+                            .then(
+                                if (isTalkbackActive()) {
+                                    Modifier
+                                        .combinedClickable(
+                                            onClick = { onContentClick(timelineItem) },
+                                            onLongClick = { onLongClick(timelineItem) },
+                                            onLongClickLabel = stringResource(CommonStrings.action_open_context_menu),
+                                        )
+                                        .onKeyboardContextMenuAction { onLongClick(timelineItem) }
+                                } else {
+                                    Modifier
+                                }
+                            ),
+                        event = timelineItem,
+                        timelineMode = timelineMode,
+                        timelineRoomInfo = timelineRoomInfo,
+                        renderReadReceipts = renderReadReceipts,
+                        timelineProtectionState = timelineProtectionState,
+                        isLastOutgoingMessage = isLastOutgoingMessage,
+                        displayThreadSummaries = displayThreadSummaries,
+                        onEventClick = { onContentClick(timelineItem) },
+                        onLongClick = { onLongClick(timelineItem) },
+                        onLinkClick = onLinkClick,
+                        onLinkLongClick = onLinkLongClick,
+                        onUserDataClick = onUserDataClick,
+                        inReplyToClick = inReplyToClick,
+                        onReactionClick = onReactionClick,
+                        onReactionLongClick = onReactionLongClick,
+                        onMoreReactionsClick = onMoreReactionsClick,
+                        onReadReceiptClick = onReadReceiptClick,
+                        onSwipeToReply = { onSwipeToReply(timelineItem) },
+                        eventSink = eventSink,
+                        eventContentView = { contentModifier ->
+                            eventContentView(timelineItem, contentModifier)
+                        },
+                    )
+                }
             }
             is TimelineItem.GroupedEvents -> {
                 TimelineItemGroupedEventsRow(
@@ -230,5 +246,32 @@ internal fun FocusedEventPreview() = ElementPreview {
             .fillMaxWidth()
             .height(160.dp)
             .focusedEvent(0.dp),
+    )
+}
+
+@PreviewsDayNight
+@Composable
+internal fun TimelineItemStateRowPreview() = ElementPreview {
+    TimelineItemRow(
+        timelineMode = Timeline.Mode.Live,
+        timelineItem = aTimelineItemEvent(content = aTimelineItemStateEventContent()),
+        timelineRoomInfo = aTimelineRoomInfo(),
+        timelineProtectionState = aTimelineProtectionState(),
+        renderReadReceipts = false,
+        isLastOutgoingMessage = false,
+        focusedEventId = null,
+        displayThreadSummaries = false,
+        onUserDataClick = {},
+        onLinkClick = {},
+        onLinkLongClick = {},
+        onContentClick = {},
+        onLongClick = {},
+        inReplyToClick = {},
+        onReactionClick = { _, _ -> },
+        onReactionLongClick = { _, _ -> },
+        onMoreReactionsClick = {},
+        onReadReceiptClick = {},
+        onSwipeToReply = {},
+        eventSink = {},
     )
 }

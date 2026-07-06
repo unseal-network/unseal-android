@@ -68,6 +68,8 @@ import io.element.android.libraries.matrix.test.timeline.aProfileDetails
 import io.element.android.libraries.matrix.test.timeline.aStickerContent
 import io.element.android.libraries.matrix.ui.components.A_BLUR_HASH
 import io.element.android.libraries.mediaviewer.test.util.FileExtensionExtractorWithoutValidation
+import io.element.android.libraries.textcomposer.mentions.MentionSpan
+import io.element.android.libraries.textcomposer.mentions.MentionType
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.test.runTest
@@ -230,6 +232,28 @@ import kotlin.time.Duration.Companion.minutes
         ) as TimelineItemTextContent
 
         assertThat(result.linkPreviewUrls).containsExactly("https://www.example.org")
+    }
+
+    @Test
+    fun `test create TextMessageType excludes mention links from preview`() = runTest {
+        val mentionUrl = "http://keepsecret.io"
+        val pillifiedBody = buildSpannedString {
+            inSpans(MentionSpan(MentionType.User(A_USER_ID)), URLSpan(mentionUrl)) {
+                append("@")
+            }
+            append(" help me")
+        }
+        val sut = createTimelineItemContentMessageFactory(
+            textPillificationHelper = FakeTextPillificationHelper { _, _ -> pillifiedBody },
+        )
+        val result = sut.create(
+            content = createMessageContent(type = TextMessageType("@geminirayson1:keepsecret.io help me", null)),
+            senderId = A_USER_ID,
+            senderProfile = aProfileDetails(),
+            eventId = AN_EVENT_ID,
+        ) as TimelineItemTextContent
+
+        assertThat(result.linkPreviewUrls).isEmpty()
     }
 
     @Test
@@ -840,12 +864,13 @@ import kotlin.time.Duration.Companion.minutes
         htmlConverterTransform: (String) -> CharSequence = { it },
         domConverterTransform: (Document) -> CharSequence = { it.body().html() },
         permalinkParser: FakePermalinkParser = FakePermalinkParser(),
+        textPillificationHelper: FakeTextPillificationHelper = FakeTextPillificationHelper(),
     ) = TimelineItemContentMessageFactory(
         fileSizeFormatter = FakeFileSizeFormatter(),
         fileExtensionExtractor = FileExtensionExtractorWithoutValidation(),
         htmlConverterProvider = FakeHtmlConverterProvider(htmlConverterTransform, domConverterTransform),
         permalinkParser = permalinkParser,
-        textPillificationHelper = FakeTextPillificationHelper(),
+        textPillificationHelper = textPillificationHelper,
     )
 
     private fun createStickerContent(

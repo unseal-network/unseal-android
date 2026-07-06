@@ -52,6 +52,7 @@ import io.element.android.libraries.matrix.api.timeline.item.event.VoiceMessageT
 import io.element.android.libraries.matrix.api.timeline.item.event.getDisambiguatedDisplayName
 import io.element.android.libraries.matrix.ui.messages.toHtmlDocument
 import io.element.android.libraries.mediaviewer.api.util.FileExtensionExtractor
+import io.element.android.libraries.textcomposer.mentions.getMentionSpans
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import org.jsoup.nodes.Document
@@ -328,6 +329,7 @@ private fun String.withLinks(): CharSequence? {
 private fun CharSequence.extractLinkPreviewUrls(permalinkParser: PermalinkParser): List<String> {
     if (this !is Spanned) return emptyList()
     return getSpans<URLSpan>(0, length)
+        .filter { getMentionSpans(getSpanStart(it), getSpanEnd(it)).isEmpty() }
         .map { it.url }
         .filter { it.isPreviewableUrl(permalinkParser) }
         .distinct()
