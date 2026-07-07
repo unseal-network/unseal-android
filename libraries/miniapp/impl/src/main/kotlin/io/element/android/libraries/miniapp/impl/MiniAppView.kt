@@ -161,11 +161,20 @@ fun MiniAppView(
         Timber.d("MiniApp: LaunchedEffect appId=${config.appId} zipUrl=${config.zipUrl} url=${config.url}")
         val zipUrl = config.zipUrl?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
 
+        // The zipUrl points to the homeserver sign endpoint which requires APP-U header.
+        val homeserverHost = config.homeserver
+            ?.removePrefix("https://")
+            ?.removePrefix("http://")
+            ?.trimEnd('/')
+            ?.takeIf { it.isNotBlank() }
+        val downloadHeaders = if (homeserverHost != null) mapOf("APP-U" to "s=$homeserverHost") else emptyMap()
+
         val bundleManager = MiniAppBundleManager(context, okHttpClient)
         bundleManager.prepareBundle(
             appId = config.appId,
             zipUrl = zipUrl,
             serverVersion = config.bundleVersion ?: "",
+            extraHeaders = downloadHeaders,
             onProgress = { progress ->
                 val pct = (progress * 100).toInt()
                 Timber.d("MiniApp: downloading appId=${config.appId} $pct%%")
@@ -236,10 +245,12 @@ fun MiniAppView(
             is BundleState.Downloading -> MiniAppLoadingOverlay(
                 state = MiniAppLoadingState.Loading(progress = state.progress),
                 onClose = onClose,
+                modifier = Modifier.fillMaxSize(),
             )
             is BundleState.WebLoading -> MiniAppLoadingOverlay(
                 state = MiniAppLoadingState.Loading(progress = null),
                 onClose = onClose,
+                modifier = Modifier.fillMaxSize(),
             )
             is BundleState.Error -> MiniAppLoadingOverlay(
                 state = MiniAppLoadingState.Error(
@@ -249,6 +260,7 @@ fun MiniAppView(
                     },
                 ),
                 onClose = onClose,
+                modifier = Modifier.fillMaxSize(),
             )
             is BundleState.Ready -> { /* WebView visible — no overlay */ }
         }

@@ -42,6 +42,10 @@ import io.element.android.libraries.miniapp.api.MiniAppHostBridge
 import io.element.android.libraries.miniapp.api.MiniAppToken
 import io.element.android.libraries.miniapp.api.MiniAppUser
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
 import io.element.android.libraries.miniapp.impl.MiniAppLoadingOverlay
 import io.element.android.libraries.miniapp.impl.MiniAppLoadingState
 import io.element.android.libraries.miniapp.impl.MiniAppView
@@ -224,6 +228,24 @@ class MiniAppNode @AssistedInject constructor(
             }
         }
 
+        // LoggedInView applies systemBarsPadding() globally, so the modifier received here
+        // starts below the status bar. Escape that constraint by measuring with the extra
+        // status-bar height and placing the content above its layout origin so the loading
+        // overlay and WebView fill the full screen (edge-to-edge is already enabled by the
+        // Activity via enableEdgeToEdge()).
+        val density = LocalDensity.current
+        val statusBarTop = WindowInsets.statusBars.getTop(density)
+        val fullScreenModifier = Modifier
+            .layout { measurable, constraints ->
+                val placeable = measurable.measure(
+                    constraints.copy(maxHeight = constraints.maxHeight + statusBarTop)
+                )
+                layout(placeable.width, placeable.height) {
+                    placeable.place(0, -statusBarTop)
+                }
+            }
+            .then(modifier)
+
         // Phase 1: resolve bundle info from the server.
         // null = API call in progress (show spinner).
         // non-null = config ready; hand off to MiniAppView.
@@ -236,7 +258,7 @@ class MiniAppNode @AssistedInject constructor(
             MiniAppLoadingOverlay(
                 state = MiniAppLoadingState.Loading(),
                 onClose = { navigateUp() },
-                modifier = modifier,
+                modifier = fullScreenModifier,
             )
             return
         }
@@ -247,7 +269,7 @@ class MiniAppNode @AssistedInject constructor(
             hostBridge = hostBridge,
             okHttpClient = okHttpClient(),
             onClose = { navigateUp() },
-            modifier = modifier.fillMaxSize(),
+            modifier = fullScreenModifier.fillMaxSize(),
         )
     }
 
