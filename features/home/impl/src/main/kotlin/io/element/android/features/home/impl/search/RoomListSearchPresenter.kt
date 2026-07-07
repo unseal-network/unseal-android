@@ -54,6 +54,12 @@ class RoomListSearchPresenter(
                     isSearchActive = !isSearchActive
                     searchQuery.clearText()
                 }
+                is RoomListSearchEvent.SetSearchActive -> {
+                    isSearchActive = event.isActive
+                    if (!event.isActive) {
+                        searchQuery.clearText()
+                    }
+                }
                 is RoomListSearchEvent.UpdateVisibleRange -> {
                     if (lastVisibleRange[0] == event.range) return
                     lastVisibleRange[0] = event.range

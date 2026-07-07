@@ -171,8 +171,8 @@ private fun RowScope.RoomListMenuItems(
         onClick = onToggleSearch,
     ) {
         Icon(
-            imageVector = CompoundIcons.Search(),
-            contentDescription = stringResource(CommonStrings.action_search),
+            imageVector = CompoundIcons.Plus(),
+            contentDescription = stringResource(CommonStrings.action_start_chat),
         )
     }
     SpaceFilterButton(spaceFiltersState = spaceFiltersState)

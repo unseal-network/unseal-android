@@ -53,9 +53,7 @@ import io.element.android.features.home.impl.components.RoomListMenuAction
 import io.element.android.features.home.impl.model.RoomListRoomSummary
 import io.element.android.features.home.impl.roomlist.RoomListContextMenu
 import io.element.android.features.home.impl.roomlist.RoomListDeclineInviteMenu
-import io.element.android.features.home.impl.roomlist.RoomListEvent
 import io.element.android.features.home.impl.roomlist.RoomListState
-import io.element.android.features.home.impl.search.RoomListSearchView
 import io.element.android.features.home.impl.spacefilters.SpaceFiltersEvent
 import io.element.android.features.home.impl.spacefilters.SpaceFiltersState
 import io.element.android.features.home.impl.spacefilters.SpaceFiltersView
@@ -140,16 +138,6 @@ fun HomeView(
             onStartChatClick = { if (firstThrottler.canHandle()) onStartChatClick() },
             onCreateSpaceClick = { if (firstThrottler.canHandle()) onCreateSpaceClick() },
             onMenuActionClick = onMenuActionClick,
-        )
-        // This overlaid view will only be visible when state.displaySearchResults is true
-        RoomListSearchView(
-            state = state.searchState,
-            eventSink = state.eventSink,
-            hideInvitesAvatars = state.hideInvitesAvatars,
-            onRoomClick = { if (firstThrottler.canHandle()) onRoomClick(it) },
-            modifier = Modifier
-                .fillMaxSize()
-                .background(ElementTheme.colors.bgCanvasDefault)
         )
         acceptDeclineInviteView()
     }
@@ -294,7 +282,7 @@ private fun HomeScaffold(
                 currentUserAndNeighbors = state.currentUserAndNeighbors,
                 showAvatarIndicator = state.showAvatarIndicator,
                 areSearchResultsDisplayed = roomListState.searchState.isSearchActive,
-                onToggleSearch = { roomListState.eventSink(RoomListEvent.ToggleSearchResults) },
+                onToggleSearch = onStartChatClick,
                 onMenuActionClick = onMenuActionClick,
                 onOpenSettings = onOpenSettings,
                 onAccountSwitch = {
@@ -354,6 +342,7 @@ private fun HomeScaffold(
                     RoomListContentView(
                         contentState = roomListState.contentState,
                         filtersState = roomListState.filtersState,
+                        searchState = roomListState.searchState,
                         spaceFiltersState = roomListState.spaceFiltersState,
                         lazyListState = roomsLazyListState,
                         hideInvitesAvatars = roomListState.hideInvitesAvatars,

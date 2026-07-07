@@ -150,6 +150,22 @@ class RoomListViewTest {
     }
 
     @Test
+    fun `clicking on top bar start chat invokes the start chat callback`() = runAndroidComposeUiTest {
+        val eventsRecorder = EventsRecorder<RoomListEvent>()
+        ensureCalledOnce { callback ->
+            setRoomListView(
+                state = aRoomListState(
+                    eventSink = eventsRecorder,
+                ),
+                onCreateRoomClick = callback,
+            )
+            eventsRecorder.clear()
+            onNodeWithContentDescription(activity!!.getString(CommonStrings.action_start_chat)).performClick()
+        }
+        eventsRecorder.assertEmpty()
+    }
+
+    @Test
     fun `clicking on a room invokes the expected callback`() = runAndroidComposeUiTest {
         val eventsRecorder = EventsRecorder<RoomListEvent>()
         val state = aRoomListState(
