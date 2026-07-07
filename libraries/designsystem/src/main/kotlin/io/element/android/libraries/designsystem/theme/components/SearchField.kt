@@ -55,6 +55,8 @@ fun SearchField(
     modifier: Modifier = Modifier,
     placeholder: String? = null,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
+    showClearWhenNotEmpty: Boolean = false,
+    onClear: (() -> Unit)? = null,
 ) {
     val focusManager = LocalFocusManager.current
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -76,8 +78,9 @@ fun SearchField(
                 isFocused = isFocused,
                 placeholder = placeholder,
                 isTextEmpty = state.text.isEmpty(),
+                showClearWhenNotEmpty = showClearWhenNotEmpty,
                 innerTextField = innerTextField,
-                onClear = { state.clearText() },
+                onClear = onClear ?: { state.clearText() },
             )
         }
     )
@@ -88,6 +91,7 @@ private fun DecorationBox(
     isFocused: Boolean,
     placeholder: String?,
     isTextEmpty: Boolean,
+    showClearWhenNotEmpty: Boolean,
     onClear: () -> Unit,
     innerTextField: @Composable () -> Unit,
 ) {
@@ -106,7 +110,7 @@ private fun DecorationBox(
                 innerTextField()
             }
             Spacer(modifier = Modifier.width(16.dp))
-            val showClearIcon = isFocused && !isTextEmpty
+            val showClearIcon = !isTextEmpty && (isFocused || showClearWhenNotEmpty)
             IconButton(onClick = onClear, enabled = showClearIcon) {
                 if (showClearIcon) {
                     Icon(

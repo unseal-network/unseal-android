@@ -26,7 +26,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -70,11 +69,9 @@ import io.element.android.features.home.impl.spacefilters.anUnselectedSpaceFilte
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import io.element.android.libraries.designsystem.theme.components.Button
-import io.element.android.libraries.designsystem.theme.components.FilledTextField
 import io.element.android.libraries.designsystem.theme.components.HorizontalDivider
-import io.element.android.libraries.designsystem.theme.components.Icon
-import io.element.android.libraries.designsystem.theme.components.IconButton
 import io.element.android.libraries.designsystem.theme.components.IconSource
+import io.element.android.libraries.designsystem.theme.components.SearchField
 import io.element.android.libraries.designsystem.theme.components.Text
 import io.element.android.libraries.designsystem.utils.OnVisibleRangeChangeEffect
 import io.element.android.libraries.ui.strings.CommonStrings
@@ -385,7 +382,7 @@ private fun RoomsViewList(
                 state = searchState,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
             )
         }
 
@@ -469,35 +466,17 @@ private fun HomeRoomListSearchField(
     state: RoomListSearchState,
     modifier: Modifier = Modifier,
 ) {
-    FilledTextField(
+    val focusManager = LocalFocusManager.current
+    SearchField(
         modifier = modifier.onFocusChanged { focusState ->
             state.eventSink(RoomListSearchEvent.SetSearchActive(focusState.isFocused || state.query.text.isNotBlank()))
         },
         state = state.query,
-        placeholder = {
-            Text(
-                text = stringResource(CommonStrings.action_search),
-                color = ElementTheme.colors.textSecondary,
-            )
-        },
-        lineLimits = TextFieldLineLimits.SingleLine,
-        leadingIcon = {
-            Icon(
-                imageVector = CompoundIcons.Search(),
-                contentDescription = null,
-            )
-        },
-        trailingIcon = if (state.query.text.isNotEmpty()) {
-            @Composable {
-                IconButton(onClick = { state.eventSink(RoomListSearchEvent.ClearQuery) }) {
-                    Icon(
-                        imageVector = CompoundIcons.Close(),
-                        contentDescription = stringResource(CommonStrings.action_cancel),
-                    )
-                }
-            }
-        } else {
-            null
+        placeholder = stringResource(CommonStrings.action_search),
+        showClearWhenNotEmpty = true,
+        onClear = {
+            focusManager.clearFocus()
+            state.eventSink(RoomListSearchEvent.SetSearchActive(false))
         },
     )
 }
