@@ -229,6 +229,7 @@ fun TimelineItemAiView(
                 workflowMessages = workflowMessages,
                 workflowSlides = workflowSlides,
                 miniAppDocumentLauncher = miniAppDocumentLauncher,
+                streamId = content.streamId,
                 onLinkClick = onLinkClick,
                 onLinkLongClick = onLinkLongClick,
                 onLongClick = onLongClick,
@@ -344,6 +345,7 @@ private fun AiStreamPartsView(
     workflowMessages: Map<String, WorkflowMessage>,
     workflowSlides: Map<String, List<String>> = emptyMap(),
     miniAppDocumentLauncher: MiniAppDocumentLauncher? = null,
+    streamId: String? = null,
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
     onLongClick: (() -> Unit)?,
@@ -389,7 +391,7 @@ private fun AiStreamPartsView(
                     is AiSourceStreamPart -> SourcePart(part, onLinkClick, onLinkLongClick)
                     is AiFileStreamPart -> FilePart(part, onLinkClick, onLinkLongClick)
                     is AiErrorStreamPart -> ErrorPart(part)
-                    is AiDataStreamPart -> DataPart(part, onLinkClick, onLinkLongClick, toolCardInserted, workflowMessages)
+                    is AiDataStreamPart -> DataPart(part, onLinkClick, onLinkLongClick, toolCardInserted, workflowMessages, streamId)
                     is AiPptWorkflowStreamPart -> Unit // rendered in second pass below
                     is AiCustomStreamPart -> Unit
                 }
@@ -1826,6 +1828,7 @@ private fun DataPart(
     onLinkLongClick: (Link) -> Unit,
     toolCardInserted: Boolean,
     workflowMessages: Map<String, WorkflowMessage> = emptyMap(),
+    streamId: String? = null,
 ) {
     when (part.type) {
         "data-error" -> ErrorPart(AiErrorStreamPart(id = part.id, state = part.state, errorText = part.payload.errorTextFromJson().orEmpty()))
@@ -1874,7 +1877,8 @@ private fun DataPart(
                             data = searchData,
                             workflowProgress = progress,
                             onLinkClick = onLinkClick,
-                            openFileMode = SearchResultsOpenMode.PreviewDialog,
+                            openFileMode = SearchResultsOpenMode.WordMiniApp,
+                            streamId = streamId,
                         )
                     }
                 }
