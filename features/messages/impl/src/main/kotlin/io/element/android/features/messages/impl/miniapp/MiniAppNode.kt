@@ -236,10 +236,14 @@ class MiniAppNode @AssistedInject constructor(
             }
         }
 
-        // LoggedInView applies systemBarsPadding() globally, so the modifier received here
-        // starts below the status bar. Escape that constraint by measuring with the extra
-        // inset heights (status bar top + nav bar bottom) and placing the content at the
-        // true screen top. Edge-to-edge is already enabled by the Activity via enableEdgeToEdge().
+        // enableEdgeToEdge() in MainActivity gives this node full-window constraints
+        // (no parent systemBarsPadding shrinks them). fullScreenModifier is defensive:
+        // it escapes any systemBarsPadding() a future parent may add by expanding the
+        // measured height by (statusBarTop + navBarBottom) and shifting content up so
+        // it covers the system bar regions. In steady-state both values are 0 (bars
+        // hidden by SideEffect above), so this modifier is a no-op. It only activates
+        // on the first frame or when the system temporarily restores bars (e.g.
+        // back-gesture hint), preventing a visible gap at the top or bottom.
         val density = LocalDensity.current
         val statusBarTop = WindowInsets.statusBars.getTop(density)
         val navBarBottom = WindowInsets.navigationBars.getBottom(density)
@@ -248,7 +252,6 @@ class MiniAppNode @AssistedInject constructor(
                 val placeable = measurable.measure(
                     constraints.copy(maxHeight = constraints.maxHeight + statusBarTop + navBarBottom)
                 )
-                // Report original size to parent so parent layout is unaffected.
                 layout(placeable.width, constraints.maxHeight) {
                     placeable.place(0, -statusBarTop)
                 }
