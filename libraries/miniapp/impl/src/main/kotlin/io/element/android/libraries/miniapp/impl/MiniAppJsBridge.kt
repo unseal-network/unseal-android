@@ -167,10 +167,18 @@ internal class MiniAppJsBridge(
         Timber.d("MiniApp: loaded")
     }
 
-    /** Signal successful file creation. */
+    /** Signal successful file creation. Persists [doc_id] keyed by stream_id for future sessions. */
     @JavascriptInterface
     fun createSuccess(params: String) {
         Timber.d("MiniApp: createSuccess %s", params)
+        val streamId = config.options["stream_id"]?.toString()?.takeIf { it.isNotBlank() } ?: return
+        val docId = runCatching { JSONObject(params).optString("doc_id") }
+            .getOrNull()?.takeIf { it.isNotBlank() } ?: return
+        context.getSharedPreferences("miniapp_doc_ids", Context.MODE_PRIVATE)
+            .edit()
+            .putString("${config.appId}_$streamId", docId)
+            .apply()
+        Timber.d("MiniApp: docId saved appId=%d streamId=%s", config.appId, streamId)
     }
 
     /** Signal file-creation progress. */

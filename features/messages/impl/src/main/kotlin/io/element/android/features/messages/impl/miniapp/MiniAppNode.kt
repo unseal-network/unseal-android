@@ -307,6 +307,8 @@ class MiniAppNode @AssistedInject constructor(
             baseUrlResolver.resolveHomeserverBaseUrl(matrixClient.userIdServerName())
         }.getOrNull()
 
+        val options = buildDocOptions()
+
         // No appId → load remoteUrl directly.
         if (inputs.appId <= 0L) {
             return MiniAppConfig(
@@ -315,13 +317,14 @@ class MiniAppNode @AssistedInject constructor(
                 zipUrl = null,
                 token = token,
                 user = selfUser,
+                options = options,
                 homeserver = homeserverUrl,
             )
         }
 
         if (homeserverUrl.isNullOrBlank()) {
             Timber.w("MiniApp: homeserver URL unavailable — loading remoteUrl directly")
-            return MiniAppConfig(appId = inputs.appId, url = inputs.remoteUrl, zipUrl = null, token = token, user = selfUser)
+            return MiniAppConfig(appId = inputs.appId, url = inputs.remoteUrl, zipUrl = null, token = token, user = selfUser, options = options)
         }
         cachedHomeserverUrl = homeserverUrl
 
@@ -346,6 +349,7 @@ class MiniAppNode @AssistedInject constructor(
                         zipUrl = null,
                         token = token,
                         user = selfUser,
+                        options = options,
                         appBundleData = info.toBundleDataMap(),
                         homeserver = homeserverUrl,
                     )
@@ -355,6 +359,7 @@ class MiniAppNode @AssistedInject constructor(
                         zipUrl = info.zipUrl,
                         token = token,
                         user = selfUser,
+                        options = options,
                         appBundleData = info.toBundleDataMap(),
                         bundleVersion = info.version,
                         homeserver = homeserverUrl,
@@ -363,8 +368,28 @@ class MiniAppNode @AssistedInject constructor(
             }
             .getOrElse { error ->
                 Timber.e(error, "MiniApp: fetchAppBundle failed — falling back to remoteUrl")
-                MiniAppConfig(appId = inputs.appId, url = inputs.remoteUrl, zipUrl = null, token = token, user = selfUser, homeserver = homeserverUrl)
+                MiniAppConfig(appId = inputs.appId, url = inputs.remoteUrl, zipUrl = null, token = token, user = selfUser, options = options, homeserver = homeserverUrl)
             }
+    }
+
+    /**
+     * Builds the options map injected as `window.___options`:
+     * - `stream_id`: the meetId (game-room ID) that uniquely identifies this document session.
+     * - `doc_id`: the previously-created document ID, if any, read from SharedPreferences.
+     *
+     * JS reads `co.app.options.doc_id` to open an existing document on relaunch.
+     */
+    private fun buildDocOptions(): Map<String, Any> {
+        val streamId = inputs.meetId.takeIf { it.isNotBlank() } ?: return emptyMap()
+        val options = mutableMapOf<String, Any>("stream_id" to streamId)
+        val storedDocId = context
+            .getSharedPreferences("miniapp_doc_ids", Context.MODE_PRIVATE)
+            .getString("${inputs.appId}_$streamId", null)
+        if (!storedDocId.isNullOrBlank()) {
+            options["doc_id"] = storedDocId
+            Timber.d("MiniApp: injecting stored docId appId=%d streamId=%s", inputs.appId, streamId)
+        }
+        return options
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
