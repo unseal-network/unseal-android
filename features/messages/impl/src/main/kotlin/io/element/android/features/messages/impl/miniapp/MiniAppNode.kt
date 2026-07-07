@@ -43,7 +43,9 @@ import io.element.android.libraries.miniapp.api.MiniAppToken
 import io.element.android.libraries.miniapp.api.MiniAppUser
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import io.element.android.libraries.miniapp.impl.MiniAppLoadingOverlay
@@ -215,32 +217,39 @@ class MiniAppNode @AssistedInject constructor(
         // Hide system bars for an immersive full-screen game experience.
         // Restored when this node leaves the composition (e.g. on back navigation).
         val view = LocalView.current
-        DisposableEffect(Unit) {
+
+        // SideEffect re-hides on every recomposition so bars stay hidden even if the
+        // system temporarily restores them (e.g. rotating, back-gesture hint).
+        SideEffect {
             val activity = view.context as? Activity
-            val window = activity?.window
-            val insetsController = window?.let { WindowCompat.getInsetsController(it, view) }
-            insetsController?.apply {
+            val window = activity?.window ?: return@SideEffect
+            WindowCompat.getInsetsController(window, view).apply {
                 hide(WindowInsetsCompat.Type.systemBars())
                 systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
+        }
+        DisposableEffect(Unit) {
             onDispose {
-                insetsController?.show(WindowInsetsCompat.Type.systemBars())
+                val activity = view.context as? Activity
+                val window = activity?.window ?: return@onDispose
+                WindowCompat.getInsetsController(window, view).show(WindowInsetsCompat.Type.systemBars())
             }
         }
 
         // LoggedInView applies systemBarsPadding() globally, so the modifier received here
         // starts below the status bar. Escape that constraint by measuring with the extra
-        // status-bar height and placing the content above its layout origin so the loading
-        // overlay and WebView fill the full screen (edge-to-edge is already enabled by the
-        // Activity via enableEdgeToEdge()).
+        // inset heights (status bar top + nav bar bottom) and placing the content at the
+        // true screen top. Edge-to-edge is already enabled by the Activity via enableEdgeToEdge().
         val density = LocalDensity.current
         val statusBarTop = WindowInsets.statusBars.getTop(density)
+        val navBarBottom = WindowInsets.navigationBars.getBottom(density)
         val fullScreenModifier = Modifier
             .layout { measurable, constraints ->
                 val placeable = measurable.measure(
-                    constraints.copy(maxHeight = constraints.maxHeight + statusBarTop)
+                    constraints.copy(maxHeight = constraints.maxHeight + statusBarTop + navBarBottom)
                 )
-                layout(placeable.width, placeable.height) {
+                // Report original size to parent so parent layout is unaffected.
+                layout(placeable.width, constraints.maxHeight) {
                     placeable.place(0, -statusBarTop)
                 }
             }
