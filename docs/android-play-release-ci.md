@@ -3,15 +3,18 @@
 <!--- TOC -->
 
 * [Required GitHub secrets](#required-github-secrets)
-* [Step 1: Create the GitHub release](#step-1-create-the-github-release)
-* [Step 2: Publish the Google Play release](#step-2-publish-the-google-play-release)
+* [Tag release flow](#tag-release-flow)
+* [Manual Google Play publish](#manual-google-play-publish)
 
 <!--- END -->
 
-Android releases are split into two explicit CI steps:
+Android tag releases are automated through `.github/workflows/play-release.yml`:
 
-1. `.github/workflows/play-release.yml` builds signed Android artifacts and creates the GitHub Release.
-2. `.github/workflows/publish-google-play.yml` downloads the AAB from that GitHub Release and uploads it to Google Play.
+1. Build signed Android artifacts.
+2. Create the GitHub Release.
+3. Upload the signed AAB to Google Play `internal` as a completed release.
+
+`.github/workflows/publish-google-play.yml` remains available for manually re-publishing an existing GitHub Release when needed.
 
 ## Required GitHub secrets
 
@@ -31,26 +34,37 @@ The Google Cloud service account must have access to the `network.unseal` app in
 
 The workflow also passes GitHub Actions' default `GITHUB_TOKEN` and `GITHUB_ACTOR` to Gradle so private GitHub Packages dependencies can be resolved. The repository still needs package read access to `unseal-network/agent-stream-components-kotlin`.
 
-## Step 1: Create the GitHub release
+## Tag release flow
 
-Open GitHub Actions, choose `Build signed Play release`, then run it manually with:
+Push a release tag:
+
+```bash
+git tag v26.07.10
+git push origin v26.07.10
+```
+
+The tag push runs `Build signed Play release`. The workflow builds:
+
+- `bundleGplayRelease`: signed AAB for Google Play.
+- `assembleGplayRelease`: signed APKs for direct install and smoke testing.
+
+After a successful run, GitHub creates a Release for the tag and uploads the AAB, APKs, and `SHA256SUMS.txt`. The same workflow then publishes the signed AAB to Google Play for package `network.unseal`:
+
+- track: `internal`
+- status: `completed`
+- changes in review behavior: `ERROR_IF_IN_REVIEW`
+
+Android `versionName` and `versionCode` still come from `plugins/src/main/kotlin/Versions.kt`; update that file before pushing a tag when publishing a new Play upgrade version.
+
+Manual workflow dispatch for `Build signed Play release` is still supported for creating GitHub Release artifacts without automatically publishing to Google Play:
 
 - `tag_name`: release tag, for example `v26.06.26`.
 - `release_name`: optional display name. If empty, the tag is used.
 - `prerelease`: keep enabled for internal testing builds.
 
-The workflow builds:
+## Manual Google Play publish
 
-- `bundleGplayRelease`: signed AAB for Google Play Console upload.
-- `assembleGplayRelease`: signed APKs for direct install and smoke testing.
-
-After a successful run, GitHub creates a Release for the tag and uploads the AAB, APKs, and `SHA256SUMS.txt`.
-
-Android `versionName` and `versionCode` still come from `plugins/src/main/kotlin/Versions.kt`; update that file before running the workflow when publishing a new Play upgrade version.
-
-## Step 2: Publish the Google Play release
-
-Open GitHub Actions, choose `Publish Google Play release`, then run it manually with:
+Open GitHub Actions, choose `Publish Google Play release`, then run it manually only when re-publishing an existing GitHub Release or publishing to a different track/status:
 
 - `tag_name`: the GitHub Release tag created in step 1.
 - `track`: normally `internal` for internal testing.
