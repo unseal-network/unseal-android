@@ -95,9 +95,29 @@ internal class MiniAppJsBridge(
         config.user?.let { user ->
             obj.put("user", user.toMap().toJsonObject())
         }
-        obj.put("options", config.options.toJsonObject())
+        obj.put("options", liveOptions().toJsonObject())
         config.homeserver?.let { obj.put("homeserver", it) }
         return obj.toString()
+    }
+
+    /**
+     * Returns a live view of [config.options] with doc_id re-read from SharedPreferences.
+     * config.options is immutable (built at bridge-creation time), so if createSuccess() saves
+     * a doc_id after the initial load the next appInfo() call (e.g. after WebView reload)
+     * would miss it. Re-reading SP here mirrors the live-token pattern above.
+     */
+    private fun liveOptions(): Map<String, Any> {
+        if (config.options.containsKey("doc_id")) return config.options
+        val streamId = config.options["stream_id"]?.toString()?.takeIf { it.isNotBlank() }
+            ?: run { Timber.d("MiniApp: liveOptions — no stream_id in options, skipping SP lookup"); return config.options }
+        val spKey = "${config.appId}_$streamId"
+        val docId = context
+            .getSharedPreferences("miniapp_doc_ids", Context.MODE_PRIVATE)
+            .getString(spKey, null)
+            ?.takeIf { it.isNotBlank() }
+            ?: run { Timber.d("MiniApp: liveOptions — SP key=%s not found", spKey); return config.options }
+        Timber.d("MiniApp: liveOptions injecting docId appId=%d streamId=%s", config.appId, streamId)
+        return config.options + ("doc_id" to docId)
     }
 
     /**
@@ -170,15 +190,33 @@ internal class MiniAppJsBridge(
     /** Signal successful file creation. Persists [doc_id] keyed by stream_id for future sessions. */
     @JavascriptInterface
     fun createSuccess(params: String) {
-        Timber.d("MiniApp: createSuccess %s", params)
-        val streamId = config.options["stream_id"]?.toString()?.takeIf { it.isNotBlank() } ?: return
-        val docId = runCatching { JSONObject(params).optString("doc_id") }
-            .getOrNull()?.takeIf { it.isNotBlank() } ?: return
+        Timber.d("MiniApp: createSuccess params=%s options=%s", params, config.options)
+        val streamId = config.options["stream_id"]?.toString()?.takeIf { it.isNotBlank() }
+            ?: run { Timber.w("MiniApp: createSuccess aborted — stream_id missing from options"); return }
+        val docId = runCatching {
+            val json = JSONObject(params)
+            // Mini-apps may send "doc_id" or "id"; accept either.
+            json.optString("doc_id").takeIf { it.isNotBlank() }
+                ?: json.optString("id").takeIf { it.isNotBlank() }
+        }.getOrNull()
+            ?: run { Timber.w("MiniApp: createSuccess aborted — doc_id/id missing/blank in params=%s", params); return }
         context.getSharedPreferences("miniapp_doc_ids", Context.MODE_PRIVATE)
             .edit()
             .putString("${config.appId}_$streamId", docId)
             .apply()
         Timber.d("MiniApp: docId saved appId=%d streamId=%s", config.appId, streamId)
+        val escaped = docId.replace("\\", "\\\\").replace("\"", "\\\"")
+        // Patch the live page so the current JS session can read doc_id immediately:
+        // - window.___options.doc_id: startup-script global read directly by some mini-apps
+        // - window._co._app.options.doc_id: games-SDK co singleton (window._co is the global ref)
+        // - window.___co_reset: signals the webapp co.ts singleton to invalidate its _app cache
+        //   so the next co.app access re-fetches via liveOptions() and picks up the new doc_id
+        val js = """(function(){""" +
+            """try{if(window.___options)window.___options.doc_id="$escaped";}catch(e){}""" +
+            """try{var c=window._co;if(c&&c._app&&c._app.options)c._app.options.doc_id="$escaped";}catch(e){}""" +
+            """try{window.___co_reset=true;}catch(e){}""" +
+            """})()"""
+        webViewRef()?.post { webViewRef()?.evaluateJavascript(js, null) }
     }
 
     /** Signal file-creation progress. */
@@ -720,6 +758,9 @@ internal class MiniAppJsBridge(
         "keyboard.toolbars", "keyboardToolbars" -> keyboardToolbars(argsJson)
         "loaded" -> { loaded(argsJson); "" }
         "statusBar" -> statusBar(argsJson)
+        "create.success", "createSuccess" -> { createSuccess(argsJson); "" }
+        "create.progress", "createProgress" -> { createProgress(argsJson); "" }
+        "create.error", "createError" -> { createError(argsJson); "" }
         else -> null
     }
 

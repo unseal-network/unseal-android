@@ -1528,7 +1528,7 @@ private fun ToolCardItem(
 
 /** 已收到 slide HTML 时的横向滑动查看器（WebView 渲染每张幻灯片）。 */
 @Composable
-private fun PptSlidesView(slides: List<String>, totalSlides: Int, isGenerating: Boolean = false, streamId: String? = null) {
+private fun PptSlidesView(slides: List<String>, totalSlides: Int, isGenerating: Boolean = false, streamId: String? = null, taskId: String? = null) {
     val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     val cardBg = if (isDark) Color(0xFF1C1C1E) else Color.White
     val textSecondary = if (isDark) Color(0xFF8E8E93) else Color(0xFF6B7280)
@@ -1643,7 +1643,11 @@ private fun PptSlidesView(slides: List<String>, totalSlides: Int, isGenerating: 
                         options = buildMap {
                             put("htmls", slides)
                             put("initialIndex", safeIndex)
-                            streamId?.takeIf { it.isNotBlank() }?.let { put("stream_id", it) }
+                            // Prefer the AI stream ID; fall back to the PPT task ID so
+                            // createSuccess can always persist doc_id with a stable key.
+                            val sid = streamId?.takeIf { it.isNotBlank() }
+                                ?: taskId?.takeIf { it.isNotBlank() }
+                            sid?.let { put("stream_id", it) }
                         },
                         launcher = launcher,
                         onDismiss = { showFullscreen = false },
@@ -1822,7 +1826,7 @@ private fun PptActivityWorkflowCard(part: AiPptWorkflowStreamPart, streamId: Str
         PptGeneratingCard(totalSlides = part.totalSlides)
     } else {
         // Show slides as they arrive; title and dots reflect in-progress vs. done.
-        PptSlidesView(slides = slides, totalSlides = part.totalSlides, isGenerating = !isCompleted, streamId = streamId)
+        PptSlidesView(slides = slides, totalSlides = part.totalSlides, isGenerating = !isCompleted, streamId = streamId, taskId = part.taskId)
     }
 }
 
