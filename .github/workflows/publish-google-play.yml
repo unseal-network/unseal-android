@@ -129,7 +129,7 @@ jobs:
           set -euo pipefail
 
           args=(
-            --package-name network.unseal.android
+            --package-name network.unseal
             --bundle "${BUNDLE_PATH}"
             --track "${PLAY_TRACK}"
             --release-name "${TAG_NAME}"
