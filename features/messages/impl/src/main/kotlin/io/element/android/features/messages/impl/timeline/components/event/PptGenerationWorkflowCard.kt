@@ -225,7 +225,7 @@ private fun PptPresentationIcon(tint: Color) {
 }
 
 @Composable
-private fun BouncingDots(color: Color) {
+internal fun BouncingDots(color: Color) {
     val infiniteTransition = rememberInfiniteTransition(label = "bouncing-dots")
     val offsets = listOf(0, 200, 400).map { delay ->
         infiniteTransition.animateFloat(
@@ -383,3 +383,66 @@ private fun ShimmerSlideCard(index: Int, isDark: Boolean) {
 
 // ~2.5 slides visible on typical phones before scroll kicks in
 private const val SLIDE_LIST_MAX_HEIGHT_DP = 480
+
+/**
+ * Lightweight loading card shown while the PPT workflow has not yet produced any slides.
+ * Replaces [PptGenerationWorkflowCard] in the agent-stream rendering path to avoid:
+ * - rapid status-text updates (one per WebSocket poll at ~50 ms)
+ * - N×4 simultaneous InfiniteTransitions from shimmer slide placeholders
+ */
+@Composable
+internal fun PptGeneratingCard(
+    totalSlides: Int,
+    modifier: Modifier = Modifier,
+) {
+    val isDark = isSystemInDarkTheme()
+    val cardBg = if (isDark) Color(0xFF1C1C1E) else Color.White
+    val textPrimary = if (isDark) Color(0xFFF2F2F7) else Color(0xFF111827)
+    val textSecondary = if (isDark) Color(0xFF8E8E93) else Color(0xFF6B7280)
+    val tealColor = Color(0xFF55B99F)
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(cardBg)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            PptPresentationIcon(tint = Color(0xFF60A5FA))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.screen_room_timeline_ppt_generating),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = textPrimary,
+                    )
+                    BouncingDots(color = textSecondary)
+                }
+                Text(
+                    text = "0 / $totalSlides slides",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = textSecondary,
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(if (isDark) Color(0xFF3A3A3C) else Color(0xFFE5E7EB)),
+        ) {
+            IndeterminateShimmerBar(tealColor)
+        }
+    }
+}

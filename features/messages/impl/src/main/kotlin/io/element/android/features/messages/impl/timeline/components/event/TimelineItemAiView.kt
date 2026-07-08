@@ -180,7 +180,7 @@ private fun injectViewportMeta(html: String): String {
 internal enum class PptFullscreenMode { CAROUSEL, MINIAPP }
 internal val PPT_FULLSCREEN_MODE = PptFullscreenMode.MINIAPP
 
-/** Allows [PptGenerationWorkflowCard] (deep in the tool card chain) to read workflow progress. */
+/** Allows [PptGenerationWorkflowCard] and [PptGeneratingCard] (deep in the tool card chain) to read workflow progress. */
 internal val LocalWorkflowMessages = androidx.compose.runtime.compositionLocalOf<Map<String, WorkflowMessage>> { emptyMap() }
 internal val LocalWorkflowSlides = androidx.compose.runtime.compositionLocalOf<Map<String, List<String>>> { emptyMap() }
 
@@ -1528,7 +1528,7 @@ private fun ToolCardItem(
 
 /** 已收到 slide HTML 时的横向滑动查看器（WebView 渲染每张幻灯片）。 */
 @Composable
-private fun PptSlidesView(slides: List<String>, totalSlides: Int) {
+private fun PptSlidesView(slides: List<String>, totalSlides: Int, isGenerating: Boolean = false) {
     val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     val cardBg = if (isDark) Color(0xFF1C1C1E) else Color.White
     val textSecondary = if (isDark) Color(0xFF8E8E93) else Color(0xFF6B7280)
@@ -1551,19 +1551,29 @@ private fun PptSlidesView(slides: List<String>, totalSlides: Int) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(
-                text = "演示文稿已生成",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    text = if (isGenerating) {
+                        stringResource(R.string.screen_room_timeline_ppt_generating)
+                    } else {
+                        stringResource(R.string.screen_room_timeline_ppt_generated)
+                    },
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                if (isGenerating) BouncingDots(color = textSecondary)
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "${slides.size}/$totalSlides",
                     style = MaterialTheme.typography.labelSmall,
                     color = textSecondary,
                 )
-                if (slides.isNotEmpty()) {
+                if (slides.isNotEmpty() && !isGenerating) {
                     IconButton(
                         onClick = { showFullscreen = true },
                         modifier = Modifier.size(32.dp),
@@ -1796,28 +1806,19 @@ private fun SlideHtmlCard(index: Int, html: String, forceLoad: Boolean = false, 
 private fun PptActivityWorkflowCard(part: AiPptWorkflowStreamPart) {
     val slides = LocalWorkflowSlides.current[part.taskId] ?: emptyList()
     val workflowMsg = LocalWorkflowMessages.current[part.taskId]
-    // Derive status from WebSocket messages:
-    //   Progress/Empty → still generating (tool output-available just means task_id returned)
-    //   Completed      → workflow finished on server side
-    // Fall back to part.isStreaming only when no WS messages exist AND stream is already
-    // terminal (historical load), to avoid showing "running" forever for old messages.
-    val status = when (workflowMsg) {
-        is WorkflowMessage.Completed -> "completed"
-        is WorkflowMessage.Progress  -> "running"
-        else -> if (slides.isNotEmpty()) "completed" else "running"
+    // isCompleted: WebSocket Completed message OR no active Progress AND slides look finished.
+    // Historical loads (no WS messages, slides already stored) are treated as completed.
+    val isCompleted = when (workflowMsg) {
+        is WorkflowMessage.Completed -> true
+        is WorkflowMessage.Progress -> false
+        else -> slides.size >= part.totalSlides && slides.isNotEmpty()
     }
-    val data = remember(part.id, part.taskId, part.totalSlides, part.websocketUrl, status) {
-        PptGenerationWorkflowData(
-            taskId = part.taskId,
-            totalSlides = part.totalSlides,
-            websocketUrl = part.websocketUrl.orEmpty(),
-            status = status,
-        )
-    }
-    if (slides.isNotEmpty()) {
-        PptSlidesView(slides = slides, totalSlides = part.totalSlides)
+    if (slides.isEmpty()) {
+        // No slides yet — show a lightweight loading card (no shimmer list, no rapid text).
+        PptGeneratingCard(totalSlides = part.totalSlides)
     } else {
-        PptGenerationWorkflowCard(data = data)
+        // Show slides as they arrive; title and dots reflect in-progress vs. done.
+        PptSlidesView(slides = slides, totalSlides = part.totalSlides, isGenerating = !isCompleted)
     }
 }
 
