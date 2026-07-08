@@ -62,8 +62,10 @@ class DefaultMiniAppDocumentLauncher(
             .getOrNull()
             ?.let { MiniAppToken(accessToken = it) }
 
+        val enrichedOptions = enrichOptionsWithDocId(appId, options)
+
         if (appId <= 0L) {
-            return MiniAppConfig(appId = appId, url = "", options = options, token = token)
+            return MiniAppConfig(appId = appId, url = "", options = enrichedOptions, token = token)
         }
 
         val homeserverUrl = runCatching {
@@ -72,7 +74,7 @@ class DefaultMiniAppDocumentLauncher(
 
         if (homeserverUrl.isNullOrBlank()) {
             Timber.w("DocLauncher: homeserver unavailable, falling back for appId=%d", appId)
-            return MiniAppConfig(appId = appId, url = "", options = options, token = token)
+            return MiniAppConfig(appId = appId, url = "", options = enrichedOptions, token = token)
         }
 
         val service = DefaultGameApiService(
@@ -89,25 +91,43 @@ class DefaultMiniAppDocumentLauncher(
                     AppBundleInfo.LoadMode.Remote -> MiniAppConfig(
                         appId = appId,
                         url = info.remoteUrl ?: "",
-                        options = options,
+                        options = enrichedOptions,
                         token = token,
                         appBundleData = info.toBundleDataMap(),
+                        homeserver = homeserverUrl,
                     )
                     AppBundleInfo.LoadMode.Local -> MiniAppConfig(
                         appId = appId,
                         url = info.remoteUrl ?: "",
                         zipUrl = info.zipUrl,
-                        options = options,
+                        options = enrichedOptions,
                         token = token,
                         appBundleData = info.toBundleDataMap(),
                         bundleVersion = info.version,
+                        homeserver = homeserverUrl,
                     )
                 }
             }
             .getOrElse { error ->
                 Timber.e(error, "DocLauncher: fetchAppBundle failed appId=%d", appId)
-                MiniAppConfig(appId = appId, url = "", options = options, token = token)
+                MiniAppConfig(appId = appId, url = "", options = enrichedOptions, token = token)
             }
+    }
+
+    /**
+     * If [options] contains a `stream_id` and no `doc_id`, reads a previously-saved docId from
+     * SharedPreferences and injects it. Mirrors the logic in [MiniAppNode.buildDocOptions].
+     */
+    private fun enrichOptionsWithDocId(appId: Long, options: Map<String, Any>): Map<String, Any> {
+        if (options.containsKey("doc_id")) return options
+        val streamId = options["stream_id"]?.toString()?.takeIf { it.isNotBlank() } ?: return options
+        val storedDocId = context
+            .getSharedPreferences("miniapp_doc_ids", android.content.Context.MODE_PRIVATE)
+            .getString("${appId}_$streamId", null)
+            ?.takeIf { it.isNotBlank() }
+            ?: return options
+        Timber.d("DocLauncher: injecting stored docId appId=%d streamId=%s", appId, streamId)
+        return options + ("doc_id" to storedDocId)
     }
 }
 

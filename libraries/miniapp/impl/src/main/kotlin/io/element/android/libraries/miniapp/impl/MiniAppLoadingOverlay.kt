@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -87,11 +88,15 @@ fun MiniAppLoadingOverlay(
             .fillMaxSize()
             .background(theme.bgColor),
     ) {
-        // Close button — top-right corner, always visible
+        // Close button — top-right corner, always visible.
+        // statusBarsPadding() pushes the button below the status bar on devices
+        // where system bars are not hidden (e.g. during Phase-1 loading before
+        // the node's DisposableEffect fires).
         IconButton(
             onClick = onClose,
             modifier = Modifier
                 .align(Alignment.TopEnd)
+                .statusBarsPadding()
                 .padding(top = 12.dp, end = 16.dp)
                 .size(32.dp)
                 .clip(CircleShape)

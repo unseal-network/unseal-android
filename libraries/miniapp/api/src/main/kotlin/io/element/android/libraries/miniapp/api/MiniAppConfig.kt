@@ -57,4 +57,10 @@ data class MiniAppConfig(
      * Mirrors iOS `ControllerManager.compareVersion` / `updateLocalVersion`.
      */
     val bundleVersion: String? = null,
+
+    /**
+     * Homeserver base URL (e.g. "https://matrix.example.com"), exposed to JS via the
+     * `appInfo` bridge so mini-apps can resolve server-relative API paths.
+     */
+    val homeserver: String? = null,
 )

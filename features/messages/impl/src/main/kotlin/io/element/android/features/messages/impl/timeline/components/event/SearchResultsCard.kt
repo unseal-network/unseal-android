@@ -195,6 +195,9 @@ internal fun SearchResultsData.assembleMarkdown(): String = buildString {
  * [openFileMode] controls the "Export to Doc" button behaviour:
  * - [SearchResultsOpenMode.PreviewDialog]  → full-screen content preview (default)
  * - [SearchResultsOpenMode.WordMiniApp]    → opens Word miniapp via DocumentViewerOverlay
+ *
+ * [streamId] is the AI stream ID of the parent message; passed as `stream_id` in the miniapp
+ * options so docId can be stored and retrieved across sessions.
  */
 @Composable
 internal fun SearchResultsCard(
@@ -202,6 +205,7 @@ internal fun SearchResultsCard(
     workflowProgress: WorkflowMessage,
     onLinkClick: (Link) -> Unit,
     openFileMode: SearchResultsOpenMode = SearchResultsOpenMode.PreviewDialog,
+    streamId: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val isDark = isSystemInDarkTheme()
@@ -513,14 +517,23 @@ internal fun SearchResultsCard(
 
     // ── Mode 2: Word MiniApp ──────────────────────────────────────────────────
     if (showWordOverlay && launcher != null) {
-        val markdown = remember(data) { data.assembleMarkdown() }
+        val options = remember(data, streamId) {
+            val markdown = data.assembleMarkdown()
+            val markdownBytes = markdown.toByteArray(Charsets.UTF_8)
+            val fileBase64 = android.util.Base64.encodeToString(markdownBytes, android.util.Base64.NO_WRAP)
+            val fileName = "${data.topic.ifBlank { "search_results" }}.docx"
+            buildMap<String, Any> {
+                put("create_type", "word")
+                put("file_name", fileName)
+                put("file_base64", fileBase64)
+                put("file_size", markdownBytes.size.toLong())
+                put("mine_type", "text/markdown")
+                streamId?.takeIf { it.isNotBlank() }?.let { put("stream_id", it) }
+            }
+        }
         DocumentViewerOverlay(
             appId = MiniAppIds.DOCX,
-            options = mapOf(
-                "type" to "word",
-                "markdown" to markdown,
-                "name" to "${data.topic.ifBlank { "search_results" }}.docx",
-            ),
+            options = options,
             launcher = launcher,
             onDismiss = { showWordOverlay = false },
         )

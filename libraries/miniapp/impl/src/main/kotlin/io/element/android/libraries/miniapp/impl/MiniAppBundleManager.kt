@@ -91,6 +91,7 @@ internal class MiniAppBundleManager(
         appId: Long,
         zipUrl: String,
         serverVersion: String = "",
+        extraHeaders: Map<String, String> = emptyMap(),
         onProgress: (Float) -> Unit = {},
     ): Result<File> = withContext(Dispatchers.IO) {
         val destDir = localDir(appId)
@@ -110,7 +111,7 @@ internal class MiniAppBundleManager(
         Timber.d("MiniApp: no cache for appId=$appId — downloading ZIP from $zipUrl")
         onProgress(0f)
 
-        val zipFile = downloadZip(zipUrl, appId, onProgress).getOrElse { error ->
+        val zipFile = downloadZip(zipUrl, appId, extraHeaders, onProgress).getOrElse { error ->
             Timber.e(error, "MiniApp: ZIP download failed for appId=$appId")
             return@withContext Result.failure(error)
         }
@@ -202,9 +203,12 @@ internal class MiniAppBundleManager(
     private suspend fun downloadZip(
         url: String,
         appId: Long,
+        extraHeaders: Map<String, String> = emptyMap(),
         onProgress: (Float) -> Unit,
     ): Result<File> = runCatching {
-        val request = Request.Builder().url(url).build()
+        val requestBuilder = Request.Builder().url(url)
+        extraHeaders.forEach { (k, v) -> requestBuilder.header(k, v) }
+        val request = requestBuilder.build()
 
         val response: Response = suspendCoroutine { continuation ->
             val call = okHttpClient.newCall(request)

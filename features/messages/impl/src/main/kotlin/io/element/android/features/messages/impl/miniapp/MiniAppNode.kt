@@ -42,6 +42,12 @@ import io.element.android.libraries.miniapp.api.MiniAppHostBridge
 import io.element.android.libraries.miniapp.api.MiniAppToken
 import io.element.android.libraries.miniapp.api.MiniAppUser
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
 import io.element.android.libraries.miniapp.impl.MiniAppLoadingOverlay
 import io.element.android.libraries.miniapp.impl.MiniAppLoadingState
 import io.element.android.libraries.miniapp.impl.MiniAppView
@@ -211,18 +217,46 @@ class MiniAppNode @AssistedInject constructor(
         // Hide system bars for an immersive full-screen game experience.
         // Restored when this node leaves the composition (e.g. on back navigation).
         val view = LocalView.current
-        DisposableEffect(Unit) {
+
+        // SideEffect re-hides on every recomposition so bars stay hidden even if the
+        // system temporarily restores them (e.g. rotating, back-gesture hint).
+        SideEffect {
             val activity = view.context as? Activity
-            val window = activity?.window
-            val insetsController = window?.let { WindowCompat.getInsetsController(it, view) }
-            insetsController?.apply {
+            val window = activity?.window ?: return@SideEffect
+            WindowCompat.getInsetsController(window, view).apply {
                 hide(WindowInsetsCompat.Type.systemBars())
                 systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
+        }
+        DisposableEffect(Unit) {
             onDispose {
-                insetsController?.show(WindowInsetsCompat.Type.systemBars())
+                val activity = view.context as? Activity
+                val window = activity?.window ?: return@onDispose
+                WindowCompat.getInsetsController(window, view).show(WindowInsetsCompat.Type.systemBars())
             }
         }
+
+        // enableEdgeToEdge() in MainActivity gives this node full-window constraints
+        // (no parent systemBarsPadding shrinks them). fullScreenModifier is defensive:
+        // it escapes any systemBarsPadding() a future parent may add by expanding the
+        // measured height by (statusBarTop + navBarBottom) and shifting content up so
+        // it covers the system bar regions. In steady-state both values are 0 (bars
+        // hidden by SideEffect above), so this modifier is a no-op. It only activates
+        // on the first frame or when the system temporarily restores bars (e.g.
+        // back-gesture hint), preventing a visible gap at the top or bottom.
+        val density = LocalDensity.current
+        val statusBarTop = WindowInsets.statusBars.getTop(density)
+        val navBarBottom = WindowInsets.navigationBars.getBottom(density)
+        val fullScreenModifier = Modifier
+            .layout { measurable, constraints ->
+                val placeable = measurable.measure(
+                    constraints.copy(maxHeight = constraints.maxHeight + statusBarTop + navBarBottom)
+                )
+                layout(placeable.width, constraints.maxHeight) {
+                    placeable.place(0, -statusBarTop)
+                }
+            }
+            .then(modifier)
 
         // Phase 1: resolve bundle info from the server.
         // null = API call in progress (show spinner).
@@ -236,7 +270,7 @@ class MiniAppNode @AssistedInject constructor(
             MiniAppLoadingOverlay(
                 state = MiniAppLoadingState.Loading(),
                 onClose = { navigateUp() },
-                modifier = modifier,
+                modifier = fullScreenModifier,
             )
             return
         }
@@ -247,7 +281,7 @@ class MiniAppNode @AssistedInject constructor(
             hostBridge = hostBridge,
             okHttpClient = okHttpClient(),
             onClose = { navigateUp() },
-            modifier = modifier.fillMaxSize(),
+            modifier = fullScreenModifier.fillMaxSize(),
         )
     }
 
@@ -271,6 +305,13 @@ class MiniAppNode @AssistedInject constructor(
             .find { matrixClient.isMe(it.userId) }
             ?.toMiniAppUser()
 
+        // Resolve homeserver for all paths so JS always has window.___homeserver available.
+        val homeserverUrl = runCatching {
+            baseUrlResolver.resolveHomeserverBaseUrl(matrixClient.userIdServerName())
+        }.getOrNull()
+
+        val options = buildDocOptions()
+
         // No appId → load remoteUrl directly.
         if (inputs.appId <= 0L) {
             return MiniAppConfig(
@@ -279,16 +320,14 @@ class MiniAppNode @AssistedInject constructor(
                 zipUrl = null,
                 token = token,
                 user = selfUser,
+                options = options,
+                homeserver = homeserverUrl,
             )
         }
 
-        val homeserverUrl = runCatching {
-            baseUrlResolver.resolveHomeserverBaseUrl(matrixClient.userIdServerName())
-        }.getOrNull()
-
         if (homeserverUrl.isNullOrBlank()) {
             Timber.w("MiniApp: homeserver URL unavailable — loading remoteUrl directly")
-            return MiniAppConfig(appId = inputs.appId, url = inputs.remoteUrl, zipUrl = null, token = token, user = selfUser)
+            return MiniAppConfig(appId = inputs.appId, url = inputs.remoteUrl, zipUrl = null, token = token, user = selfUser, options = options)
         }
         cachedHomeserverUrl = homeserverUrl
 
@@ -313,7 +352,9 @@ class MiniAppNode @AssistedInject constructor(
                         zipUrl = null,
                         token = token,
                         user = selfUser,
+                        options = options,
                         appBundleData = info.toBundleDataMap(),
+                        homeserver = homeserverUrl,
                     )
                     AppBundleInfo.LoadMode.Local -> MiniAppConfig(
                         appId = inputs.appId,
@@ -321,15 +362,37 @@ class MiniAppNode @AssistedInject constructor(
                         zipUrl = info.zipUrl,
                         token = token,
                         user = selfUser,
+                        options = options,
                         appBundleData = info.toBundleDataMap(),
                         bundleVersion = info.version,
+                        homeserver = homeserverUrl,
                     )
                 }
             }
             .getOrElse { error ->
                 Timber.e(error, "MiniApp: fetchAppBundle failed — falling back to remoteUrl")
-                MiniAppConfig(appId = inputs.appId, url = inputs.remoteUrl, zipUrl = null, token = token, user = selfUser)
+                MiniAppConfig(appId = inputs.appId, url = inputs.remoteUrl, zipUrl = null, token = token, user = selfUser, options = options, homeserver = homeserverUrl)
             }
+    }
+
+    /**
+     * Builds the options map injected as `window.___options`:
+     * - `stream_id`: the meetId (game-room ID) that uniquely identifies this document session.
+     * - `doc_id`: the previously-created document ID, if any, read from SharedPreferences.
+     *
+     * JS reads `co.app.options.doc_id` to open an existing document on relaunch.
+     */
+    private fun buildDocOptions(): Map<String, Any> {
+        val streamId = inputs.meetId.takeIf { it.isNotBlank() } ?: return emptyMap()
+        val options = mutableMapOf<String, Any>("stream_id" to streamId)
+        val storedDocId = context
+            .getSharedPreferences("miniapp_doc_ids", Context.MODE_PRIVATE)
+            .getString("${inputs.appId}_$streamId", null)
+        if (!storedDocId.isNullOrBlank()) {
+            options["doc_id"] = storedDocId
+            Timber.d("MiniApp: injecting stored docId appId=%d streamId=%s", inputs.appId, streamId)
+        }
+        return options
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
