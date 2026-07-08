@@ -527,7 +527,7 @@ internal fun SearchResultsCard(
                 put("file_name", fileName)
                 put("file_base64", fileBase64)
                 put("file_size", markdownBytes.size.toLong())
-                put("mine_type", "text/markdown")
+                put("mime_type", "text/markdown")
                 streamId?.takeIf { it.isNotBlank() }?.let { put("stream_id", it) }
             }
         }

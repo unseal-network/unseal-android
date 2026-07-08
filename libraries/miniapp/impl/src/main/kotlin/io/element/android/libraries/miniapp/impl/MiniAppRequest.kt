@@ -8,6 +8,7 @@
 package io.element.android.libraries.miniapp.impl
 
 import android.webkit.WebView
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -55,8 +56,9 @@ internal object MiniAppRequest {
         val isMultipart = headersObj
             ?.optString("Content-Type", "")
             ?.contains("multipart/form-data", ignoreCase = true) == true
+        val logUrl = url.sanitizedUrlForLog()
 
-        Timber.d("MiniApp: HTTP %s %s handleId=%s", method, url, fromJs.handleId)
+        Timber.d("MiniApp: HTTP %s %s handleId=%s", method, logUrl, fromJs.handleId)
 
         val requestBuilder = Request.Builder().url(url)
 
@@ -69,7 +71,7 @@ internal object MiniAppRequest {
                 requestBuilder.header(key, value)
             }
         } else {
-            Timber.w("MiniApp: no headers in request params for %s", url)
+            Timber.w("MiniApp: no headers in request params for %s", logUrl)
         }
 
         try {
@@ -97,7 +99,7 @@ internal object MiniAppRequest {
 
             okHttpClient.newCall(request).execute().use { response ->
                 val responseBody = response.body.string()
-                Timber.d("MiniApp: HTTP response %d for %s handleId=%s body=%s", response.code, url, fromJs.handleId, responseBody.take(300))
+                Timber.d("MiniApp: HTTP response %d for %s handleId=%s", response.code, logUrl, fromJs.handleId)
                 val resp = ToJsData(handle = fromJs.handleId)
                 resp.data = mapOf("status" to response.code, "data" to responseBody)
                 webView.post {
@@ -105,7 +107,7 @@ internal object MiniAppRequest {
                 }
             }
         } catch (e: Exception) {
-            Timber.e(e, "MiniApp: HTTP request failed %s %s", method, url)
+            Timber.e(e, "MiniApp: HTTP request failed %s %s", method, logUrl)
             sendError(webView, fromJs.handleId, 0, e.message ?: "network error")
         }
     }
@@ -138,5 +140,17 @@ internal object MiniAppRequest {
         webView.post {
             webView.evaluateJavascript("window.__webkitNotification(${resp.toJsonString()})", null)
         }
+    }
+
+    private fun String.sanitizedUrlForLog(): String {
+        val parsed = toHttpUrlOrNull() ?: return "<invalid-url>"
+        val port = parsed.port.takeUnless { it == parsed.scheme.defaultPort() }?.let { ":$it" }.orEmpty()
+        return "${parsed.scheme}://${parsed.host}$port${parsed.encodedPath}"
+    }
+
+    private fun String.defaultPort(): Int = when (this) {
+        "http" -> 80
+        "https" -> 443
+        else -> -1
     }
 }
