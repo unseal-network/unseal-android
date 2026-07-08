@@ -1,0 +1,150 @@
+name: Publish Google Play release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: GitHub Release tag to publish, for example v26.06.26
+        required: true
+        type: string
+      track:
+        description: Google Play track to update.
+        required: true
+        default: internal
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
+      status:
+        description: Google Play release status.
+        required: true
+        default: draft
+        type: choice
+        options:
+          - draft
+          - inProgress
+          - completed
+      user_fraction:
+        description: Staged rollout fraction, only for inProgress releases. Leave empty otherwise.
+        required: false
+        type: string
+      changes_not_sent_for_review:
+        description: Commit the Play edit without sending changes for review.
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish AAB to Google Play
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ format('publish-google-play-{0}-{1}', inputs.tag_name, inputs.track) }}
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Validate release inputs and secrets
+        env:
+          TAG_NAME: ${{ inputs.tag_name }}
+          RELEASE_STATUS: ${{ inputs.status }}
+          USER_FRACTION: ${{ inputs.user_fraction }}
+          GOOGLE_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL }}
+        run: |
+          set -euo pipefail
+
+          required_secrets=(
+            GOOGLE_WORKLOAD_IDENTITY_PROVIDER
+            GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL
+          )
+
+          for name in "${required_secrets[@]}"; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required GitHub secret: ${name}"
+              exit 1
+            fi
+          done
+
+          if [ -n "${USER_FRACTION}" ] && [ "${RELEASE_STATUS}" != "inProgress" ]; then
+            echo "::error::user_fraction can only be set when status is inProgress."
+            exit 1
+          fi
+
+          if ! gh release view "${TAG_NAME}" >/dev/null 2>&1; then
+            echo "::error::GitHub Release ${TAG_NAME} does not exist."
+            exit 1
+          fi
+
+      - name: Download signed app bundle from GitHub Release
+        id: download-aab
+        env:
+          TAG_NAME: ${{ inputs.tag_name }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p release
+          gh release download "${TAG_NAME}" --dir release --pattern '*play-store.aab' --clobber
+
+          mapfile -t bundles < <(find release -type f -name '*play-store.aab' | sort)
+          if [ "${#bundles[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one *play-store.aab asset in ${TAG_NAME}, found ${#bundles[@]}."
+            printf '%s\n' "${bundles[@]}"
+            exit 1
+          fi
+
+          echo "bundle_path=${bundles[0]}" >> "${GITHUB_OUTPUT}"
+
+      - name: Authenticate to Google Cloud
+        id: google-auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ secrets.GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/androidpublisher
+          create_credentials_file: false
+
+      - name: Publish app bundle to Google Play
+        env:
+          GOOGLE_PLAY_ACCESS_TOKEN: ${{ steps.google-auth.outputs.access_token }}
+          TAG_NAME: ${{ inputs.tag_name }}
+          PLAY_TRACK: ${{ inputs.track }}
+          PLAY_RELEASE_STATUS: ${{ inputs.status }}
+          PLAY_USER_FRACTION: ${{ inputs.user_fraction }}
+          CHANGES_NOT_SENT_FOR_REVIEW: ${{ inputs.changes_not_sent_for_review }}
+          BUNDLE_PATH: ${{ steps.download-aab.outputs.bundle_path }}
+        run: |
+          set -euo pipefail
+
+          args=(
+            --package-name network.unseal.android
+            --bundle "${BUNDLE_PATH}"
+            --track "${PLAY_TRACK}"
+            --release-name "${TAG_NAME}"
+            --status "${PLAY_RELEASE_STATUS}"
+            --release-notes-dir fastlane/metadata/android/en-US/changelogs
+            --release-notes-language en-US
+            --changes-in-review-behavior ERROR_IF_IN_REVIEW
+          )
+
+          if [ -n "${PLAY_USER_FRACTION}" ]; then
+            args+=(--user-fraction "${PLAY_USER_FRACTION}")
+          fi
+
+          if [ "${CHANGES_NOT_SENT_FOR_REVIEW}" = "true" ]; then
+            args+=(--changes-not-sent-for-review)
+          fi
+
+          python3 tools/release/publish_google_play.py "${args[@]}"
