@@ -848,16 +848,18 @@ private fun ToolCallRootCard(
                                 persistRootState()
                             },
                         )
-                            ToolEntryContentViewport(
-                                entry = selectedEntry,
-                                isStreaming = isStreaming,
-                                allFinished = model.allFinished,
-                                containerColor = rootContainerColor,
-                                onLinkClick = onLinkClick,
-                                onLinkLongClick = onLinkLongClick,
-                            )
+                        ToolRootDivider()
+                        ToolEntryContentViewport(
+                            entry = selectedEntry,
+                            isStreaming = isStreaming,
+                            allFinished = model.allFinished,
+                            containerColor = rootContainerColor,
+                            onLinkClick = onLinkClick,
+                            onLinkLongClick = onLinkLongClick,
+                        )
                     }
                 } else {
+                    ToolRootDivider()
                     ToolEntryContentViewport(
                         entry = selectedEntry,
                         isStreaming = isStreaming,
@@ -957,8 +959,37 @@ private fun toolRootBorderColor(): Color {
     return if (isSystemInDarkTheme()) {
         MaterialTheme.colorScheme.primary.copy(alpha = 0.13f)
     } else {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+        MaterialTheme.colorScheme.outline.copy(alpha = 0.48f)
     }
+}
+
+@Composable
+private fun toolRootContentBorderColor(): Color {
+    return if (isSystemInDarkTheme()) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+    } else {
+        MaterialTheme.colorScheme.outline.copy(alpha = 0.50f)
+    }
+}
+
+@Composable
+private fun toolRootContentContainerColor(containerColor: Color): Color {
+    return if (isSystemInDarkTheme()) {
+        containerColor.copy(alpha = 0.58f)
+    } else {
+        MaterialTheme.colorScheme.surface.copy(alpha = 0.74f)
+    }
+}
+
+@Composable
+private fun ToolRootDivider() {
+    HorizontalDivider(
+        color = if (isSystemInDarkTheme()) {
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+        } else {
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.78f)
+        },
+    )
 }
 
 @Composable
@@ -1039,17 +1070,23 @@ private fun ToolEntryContentViewport(
     onLinkLongClick: (Link) -> Unit,
 ) {
     val scrollState = remember(entry.id) { androidx.compose.foundation.ScrollState(0) }
-    Box(
+    val contentShape = RoundedCornerShape(14.dp)
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(max = ToolCallContentMaxHeight)
             .padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 16.dp),
+        shape = contentShape,
+        color = toolRootContentContainerColor(containerColor),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        border = BorderStroke(0.7.dp, toolRootContentBorderColor()),
     ) {
         CompositionLocalProvider(LocalToolCardEmbeddedInRoot provides true) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(scrollState),
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 10.dp, vertical = 10.dp),
             ) {
                 ToolEntryContent(
                     entry = entry,

@@ -115,7 +115,7 @@ internal object CardTransforms {
     // MARK: - Flights
 
     private fun flight(raw: JSONObject): JSONObject {
-        val results = raw.obj("results") ?: return raw
+        val results = raw.toolCardEnvelope()
         val allOptions = results.objList("best_flights") + results.objList("other_flights")
         val flights = JSONArray()
         allOptions.forEach { option ->
@@ -153,11 +153,9 @@ internal object CardTransforms {
     // MARK: - Image search
 
     private fun imageGrid(raw: JSONObject): JSONObject {
-        val source = raw.obj("results") ?: raw
+        val source = raw.toolCardEnvelope()
         val items = source.objList("images_results")
-            .ifEmpty { raw.objList("images_results") }
             .ifEmpty { source.objList("images") }
-            .ifEmpty { raw.objList("images") }
             .ifEmpty { source.objList("items") }
         val images = JSONArray()
         items.forEach { item ->
@@ -174,12 +172,12 @@ internal object CardTransforms {
     // MARK: - Shopping
 
     private fun product(raw: JSONObject): JSONObject {
-        val source = raw.obj("results") ?: raw
+        val source = raw.toolCardEnvelope()
         val items = source.objList("shopping_results")
             .ifEmpty { source.objList("products") }
             .ifEmpty { source.objList("organic_results") }
             .ifEmpty { source.objList("items") }
-            .ifEmpty { raw.objList("results") }
+            .ifEmpty { source.objList("results") }
         val products = JSONArray()
         items.forEach { item ->
             val p = JSONObject()
@@ -208,10 +206,9 @@ internal object CardTransforms {
     // MARK: - Events
 
     private fun event(raw: JSONObject): JSONObject {
-        val source = raw.obj("results") ?: raw
+        val source = raw.toolCardEnvelope()
         val items = source.objList("events_results")
             .ifEmpty { source.objList("events") }
-            .ifEmpty { raw.objList("events") }
             .ifEmpty { source.objList("items") }
         val events = JSONArray()
         items.forEach { item ->
@@ -231,10 +228,9 @@ internal object CardTransforms {
     // MARK: - Places
 
     private fun place(raw: JSONObject): JSONObject {
-        val source = raw.obj("results") ?: raw
+        val source = raw.toolCardEnvelope()
         var items = source.objList("local_results")
             .ifEmpty { source.objList("places") }
-            .ifEmpty { raw.objList("places") }
             .ifEmpty { source.objList("items") }
         if (items.isEmpty()) source.obj("place_results")?.let { items = listOf(it) }
         val places = JSONArray()
@@ -264,8 +260,8 @@ internal object CardTransforms {
     // MARK: - Fetched URL content
 
     private fun urlContent(raw: JSONObject): JSONObject {
-        val source = raw.obj("results") ?: raw
-        val items = source.objList("results").ifEmpty { raw.objList("results") }.ifEmpty { source.objList("items") }
+        val source = raw.toolCardEnvelope()
+        val items = source.objList("results").ifEmpty { source.objList("items") }
         val articles = JSONArray()
         items.forEach { item ->
             if (!item.str("error").isNullOrEmpty()) return@forEach
@@ -364,7 +360,7 @@ internal object CardTransforms {
 
     private fun hotel(raw: JSONObject): JSONObject {
         val source = raw.obj("data") ?: raw
-        val results = source.obj("results") ?: source
+        val results = raw.toolCardEnvelope()
         val checkIn = source.str("checkIn") ?: source.str("check_in") ?: raw.str("checkIn") ?: raw.str("check_in")
         val checkOut = source.str("checkOut") ?: source.str("check_out") ?: raw.str("checkOut") ?: raw.str("check_out")
         val items = results.objList("properties")
@@ -432,7 +428,7 @@ internal object CardTransforms {
     // MARK: - Finance
 
     private fun finance(raw: JSONObject): JSONObject {
-        val source = raw.obj("results") ?: raw
+        val source = raw.toolCardEnvelope()
         val props = JSONObject()
         source.obj("summary")?.let { summary ->
             val quote = JSONObject()
@@ -533,7 +529,7 @@ internal object CardTransforms {
     // MARK: - Weather
 
     private fun weather(raw: JSONObject): JSONObject {
-        val source = raw.obj("data") ?: raw.obj("results") ?: raw
+        val source = raw.toolCardEnvelope()
         val weatherResult = source.obj("weather_result") ?: source.obj("current") ?: source.obj("weather") ?: source
         val props = JSONObject()
         val location = source.str("location") ?: weatherResult.str("location") ?: source.str("city") ?: weatherResult.str("city")
@@ -583,7 +579,7 @@ internal object CardTransforms {
     // MARK: - Web Search / News
 
     private fun search(raw: JSONObject): JSONObject {
-        val source = raw.obj("results") ?: raw
+        val source = raw.toolCardEnvelope()
         val items = when {
             source.objList("citations").isNotEmpty() -> source.objList("citations")
             source.objList("news_results").isNotEmpty() -> source.objList("news_results")
@@ -614,6 +610,12 @@ internal object CardTransforms {
     }
 
     // MARK: - Helpers
+
+    private fun JSONObject.toolCardEnvelope(): JSONObject {
+        val data = obj("data")
+        if (data != null) return data.obj("results") ?: data
+        return obj("results") ?: this
+    }
 
     private fun canonicalList(raw: JSONObject, canonicalKey: String, vararg sourceKeys: String): JSONObject {
         firstObjectList(raw, *sourceKeys)?.let { return JSONObject(raw.toString()).put(canonicalKey, it) }

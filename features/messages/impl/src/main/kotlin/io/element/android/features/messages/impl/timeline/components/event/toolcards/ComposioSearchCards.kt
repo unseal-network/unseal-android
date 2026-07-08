@@ -11,10 +11,12 @@ import android.text.format.DateFormat as AndroidDateFormat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -1285,7 +1288,6 @@ private fun FinanceCard(data: JSONObject, onLinkClick: () -> Unit) {
         if (stats.isNotEmpty()) add(FinanceTab("Stats", statsLabel))
     }
     var selectedTab by remember(tabs.map { it.key }.joinToString("|")) { mutableStateOf(0) }
-    if (selectedTab >= tabs.size) selectedTab = 0
 
     if (quote == null && graph.isEmpty() && markets.isEmpty() && tabs.isEmpty()) return
 
@@ -1302,6 +1304,7 @@ private fun FinanceCard(data: JSONObject, onLinkClick: () -> Unit) {
             DividedList(markets.take(MAX_ITEMS)) { MarketRow(it) }
         }
         if (tabs.isNotEmpty()) {
+            val safeSelectedTab = selectedTab.coerceIn(tabs.indices)
             HorizontalDivider(
                 modifier = Modifier.padding(top = 12.dp, bottom = 10.dp),
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
@@ -1309,17 +1312,19 @@ private fun FinanceCard(data: JSONObject, onLinkClick: () -> Unit) {
             if (tabs.size > 1) {
                 FinanceSegmentedTabs(
                     tabs = tabs.map { it.label },
-                    selectedIndex = selectedTab,
+                    selectedIndex = safeSelectedTab,
                     onSelected = { selectedTab = it },
                 )
             } else {
                 FinanceSectionHeader(tabs.first().label)
             }
-            when (tabs[selectedTab].key) {
-                "News" -> DividedList(news.take(MAX_ITEMS)) { NewsRow(it, onLinkClick) }
-                "Financials" -> FinancialsList(financials)
-                "Events" -> DividedList(keyEvents.take(MAX_ITEMS)) { KeyEventRow(it) }
-                "Stats" -> StatsGrid(stats.take(MAX_ITEMS))
+            FinanceTabContentSurface(scrollKey = tabs[safeSelectedTab].key) {
+                when (tabs[safeSelectedTab].key) {
+                    "News" -> DividedList(news.take(MAX_ITEMS)) { NewsRow(it, onLinkClick) }
+                    "Financials" -> FinancialsList(financials)
+                    "Events" -> DividedList(keyEvents.take(MAX_ITEMS)) { KeyEventRow(it) }
+                    "Stats" -> StatsGrid(stats.take(MAX_ITEMS))
+                }
             }
         }
     }
@@ -1329,6 +1334,29 @@ private data class FinanceTab(
     val key: String,
     val label: String,
 )
+
+@Composable
+private fun FinanceTabContentSurface(scrollKey: String, content: ColumnContent) {
+    val scrollState = remember(scrollKey) { ScrollState(0) }
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 260.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        border = BorderStroke(0.7.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.72f)),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(scrollState)
+                .padding(horizontal = 10.dp, vertical = 2.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
+            content = content,
+        )
+    }
+}
 
 @Composable
 private fun FinanceSegmentedTabs(

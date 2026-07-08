@@ -118,20 +118,19 @@ internal fun JSONObject.hasCardContentFor(cardType: String): Boolean {
         "workflows" -> cardObjects("workflows", "items").isNotEmpty()
         "flightAlert" -> cardObjects("flights").isNotEmpty()
         "hotelBooking" -> cardObjects("hotels").isNotEmpty()
-        "headlineList" -> cardObjects("headlines", "items", "results", "news_results", "organic_results", "data").isNotEmpty()
-        "breakingNews" -> cardString("headline", "title").isNullOrBlank().not() || cardObjects("headlines", "items").isNotEmpty()
-        "imageGrid" -> cardObjects("images", "items", "data").isNotEmpty()
-        "productList" -> cardObjects("products", "items", "data").isNotEmpty()
+        "headlineList" -> cardObjects("headlines", "items").isNotEmpty()
+        "breakingNews" -> cardString("headline", "title").isNullOrBlank().not() ||
+            cardObjects("headlines", "items").firstOrNull()?.cardString("headline", "title").isNullOrBlank().not()
+        "imageGrid" -> cardObjects("images").isNotEmpty()
+        "productList" -> cardObjects("products").isNotEmpty()
         "finance" -> optJSONObject("quote") != null ||
-            cardObjects("quotes", "items", "markets", "keyEvents", "news", "graph").isNotEmpty() ||
-            cardStrings("stats").isNotEmpty() ||
-            cardString("symbol", "ticker", "price", "name").isNullOrBlank().not()
+            cardObjects("markets", "keyEvents", "news", "graph", "financials").isNotEmpty() ||
+            cardStrings("stats").isNotEmpty()
         "weather" -> optJSONObject("current") != null ||
-            cardObjects("forecast", "items", "daily_forecast").isNotEmpty() ||
-            cardString("city", "location", "temperature", "temp", "condition", "weather").isNullOrBlank().not()
-        "eventList" -> cardObjects("events", "items", "data").isNotEmpty()
-        "placeList" -> cardObjects("places", "items", "data").isNotEmpty()
-        "urlContent" -> cardObjects("articles", "results", "items", "data").isNotEmpty() || cardString("title", "url", "content", "text").isNullOrBlank().not()
+            cardObjects("forecast").isNotEmpty()
+        "eventList" -> cardObjects("events").isNotEmpty()
+        "placeList" -> cardObjects("places").isNotEmpty()
+        "urlContent" -> cardObjects("articles", "results", "items", "data").isNotEmpty()
         "socialPostFeed" -> cardObjects("posts", "tweets", "items", "data").isNotEmpty() ||
             cardString("text", "full_text", "body", "content", "id").isNullOrBlank().not()
         "createSchedule", "updateSchedule", "updateScheduleStatus" -> cardString("name", "title", "scheduleId", "schedule_id", "status").isNullOrBlank().not()
