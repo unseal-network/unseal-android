@@ -257,6 +257,41 @@ import kotlin.time.Duration.Companion.minutes
     }
 
     @Test
+    fun `test create TextMessageType excludes display-name links from preview`() = runTest {
+        val mentionUrl = "http://keepsecret.io"
+        val pillifiedBody = buildSpannedString {
+            inSpans(URLSpan(mentionUrl)) {
+                append("geminirayson1")
+            }
+            append(" help me")
+        }
+        val sut = createTimelineItemContentMessageFactory(
+            textPillificationHelper = FakeTextPillificationHelper { _, _ -> pillifiedBody },
+        )
+        val result = sut.create(
+            content = createMessageContent(type = TextMessageType("geminirayson1 help me", null)),
+            senderId = A_USER_ID,
+            senderProfile = aProfileDetails(),
+            eventId = AN_EVENT_ID,
+        ) as TimelineItemTextContent
+
+        assertThat(result.linkPreviewUrls).isEmpty()
+    }
+
+    @Test
+    fun `test create TextMessageType excludes Unseal agent profile links from preview`() = runTest {
+        val sut = createTimelineItemContentMessageFactory()
+        val result = sut.create(
+            content = createMessageContent(type = TextMessageType("https://unseal.network/@kimi-claw", null)),
+            senderId = A_USER_ID,
+            senderProfile = aProfileDetails(),
+            eventId = AN_EVENT_ID,
+        ) as TimelineItemTextContent
+
+        assertThat(result.linkPreviewUrls).isEmpty()
+    }
+
+    @Test
     fun `test create TextMessageType with HTML formatted body`() = runTest {
         val expected = buildSpannedString {
             append("link to ")

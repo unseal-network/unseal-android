@@ -21,9 +21,12 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -88,6 +91,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -127,6 +131,7 @@ import io.element.android.features.messages.impl.timeline.model.event.AiToolCall
 import io.element.android.features.messages.impl.timeline.model.event.AiPptWorkflowStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiToolStreamPart
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.LocalToolCardEmbeddedInRoot
+import io.element.android.features.messages.impl.timeline.components.event.toolcards.LocalToolCardRequestScrollToTop
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.ToolCard
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.ToolCardFinalProps
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.resolveToolCardType
@@ -138,6 +143,7 @@ import io.element.android.libraries.textcomposer.ElementRichTextEditorStyle
 import io.element.android.wysiwyg.compose.EditorStyledText
 import io.element.android.wysiwyg.link.Link
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 private val ToolCallContentMaxHeight = 320.dp
@@ -702,6 +708,17 @@ private fun ToolCallRootCard(
     } else {
         entries[safeSelectedIndex]
     }
+    val contentScrollState = rememberScrollState()
+    LaunchedEffect(selectedEntry.id) {
+        contentScrollState.scrollTo(0)
+    }
+    fun Modifier.forwardToolContentScroll(): Modifier {
+        return scrollable(
+            state = contentScrollState,
+            orientation = Orientation.Vertical,
+            reverseDirection = true,
+        )
+    }
     LaunchedEffect(model.id, model.selectedIndex, entries.size, model.allFinished, model.expandedByDefault) {
         if (!userSelectedTab) {
             selectedIndex = model.selectedIndex.coerceIn(entries.indices)
@@ -780,6 +797,7 @@ private fun ToolCallRootCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(headerShape)
+                    .then(if (expanded) Modifier.forwardToolContentScroll() else Modifier)
                     .clickable(
                         interactionSource = headerInteractionSource,
                         indication = ripple(),
@@ -841,32 +859,38 @@ private fun ToolCallRootCard(
             ) {
                 if (!model.isSingleTool) {
                     Column {
-                        ToolSelectionTabs(
-                            entries = entries,
-                            selectedIndex = safeSelectedIndex,
-                            onSelected = {
-                                userSelectedTab = true
-                                selectedIndex = it.coerceIn(entries.indices)
-                                persistRootState()
-                            },
-                        )
-                        ToolRootDivider()
-                        ToolEntryContentViewport(
+                        Box(modifier = Modifier.forwardToolContentScroll()) {
+                            ToolSelectionTabs(
+                                entries = entries,
+                                selectedIndex = safeSelectedIndex,
+                                onSelected = {
+                                    userSelectedTab = true
+                                    selectedIndex = it.coerceIn(entries.indices)
+                                    persistRootState()
+                                },
+                            )
+                        }
+                        Box(modifier = Modifier.forwardToolContentScroll()) {
+                            ToolRootDivider()
+                        }
+                        ToolEntryContentFrame(
                             entry = selectedEntry,
                             isStreaming = isStreaming,
                             allFinished = model.allFinished,
-                            containerColor = rootContainerColor,
+                            scrollState = contentScrollState,
                             onLinkClick = onLinkClick,
                             onLinkLongClick = onLinkLongClick,
                         )
                     }
                 } else {
-                    ToolRootDivider()
-                    ToolEntryContentViewport(
+                    Box(modifier = Modifier.forwardToolContentScroll()) {
+                        ToolRootDivider()
+                    }
+                    ToolEntryContentFrame(
                         entry = selectedEntry,
                         isStreaming = isStreaming,
                         allFinished = model.allFinished,
-                        containerColor = rootContainerColor,
+                        scrollState = contentScrollState,
                         onLinkClick = onLinkClick,
                         onLinkLongClick = onLinkLongClick,
                     )
@@ -1063,42 +1087,45 @@ private fun String.localizedToolDisplayName(): String = when (this) {
 }
 
 @Composable
-private fun ToolEntryContentViewport(
+private fun ToolEntryContentFrame(
     entry: AiToolCardEntry,
     isStreaming: Boolean,
     allFinished: Boolean,
-    containerColor: Color,
+    scrollState: ScrollState,
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
 ) {
-    val scrollState = remember(entry.id) { androidx.compose.foundation.ScrollState(0) }
     val contentShape = RoundedCornerShape(14.dp)
+    val coroutineScope = rememberCoroutineScope()
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(max = ToolCallContentMaxHeight)
             .padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 16.dp),
         shape = contentShape,
-        color = toolRootContentContainerColor(containerColor),
+        color = toolRootContentContainerColor(toolRootContainerColor()),
         contentColor = MaterialTheme.colorScheme.onSurface,
         border = BorderStroke(0.7.dp, toolRootContentBorderColor()),
     ) {
-        CompositionLocalProvider(LocalToolCardEmbeddedInRoot provides true) {
-            Column(
+        CompositionLocalProvider(
+            LocalToolCardEmbeddedInRoot provides true,
+            LocalToolCardRequestScrollToTop provides {
+                coroutineScope.launch {
+                    scrollState.scrollTo(0)
+                }
+            },
+        ) {
+            ToolEntryContent(
+                entry = entry,
+                isStreaming = isStreaming,
+                allFinished = allFinished,
+                onLinkClick = onLinkClick,
+                onLinkLongClick = onLinkLongClick,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(max = ToolCallContentMaxHeight)
                     .verticalScroll(scrollState)
                     .padding(horizontal = 10.dp, vertical = 10.dp),
-            ) {
-                ToolEntryContent(
-                    entry = entry,
-                    isStreaming = isStreaming,
-                    allFinished = allFinished,
-                    onLinkClick = onLinkClick,
-                    onLinkLongClick = onLinkLongClick,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+            )
         }
     }
 }

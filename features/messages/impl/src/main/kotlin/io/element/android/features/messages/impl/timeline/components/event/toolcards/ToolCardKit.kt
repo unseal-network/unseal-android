@@ -184,6 +184,7 @@ internal fun domainOf(url: String): String =
 
 /** Card container (iOS CollapsibleGlassCard, rendered as a plain M3 surface card). */
 internal val LocalToolCardEmbeddedInRoot = compositionLocalOf { false }
+internal val LocalToolCardRequestScrollToTop = compositionLocalOf<() -> Unit> { {} }
 
 @Composable
 internal fun ToolCardSurface(content: ColumnContent) {

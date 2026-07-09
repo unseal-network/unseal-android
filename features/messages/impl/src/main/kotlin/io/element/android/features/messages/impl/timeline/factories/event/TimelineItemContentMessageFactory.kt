@@ -28,6 +28,7 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVideoContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVoiceContent
 import io.element.android.features.messages.impl.utils.TextPillificationHelper
+import io.element.android.features.messages.impl.utils.toUnsealAgentProfileLink
 import io.element.android.libraries.androidutils.filesize.FileSizeFormatter
 import io.element.android.libraries.androidutils.text.safeLinkify
 import io.element.android.libraries.core.mimetype.MimeTypes
@@ -329,11 +330,22 @@ private fun String.withLinks(): CharSequence? {
 private fun CharSequence.extractLinkPreviewUrls(permalinkParser: PermalinkParser): List<String> {
     if (this !is Spanned) return emptyList()
     return getSpans<URLSpan>(0, length)
-        .filter { getMentionSpans(getSpanStart(it), getSpanEnd(it)).isEmpty() }
+        .filter { isRegularPreviewLink(it) }
         .map { it.url }
         .filter { it.isPreviewableUrl(permalinkParser) }
         .distinct()
         .take(2)
+}
+
+private fun Spanned.isRegularPreviewLink(urlSpan: URLSpan): Boolean {
+    val start = getSpanStart(urlSpan)
+    val end = getSpanEnd(urlSpan)
+    if (start < 0 || end <= start) return false
+    if (getMentionSpans(start, end).isNotEmpty()) return false
+
+    val visibleText = subSequence(start, end).toString().trim()
+    return visibleText.startsWith("http://", ignoreCase = true) ||
+        visibleText.startsWith("https://", ignoreCase = true)
 }
 
 private fun String.isPreviewableUrl(permalinkParser: PermalinkParser): Boolean {
@@ -341,6 +353,7 @@ private fun String.isPreviewableUrl(permalinkParser: PermalinkParser): Boolean {
     return (normalized.startsWith("http://") || normalized.startsWith("https://")) &&
         !normalized.startsWith("https://matrix.to/") &&
         !normalized.startsWith("http://matrix.to/") &&
+        toUnsealAgentProfileLink() == null &&
         !isMatrixPermalink(permalinkParser)
 }
 

@@ -41,6 +41,7 @@ import io.element.android.features.messages.impl.timeline.TimelinePresenter
 import io.element.android.features.messages.impl.timeline.di.LocalTimelineItemPresenterFactories
 import io.element.android.features.messages.impl.timeline.di.TimelineItemPresenterFactories
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
+import io.element.android.features.messages.impl.utils.toUnsealAgentProfileLink
 import io.element.android.features.roommembermoderation.api.ModerationAction
 import io.element.android.features.roommembermoderation.api.RoomMemberModerationEvents
 import io.element.android.features.roommembermoderation.api.RoomMemberModerationRenderer
@@ -140,6 +141,7 @@ class MessagesNode(
         fun navigateToKnockRequestsList()
         fun navigateToDeveloperSettings()
         fun navigateToMiniApp(appId: Long, remoteUrl: String?, meetId: String)
+        fun navigateToAgentProfile(botName: String, matrixUserId: String?)
 
         fun navigateToThreadsList()
     }
@@ -166,6 +168,10 @@ class MessagesNode(
         eventSink: (TimelineEvent) -> Unit,
         customTab: Boolean
     ) {
+        url.toUnsealAgentProfileLink()?.let { profile ->
+            callback.navigateToAgentProfile(profile.botName, profile.matrixUserId)
+            return
+        }
         when (val permalink = permalinkParser.parse(url)) {
             is PermalinkData.UserLink -> {
                 // Open the room member profile, it will fallback to

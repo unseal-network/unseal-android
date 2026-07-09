@@ -11,12 +11,10 @@ import android.text.format.DateFormat as AndroidDateFormat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -1288,6 +1286,7 @@ private fun FinanceCard(data: JSONObject, onLinkClick: () -> Unit) {
         if (stats.isNotEmpty()) add(FinanceTab("Stats", statsLabel))
     }
     var selectedTab by remember(tabs.map { it.key }.joinToString("|")) { mutableStateOf(0) }
+    val requestScrollToTop = LocalToolCardRequestScrollToTop.current
 
     if (quote == null && graph.isEmpty() && markets.isEmpty() && tabs.isEmpty()) return
 
@@ -1313,12 +1312,15 @@ private fun FinanceCard(data: JSONObject, onLinkClick: () -> Unit) {
                 FinanceSegmentedTabs(
                     tabs = tabs.map { it.label },
                     selectedIndex = safeSelectedTab,
-                    onSelected = { selectedTab = it },
+                    onSelected = {
+                        selectedTab = it
+                        requestScrollToTop()
+                    },
                 )
             } else {
                 FinanceSectionHeader(tabs.first().label)
             }
-            FinanceTabContentSurface(scrollKey = tabs[safeSelectedTab].key) {
+            FinanceTabContentSurface {
                 when (tabs[safeSelectedTab].key) {
                     "News" -> DividedList(news.take(MAX_ITEMS)) { NewsRow(it, onLinkClick) }
                     "Financials" -> FinancialsList(financials)
@@ -1336,12 +1338,10 @@ private data class FinanceTab(
 )
 
 @Composable
-private fun FinanceTabContentSurface(scrollKey: String, content: ColumnContent) {
-    val scrollState = remember(scrollKey) { ScrollState(0) }
+private fun FinanceTabContentSurface(content: ColumnContent) {
     Surface(
         modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(max = 260.dp),
+            .fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
         contentColor = MaterialTheme.colorScheme.onSurface,
@@ -1350,7 +1350,6 @@ private fun FinanceTabContentSurface(scrollKey: String, content: ColumnContent) 
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(scrollState)
                 .padding(horizontal = 10.dp, vertical = 2.dp),
             verticalArrangement = Arrangement.spacedBy(0.dp),
             content = content,
