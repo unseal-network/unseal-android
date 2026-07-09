@@ -36,6 +36,7 @@ import io.element.android.features.messages.impl.roomdata.RoomUnsealDataSnapshot
 import io.element.android.features.messages.impl.roomdata.FakeRoomUnsealContextStore
 import io.element.android.features.messages.impl.roomdata.RoomUnsealResource
 import io.element.android.features.messages.impl.roomdata.RoomWebhookTriggerDescriptor
+import io.element.android.features.messages.impl.terminal.DeviceAgentTerminalPanelState
 import io.element.android.features.messages.impl.threads.list.aThreadListItem
 import io.element.android.features.messages.impl.timeline.FakeMarkAsFullyRead
 import io.element.android.features.messages.impl.timeline.MarkAsFullyRead
@@ -85,9 +86,15 @@ import io.element.android.libraries.matrix.api.timeline.Timeline
 import io.element.android.libraries.matrix.api.timeline.item.TimelineItemDebugInfo
 import io.element.android.libraries.matrix.api.timeline.item.event.EventOrTransactionId
 import io.element.android.libraries.matrix.api.timeline.item.event.toEventOrTransactionId
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DConstants
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DMessage
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DMsgType
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DOutboundMessage
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DSendResult
 import io.element.android.libraries.matrix.test.AN_AVATAR_URL
 import io.element.android.libraries.matrix.test.AN_EVENT_ID
 import io.element.android.libraries.matrix.test.AN_EXCEPTION
+import io.element.android.libraries.matrix.test.FakeMatrixClient
 import io.element.android.libraries.matrix.test.A_CAPTION
 import io.element.android.libraries.matrix.test.A_ROOM_ID
 import io.element.android.libraries.matrix.test.A_SESSION_ID
@@ -126,12 +133,16 @@ import io.element.android.tests.testutils.testWithLifecycleOwner
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.junit.Rule
 import org.junit.Test
 import kotlin.time.Duration.Companion.milliseconds
@@ -193,6 +204,248 @@ class MessagesPresenterTest {
         presenter.testWithLifecycleOwner {
             val loadedState = consumeItemsUntilPredicate { it.roomUnsealContext.isSuccess() }.last()
             assertThat(loadedState.roomUnsealContext.dataOrNull()?.activeScheduleCount).isEqualTo(1)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - device agent chat targets bound device id from room metadata`() = runTest {
+        val composerRecorder = EventsRecorder<MessageComposerEvent>()
+        val presenter = createMessagesPresenter(
+            joinedRoom = joinedRoomWithDeviceAgentMember(),
+            roomUnsealDataClient = deviceAgentRoomDataClient(),
+            messageComposerPresenter = { aMessageComposerState(eventSink = composerRecorder) },
+        )
+
+        presenter.testWithLifecycleOwner {
+            val loadedState = consumeItemsUntilPredicate { it.roomUnsealContext.dataOrNull()?.deviceAgentInRoom != null }.last()
+            val deviceAgent = loadedState.roomUnsealContext.dataOrNull()!!.deviceAgentInRoom!!
+            composerRecorder.clear()
+
+            loadedState.eventSink(MessagesEvent.ToggleDeviceAgentChat(deviceAgent))
+            runCurrent()
+
+            composerRecorder.assertSingle(MessageComposerEvent.SetAgentChatTargetDeviceId("BOUND_DEVICE"))
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - device agent terminal waits for d2d heartbeat before opening`() = runTest {
+        val d2dMessages = MutableSharedFlow<UnsealD2DMessage>(extraBufferCapacity = 16)
+        val sentMessages = mutableListOf<UnsealD2DOutboundMessage>()
+        val presenter = createMessagesPresenter(
+            joinedRoom = joinedRoomWithDeviceAgentMember(),
+            roomUnsealDataClient = deviceAgentRoomDataClient(),
+            matrixClient = FakeMatrixClient(
+                unsealD2DMessages = d2dMessages,
+                sendUnsealD2DMessageLambda = { message ->
+                    sentMessages += message
+                    Result.success(UnsealD2DSendResult(failures = emptyList()))
+                },
+            ),
+        )
+
+        presenter.testWithLifecycleOwner {
+            val loadedState = consumeItemsUntilPredicate { it.roomUnsealContext.dataOrNull()?.deviceAgentInRoom != null }.last()
+            val deviceAgent = loadedState.roomUnsealContext.dataOrNull()!!.deviceAgentInRoom!!
+
+            loadedState.eventSink(MessagesEvent.OpenDeviceAgentTerminal(deviceAgent))
+            val waitingState = consumeItemsUntilPredicate { it.deviceAgentTerminalPanel != null }.last()
+            val waitingPanel = checkNotNull(waitingState.deviceAgentTerminalPanel)
+            assertThat(waitingPanel.status).isEqualTo(DeviceAgentTerminalPanelState.Status.WaitingForDevice)
+            assertThat(waitingPanel.canOpenTerminal).isFalse()
+
+            d2dMessages.emit(
+                unsealD2DMessage(
+                    msgType = UnsealD2DMsgType.Ping,
+                    sender = A_USER_ID,
+                    senderDeviceId = "DESKTOP_DEVICE",
+                    content = buildJsonObject {
+                        put("heartbeat", true)
+                        put("sender_device_id", "DESKTOP_DEVICE")
+                    },
+                )
+            )
+            val readyState = consumeItemsUntilPredicate { it.deviceAgentTerminalPanel?.status == DeviceAgentTerminalPanelState.Status.ReadyToOpen }.last()
+            assertThat(readyState.deviceAgentTerminalPanel!!.subtitle).isEqualTo("DESKTOP_DEVICE")
+
+            readyState.eventSink(MessagesEvent.OpenDeviceAgentTerminalSession)
+            val openingState = consumeItemsUntilPredicate {
+                it.deviceAgentTerminalPanel?.pendingRequestId != null
+            }.last()
+            assertThat(openingState.deviceAgentTerminalPanel!!.pendingRequestId).isNotNull()
+            advanceUntilIdle()
+
+            assertThat(sentMessages).hasSize(1)
+            assertThat(sentMessages.single().target.userId).isEqualTo(A_USER_ID)
+            assertThat(sentMessages.single().target.deviceId).isEqualTo("DESKTOP_DEVICE")
+            assertThat(sentMessages.single().msgType).isEqualTo(UnsealD2DMsgType.TerminalOpen)
+        }
+    }
+
+    @Test
+    fun `present - device agent terminal ignores d2d heartbeat from another user`() = runTest {
+        val d2dMessages = MutableSharedFlow<UnsealD2DMessage>(extraBufferCapacity = 16)
+        val presenter = createMessagesPresenter(
+            joinedRoom = joinedRoomWithDeviceAgentMember(),
+            roomUnsealDataClient = deviceAgentRoomDataClient(),
+            matrixClient = FakeMatrixClient(unsealD2DMessages = d2dMessages),
+        )
+
+        presenter.testWithLifecycleOwner {
+            val loadedState = consumeItemsUntilPredicate { it.roomUnsealContext.dataOrNull()?.deviceAgentInRoom != null }.last()
+            val deviceAgent = loadedState.roomUnsealContext.dataOrNull()!!.deviceAgentInRoom!!
+
+            loadedState.eventSink(MessagesEvent.OpenDeviceAgentTerminal(deviceAgent))
+            val waitingState = consumeItemsUntilPredicate { it.deviceAgentTerminalPanel != null }.last()
+            assertThat(waitingState.deviceAgentTerminalPanel!!.status).isEqualTo(DeviceAgentTerminalPanelState.Status.WaitingForDevice)
+
+            d2dMessages.emit(
+                unsealD2DMessage(
+                    msgType = UnsealD2DMsgType.Ping,
+                    sender = A_USER_ID_2,
+                    senderDeviceId = "OTHER_USER_DEVICE",
+                )
+            )
+            val statesAfterWrongUser = consumeItemsUntilTimeout()
+            assertThat(statesAfterWrongUser.any { it.deviceAgentTerminalPanel?.status == DeviceAgentTerminalPanelState.Status.ReadyToOpen }).isFalse()
+            val waitingPanel = checkNotNull(waitingState.deviceAgentTerminalPanel)
+            val panelAfterWrongUser = statesAfterWrongUser.lastOrNull()?.deviceAgentTerminalPanel ?: waitingPanel
+            assertThat(panelAfterWrongUser.status).isEqualTo(DeviceAgentTerminalPanelState.Status.WaitingForDevice)
+
+            d2dMessages.emit(unsealD2DMessage(msgType = UnsealD2DMsgType.Ping, senderDeviceId = "DESKTOP_DEVICE"))
+            val readyState = consumeItemsUntilPredicate { it.deviceAgentTerminalPanel?.status == DeviceAgentTerminalPanelState.Status.ReadyToOpen }.last()
+            assertThat(readyState.deviceAgentTerminalPanel!!.target?.deviceId).isEqualTo("DESKTOP_DEVICE")
+        }
+    }
+
+    @Test
+    fun `present - device agent terminal applies ready output and closed d2d messages`() = runTest {
+        val d2dMessages = MutableSharedFlow<UnsealD2DMessage>(extraBufferCapacity = 16)
+        val presenter = createMessagesPresenter(
+            joinedRoom = joinedRoomWithDeviceAgentMember(),
+            roomUnsealDataClient = deviceAgentRoomDataClient(),
+            matrixClient = FakeMatrixClient(
+                unsealD2DMessages = d2dMessages,
+                sendUnsealD2DMessageLambda = { Result.success(UnsealD2DSendResult(failures = emptyList())) },
+            ),
+        )
+
+        presenter.testWithLifecycleOwner {
+            val loadedState = consumeItemsUntilPredicate { it.roomUnsealContext.dataOrNull()?.deviceAgentInRoom != null }.last()
+            val deviceAgent = loadedState.roomUnsealContext.dataOrNull()!!.deviceAgentInRoom!!
+            loadedState.eventSink(MessagesEvent.OpenDeviceAgentTerminal(deviceAgent))
+            d2dMessages.emit(unsealD2DMessage(msgType = UnsealD2DMsgType.Ping))
+            val readyToOpenState = consumeItemsUntilPredicate { it.deviceAgentTerminalPanel?.status == DeviceAgentTerminalPanelState.Status.ReadyToOpen }.last()
+
+            readyToOpenState.eventSink(MessagesEvent.OpenDeviceAgentTerminalSession)
+            val requestId = consumeItemsUntilPredicate {
+                it.deviceAgentTerminalPanel?.pendingRequestId != null
+            }.last().deviceAgentTerminalPanel!!.pendingRequestId!!
+            d2dMessages.emit(
+                unsealD2DMessage(
+                    msgType = UnsealD2DMsgType.TerminalReady,
+                    content = buildJsonObject {
+                        put("request_id", requestId)
+                        put("session_id", "session-1")
+                        put("shell", "zsh")
+                    },
+                )
+            )
+            val connectedState = consumeItemsUntilPredicate { it.deviceAgentTerminalPanel?.status == DeviceAgentTerminalPanelState.Status.Connected }.last()
+            assertThat(connectedState.deviceAgentTerminalPanel!!.sessionId).isEqualTo("session-1")
+
+            d2dMessages.emit(
+                unsealD2DMessage(
+                    msgType = UnsealD2DMsgType.TerminalOutput,
+                    content = buildJsonObject {
+                        put("session_id", "session-1")
+                        put("data", "\u001B[32mok\u001B[0m\n")
+                    },
+                )
+            )
+            val outputState = consumeItemsUntilPredicate { it.deviceAgentTerminalPanel?.outputText?.contains("ok\n") == true }.last()
+            assertThat(outputState.deviceAgentTerminalPanel!!.outputText).doesNotContain("\u001B")
+
+            d2dMessages.emit(
+                unsealD2DMessage(
+                    msgType = UnsealD2DMsgType.Ping,
+                    senderDeviceId = "OTHER_DESKTOP_DEVICE",
+                )
+            )
+            val stateAfterHeartbeat = consumeItemsUntilTimeout().lastOrNull() ?: outputState
+            val panelAfterHeartbeat = stateAfterHeartbeat.deviceAgentTerminalPanel!!
+            assertThat(panelAfterHeartbeat.status).isEqualTo(DeviceAgentTerminalPanelState.Status.Connected)
+            assertThat(panelAfterHeartbeat.target?.deviceId).isEqualTo("DESKTOP_DEVICE")
+            assertThat(panelAfterHeartbeat.sessionId).isEqualTo("session-1")
+            assertThat(panelAfterHeartbeat.outputText).contains("ok\n")
+
+            d2dMessages.emit(
+                unsealD2DMessage(
+                    msgType = UnsealD2DMsgType.TerminalClosed,
+                    content = buildJsonObject {
+                        put("session_id", "session-1")
+                    },
+                )
+            )
+            val closedState = consumeItemsUntilPredicate { it.deviceAgentTerminalPanel?.status == DeviceAgentTerminalPanelState.Status.Closed }.last()
+            assertThat(closedState.deviceAgentTerminalPanel!!.sessionId).isNull()
+        }
+    }
+
+    @Test
+    fun `present - device agent terminal sends input and close commands`() = runTest {
+        val d2dMessages = MutableSharedFlow<UnsealD2DMessage>(extraBufferCapacity = 16)
+        val sentMessages = mutableListOf<UnsealD2DOutboundMessage>()
+        val presenter = createMessagesPresenter(
+            joinedRoom = joinedRoomWithDeviceAgentMember(),
+            roomUnsealDataClient = deviceAgentRoomDataClient(),
+            matrixClient = FakeMatrixClient(
+                unsealD2DMessages = d2dMessages,
+                sendUnsealD2DMessageLambda = { message ->
+                    sentMessages += message
+                    Result.success(UnsealD2DSendResult(failures = emptyList()))
+                },
+            ),
+        )
+
+        presenter.testWithLifecycleOwner {
+            val loadedState = consumeItemsUntilPredicate { it.roomUnsealContext.dataOrNull()?.deviceAgentInRoom != null }.last()
+            val deviceAgent = loadedState.roomUnsealContext.dataOrNull()!!.deviceAgentInRoom!!
+            loadedState.eventSink(MessagesEvent.OpenDeviceAgentTerminal(deviceAgent))
+            d2dMessages.emit(unsealD2DMessage(msgType = UnsealD2DMsgType.Ping))
+            val readyToOpenState = consumeItemsUntilPredicate { it.deviceAgentTerminalPanel?.status == DeviceAgentTerminalPanelState.Status.ReadyToOpen }.last()
+
+            readyToOpenState.eventSink(MessagesEvent.OpenDeviceAgentTerminalSession)
+            val requestId = consumeItemsUntilPredicate {
+                it.deviceAgentTerminalPanel?.pendingRequestId != null
+            }.last().deviceAgentTerminalPanel!!.pendingRequestId!!
+            d2dMessages.emit(
+                unsealD2DMessage(
+                    msgType = UnsealD2DMsgType.TerminalReady,
+                    content = buildJsonObject {
+                        put("request_id", requestId)
+                        put("session_id", "session-1")
+                    },
+                )
+            )
+            val connectedState = consumeItemsUntilPredicate { it.deviceAgentTerminalPanel?.status == DeviceAgentTerminalPanelState.Status.Connected }.last()
+
+            connectedState.eventSink(MessagesEvent.UpdateDeviceAgentTerminalInput("pwd"))
+            val withInputState = consumeItemsUntilPredicate { it.deviceAgentTerminalPanel?.inputText == "pwd" }.last()
+            withInputState.eventSink(MessagesEvent.SendDeviceAgentTerminalInput)
+            val inputSentState = consumeItemsUntilPredicate { it.deviceAgentTerminalPanel?.inputText == "" }.last()
+            inputSentState.eventSink(MessagesEvent.CloseDeviceAgentTerminalSession)
+            advanceUntilIdle()
+
+            assertThat(sentMessages.map { it.msgType }).containsExactly(
+                UnsealD2DMsgType.TerminalOpen,
+                UnsealD2DMsgType.TerminalInput,
+                UnsealD2DMsgType.TerminalClose,
+            ).inOrder()
+            assertThat(sentMessages[1].encodedToDeviceContent()).contains("\"data\":\"pwd\\n\"")
+            assertThat(sentMessages[2].encodedToDeviceContent()).contains("\"session_id\":\"session-1\"")
         }
     }
 
@@ -1434,6 +1687,7 @@ class MessagesPresenterTest {
         markAsFullyRead: MarkAsFullyRead = FakeMarkAsFullyRead(),
         liveLocationShareManager: FakeActiveLiveLocationShareManager = FakeActiveLiveLocationShareManager(),
         roomUnsealDataClient: FakeRoomUnsealDataClient = FakeRoomUnsealDataClient(),
+        matrixClient: FakeMatrixClient = FakeMatrixClient(),
     ): MessagesPresenter {
         if (joinedRoom.membersStateFlow.value == RoomMembersState.Unknown) {
             joinedRoom.givenRoomMembersState(RoomMembersState.Ready(persistentListOf()))
@@ -1476,8 +1730,67 @@ class MessagesPresenterTest {
                     )
                 )
             ),
+            matrixClient = matrixClient,
             sessionCoroutineScope = backgroundScope,
             roomConfigChangeRequests = emptyFlow(),
+        )
+    }
+
+    private fun joinedRoomWithDeviceAgentMember(): FakeJoinedRoom {
+        return FakeJoinedRoom(
+            baseRoom = FakeBaseRoom(roomId = A_ROOM_ID, initialRoomInfo = aRoomInfo()),
+            typingNoticeResult = { Result.success(Unit) },
+        ).apply {
+            givenRoomMembersState(
+                RoomMembersState.Ready(
+                    persistentListOf(
+                        aRoomMember(userId = UserId("@agent:server"), membership = RoomMembershipState.JOIN),
+                    )
+                )
+            )
+        }
+    }
+
+    private fun deviceAgentRoomDataClient(
+        boundDeviceId: String = "BOUND_DEVICE",
+        matrixUserId: String = "@agent:server",
+    ): FakeRoomUnsealDataClient {
+        return FakeRoomUnsealDataClient(
+            snapshot = RoomUnsealDataSnapshot(
+                allAgents = RoomUnsealResource.success(
+                    listOf(
+                        AgentAccountDescriptor(
+                            botName = "Mac Agent",
+                            localpart = "agent",
+                            serverName = "server",
+                            matrixUserId = matrixUserId,
+                            displayName = "Mac Agent",
+                            avatarUrl = null,
+                            isDeviceAgent = true,
+                            boundDeviceId = boundDeviceId,
+                        )
+                    )
+                )
+            )
+        )
+    }
+
+    private fun unsealD2DMessage(
+        msgType: UnsealD2DMsgType,
+        sender: UserId = A_USER_ID,
+        senderDeviceId: String? = "DESKTOP_DEVICE",
+        content: JsonObject = buildJsonObject {
+            put("sender_device_id", senderDeviceId)
+        },
+    ): UnsealD2DMessage {
+        return UnsealD2DMessage(
+            eventType = UnsealD2DConstants.EVENT_TYPE,
+            sender = sender,
+            msgTypeValue = msgType.value,
+            content = content,
+            rawContent = "",
+            rawJson = "",
+            senderDeviceId = senderDeviceId,
         )
     }
 }

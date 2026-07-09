@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -109,6 +108,7 @@ internal fun MessagesViewTopBar(
             val roundedCornerShape = RoundedCornerShape(24.dp)
             Row(
                 modifier = Modifier
+                    .weight(1f, fill = false)
                     .widthIn(max = 288.dp)
                     .height(48.dp)
                     .shadow(10.dp, roundedCornerShape, clip = false, ambientColor = Color.Black.copy(alpha = 0.05f), spotColor = Color.Black.copy(alpha = 0.07f))
@@ -169,8 +169,6 @@ internal fun MessagesViewTopBar(
                     )
                 }
             }
-
-            Spacer(Modifier.weight(1f, fill = true))
 
             Row(
                 modifier = Modifier.defaultMinSize(minHeight = 48.dp),

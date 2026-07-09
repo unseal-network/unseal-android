@@ -42,6 +42,7 @@ import io.element.android.libraries.matrix.api.spaces.SpaceService
 import io.element.android.libraries.matrix.api.sync.SlidingSyncVersion
 import io.element.android.libraries.matrix.api.sync.SyncService
 import io.element.android.libraries.matrix.api.timeline.Timeline
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DMessage
 import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DOutboundMessage
 import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DSendResult
 import io.element.android.libraries.matrix.api.user.MatrixSearchUserResults
@@ -111,6 +112,7 @@ interface MatrixClient {
     suspend fun getAccountManagementUrl(action: AccountManagementAction?): Result<String?>
     suspend fun uploadMedia(mimeType: String, data: ByteArray): Result<String>
     suspend fun requestAgentRoomKeyRecovery(request: AgentRoomKeyRecoveryRequest): Result<Unit>
+    val unsealD2DMessages: Flow<UnsealD2DMessage>
     suspend fun sendUnsealD2DMessage(message: UnsealD2DOutboundMessage): Result<UnsealD2DSendResult>
 
     /**

@@ -9,6 +9,8 @@ package io.element.android.features.messages.impl.terminal
 
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.messages.impl.roomdata.RoomDeviceAgent
+import io.element.android.libraries.matrix.api.core.UserId
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DTarget
 import org.junit.Test
 
 class DeviceAgentTerminalReducerTest {
@@ -35,6 +37,22 @@ class DeviceAgentTerminalReducerTest {
         val state = DeviceAgentTerminalReducer.reduce(
             opening,
             DeviceAgentTerminalEvent.Ready(requestId = "request-2", sessionId = "session-1", shell = "zsh"),
+        )
+
+        assertThat(state.status).isEqualTo(DeviceAgentTerminalPanelState.Status.Opening)
+        assertThat(state.sessionId).isNull()
+    }
+
+    @Test
+    fun `ready ignores missing pending request while opening`() {
+        val opening = DeviceAgentTerminalReducer.reduce(
+            initialState(),
+            DeviceAgentTerminalEvent.OpenRequested(requestId = "request-1"),
+        )
+
+        val state = DeviceAgentTerminalReducer.reduce(
+            opening,
+            DeviceAgentTerminalEvent.Ready(requestId = null, sessionId = "session-1", shell = "zsh"),
         )
 
         assertThat(state.status).isEqualTo(DeviceAgentTerminalPanelState.Status.Opening)
@@ -102,6 +120,43 @@ class DeviceAgentTerminalReducerTest {
         assertThat(state.outputText).contains("Session closed.")
     }
 
+    @Test
+    fun `output and closed are ignored before a session is connected`() {
+        val ready = initialState()
+
+        val withOutput = DeviceAgentTerminalReducer.reduce(
+            ready,
+            DeviceAgentTerminalEvent.Output(sessionId = "session-1", data = "ignored"),
+        )
+        val closed = DeviceAgentTerminalReducer.reduce(
+            withOutput,
+            DeviceAgentTerminalEvent.Closed(sessionId = "session-1"),
+        )
+
+        assertThat(withOutput.outputText).doesNotContain("ignored")
+        assertThat(closed.status).isEqualTo(DeviceAgentTerminalPanelState.Status.ReadyToOpen)
+    }
+
+    @Test
+    fun `target heartbeat does not reset an active terminal session`() {
+        val connected = initialState().copy(
+            target = target("DESKTOP_DEVICE"),
+            status = DeviceAgentTerminalPanelState.Status.Connected,
+            outputText = "Connected: zsh\nok\n",
+            sessionId = "session-1",
+        )
+
+        val state = DeviceAgentTerminalReducer.reduce(
+            connected,
+            DeviceAgentTerminalEvent.TargetDetected(target("OTHER_DEVICE")),
+        )
+
+        assertThat(state.status).isEqualTo(DeviceAgentTerminalPanelState.Status.Connected)
+        assertThat(state.target?.deviceId).isEqualTo("DESKTOP_DEVICE")
+        assertThat(state.sessionId).isEqualTo("session-1")
+        assertThat(state.outputText).contains("ok\n")
+    }
+
     private fun initialState(): DeviceAgentTerminalPanelState {
         return DeviceAgentTerminalPanelState.ready(
             RoomDeviceAgent(
@@ -109,6 +164,13 @@ class DeviceAgentTerminalReducerTest {
                 displayName = "MacBook Agent",
                 matrixUserId = "@agent:example.org",
             )
+        )
+    }
+
+    private fun target(deviceId: String): UnsealD2DTarget {
+        return UnsealD2DTarget(
+            userId = UserId("@alice:server.org"),
+            deviceId = deviceId,
         )
     }
 }

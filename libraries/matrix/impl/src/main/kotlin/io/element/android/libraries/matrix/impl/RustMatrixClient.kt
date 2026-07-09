@@ -50,6 +50,7 @@ import io.element.android.libraries.matrix.api.spaces.SpaceService
 import io.element.android.libraries.matrix.api.sync.SlidingSyncVersion
 import io.element.android.libraries.matrix.api.sync.SyncState
 import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DConstants
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DMessage
 import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DOutboundMessage
 import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DSendFailure
 import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DSendResult
@@ -104,6 +105,7 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -129,6 +131,8 @@ import org.matrix.rustcomponents.sdk.PowerLevels
 import org.matrix.rustcomponents.sdk.RoomInfoListener
 import org.matrix.rustcomponents.sdk.SendQueueRoomErrorListener
 import org.matrix.rustcomponents.sdk.TaskHandle
+import org.matrix.rustcomponents.sdk.ToDeviceMessage
+import org.matrix.rustcomponents.sdk.ToDeviceMessageListener
 import org.matrix.rustcomponents.sdk.use
 import timber.log.Timber
 import java.io.File
@@ -255,6 +259,10 @@ class RustMatrixClient(
     )
 
     private var clientDelegateTaskHandle: TaskHandle? = innerClient.setDelegate(sessionDelegate)
+    private var unsealD2DTaskHandle: TaskHandle? = null
+
+    private val _unsealD2DMessages = MutableSharedFlow<UnsealD2DMessage>(extraBufferCapacity = 64)
+    override val unsealD2DMessages: Flow<UnsealD2DMessage> = _unsealD2DMessages
 
     private val _userProfile: MutableStateFlow<MatrixUser> = MutableStateFlow(
         MatrixUser(
@@ -282,6 +290,21 @@ class RustMatrixClient(
     init {
         // Make sure the session delegate has a reference to the client to be able to logout on auth error
         sessionDelegate.bindClient(this)
+        unsealD2DTaskHandle = innerClient.observeToDeviceEvents(
+            eventType = UnsealD2DConstants.EVENT_TYPE,
+            listener = object : ToDeviceMessageListener {
+                override fun onMessage(message: ToDeviceMessage) {
+                    val parsed = UnsealD2DMessage.parse(
+                        eventType = message.eventType,
+                        sender = message.sender,
+                        content = message.content,
+                        rawJson = message.rawJson,
+                        encryptedSenderDeviceId = message.encryptionInfo?.senderDevice,
+                    ) ?: return
+                    _unsealD2DMessages.tryEmit(parsed)
+                }
+            },
+        )
 
         sessionCoroutineScope.launch {
             // Start notification settings
@@ -616,6 +639,7 @@ class RustMatrixClient(
 
         sessionCoroutineScope.cancel()
         clientDelegateTaskHandle?.cancelAndDestroy()
+        unsealD2DTaskHandle?.cancelAndDestroy()
         sessionVerificationService.destroy()
 
         sessionDelegate.clearCurrentClient()

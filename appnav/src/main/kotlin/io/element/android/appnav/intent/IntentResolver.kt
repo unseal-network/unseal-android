@@ -9,13 +9,16 @@
 package io.element.android.appnav.intent
 
 import android.content.Intent
+import androidx.core.net.toUri
 import dev.zacsweers.metro.Inject
 import io.element.android.features.login.api.LoginIntentResolver
 import io.element.android.features.login.api.LoginParams
 import io.element.android.features.share.api.ShareIntentData
 import io.element.android.features.share.api.ShareIntentHandler
+import io.element.android.libraries.androidutils.metadata.isInDebug
 import io.element.android.libraries.deeplink.api.DeeplinkData
 import io.element.android.libraries.deeplink.api.DeeplinkParser
+import io.element.android.libraries.matrix.api.auth.external.ExternalSession
 import io.element.android.libraries.matrix.api.permalink.PermalinkData
 import io.element.android.libraries.matrix.api.permalink.PermalinkParser
 import io.element.android.libraries.oauth.api.OAuthAction
@@ -28,6 +31,7 @@ sealed interface ResolvedIntent {
     data class Permalink(val permalinkData: PermalinkData) : ResolvedIntent
     data class Login(val params: LoginParams) : ResolvedIntent
     data class IncomingShare(val shareIntentData: ShareIntentData) : ResolvedIntent
+    data class DebugImportSession(val externalSession: ExternalSession) : ResolvedIntent
 }
 
 @Inject
@@ -53,6 +57,10 @@ class IntentResolver(
             .takeIf { it.action == Intent.ACTION_VIEW }
             ?.dataString
 
+        val debugImportSession = actionViewData
+            ?.let(::parseDebugImportSession)
+        if (debugImportSession != null) return ResolvedIntent.DebugImportSession(debugImportSession)
+
         // Mobile configuration link clicked? (mobile.element.io)
         val mobileLoginData = actionViewData
             ?.let { loginIntentResolver.parse(it) }
@@ -72,6 +80,27 @@ class IntentResolver(
         // Unknown intent
         Timber.w("Unknown intent")
         return null
+    }
+
+    private fun parseDebugImportSession(uriString: String): ExternalSession? {
+        if (!isInDebug) return null
+        val uri = uriString.toUri()
+        if (uri.scheme != "unseal" || uri.host != "debug" || uri.path != "/import-session") return null
+
+        val userId = uri.getQueryParameter("user_id") ?: return null
+        val deviceId = uri.getQueryParameter("device_id") ?: return null
+        val accessToken = uri.getQueryParameter("access_token") ?: return null
+        val homeserver = uri.getQueryParameter("homeserver")
+            ?: uri.getQueryParameter("homeserver_url")
+            ?: return null
+
+        return ExternalSession(
+            userId = userId,
+            deviceId = deviceId,
+            accessToken = accessToken,
+            refreshToken = null,
+            homeserverUrl = homeserver,
+        )
     }
 }
 

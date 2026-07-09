@@ -24,6 +24,10 @@ sealed interface MessagesEvent {
     data object MarkAsFullyReadAndExit : MessagesEvent
     data class ToggleDeviceAgentChat(val deviceAgent: RoomDeviceAgent) : MessagesEvent
     data class OpenDeviceAgentTerminal(val deviceAgent: RoomDeviceAgent) : MessagesEvent
+    data object OpenDeviceAgentTerminalSession : MessagesEvent
+    data class UpdateDeviceAgentTerminalInput(val text: String) : MessagesEvent
+    data object SendDeviceAgentTerminalInput : MessagesEvent
+    data object CloseDeviceAgentTerminalSession : MessagesEvent
     data object DismissDeviceAgentTerminal : MessagesEvent
     data object DismissSelectableMessageText : MessagesEvent
 }
