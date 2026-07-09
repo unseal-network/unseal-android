@@ -8,9 +8,11 @@
 package io.element.android.features.messages.impl.terminal
 
 import com.google.common.truth.Truth.assertThat
-import io.element.android.features.messages.impl.roomdata.RoomDeviceAgent
+import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DMsgType
 import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DOutboundMessage
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DTarget
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DSendFailure
 import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DSendResult
 import io.element.android.libraries.matrix.test.A_DEVICE_ID
 import io.element.android.libraries.matrix.test.FakeMatrixClient
@@ -30,13 +32,13 @@ class MatrixDeviceAgentTerminalTransportTest {
             )
         )
 
-        val result = transport.openTerminal(deviceAgent(), cols = 120, rows = 40)
+        val result = transport.openTerminal(target(), requestId = "request-1", cols = 120, rows = 40)
 
         assertThat(result.isSuccess).isTrue()
-        assertThat(result.getOrNull()).isNotEmpty()
+        assertThat(result.getOrNull()).isEqualTo("request-1")
         val message = captured!!
-        assertThat(message.target.userId.value).isEqualTo("@agent:example.org")
-        assertThat(message.target.deviceId).isEqualTo("BOT_DEVICE")
+        assertThat(message.target.userId.value).isEqualTo("@alice:example.org")
+        assertThat(message.target.deviceId).isEqualTo("DESKTOP_DEVICE")
         assertThat(message.msgType).isEqualTo(UnsealD2DMsgType.TerminalOpen)
         val encoded = message.encodedToDeviceContent()
         assertThat(encoded).contains("\"msgtype\":\"cmd.open\"")
@@ -44,7 +46,7 @@ class MatrixDeviceAgentTerminalTransportTest {
         assertThat(encoded).contains("\"rows\":40")
         assertThat(encoded).contains("\"platform\":\"android\"")
         assertThat(encoded).contains("\"sender_device_id\":\"${A_DEVICE_ID.value}\"")
-        assertThat(encoded).contains("\"request_id\"")
+        assertThat(encoded).contains("\"request_id\":\"request-1\"")
     }
 
     @Test
@@ -59,7 +61,7 @@ class MatrixDeviceAgentTerminalTransportTest {
             )
         )
 
-        val result = transport.sendInput(deviceAgent(), sessionId = "session-1", data = "ls\n")
+        val result = transport.sendInput(target(), sessionId = "session-1", data = "ls\n")
 
         assertThat(result.isSuccess).isTrue()
         val message = captured!!
@@ -81,7 +83,7 @@ class MatrixDeviceAgentTerminalTransportTest {
             )
         )
 
-        val result = transport.closeTerminal(deviceAgent(), sessionId = "session-1")
+        val result = transport.closeTerminal(target(), sessionId = "session-1")
 
         assertThat(result.isSuccess).isTrue()
         val message = captured!!
@@ -90,24 +92,27 @@ class MatrixDeviceAgentTerminalTransportTest {
     }
 
     @Test
-    fun `openTerminal returns failure when device agent has no matrix user id`() = runTest {
+    fun `openTerminal returns failure when SDK reports a to-device failure`() = runTest {
         val transport = MatrixDeviceAgentTerminalTransport(
             FakeMatrixClient(
                 sendUnsealD2DMessageLambda = {
-                    error("send should not be called")
+                    Result.success(
+                        UnsealD2DSendResult(
+                            failures = listOf(UnsealD2DSendFailure(UserId("@alice:example.org"), "DESKTOP_DEVICE"))
+                        )
+                    )
                 }
             )
         )
 
-        val result = transport.openTerminal(deviceAgent().copy(matrixUserId = null))
+        val result = transport.openTerminal(target(), requestId = "request-1")
 
         assertThat(result.isFailure).isTrue()
-        assertThat(result.exceptionOrNull()).hasMessageThat().contains("Matrix user id")
+        assertThat(result.exceptionOrNull()).hasMessageThat().contains("Failed to send Unseal D2D message")
     }
 
-    private fun deviceAgent() = RoomDeviceAgent(
-        boundDeviceId = "BOT_DEVICE",
-        displayName = "Device Agent",
-        matrixUserId = "@agent:example.org",
+    private fun target() = UnsealD2DTarget(
+        userId = UserId("@alice:example.org"),
+        deviceId = "DESKTOP_DEVICE",
     )
 }

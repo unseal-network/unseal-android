@@ -44,7 +44,10 @@ import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContextStore
 import io.element.android.features.messages.impl.roomdata.RoomUnsealRefreshReason
 import io.element.android.features.messages.impl.roomdata.roomUnsealMemberSignature
+import io.element.android.features.messages.impl.terminal.DeviceAgentTerminalEvent
 import io.element.android.features.messages.impl.terminal.DeviceAgentTerminalPanelState
+import io.element.android.features.messages.impl.terminal.DeviceAgentTerminalReducer
+import io.element.android.features.messages.impl.terminal.MatrixDeviceAgentTerminalTransport
 import io.element.android.features.messages.impl.timeline.MarkAsFullyRead
 import io.element.android.features.messages.impl.timeline.TimelineController
 import io.element.android.features.messages.impl.timeline.TimelineEvent
@@ -81,6 +84,7 @@ import io.element.android.libraries.designsystem.utils.snackbar.collectSnackbarM
 import io.element.android.libraries.di.annotations.SessionCoroutineScope
 import io.element.android.libraries.featureflag.api.FeatureFlagService
 import io.element.android.libraries.featureflag.api.FeatureFlags
+import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.core.toThreadId
 import io.element.android.libraries.matrix.api.encryption.EncryptionService
 import io.element.android.libraries.matrix.api.encryption.identity.IdentityState
@@ -93,6 +97,9 @@ import io.element.android.libraries.matrix.api.room.history.RoomHistoryVisibilit
 import io.element.android.libraries.matrix.api.room.powerlevels.permissionsAsState
 import io.element.android.libraries.matrix.api.timeline.Timeline
 import io.element.android.libraries.matrix.api.timeline.item.event.EventOrTransactionId
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DMessage
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DMsgType
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DTarget
 import io.element.android.libraries.matrix.ui.messages.reply.map
 import io.element.android.libraries.matrix.ui.model.getAvatarData
 import io.element.android.libraries.matrix.ui.room.getDirectRoomMember
@@ -109,6 +116,7 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 
 @AssistedInject
@@ -142,6 +150,7 @@ class MessagesPresenter(
     private val markAsFullyRead: MarkAsFullyRead,
     private val liveLocationShareManager: ActiveLiveLocationShareManager,
     private val roomUnsealContextStore: RoomUnsealContextStore,
+    private val matrixClient: MatrixClient,
     @SessionCoroutineScope private val sessionCoroutineScope: CoroutineScope,
     @Assisted private val roomConfigChangeRequests: Flow<Unit>,
 ) : Presenter<MessagesState> {
@@ -188,6 +197,12 @@ class MessagesPresenter(
         }
         var deviceAgentTerminalPanel by remember(room.roomId) {
             mutableStateOf<DeviceAgentTerminalPanelState?>(null)
+        }
+        var deviceAgentTerminalTarget by remember(room.roomId) {
+            mutableStateOf<UnsealD2DTarget?>(null)
+        }
+        val deviceAgentTerminalTransport = remember(matrixClient) {
+            MatrixDeviceAgentTerminalTransport(matrixClient)
         }
         var selectableMessageText by remember(room.roomId) {
             mutableStateOf<String?>(null)
@@ -250,14 +265,17 @@ class MessagesPresenter(
         LaunchedEffect(room.roomId) {
             roomUnsealContextStore.refresh(RoomUnsealRefreshReason.Initial)
         }
-        LaunchedEffect(activeDeviceAgentBoundDeviceId) {
-            composerState.eventSink(MessageComposerEvent.SetAgentChatTargetDeviceId(activeDeviceAgentBoundDeviceId))
+        LaunchedEffect(room.roomId) {
+            activeDeviceAgentBoundDeviceId?.let { targetDeviceId ->
+                composerState.eventSink(MessageComposerEvent.SetAgentChatTargetDeviceId(targetDeviceId))
+            }
         }
         LaunchedEffect(roomUnsealContextState, activeDeviceAgentBoundDeviceId) {
             val deviceAgent = roomUnsealContextState.dataOrNull()?.deviceAgentInRoom
             if (activeDeviceAgentBoundDeviceId != null && deviceAgent?.boundDeviceId != activeDeviceAgentBoundDeviceId) {
                 activeDeviceAgentBoundDeviceId = null
                 AgentChatModeMemoryCache.setTargetDeviceId(room.roomId, null)
+                composerState.eventSink(MessageComposerEvent.SetAgentChatTargetDeviceId(null))
             }
             if (deviceAgentTerminalPanel != null && deviceAgent?.boundDeviceId != deviceAgentTerminalPanel?.deviceAgent?.boundDeviceId) {
                 deviceAgentTerminalPanel = null
@@ -293,6 +311,17 @@ class MessagesPresenter(
 
         var dmUserVerificationState by remember { mutableStateOf<IdentityState?>(null) }
 
+        fun reduceDeviceAgentTerminal(event: DeviceAgentTerminalEvent) {
+            deviceAgentTerminalPanel = deviceAgentTerminalPanel?.let { panel ->
+                DeviceAgentTerminalReducer.reduce(panel, event)
+            }
+        }
+
+        fun rememberDeviceAgentTerminalTarget(target: UnsealD2DTarget) {
+            deviceAgentTerminalTarget = target
+            reduceDeviceAgentTerminal(DeviceAgentTerminalEvent.TargetDetected(target))
+        }
+
         val dmRoomMember by room.getDirectRoomMember(membersState)
         val roomMemberIdentityStateChanges = identityChangeState.roomMemberIdentityStateChanges
 
@@ -312,6 +341,23 @@ class MessagesPresenter(
                 }
             }
             onPauseOrDispose {}
+        }
+
+        LaunchedEffect(matrixClient, room.roomId) {
+            matrixClient.unsealD2DMessages.collect { message ->
+                if (!matrixClient.isMe(message.sender)) {
+                    return@collect
+                }
+                val target = message.terminalTarget()
+                if (target != null && message.shouldRememberTerminalTarget()) {
+                    rememberDeviceAgentTerminalTarget(target)
+                }
+                val terminalEvent = message.toDeviceAgentTerminalEvent() ?: return@collect
+                if (target == null || deviceAgentTerminalPanel.doesNotAcceptTerminalEventFrom(target)) {
+                    return@collect
+                }
+                reduceDeviceAgentTerminal(terminalEvent)
+            }
         }
 
         fun handleEvent(event: MessagesEvent) {
@@ -364,7 +410,51 @@ class MessagesPresenter(
                 }
                 is MessagesEvent.OpenDeviceAgentTerminal -> {
                     Timber.i("Device agent terminal requested for boundDeviceId=${event.deviceAgent.boundDeviceId}")
-                    deviceAgentTerminalPanel = DeviceAgentTerminalPanelState.ready(event.deviceAgent)
+                    deviceAgentTerminalPanel = DeviceAgentTerminalPanelState.waiting(event.deviceAgent, deviceAgentTerminalTarget)
+                }
+                MessagesEvent.OpenDeviceAgentTerminalSession -> {
+                    val panel = deviceAgentTerminalPanel ?: return
+                    val target = panel.target ?: run {
+                        reduceDeviceAgentTerminal(DeviceAgentTerminalEvent.Failed("No desktop target is available yet."))
+                        return
+                    }
+                    val requestId = UUID.randomUUID().toString().lowercase()
+                    reduceDeviceAgentTerminal(DeviceAgentTerminalEvent.OpenRequested(requestId))
+                    localCoroutineScope.launch {
+                        deviceAgentTerminalTransport.openTerminal(target, requestId = requestId, cols = 80, rows = 24)
+                            .onFailure { error ->
+                                reduceDeviceAgentTerminal(DeviceAgentTerminalEvent.Failed("Open failed: ${error.message ?: error}"))
+                            }
+                    }
+                }
+                is MessagesEvent.UpdateDeviceAgentTerminalInput -> {
+                    reduceDeviceAgentTerminal(DeviceAgentTerminalEvent.InputChanged(event.text))
+                }
+                MessagesEvent.SendDeviceAgentTerminalInput -> {
+                    val panel = deviceAgentTerminalPanel ?: return
+                    val target = panel.target ?: return
+                    val sessionId = panel.sessionId ?: return
+                    val input = panel.inputText.takeIf { it.isNotBlank() } ?: return
+                    localCoroutineScope.launch {
+                        deviceAgentTerminalTransport.sendInput(target, sessionId, "$input\n")
+                            .onSuccess {
+                                reduceDeviceAgentTerminal(DeviceAgentTerminalEvent.InputSent)
+                            }
+                            .onFailure { error ->
+                                reduceDeviceAgentTerminal(DeviceAgentTerminalEvent.Failed("Input failed: ${error.message ?: error}"))
+                            }
+                    }
+                }
+                MessagesEvent.CloseDeviceAgentTerminalSession -> {
+                    val panel = deviceAgentTerminalPanel ?: return
+                    val target = panel.target ?: return
+                    val sessionId = panel.sessionId ?: return
+                    localCoroutineScope.launch {
+                        deviceAgentTerminalTransport.closeTerminal(target, sessionId)
+                            .onFailure { error ->
+                                reduceDeviceAgentTerminal(DeviceAgentTerminalEvent.Failed("Close failed: ${error.message ?: error}"))
+                            }
+                    }
                 }
                 MessagesEvent.DismissDeviceAgentTerminal -> {
                     deviceAgentTerminalPanel = null
@@ -726,6 +816,43 @@ class MessagesPresenter(
 private val AGENT_MEMBER_USER_TYPES = setOf("agent", "bot", "external_bot", "trusted_external_bot")
 
 private fun RoomMember.isAgentMember(): Boolean = userType in AGENT_MEMBER_USER_TYPES
+
+private fun UnsealD2DMessage.terminalTarget(): UnsealD2DTarget? {
+    val deviceId = senderDeviceId?.takeIf { it.isNotBlank() } ?: return null
+    return UnsealD2DTarget(sender, deviceId)
+}
+
+private fun UnsealD2DMessage.shouldRememberTerminalTarget(): Boolean {
+    return msgType == UnsealD2DMsgType.Ping ||
+        msgType == UnsealD2DMsgType.Pong ||
+        isTerminalMessage
+}
+
+private fun UnsealD2DMessage.toDeviceAgentTerminalEvent(): DeviceAgentTerminalEvent? {
+    return when (msgType) {
+        UnsealD2DMsgType.TerminalReady -> DeviceAgentTerminalEvent.Ready(
+            requestId = stringContent("request_id", "requestId"),
+            sessionId = stringContent("session_id", "sessionId"),
+            shell = stringContent("shell"),
+        )
+        UnsealD2DMsgType.TerminalOutput -> DeviceAgentTerminalEvent.Output(
+            sessionId = stringContent("session_id", "sessionId"),
+            data = stringContent("data").orEmpty(),
+        )
+        UnsealD2DMsgType.TerminalClosed -> DeviceAgentTerminalEvent.Closed(
+            sessionId = stringContent("session_id", "sessionId"),
+        )
+        else -> null
+    }
+}
+
+private fun DeviceAgentTerminalPanelState?.doesNotAcceptTerminalEventFrom(target: UnsealD2DTarget): Boolean {
+    return this?.target?.let { currentTarget -> currentTarget != target } ?: false
+}
+
+private fun UnsealD2DMessage.stringContent(vararg keys: String): String? {
+    return keys.firstNotNullOfOrNull { key -> stringContent(key) }
+}
 
 private fun TimelineItem.Event.selectableText(): String? {
     return when (val content = content) {

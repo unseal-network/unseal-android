@@ -41,6 +41,7 @@ import io.element.android.libraries.matrix.api.roomlist.RoomListService
 import io.element.android.libraries.matrix.api.spaces.SpaceService
 import io.element.android.libraries.matrix.api.sync.SlidingSyncVersion
 import io.element.android.libraries.matrix.api.sync.SyncService
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DMessage
 import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DOutboundMessage
 import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DSendResult
 import io.element.android.libraries.matrix.api.user.MatrixSearchUserResults
@@ -123,6 +124,7 @@ class FakeMatrixClient(
     private val getDatabaseSizesLambda: () -> Result<SdkStoreSizes> = { lambdaError() },
     private val resetWellKnownConfigLambda: () -> Result<Unit> = { lambdaError() },
     private val requestAgentRoomKeyRecoveryLambda: (AgentRoomKeyRecoveryRequest) -> Result<Unit> = { lambdaError() },
+    override val unsealD2DMessages: Flow<UnsealD2DMessage> = emptyFlow(),
     private val sendUnsealD2DMessageLambda: (UnsealD2DOutboundMessage) -> Result<UnsealD2DSendResult> = { lambdaError() },
 ) : MatrixClient {
     var setDisplayNameCalled: Boolean = false
