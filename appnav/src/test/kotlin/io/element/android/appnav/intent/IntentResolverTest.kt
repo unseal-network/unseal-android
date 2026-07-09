@@ -19,6 +19,7 @@ import io.element.android.features.share.api.ShareIntentData
 import io.element.android.features.share.api.UriToShare
 import io.element.android.features.share.test.FakeShareIntentHandler
 import io.element.android.libraries.deeplink.api.DeeplinkData
+import io.element.android.libraries.matrix.api.auth.external.ExternalSession
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.permalink.PermalinkData
 import io.element.android.libraries.matrix.test.AN_EVENT_ID
@@ -300,6 +301,39 @@ class IntentResolverTest {
         }
         val result = sut.resolve(intent)
         assertThat(result).isEqualTo(ResolvedIntent.Login(aLoginParams))
+    }
+
+    @Test
+    fun `test resolve debug import session`() {
+        val sut = createIntentResolver(
+            loginIntentResolverResult = { null },
+            oAuthIntentResolverResult = { null },
+            permalinkParserResult = { PermalinkData.FallbackLink(Uri.parse("https://matrix.org")) },
+        )
+        val intent = Intent(RuntimeEnvironment.getApplication(), Activity::class.java).apply {
+            action = Intent.ACTION_VIEW
+            data = Uri.Builder()
+                .scheme("unseal")
+                .authority("debug")
+                .path("import-session")
+                .appendQueryParameter("user_id", "@raysonx:keepsecret.io")
+                .appendQueryParameter("device_id", "ANDROID_DEVICE")
+                .appendQueryParameter("access_token", "token-123")
+                .appendQueryParameter("homeserver", "https://keepsecret.io")
+                .build()
+        }
+        val result = sut.resolve(intent)
+        assertThat(result).isEqualTo(
+            ResolvedIntent.DebugImportSession(
+                ExternalSession(
+                    userId = "@raysonx:keepsecret.io",
+                    deviceId = "ANDROID_DEVICE",
+                    accessToken = "token-123",
+                    homeserverUrl = "https://keepsecret.io",
+                    refreshToken = null,
+                )
+            )
+        )
     }
 
     private fun createIntentResolver(
