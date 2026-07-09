@@ -50,6 +50,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ripple
@@ -145,6 +146,7 @@ import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import io.element.android.libraries.designsystem.text.toAnnotatedString
 import io.element.android.libraries.designsystem.text.toDp
 import io.element.android.libraries.designsystem.theme.components.BottomSheetDragHandle
+import io.element.android.libraries.designsystem.theme.components.DropdownMenuItem
 import io.element.android.libraries.designsystem.theme.components.Icon
 import io.element.android.libraries.designsystem.theme.components.Scaffold
 import io.element.android.libraries.designsystem.theme.components.Text
@@ -660,10 +662,7 @@ private fun RoomToolMenu(
         label = "room-tool-menu-rotation",
     )
 
-    Column(
-        horizontalAlignment = Alignment.End,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    Box(contentAlignment = Alignment.TopEnd) {
         ToolbarCircleButton(
             onClick = { expanded = !expanded },
             isActive = topbarAgentChatActive,
@@ -687,44 +686,32 @@ private fun RoomToolMenu(
             )
         }
 
-        AnimatedVisibility(
-            visible = expanded,
-            enter = fadeIn(animationSpec = spring()) + slideInVertically(
-                animationSpec = spring(dampingRatio = 0.85f),
-                initialOffsetY = { -it / 2 },
-            ),
-            exit = fadeOut(animationSpec = spring()) + slideOutVertically(
-                animationSpec = spring(dampingRatio = 0.85f),
-                targetOffsetY = { -it / 2 },
-            ),
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
         ) {
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                tools.forEach { tool ->
-                    RoomTopbarToolButton(
-                        tool = tool,
-                        deviceAgent = deviceAgent,
-                        onClick = {
-                            expanded = false
-                            when (tool.action) {
-                                RoomTopbarAction.DeviceAgentTerminal -> deviceAgent?.let(onDeviceAgentTerminalClick)
-                                RoomTopbarAction.DeviceAgentChat -> deviceAgent?.let(onDeviceAgentChatClick)
-                                RoomTopbarAction.Webhooks -> onRoomWebhooksClick()
-                                RoomTopbarAction.Schedules -> onRoomSchedulesClick()
-                                RoomTopbarAction.Threads -> Unit
-                            }
-                        },
-                    )
-                }
+            tools.forEach { tool ->
+                RoomTopbarToolMenuItem(
+                    tool = tool,
+                    deviceAgent = deviceAgent,
+                    onClick = {
+                        expanded = false
+                        when (tool.action) {
+                            RoomTopbarAction.DeviceAgentTerminal -> deviceAgent?.let(onDeviceAgentTerminalClick)
+                            RoomTopbarAction.DeviceAgentChat -> deviceAgent?.let(onDeviceAgentChatClick)
+                            RoomTopbarAction.Webhooks -> onRoomWebhooksClick()
+                            RoomTopbarAction.Schedules -> onRoomSchedulesClick()
+                            RoomTopbarAction.Threads -> Unit
+                        }
+                    },
+                )
             }
         }
     }
 }
 
 @Composable
-private fun RoomTopbarToolButton(
+private fun RoomTopbarToolMenuItem(
     tool: RoomTopbarToolRenderModel,
     deviceAgent: RoomDeviceAgent?,
     onClick: () -> Unit,
@@ -736,43 +723,50 @@ private fun RoomTopbarToolButton(
         RoomTopbarAction.Webhooks -> true
         RoomTopbarAction.Threads -> false
     }
-    ToolbarCircleButton(
+    val label = when (tool.action) {
+        RoomTopbarAction.DeviceAgentTerminal -> stringResource(R.string.screen_room_topbar_remote_terminal)
+        RoomTopbarAction.DeviceAgentChat -> stringResource(R.string.screen_room_topbar_device_agent_chat)
+        RoomTopbarAction.Webhooks -> stringResource(R.string.screen_room_topbar_webhooks)
+        RoomTopbarAction.Schedules -> stringResource(R.string.screen_room_topbar_ai_config)
+        RoomTopbarAction.Threads -> stringResource(CommonStrings.common_threads)
+    }
+    DropdownMenuItem(
         onClick = onClick,
         enabled = enabled,
-        isActive = tool.isActive,
-        badgeContent = {
-            tool.badgeCount?.let { count ->
-                Badge(
-                    containerColor = when (tool.action) {
-                        RoomTopbarAction.Schedules -> Color(0xFF8B5CF6)
-                        else -> ElementTheme.colors.iconAccentPrimary
-                    },
-                    contentColor = Color.White,
-                ) {
-                    Text(count.toString())
+        text = {
+            Text(text = label)
+        },
+        leadingIcon = {
+            BadgedBox(
+                badge = {
+                    tool.badgeCount?.let { count ->
+                        Badge(
+                            containerColor = when (tool.action) {
+                                RoomTopbarAction.Schedules -> Color(0xFF8B5CF6)
+                                else -> ElementTheme.colors.iconAccentPrimary
+                            },
+                            contentColor = Color.White,
+                        ) {
+                            Text(count.toString())
+                        }
+                    }
                 }
+            ) {
+                Icon(
+                    modifier = Modifier.size(22.dp),
+                    tint = if (tool.isActive) ElementTheme.colors.iconSuccessPrimary else ElementTheme.colors.iconPrimary,
+                    imageVector = when (tool.action) {
+                        RoomTopbarAction.DeviceAgentTerminal -> CompoundIcons.Code()
+                        RoomTopbarAction.DeviceAgentChat -> CompoundIcons.Computer()
+                        RoomTopbarAction.Webhooks -> CompoundIcons.Link()
+                        RoomTopbarAction.Schedules -> CompoundIcons.Time()
+                        RoomTopbarAction.Threads -> CompoundIcons.Threads()
+                    },
+                    contentDescription = null,
+                )
             }
         },
-    ) {
-        Icon(
-            modifier = Modifier.size(22.dp),
-            tint = if (tool.isActive) ElementTheme.colors.iconSuccessPrimary else ElementTheme.colors.iconPrimary,
-            imageVector = when (tool.action) {
-                RoomTopbarAction.DeviceAgentTerminal -> CompoundIcons.Code()
-                RoomTopbarAction.DeviceAgentChat -> CompoundIcons.Computer()
-                RoomTopbarAction.Webhooks -> CompoundIcons.Link()
-                RoomTopbarAction.Schedules -> CompoundIcons.Time()
-                RoomTopbarAction.Threads -> CompoundIcons.Threads()
-            },
-            contentDescription = when (tool.action) {
-                RoomTopbarAction.DeviceAgentTerminal -> stringResource(R.string.screen_room_topbar_remote_terminal)
-                RoomTopbarAction.DeviceAgentChat -> stringResource(R.string.screen_room_topbar_device_agent_chat)
-                RoomTopbarAction.Webhooks -> stringResource(R.string.screen_room_topbar_webhooks)
-                RoomTopbarAction.Schedules -> stringResource(R.string.screen_room_topbar_ai_config)
-                RoomTopbarAction.Threads -> stringResource(CommonStrings.common_threads)
-            },
-        )
-    }
+    )
 }
 
 @Composable
