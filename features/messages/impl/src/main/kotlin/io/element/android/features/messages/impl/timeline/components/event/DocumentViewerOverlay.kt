@@ -7,18 +7,27 @@
 
 package io.element.android.features.messages.impl.timeline.components.event
 
+import android.app.Activity
+import android.view.Gravity
+import android.view.ViewGroup
+import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import io.element.android.libraries.miniapp.api.MiniAppConfig
 import io.element.android.libraries.miniapp.api.MiniAppHostBridge
 import io.element.android.libraries.miniapp.api.MiniAppUser
@@ -68,11 +77,60 @@ fun DocumentViewerOverlay(
             dismissOnClickOutside = false,
         ),
     ) {
+        val view = LocalView.current
+        // Configure the Dialog's window before the first frame so it truly covers the
+        // entire display. WindowInsetsController.hide() is async (takes effect next vsync),
+        // so we must also set FLAG_LAYOUT_NO_LIMITS which synchronously extends the window
+        // behind every system bar regardless of whether those bars are hidden yet.
+        DisposableEffect(Unit) {
+            val dialogWindow = (view.parent as? DialogWindowProvider)?.window
+            val activityWindow = (view.context as? Activity)?.window
+
+            dialogWindow?.let { w ->
+                // Set position before layout so the window starts at screen (0,0).
+                // Compose Dialog defaults to Gravity.CENTER within the Activity content area;
+                // override to TOP|START + y=0 so it covers the status bar and toolbar.
+                w.attributes = w.attributes.also { lp ->
+                    lp.width = ViewGroup.LayoutParams.MATCH_PARENT
+                    lp.height = ViewGroup.LayoutParams.MATCH_PARENT
+                    lp.gravity = Gravity.TOP or Gravity.START
+                    lp.x = 0
+                    lp.y = 0
+                }
+                w.addFlags(
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                )
+                WindowCompat.setDecorFitsSystemWindows(w, false)
+                WindowCompat.getInsetsController(w, w.decorView).apply {
+                    hide(WindowInsetsCompat.Type.systemBars())
+                    systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                }
+            }
+            activityWindow?.let { w ->
+                WindowCompat.getInsetsController(w, w.decorView).apply {
+                    hide(WindowInsetsCompat.Type.systemBars())
+                    systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                }
+            }
+
+            onDispose {
+                dialogWindow?.let { w ->
+                    w.clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
+                    WindowCompat.getInsetsController(w, w.decorView)
+                        .show(WindowInsetsCompat.Type.systemBars())
+                }
+                activityWindow?.let { w ->
+                    WindowCompat.getInsetsController(w, w.decorView)
+                        .show(WindowInsetsCompat.Type.systemBars())
+                }
+            }
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black)
-                .systemBarsPadding(),
+                .background(Color.Black),
         ) {
             BackHandler(onBack = onDismiss)
 
