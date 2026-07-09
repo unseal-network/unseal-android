@@ -48,9 +48,16 @@ data class RoomUnsealContext(
         fun from(roomId: RoomId, members: List<RoomMember>, snapshot: RoomUnsealDataSnapshot): RoomUnsealContext {
             val enrichedMembers = RoomAgentMemberEnricher.enrich(members, snapshot.roomAgents.value)
             val joinedMembers = enrichedMembers.filter { it.membership == RoomMembershipState.JOIN }
-            val agentsInRoom = mergeAgentsInRoom(
+            val explicitRoomAgents = mergeAgentsInRoom(
                 roomAgents = joinedMembers.toRoomAgentsInRoom(),
-                globalAgents = snapshot.allAgents.value.toAgentsInRoom(joinedMembers),
+                globalAgents = snapshot.roomAgents.value.toExplicitRoomAgentsInRoom(),
+            )
+            val agentsInRoom = mergeAgentsInRoom(
+                roomAgents = explicitRoomAgents,
+                globalAgents = snapshot.allAgents.value.toAgentsInRoom(
+                    activeMembers = joinedMembers,
+                    explicitRoomAgents = explicitRoomAgents,
+                ),
             )
             val agentSkillTargets = mergeAgentSkillTargets(
                 roomTargets = enrichedMembers.toMemberAgentSkillTargetCandidates(),
@@ -219,11 +226,17 @@ internal fun RoomMembersState.roomUnsealMemberSignature(): String? {
 
 private val AGENT_USER_TYPES = setOf("agent", "bot", "external_bot", "trusted_external_bot")
 
-private fun List<AgentAccountDescriptor>.toAgentsInRoom(activeMembers: List<RoomMemberRender>): List<RoomAgentInRoomDescriptor> {
+private fun List<AgentAccountDescriptor>.toAgentsInRoom(
+    activeMembers: List<RoomMemberRender>,
+    explicitRoomAgents: List<RoomAgentInRoomDescriptor>,
+): List<RoomAgentInRoomDescriptor> {
     val activeMemberIds = activeMembers.map { it.userId.value }.toSet()
+    val explicitRoomAgentIds = explicitRoomAgents.map { it.mxid }.toSet()
+    val roomAgentIds = activeMemberIds + explicitRoomAgentIds
     return mapNotNull { agent ->
-        val mxid = agent.matrixUserId?.takeIf { it in activeMemberIds }
+        val mxid = agent.matrixUserId?.takeIf { it in roomAgentIds }
             ?: agent.findActiveMemberMxid(activeMembers)
+            ?: agent.findExplicitRoomAgentMxid(explicitRoomAgents)
             ?: return@mapNotNull null
         RoomAgentInRoomDescriptor(
             agentId = mxid,
@@ -234,6 +247,21 @@ private fun List<AgentAccountDescriptor>.toAgentsInRoom(activeMembers: List<Room
             boundDeviceId = agent.boundDeviceId,
         )
     }.sortedWith(compareBy<RoomAgentInRoomDescriptor> { it.label }.thenBy { it.mxid })
+}
+
+private fun List<RoomAgentDescriptor>.toExplicitRoomAgentsInRoom(): List<RoomAgentInRoomDescriptor> {
+    return filter { it.isJoinedOrUnknownMembership() }
+        .map { agent ->
+            RoomAgentInRoomDescriptor(
+                agentId = agent.userId,
+                mxid = agent.userId,
+                label = agent.displayName ?: agent.userId,
+                avatarUrl = agent.avatarUrl,
+                isDeviceAgent = false,
+                boundDeviceId = null,
+            )
+        }
+        .sortedWith(compareBy<RoomAgentInRoomDescriptor> { it.label }.thenBy { it.mxid })
 }
 
 private fun List<RoomMemberRender>.toRoomAgentsInRoom(): List<RoomAgentInRoomDescriptor> {
@@ -292,6 +320,24 @@ private fun AgentAccountDescriptor.findActiveMemberMxid(activeMembers: List<Room
         .singleOrNull()
         ?.userId
         ?.value
+}
+
+private fun AgentAccountDescriptor.findExplicitRoomAgentMxid(explicitRoomAgents: List<RoomAgentInRoomDescriptor>): String? {
+    val agentAliases = listOfNotNull(localpart, botName, displayName)
+        .mapNotNull { it.normalizedAgentAlias() }
+        .toSet()
+        .takeIf { it.isNotEmpty() }
+        ?: return null
+    return explicitRoomAgents
+        .filter { roomAgent ->
+            val roomAgentAliases = listOfNotNull(
+                roomAgent.mxid.substringAfter("@").substringBefore(":"),
+                roomAgent.label,
+            ).mapNotNull { it.normalizedAgentAlias() }
+            roomAgentAliases.any { it in agentAliases }
+        }
+        .singleOrNull()
+        ?.mxid
 }
 
 private fun String.normalizedAgentAlias(): String? {

@@ -78,6 +78,52 @@ class RoomUnsealContextTest {
     }
 
     @Test
+    fun `from uses explicit room agents before matrix members are available`() {
+        val context = RoomUnsealContext.from(
+            roomId = ROOM_ID,
+            members = emptyList(),
+            snapshot = RoomUnsealDataSnapshot(
+                roomAgents = RoomUnsealResource.success(
+                    listOf(RoomAgentDescriptor(ACTIVE_AGENT_ID.value, "Room Device", "mxc://avatar", "bot", "join"))
+                ),
+                allAgents = RoomUnsealResource.success(
+                    listOf(
+                        AgentAccountDescriptor(
+                            botName = "device",
+                            localpart = ACTIVE_AGENT_ID.value.substringAfter("@").substringBefore(":"),
+                            serverName = ACTIVE_AGENT_ID.value.substringAfter(":"),
+                            matrixUserId = ACTIVE_AGENT_ID.value,
+                            displayName = "Global Device",
+                            avatarUrl = null,
+                            isDeviceAgent = true,
+                            boundDeviceId = "device-1",
+                        )
+                    )
+                ),
+            ),
+        )
+
+        assertThat(context.agentsInRoom.single()).isEqualTo(
+            RoomAgentInRoomDescriptor(
+                agentId = ACTIVE_AGENT_ID.value,
+                mxid = ACTIVE_AGENT_ID.value,
+                label = "Room Device",
+                avatarUrl = "mxc://avatar",
+                isDeviceAgent = true,
+                boundDeviceId = "device-1",
+            )
+        )
+        assertThat(context.deviceAgentInRoom).isEqualTo(
+            RoomDeviceAgent(
+                boundDeviceId = "device-1",
+                displayName = "Room Device",
+                matrixUserId = ACTIVE_AGENT_ID.value,
+            )
+        )
+        assertThat(context.hasAgentInRoom).isTrue()
+    }
+
+    @Test
     fun `from matches global agent to room member by bot name when mxid is missing`() {
         val context = RoomUnsealContext.from(
             roomId = ROOM_ID,
