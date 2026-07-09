@@ -407,7 +407,7 @@ private fun AiStreamPartsView(
         visibleParts.forEachIndexed { index, part ->
             if (part is AiPptWorkflowStreamPart) {
                 key("ppt-${part.id}#$index") {
-                    PptActivityWorkflowCard(part)
+                    PptActivityWorkflowCard(part, streamId)
                 }
             }
         }
@@ -1592,7 +1592,7 @@ private fun ToolCardItem(
 
 /** 已收到 slide HTML 时的横向滑动查看器（WebView 渲染每张幻灯片）。 */
 @Composable
-private fun PptSlidesView(slides: List<String>, totalSlides: Int, isGenerating: Boolean = false) {
+private fun PptSlidesView(slides: List<String>, totalSlides: Int, isGenerating: Boolean = false, streamId: String? = null, taskId: String? = null) {
     val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     val cardBg = if (isDark) Color(0xFF1C1C1E) else Color.White
     val textSecondary = if (isDark) Color(0xFF8E8E93) else Color(0xFF6B7280)
@@ -1704,7 +1704,15 @@ private fun PptSlidesView(slides: List<String>, totalSlides: Int, isGenerating: 
                 if (launcher != null) {
                     DocumentViewerOverlay(
                         appId = MiniAppIds.PPT,
-                        options = mapOf("htmls" to slides, "initialIndex" to safeIndex),
+                        options = buildMap {
+                            put("htmls", slides)
+                            put("initialIndex", safeIndex)
+                            // Prefer the AI stream ID; fall back to the PPT task ID so
+                            // createSuccess can always persist doc_id with a stable key.
+                            val sid = streamId?.takeIf { it.isNotBlank() }
+                                ?: taskId?.takeIf { it.isNotBlank() }
+                            sid?.let { put("stream_id", it) }
+                        },
                         launcher = launcher,
                         onDismiss = { showFullscreen = false },
                     )
@@ -1867,7 +1875,7 @@ private fun SlideHtmlCard(index: Int, html: String, forceLoad: Boolean = false, 
 }
 
 @Composable
-private fun PptActivityWorkflowCard(part: AiPptWorkflowStreamPart) {
+private fun PptActivityWorkflowCard(part: AiPptWorkflowStreamPart, streamId: String? = null) {
     val slides = LocalWorkflowSlides.current[part.taskId] ?: emptyList()
     val workflowMsg = LocalWorkflowMessages.current[part.taskId]
     // isCompleted: WebSocket Completed message OR no active Progress AND slides look finished.
@@ -1882,7 +1890,7 @@ private fun PptActivityWorkflowCard(part: AiPptWorkflowStreamPart) {
         PptGeneratingCard(totalSlides = part.totalSlides)
     } else {
         // Show slides as they arrive; title and dots reflect in-progress vs. done.
-        PptSlidesView(slides = slides, totalSlides = part.totalSlides, isGenerating = !isCompleted)
+        PptSlidesView(slides = slides, totalSlides = part.totalSlides, isGenerating = !isCompleted, streamId = streamId, taskId = part.taskId)
     }
 }
 

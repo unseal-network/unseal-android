@@ -61,6 +61,8 @@ import io.element.android.libraries.deeplink.api.DeeplinkData
 import io.element.android.libraries.di.annotations.AppCoroutineScope
 import io.element.android.libraries.featureflag.api.FeatureFlagService
 import io.element.android.libraries.featureflag.api.FeatureFlags
+import io.element.android.libraries.matrix.api.auth.MatrixAuthenticationService
+import io.element.android.libraries.matrix.api.auth.external.ExternalSession
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.libraries.matrix.api.core.ThreadId
@@ -94,6 +96,7 @@ class RootFlowNode(
     @Assisted val buildContext: BuildContext,
     @Assisted plugins: List<Plugin>,
     private val sessionStore: SessionStore,
+    private val authenticationService: MatrixAuthenticationService,
     private val accountProviderAccessControl: AccountProviderAccessControl,
     private val navStateFlowFactory: RootNavStateFlowFactory,
     private val matrixSessionCache: MatrixSessionCache,
@@ -465,7 +468,26 @@ class RootFlowNode(
             is ResolvedIntent.OAuth -> onOAuthAction(resolvedIntent.oAuthAction)
             is ResolvedIntent.Permalink -> navigateTo(resolvedIntent.permalinkData)
             is ResolvedIntent.IncomingShare -> onIncomingShare(resolvedIntent.shareIntentData)
+            is ResolvedIntent.DebugImportSession -> onDebugImportSession(resolvedIntent.externalSession)
         }
+    }
+
+    private suspend fun onDebugImportSession(externalSession: ExternalSession) {
+        Timber.w("Importing debug session for ${externalSession.userId} on ${externalSession.homeserverUrl}")
+        val homeserverResult = authenticationService.setHomeserver(externalSession.homeserverUrl)
+        if (homeserverResult.isFailure) {
+            Timber.e(homeserverResult.exceptionOrNull(), "Failed to set homeserver for debug session import")
+            return
+        }
+
+        authenticationService.importCreatedSession(externalSession)
+            .onSuccess { sessionId ->
+                sessionStore.setLatestSession(sessionId.value)
+                switchToLoggedInFlow(sessionId, SystemClock.elapsedRealtime().toInt())
+            }
+            .onFailure {
+                Timber.e(it, "Failed to import debug session")
+            }
     }
 
     private suspend fun onLoginLink(params: LoginParams) {
