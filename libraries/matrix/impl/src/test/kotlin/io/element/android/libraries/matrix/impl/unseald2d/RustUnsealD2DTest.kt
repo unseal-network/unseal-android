@@ -26,12 +26,16 @@ import io.element.android.services.analytics.test.FakeAnalyticsService
 import io.element.android.services.toolbox.test.systemclock.FakeSystemClock
 import io.element.android.tests.testutils.testCoroutineDispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Test
 import org.matrix.rustcomponents.sdk.Client
+import org.matrix.rustcomponents.sdk.ToDeviceMessage
 import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -81,6 +85,47 @@ class RustUnsealD2DTest {
         )
 
         assertThat(result.isFailure).isTrue()
+    }
+
+    @Test
+    fun `unsealD2DMessages emits observed SDK to-device messages`() = runTest {
+        val inner = FakeFfiClient()
+        val client = createRustMatrixClient(inner)
+
+        val deferred = backgroundScope.launch {
+            val message = client.unsealD2DMessages.first()
+            assertThat(message.msgType).isEqualTo(UnsealD2DMsgType.TerminalReady)
+            assertThat(message.sender.value).isEqualTo("@agent:example.org")
+            assertThat(message.senderDeviceId).isEqualTo("DESKTOP")
+            assertThat(message.stringContent("request_id")).isEqualTo("request-1")
+            assertThat(message.stringContent("session_id")).isEqualTo("session-1")
+        }
+        runCurrent()
+
+        inner.emitToDeviceMessage(
+            ToDeviceMessage(
+                eventType = UnsealD2DConstants.EVENT_TYPE,
+                sender = "@agent:example.org",
+                content = """{"msgtype":"cmd.ready","content":{"request_id":"request-1","session_id":"session-1","sender_device_id":"DESKTOP"}}""",
+                rawJson = "{}",
+                encryptionInfo = null,
+            )
+        )
+
+        deferred.join()
+    }
+
+    @Test
+    fun `parse prefers encrypted sender device over spoofable payload sender device`() {
+        val message = io.element.android.libraries.matrix.api.unseald2d.UnsealD2DMessage.parse(
+            eventType = UnsealD2DConstants.EVENT_TYPE,
+            sender = "@alice:server.org",
+            content = """{"msgtype":"d2d.ping","content":{"sender_device_id":"SPOOFED_DEVICE"}}""",
+            rawJson = "{}",
+            encryptedSenderDeviceId = "ENCRYPTED_DEVICE",
+        )
+
+        assertThat(message?.senderDeviceId).isEqualTo("ENCRYPTED_DEVICE")
     }
 
     private fun TestScope.createRustMatrixClient(

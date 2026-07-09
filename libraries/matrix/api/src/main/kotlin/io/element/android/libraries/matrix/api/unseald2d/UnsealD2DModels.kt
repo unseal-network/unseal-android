@@ -8,8 +8,12 @@
 package io.element.android.libraries.matrix.api.unseald2d
 
 import io.element.android.libraries.matrix.api.core.UserId
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 object UnsealD2DConstants {
@@ -54,6 +58,60 @@ data class UnsealD2DOutboundMessage(
             put("msgtype", msgType.value)
             put("content", content)
         }.toString()
+    }
+}
+
+data class UnsealD2DMessage(
+    val eventType: String,
+    val sender: UserId,
+    val msgTypeValue: String,
+    val content: JsonObject,
+    val rawContent: String,
+    val rawJson: String,
+    val senderDeviceId: String?,
+) {
+    val msgType: UnsealD2DMsgType?
+        get() = UnsealD2DMsgType.entries.firstOrNull { it.value == msgTypeValue }
+
+    val isTerminalMessage: Boolean
+        get() = msgTypeValue.startsWith("cmd.")
+
+    fun stringContent(key: String): String? {
+        return content[key]?.jsonPrimitive?.contentOrNull
+    }
+
+    companion object {
+        private val json = Json {
+            ignoreUnknownKeys = true
+        }
+
+        fun parse(
+            eventType: String,
+            sender: String,
+            content: String,
+            rawJson: String,
+            encryptedSenderDeviceId: String?,
+        ): UnsealD2DMessage? {
+            if (eventType != UnsealD2DConstants.EVENT_TYPE) return null
+            val root = runCatching {
+                json.parseToJsonElement(content).jsonObject
+            }.getOrNull() ?: return null
+            val msgTypeValue = root["msgtype"]?.jsonPrimitive?.contentOrNull ?: return null
+            val payload = runCatching {
+                root["content"]?.jsonObject
+            }.getOrNull() ?: buildJsonObject {}
+            return UnsealD2DMessage(
+                eventType = eventType,
+                sender = UserId(sender),
+                msgTypeValue = msgTypeValue,
+                content = payload,
+                rawContent = content,
+                rawJson = rawJson,
+                senderDeviceId = encryptedSenderDeviceId
+                    ?: payload["sender_device_id"]?.jsonPrimitive?.contentOrNull
+                    ?: payload["senderDeviceId"]?.jsonPrimitive?.contentOrNull,
+            )
+        }
     }
 }
 

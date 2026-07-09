@@ -148,6 +148,7 @@ import io.element.android.libraries.designsystem.theme.components.BottomSheetDra
 import io.element.android.libraries.designsystem.theme.components.Icon
 import io.element.android.libraries.designsystem.theme.components.Scaffold
 import io.element.android.libraries.designsystem.theme.components.Text
+import io.element.android.libraries.designsystem.theme.components.TextField
 import io.element.android.libraries.designsystem.utils.HideKeyboardWhenDisposed
 import io.element.android.libraries.designsystem.utils.KeepScreenOn
 import io.element.android.libraries.designsystem.utils.OnLifecycleEvent
@@ -391,6 +392,10 @@ fun MessagesView(
                         DeviceAgentTerminalPanel(
                             panel = state.deviceAgentTerminalPanel,
                             onDismiss = { state.eventSink(MessagesEvent.DismissDeviceAgentTerminal) },
+                            onOpen = { state.eventSink(MessagesEvent.OpenDeviceAgentTerminalSession) },
+                            onInputChange = { state.eventSink(MessagesEvent.UpdateDeviceAgentTerminalInput(it)) },
+                            onSendInput = { state.eventSink(MessagesEvent.SendDeviceAgentTerminalInput) },
+                            onCloseSession = { state.eventSink(MessagesEvent.CloseDeviceAgentTerminalSession) },
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
                                 .padding(horizontal = 20.dp, vertical = 96.dp),
@@ -774,6 +779,10 @@ private fun RoomTopbarToolButton(
 private fun DeviceAgentTerminalPanel(
     panel: DeviceAgentTerminalPanelState?,
     onDismiss: () -> Unit,
+    onOpen: () -> Unit,
+    onInputChange: (String) -> Unit,
+    onSendInput: () -> Unit,
+    onCloseSession: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     AnimatedVisibility(
@@ -833,6 +842,24 @@ private fun DeviceAgentTerminalPanel(
                         maxLines = 1,
                     )
                     ToolbarCircleButton(
+                        onClick = onOpen,
+                        enabled = panel.canOpenTerminal,
+                    ) {
+                        Icon(
+                            imageVector = CompoundIcons.Play(),
+                            contentDescription = stringResource(R.string.screen_room_topbar_remote_terminal),
+                        )
+                    }
+                    ToolbarCircleButton(
+                        onClick = onCloseSession,
+                        enabled = panel.canCloseTerminal,
+                    ) {
+                        Icon(
+                            imageVector = CompoundIcons.Close(),
+                            contentDescription = stringResource(R.string.screen_room_topbar_close_remote_terminal),
+                        )
+                    }
+                    ToolbarCircleButton(
                         onClick = onDismiss,
                     ) {
                         Icon(
@@ -858,6 +885,32 @@ private fun DeviceAgentTerminalPanel(
                         ),
                         color = Color(0xFF45E06F),
                     )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextField(
+                        value = panel.inputText,
+                        onValueChange = onInputChange,
+                        placeholder = "Command",
+                        singleLine = true,
+                        enabled = panel.sessionId != null,
+                        modifier = Modifier.weight(1f),
+                    )
+                    ToolbarCircleButton(
+                        onClick = onSendInput,
+                        enabled = panel.canSendInput,
+                    ) {
+                        Icon(
+                            imageVector = CompoundIcons.SendSolid(),
+                            contentDescription = null,
+                        )
+                    }
                 }
             }
         }

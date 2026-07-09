@@ -8,9 +8,11 @@
 package io.element.android.features.messages.impl.terminal
 
 import io.element.android.features.messages.impl.roomdata.RoomDeviceAgent
+import io.element.android.libraries.matrix.api.unseald2d.UnsealD2DTarget
 
 data class DeviceAgentTerminalPanelState(
     val deviceAgent: RoomDeviceAgent,
+    val target: UnsealD2DTarget? = null,
     val status: Status,
     val outputText: String,
     val inputText: String = "",
@@ -32,8 +34,8 @@ data class DeviceAgentTerminalPanelState(
     val subtitle: String
         get() = when (status) {
             Status.WaitingForDevice -> "Waiting for Web or desktop heartbeat"
-            Status.ReadyToOpen -> deviceAgent.boundDeviceId
-            Status.Opening -> "Opening on ${deviceAgent.boundDeviceId}"
+            Status.ReadyToOpen -> target?.deviceId ?: deviceAgent.boundDeviceId
+            Status.Opening -> "Opening on ${target?.deviceId ?: deviceAgent.boundDeviceId}"
             Status.Connected -> sessionId ?: "Connected"
             Status.Closed -> "Session closed"
             Status.Failed -> "Terminal failed"
@@ -53,15 +55,32 @@ data class DeviceAgentTerminalPanelState(
         get() = status in setOf(Status.Opening, Status.Connected, Status.Closed, Status.Failed)
 
     val canOpenTerminal: Boolean
-        get() = sessionId == null && status != Status.Opening
+        get() = target != null && sessionId == null && status != Status.Opening
 
     val canCloseTerminal: Boolean
-        get() = sessionId != null
+        get() = target != null && sessionId != null
 
     val canSendInput: Boolean
-        get() = sessionId != null && inputText.isNotBlank()
+        get() = target != null && sessionId != null && inputText.isNotBlank()
 
     companion object {
+        fun waiting(
+            deviceAgent: RoomDeviceAgent,
+            target: UnsealD2DTarget? = null,
+        ): DeviceAgentTerminalPanelState {
+            val state = DeviceAgentTerminalPanelState(
+                deviceAgent = deviceAgent,
+                target = target,
+                status = Status.WaitingForDevice,
+                outputText = "Waiting for a desktop device...\n",
+            )
+            return if (target == null) {
+                state
+            } else {
+                DeviceAgentTerminalReducer.reduce(state, DeviceAgentTerminalEvent.TargetDetected(target))
+            }
+        }
+
         fun ready(deviceAgent: RoomDeviceAgent): DeviceAgentTerminalPanelState {
             return DeviceAgentTerminalPanelState(
                 deviceAgent = deviceAgent,
@@ -80,7 +99,7 @@ data class DeviceAgentTerminalPanelState(
 }
 
 sealed interface DeviceAgentTerminalEvent {
-    data object TargetDetected : DeviceAgentTerminalEvent
+    data class TargetDetected(val target: UnsealD2DTarget) : DeviceAgentTerminalEvent
     data class OpenRequested(val requestId: String?) : DeviceAgentTerminalEvent
     data class Ready(val requestId: String?, val sessionId: String?, val shell: String?) : DeviceAgentTerminalEvent
     data class Output(val sessionId: String?, val data: String) : DeviceAgentTerminalEvent
@@ -96,25 +115,37 @@ object DeviceAgentTerminalReducer {
         event: DeviceAgentTerminalEvent,
     ): DeviceAgentTerminalPanelState {
         return when (event) {
-            DeviceAgentTerminalEvent.TargetDetected -> state.copy(
-                status = DeviceAgentTerminalPanelState.Status.ReadyToOpen,
-                outputText = "Desktop target detected: ${state.deviceAgent.boundDeviceId}\n",
-            )
-            is DeviceAgentTerminalEvent.OpenRequested -> state.copy(
-                status = DeviceAgentTerminalPanelState.Status.Opening,
-                pendingRequestId = event.requestId,
-                outputText = state.outputText.appendLine("$ open remote terminal")
-                    .appendIfPresent(event.requestId) { "Opening request sent: $it" },
-            )
+            is DeviceAgentTerminalEvent.TargetDetected -> when (state.status) {
+                DeviceAgentTerminalPanelState.Status.WaitingForDevice,
+                DeviceAgentTerminalPanelState.Status.ReadyToOpen -> state.copy(
+                    target = event.target,
+                    status = DeviceAgentTerminalPanelState.Status.ReadyToOpen,
+                    outputText = "Desktop target detected: ${event.target.deviceId}\n",
+                )
+                DeviceAgentTerminalPanelState.Status.Opening,
+                DeviceAgentTerminalPanelState.Status.Connected,
+                DeviceAgentTerminalPanelState.Status.Closed,
+                DeviceAgentTerminalPanelState.Status.Failed -> state
+            }
+            is DeviceAgentTerminalEvent.OpenRequested -> {
+                val alreadyOpening = state.status == DeviceAgentTerminalPanelState.Status.Opening
+                state.copy(
+                    status = DeviceAgentTerminalPanelState.Status.Opening,
+                    pendingRequestId = event.requestId ?: state.pendingRequestId,
+                    outputText = (if (alreadyOpening) state.outputText else state.outputText.appendLine("$ open remote terminal"))
+                        .appendIfPresent(event.requestId) { "Opening request sent: $it" },
+                )
+            }
             is DeviceAgentTerminalEvent.Ready -> {
-                if (!state.matchesPendingRequest(event.requestId)) {
+                val sessionId = event.sessionId
+                if (sessionId == null || !state.matchesPendingRequest(event.requestId)) {
                     state
                 } else {
                     val shell = event.shell ?: "shell"
                     state.copy(
                         status = DeviceAgentTerminalPanelState.Status.Connected,
                         pendingRequestId = null,
-                        sessionId = event.sessionId,
+                        sessionId = sessionId,
                         shell = shell,
                         outputText = state.outputText.appendLine("Connected: $shell"),
                     )
@@ -141,6 +172,7 @@ object DeviceAgentTerminalReducer {
             }
             is DeviceAgentTerminalEvent.Failed -> state.copy(
                 status = DeviceAgentTerminalPanelState.Status.Failed,
+                pendingRequestId = null,
                 outputText = state.outputText.appendLine(event.message),
             )
             is DeviceAgentTerminalEvent.InputChanged -> state.copy(inputText = event.text)
@@ -153,13 +185,13 @@ object DeviceAgentTerminalReducer {
 }
 
 private fun DeviceAgentTerminalPanelState.matchesPendingRequest(requestId: String?): Boolean {
-    val pending = pendingRequestId ?: return true
-    return requestId == null || requestId == pending
+    val pending = pendingRequestId ?: return false
+    return requestId == pending
 }
 
 private fun DeviceAgentTerminalPanelState.matchesSession(messageSessionId: String?): Boolean {
-    val current = sessionId ?: return true
-    return messageSessionId == null || messageSessionId == current
+    val current = sessionId ?: return false
+    return messageSessionId == current
 }
 
 private fun String.appendLine(line: String): String = appendOutput("$line\n")

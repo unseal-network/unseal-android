@@ -33,6 +33,8 @@ import org.matrix.rustcomponents.sdk.StoreSizes
 import org.matrix.rustcomponents.sdk.SyncService
 import org.matrix.rustcomponents.sdk.SyncServiceBuilder
 import org.matrix.rustcomponents.sdk.TaskHandle
+import org.matrix.rustcomponents.sdk.ToDeviceMessage
+import org.matrix.rustcomponents.sdk.ToDeviceMessageListener
 import org.matrix.rustcomponents.sdk.ToDeviceSendResult
 import org.matrix.rustcomponents.sdk.UnableToDecryptDelegate
 import org.matrix.rustcomponents.sdk.UserProfile
@@ -56,6 +58,9 @@ class FakeFfiClient(
 ) : Client(NoHandle) {
     var sendToDeviceEventCall: SendToDeviceEventCall? = null
         private set
+    var observedToDeviceEventType: String? = null
+        private set
+    private var toDeviceMessageListener: ToDeviceMessageListener? = null
 
     override fun userId(): String = userId
     override fun deviceId(): String = deviceId
@@ -88,6 +93,16 @@ class FakeFfiClient(
 
     override fun subscribeToIgnoredUsers(listener: IgnoredUsersListener): TaskHandle {
         return FakeFfiTaskHandle()
+    }
+
+    override fun observeToDeviceEvents(eventType: String, listener: ToDeviceMessageListener): TaskHandle {
+        observedToDeviceEventType = eventType
+        toDeviceMessageListener = listener
+        return FakeFfiTaskHandle()
+    }
+
+    fun emitToDeviceMessage(message: ToDeviceMessage) {
+        toDeviceMessageListener?.onMessage(message)
     }
 
     override suspend fun getProfile(userId: String): UserProfile {
