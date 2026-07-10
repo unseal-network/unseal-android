@@ -42,4 +42,10 @@
     <!-- Ping message timeline row (msgtype = m.ping) -->
     <string name="screen_room_ping_sent">You sent a ping</string>
     <string name="screen_room_ping_received">%1$s pinged you</string>
+    <string name="screen_timeline_agent_stop_run">Stop this run</string>
+    <string name="screen_timeline_agent_stop_run_title">Stop this run?</string>
+    <string name="screen_timeline_agent_stop_run_description">The Agent will stop its current response. This cannot be undone.</string>
+    <string name="screen_timeline_agent_stop_run_action">Stop run</string>
+    <string name="screen_timeline_agent_stopping_run">Stopping…</string>
+    <string name="screen_timeline_agent_retry_stop_run">Try stopping again</string>
 </resources>

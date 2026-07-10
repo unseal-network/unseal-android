@@ -18,5 +18,8 @@ sealed interface AgentDetailEvents {
     data object StartChat : AgentDetailEvents
     data class OpenRoom(val roomId: String) : AgentDetailEvents
     data class LeaveRoom(val roomId: String) : AgentDetailEvents
+    data object RequestStopAllTasks : AgentDetailEvents
+    data object ConfirmStopAllTasks : AgentDetailEvents
+    data object CancelStopAllTasks : AgentDetailEvents
     data object ClearError : AgentDetailEvents
 }

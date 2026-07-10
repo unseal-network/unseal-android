@@ -26,7 +26,11 @@ import io.element.android.libraries.agentstream.api.StreamStorageProvider
 import io.element.android.libraries.agentstream.api.StreamSubscription
 import io.element.android.libraries.agentstream.api.TextPartState
 import io.element.android.libraries.agentstream.api.ToolPartState
+import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
+import io.element.android.libraries.chatbot.test.FakeChatbotApiServiceFactory
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
+import io.element.android.libraries.matrix.api.MatrixClient
+import io.element.android.libraries.matrix.test.FakeMatrixClient
 import io.element.android.libraries.miniapp.api.MiniAppConfig
 import io.element.android.tests.testutils.test
 import io.element.android.tests.testutils.testCoroutineDispatchers
@@ -451,6 +455,8 @@ class TimelineItemAiPresenterTest {
         streamContentCache: AiStreamContentCache = AiStreamContentCache(),
         dispatchers: CoroutineDispatchers,
         workflowProgressProvider: WorkflowProgressProvider = FakeWorkflowProgressProvider(),
+        matrixClient: MatrixClient = FakeMatrixClient(),
+        chatbotApiServiceFactory: ChatbotApiServiceFactory = FakeChatbotApiServiceFactory(),
     ): TimelineItemAiPresenter {
         return TimelineItemAiPresenter(
             content = content,
@@ -461,6 +467,8 @@ class TimelineItemAiPresenterTest {
             workflowProgressManager = workflowProgressProvider,
             workflowTaskStore = FakeWorkflowTaskStore(),
             miniAppDocumentLauncher = FakeMiniAppDocumentLauncher(),
+            matrixClient = matrixClient,
+            chatbotApiServiceFactory = chatbotApiServiceFactory,
         )
     }
 

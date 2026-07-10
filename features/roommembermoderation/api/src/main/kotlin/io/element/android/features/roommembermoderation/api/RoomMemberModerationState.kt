@@ -23,6 +23,7 @@ data class ModerationActionState(
 
 sealed interface ModerationAction {
     data object DisplayProfile : ModerationAction
+    data object StopAgentTasks : ModerationAction
     data object KickUser : ModerationAction
     data object BanUser : ModerationAction
     data object UnbanUser : ModerationAction

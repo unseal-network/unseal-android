@@ -83,6 +83,27 @@ class DefaultChatbotApiServiceTest {
     }
 
     @Test
+    fun `abort APIs - send the scoped identifiers to Synapse`() = runTest {
+        repeat(3) { server.enqueue(MockResponse().setResponseCode(200).setBody("{}")) }
+
+        service.abortRun("stream-1", "Stopped by user").getOrThrow()
+        service.abortRoomAgent("!room:example.org", "@agent:example.org", null).getOrThrow()
+        service.abortAgent("@agent:example.org", null).getOrThrow()
+
+        val runRequest = server.takeRequest()
+        assertThat(runRequest.path).isEqualTo("/chatbot/v1/abort/run")
+        assertThat(runRequest.body.readUtf8()).isEqualTo("""{"stream_id":"stream-1","reason":"Stopped by user"}""")
+
+        val roomRequest = server.takeRequest()
+        assertThat(roomRequest.path).isEqualTo("/chatbot/v1/abort/room")
+        assertThat(roomRequest.body.readUtf8()).isEqualTo("""{"room_id":"!room:example.org","agent_id":"@agent:example.org"}""")
+
+        val agentRequest = server.takeRequest()
+        assertThat(agentRequest.path).isEqualTo("/chatbot/v1/abort/agent")
+        assertThat(agentRequest.body.readUtf8()).isEqualTo("""{"agent_id":"@agent:example.org"}""")
+    }
+
+    @Test
     fun `listAgentSkills - accepts wrapped and direct response shapes`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"skills":[{"skill_id":"skill-1","name":"Search"}]}"""))
         server.enqueue(MockResponse().setResponseCode(200).setBody("""[{"id":"skill-2","name":"Calendar"}]"""))

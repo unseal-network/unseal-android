@@ -132,6 +132,27 @@ internal class DefaultChatbotApiService(
     override suspend fun agentLeaveRoom(botName: String, roomId: String): Result<Unit> =
         rawUnit("/chatbot/v1/agents/${path(botName)}/leave", ChatbotHttpMethod.POST, jsonObject("room_id" to roomId))
 
+    override suspend fun abortRun(streamId: String, reason: String?): Result<Unit> =
+        rawUnit(
+            "/chatbot/v1/abort/run",
+            ChatbotHttpMethod.POST,
+            jsonObject(*abortBody("stream_id" to streamId, reason = reason)),
+        )
+
+    override suspend fun abortRoomAgent(roomId: String, agentId: String, reason: String?): Result<Unit> =
+        rawUnit(
+            "/chatbot/v1/abort/room",
+            ChatbotHttpMethod.POST,
+            jsonObject(*abortBody("room_id" to roomId, "agent_id" to agentId, reason = reason)),
+        )
+
+    override suspend fun abortAgent(agentId: String, reason: String?): Result<Unit> =
+        rawUnit(
+            "/chatbot/v1/abort/agent",
+            ChatbotHttpMethod.POST,
+            jsonObject(*abortBody("agent_id" to agentId, reason = reason)),
+        )
+
     override suspend fun listAgentSkills(botName: String): Result<List<ChatbotUserSkill>> {
         return httpClient.requestRaw("/chatbot/v1/agents/${path(botName)}/skills", ChatbotHttpMethod.GET).mapCatching { raw ->
             runCatching {
@@ -540,6 +561,12 @@ internal class DefaultChatbotApiService(
     private fun jsonObject(vararg values: Pair<String, String>): String {
         return JsonObject(values.associate { (key, value) -> key to JsonPrimitive(value) }).toString()
     }
+
+    private fun abortBody(vararg values: Pair<String, String>, reason: String?): Array<Pair<String, String>> =
+        buildList {
+            addAll(values)
+            reason?.takeIf { it.isNotBlank() }?.let { add("reason" to it) }
+        }.toTypedArray()
 
     private fun parsePresignedUploads(raw: String): List<ChatbotPresignedUpload> {
         val root = runCatching { ChatbotJson.json.parseToJsonElement(raw) }.getOrNull() ?: return emptyList()

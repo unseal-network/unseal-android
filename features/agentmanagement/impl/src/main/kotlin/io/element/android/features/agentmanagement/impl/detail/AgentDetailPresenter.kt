@@ -60,6 +60,8 @@ class AgentDetailPresenter(
         var isLoading by remember { mutableStateOf(true) }
         var canEdit by remember { mutableStateOf(false) }
         var isStartingChat by remember { mutableStateOf(false) }
+        var isStoppingTasks by remember { mutableStateOf(false) }
+        var confirmStopAllTasks by remember { mutableStateOf(false) }
         var isSoulExpanded by remember { mutableStateOf(false) }
         var error by remember { mutableStateOf<String?>(null) }
         var copiedAgentId by remember { mutableStateOf<String?>(null) }
@@ -146,6 +148,18 @@ class AgentDetailPresenter(
             }
         }
 
+        fun stopAllTasks() {
+            val agentId = agent?.agentMatrixUserId()
+            if (!canEdit || agentId == null) return
+            coroutineScope.launch {
+                isStoppingTasks = true
+                chatbotApiServiceFactory.createForHomeserver(matrixClient)
+                    .abortAgent(agentId, "Stopped by owner from Agent details")
+                    .onFailure { error = it.messageOr(R.string.error_agent_detail_stop_tasks) }
+                isStoppingTasks = false
+            }
+        }
+
         fun handleEvent(event: AgentDetailEvents) {
             when (event) {
                 AgentDetailEvents.OnAppear -> loadExtras(isInitial = true)
@@ -171,6 +185,12 @@ class AgentDetailPresenter(
                     ?.let(navigator::onOpenRoom)
                     ?: run { error = string(R.string.agent_detail_error_invalid_room_id) }
                 is AgentDetailEvents.LeaveRoom -> leaveRoom(event.roomId)
+                AgentDetailEvents.RequestStopAllTasks -> if (canEdit) { confirmStopAllTasks = true }
+                AgentDetailEvents.ConfirmStopAllTasks -> {
+                    confirmStopAllTasks = false
+                    stopAllTasks()
+                }
+                AgentDetailEvents.CancelStopAllTasks -> confirmStopAllTasks = false
                 AgentDetailEvents.ClearError -> error = null
             }
         }
@@ -184,6 +204,8 @@ class AgentDetailPresenter(
             channels = channels.toImmutableList(),
             isLoading = isLoading,
             canEdit = canEdit,
+            isStoppingTasks = isStoppingTasks,
+            confirmStopAllTasks = confirmStopAllTasks,
             isStartingChat = isStartingChat,
             isSoulExpanded = isSoulExpanded,
             error = error,

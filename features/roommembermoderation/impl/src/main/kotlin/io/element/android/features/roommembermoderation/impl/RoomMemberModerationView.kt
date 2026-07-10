@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -205,6 +207,48 @@ private fun RoomMemberAsyncActions(
             is AsyncAction.Loading,
             AsyncAction.Uninitialized -> Unit
         }
+
+        when (val action = state.stopAgentTasksAsyncAction) {
+            is AsyncAction.Confirming -> {
+                AlertDialog(
+                    onDismissRequest = { state.eventSink(InternalRoomMemberModerationEvents.Reset) },
+                    title = { Text(stringResource(R.string.screen_bottom_sheet_manage_room_member_stop_agent_tasks_title)) },
+                    text = { Text(stringResource(R.string.screen_bottom_sheet_manage_room_member_stop_agent_tasks_description)) },
+                    confirmButton = {
+                        TextButton(onClick = { state.eventSink(InternalRoomMemberModerationEvents.DoStopAgentTasks) }) {
+                            Text(
+                                text = stringResource(R.string.screen_bottom_sheet_manage_room_member_stop_agent_tasks_action),
+                                color = ElementTheme.colors.textCriticalPrimary,
+                            )
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { state.eventSink(InternalRoomMemberModerationEvents.Reset) }) {
+                            Text(stringResource(CommonStrings.action_cancel))
+                        }
+                    },
+                )
+            }
+            is AsyncAction.Loading -> {
+                LaunchedEffect(action) {
+                    asyncIndicatorState.enqueue {
+                        AsyncIndicator.Loading(text = stringResource(R.string.screen_bottom_sheet_manage_room_member_stopping_agent_tasks))
+                    }
+                }
+            }
+            is AsyncAction.Failure -> {
+                Timber.e(action.error, "Failed to stop Agent tasks in room.")
+                LaunchedEffect(action) {
+                    asyncIndicatorState.enqueue(AsyncIndicator.DURATION_SHORT) {
+                        AsyncIndicator.Failure(text = stringResource(CommonStrings.common_failed))
+                    }
+                }
+            }
+            is AsyncAction.Success -> {
+                LaunchedEffect(action) { asyncIndicatorState.clear() }
+            }
+            AsyncAction.Uninitialized -> Unit
+        }
     }
 }
 
@@ -287,6 +331,20 @@ private fun RoomMemberActionsBottomSheet(
                                 }
                             },
                             enabled = actionState.isEnabled
+                        )
+                    }
+                    is ModerationAction.StopAgentTasks -> {
+                        ListItem(
+                            headlineContent = { Text(stringResource(R.string.screen_bottom_sheet_manage_room_member_stop_agent_tasks)) },
+                            leadingContent = ListItemContent.Icon(IconSource.Vector(CompoundIcons.Stop())),
+                            style = ListItemStyle.Destructive,
+                            onClick = {
+                                coroutineScope.launch {
+                                    bottomSheetState.hide()
+                                    onSelectAction(action, user)
+                                }
+                            },
+                            enabled = actionState.isEnabled,
                         )
                     }
                     is ModerationAction.KickUser -> {

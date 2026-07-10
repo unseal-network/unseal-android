@@ -31,6 +31,8 @@ data class AgentDetailState(
     val isSoulExpanded: Boolean,
     /** Whether the current user owns this agent (only owners may edit it). */
     val canEdit: Boolean = true,
+    val isStoppingTasks: Boolean = false,
+    val confirmStopAllTasks: Boolean = false,
     val error: String?,
     val copiedAgentId: String?,
     val eventSink: (AgentDetailEvents) -> Unit,

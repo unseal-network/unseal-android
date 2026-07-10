@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -113,6 +114,24 @@ fun AgentDetailView(
             item { Spacer(Modifier.height(32.dp)) }
         }
     }
+
+    if (state.confirmStopAllTasks) {
+        AlertDialog(
+            onDismissRequest = { state.eventSink(AgentDetailEvents.CancelStopAllTasks) },
+            title = { Text(stringResource(R.string.screen_agent_detail_stop_tasks_title)) },
+            text = { Text(stringResource(R.string.screen_agent_detail_stop_tasks_description)) },
+            confirmButton = {
+                TextButton(onClick = { state.eventSink(AgentDetailEvents.ConfirmStopAllTasks) }) {
+                    Text(stringResource(R.string.screen_agent_detail_stop_tasks_action), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { state.eventSink(AgentDetailEvents.CancelStopAllTasks) }) {
+                    Text(stringResource(io.element.android.libraries.ui.strings.CommonStrings.action_cancel))
+                }
+            },
+        )
+    }
 }
 
 @Composable
@@ -164,14 +183,35 @@ private fun Chip(text: String, icon: androidx.compose.ui.graphics.vector.ImageVe
 
 @Composable
 private fun ActionButtons(state: AgentDetailState, renderModel: AgentDetailRenderModel) {
-    Button(
+    Column(
         modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
-        enabled = renderModel.canStartChat,
-        onClick = { state.eventSink(AgentDetailEvents.StartChat) },
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Icon(CompoundIcons.Chat(), null, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.size(8.dp))
-        Text(stringResource(R.string.agent_detail_start_chat))
+        Button(
+            modifier = Modifier.fillMaxWidth(),
+            enabled = renderModel.canStartChat,
+            onClick = { state.eventSink(AgentDetailEvents.StartChat) },
+        ) {
+            Icon(CompoundIcons.Chat(), null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.size(8.dp))
+            Text(stringResource(R.string.agent_detail_start_chat))
+        }
+        if (state.canEdit) {
+            OutlinedButton(
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !state.isStoppingTasks,
+                onClick = { state.eventSink(AgentDetailEvents.RequestStopAllTasks) },
+            ) {
+                Icon(CompoundIcons.Stop(), null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.size(8.dp))
+                Text(
+                    text = stringResource(
+                        if (state.isStoppingTasks) R.string.screen_agent_detail_stopping_tasks else R.string.screen_agent_detail_stop_all_tasks
+                    ),
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
     }
 }
 
@@ -394,11 +434,18 @@ private fun RoomRow(room: AgentRoomRenderModel, onOpen: () -> Unit) {
 
 internal class AgentDetailStateProvider : PreviewParameterProvider<AgentDetailState> {
     override val values: Sequence<AgentDetailState>
-        get() = sequenceOf(anAgentDetailState(), anAgentDetailState(rooms = persistentListOf()))
+        get() = sequenceOf(
+            anAgentDetailState(),
+            anAgentDetailState(rooms = persistentListOf()),
+            anAgentDetailState(isStoppingTasks = true),
+            anAgentDetailState(confirmStopAllTasks = true),
+        )
 }
 
 private fun anAgentDetailState(
     rooms: kotlinx.collections.immutable.ImmutableList<ChatbotAgentRoom> = aSampleRooms(),
+    isStoppingTasks: Boolean = false,
+    confirmStopAllTasks: Boolean = false,
 ) = AgentDetailState(
     botName = "assistant",
     agent = ChatbotAgent(
@@ -421,6 +468,9 @@ private fun anAgentDetailState(
         ChatbotChannelSummary(installationId = "i1", platform = ChatbotChannelPlatform.Telegram, status = "active", label = "alpha_bot"),
         ChatbotChannelSummary(installationId = "i2", platform = ChatbotChannelPlatform.WeCom, status = "active", label = "wecom-9da2912f"),
     ),
+    canEdit = true,
+    isStoppingTasks = isStoppingTasks,
+    confirmStopAllTasks = confirmStopAllTasks,
     isLoading = false,
     isStartingChat = false,
     isSoulExpanded = false,

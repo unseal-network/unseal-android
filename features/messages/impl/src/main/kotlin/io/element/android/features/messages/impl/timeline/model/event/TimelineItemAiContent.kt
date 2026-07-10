@@ -111,6 +111,7 @@ data class TimelineItemAiContent(
     val sender: String? = null,
     val roomId: String? = null,
     val eventId: String? = null,
+    val targetUserId: String? = null,
     val thinkingSteps: ImmutableList<AiThinkingStep>,
     val toolCalls: ImmutableList<AiToolCall>,
     val sources: ImmutableList<AiSource>,

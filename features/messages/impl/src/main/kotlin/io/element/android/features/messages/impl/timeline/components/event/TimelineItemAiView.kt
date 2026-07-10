@@ -67,6 +67,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material.icons.filled.PriorityHigh
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.ui.Alignment
@@ -77,8 +78,10 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -135,6 +138,7 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 import io.element.android.features.messages.impl.timeline.model.event.ToolCallRootRenderModel
 import io.element.android.libraries.androidutils.text.LinkifyHelper
 import io.element.android.libraries.textcomposer.ElementRichTextEditorStyle
+import io.element.android.libraries.ui.strings.CommonStrings
 import io.element.android.wysiwyg.compose.EditorStyledText
 import io.element.android.wysiwyg.link.Link
 import kotlinx.coroutines.delay
@@ -208,8 +212,13 @@ fun TimelineItemAiView(
     workflowMessages: Map<String, WorkflowMessage> = emptyMap(),
     workflowSlides: Map<String, List<String>> = emptyMap(),
     miniAppDocumentLauncher: MiniAppDocumentLauncher? = null,
+    canAbortRun: Boolean = false,
+    onAbortRun: suspend () -> Boolean = { false },
 ) {
     val toolRootUiStates = remember { mutableStateMapOf<String, ToolRootUiState>() }
+    val coroutineScope = rememberCoroutineScope()
+    var abortRunState by remember(content.streamId) { mutableStateOf(AbortRunState.Idle) }
+    var isConfirmingAbort by remember(content.streamId) { mutableStateOf(false) }
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -279,7 +288,62 @@ fun TimelineItemAiView(
                 }
             }
         }
+        if (canAbortRun && abortRunState != AbortRunState.Stopped) {
+            OutlinedButton(
+                enabled = abortRunState != AbortRunState.Stopping,
+                onClick = { isConfirmingAbort = true },
+            ) {
+                Icon(Icons.Filled.Close, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.size(6.dp))
+                Text(
+                    text = stringResource(
+                        when (abortRunState) {
+                            AbortRunState.Idle -> R.string.screen_timeline_agent_stop_run
+                            AbortRunState.Stopping -> R.string.screen_timeline_agent_stopping_run
+                            AbortRunState.Failed -> R.string.screen_timeline_agent_retry_stop_run
+                            AbortRunState.Stopped -> R.string.screen_timeline_agent_stop_run
+                        }
+                    ),
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
     }
+    if (isConfirmingAbort) {
+        AlertDialog(
+            onDismissRequest = { isConfirmingAbort = false },
+            title = { Text(stringResource(R.string.screen_timeline_agent_stop_run_title)) },
+            text = { Text(stringResource(R.string.screen_timeline_agent_stop_run_description)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        isConfirmingAbort = false
+                        abortRunState = AbortRunState.Stopping
+                        coroutineScope.launch {
+                            abortRunState = if (onAbortRun()) AbortRunState.Stopped else AbortRunState.Failed
+                        }
+                    },
+                ) {
+                    Text(
+                        text = stringResource(R.string.screen_timeline_agent_stop_run_action),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { isConfirmingAbort = false }) {
+                    Text(stringResource(CommonStrings.action_cancel))
+                }
+            },
+        )
+    }
+}
+
+private enum class AbortRunState {
+    Idle,
+    Stopping,
+    Stopped,
+    Failed,
 }
 
 internal fun TimelineItemAiContent.shouldRenderBodyFallback(): Boolean {

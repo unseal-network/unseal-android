@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="screen_bottom_sheet_manage_room_member_stop_agent_tasks">Stop tasks in this room</string>
+    <string name="screen_bottom_sheet_manage_room_member_stop_agent_tasks_title">Stop this Agent’s room tasks?</string>
+    <string name="screen_bottom_sheet_manage_room_member_stop_agent_tasks_description">All active tasks for this Agent in this room will stop. Tasks in other rooms are not affected.</string>
+    <string name="screen_bottom_sheet_manage_room_member_stop_agent_tasks_action">Stop tasks</string>
+    <string name="screen_bottom_sheet_manage_room_member_stopping_agent_tasks">Stopping Agent tasks…</string>
+</resources>

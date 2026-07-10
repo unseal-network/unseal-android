@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="screen_agent_detail_stop_all_tasks">Stop all active tasks</string>
+    <string name="screen_agent_detail_stopping_tasks">Stopping tasks…</string>
+    <string name="screen_agent_detail_stop_tasks_title">Stop all active tasks?</string>
+    <string name="screen_agent_detail_stop_tasks_description">This stops every active task for this Agent across all rooms. The Agent remains available for new tasks.</string>
+    <string name="screen_agent_detail_stop_tasks_action">Stop all tasks</string>
+    <string name="error_agent_detail_stop_tasks">Could not stop Agent tasks.</string>
+</resources>
