@@ -17,7 +17,7 @@ import org.junit.Test
 
 class RoomMenuReducerTest {
     @Test
-    fun `reduce exposes room configuration entry points before unseal context loads`() {
+    fun `reduce exposes a stable tool menu before unseal context loads`() {
         val roomMenu = RoomMenuReducer.reduce(
             roomUnsealContext = AsyncData.Uninitialized,
             hasThreads = false,
@@ -27,11 +27,17 @@ class RoomMenuReducerTest {
         assertThat(roomMenu.topbarActions).containsExactly(
             RoomTopbarAction.Schedules,
             RoomTopbarAction.Webhooks,
+            RoomTopbarAction.DeviceAgentChat,
+            RoomTopbarAction.DeviceAgentTerminal,
         ).inOrder()
         assertThat(roomMenu.topbarTools.map { it.action }).containsExactly(
+            RoomTopbarAction.DeviceAgentTerminal,
+            RoomTopbarAction.DeviceAgentChat,
             RoomTopbarAction.Webhooks,
             RoomTopbarAction.Schedules,
         ).inOrder()
+        assertThat(roomMenu.topbarTools.single { it.action == RoomTopbarAction.DeviceAgentTerminal }.isEnabled).isFalse()
+        assertThat(roomMenu.topbarTools.single { it.action == RoomTopbarAction.DeviceAgentChat }.isEnabled).isFalse()
         assertThat(roomMenu.topbarTools.single { it.action == RoomTopbarAction.Schedules }.badgeCount).isNull()
         assertThat(roomMenu.topbarTools.single { it.action == RoomTopbarAction.Webhooks }.badgeCount).isNull()
     }
@@ -69,11 +75,17 @@ class RoomMenuReducerTest {
         assertThat(roomMenu.topbarActions).containsExactly(
             RoomTopbarAction.Schedules,
             RoomTopbarAction.Webhooks,
+            RoomTopbarAction.DeviceAgentChat,
+            RoomTopbarAction.DeviceAgentTerminal,
         ).inOrder()
         assertThat(roomMenu.topbarTools.map { it.action }).containsExactly(
+            RoomTopbarAction.DeviceAgentTerminal,
+            RoomTopbarAction.DeviceAgentChat,
             RoomTopbarAction.Webhooks,
             RoomTopbarAction.Schedules,
         ).inOrder()
+        assertThat(roomMenu.topbarTools.single { it.action == RoomTopbarAction.DeviceAgentTerminal }.isEnabled).isFalse()
+        assertThat(roomMenu.topbarTools.single { it.action == RoomTopbarAction.DeviceAgentChat }.isEnabled).isFalse()
         assertThat(roomMenu.topbarTools.single { it.action == RoomTopbarAction.Schedules }.badgeCount).isEqualTo(2)
         assertThat(roomMenu.scheduleBadge?.activeScheduleCount).isEqualTo(2)
         assertThat(roomMenu.scheduleBadge?.isLoading).isFalse()
@@ -99,6 +111,8 @@ class RoomMenuReducerTest {
             RoomTopbarAction.Webhooks,
             RoomTopbarAction.Schedules,
         ).inOrder()
+        assertThat(roomMenu.topbarTools.single { it.action == RoomTopbarAction.DeviceAgentTerminal }.isEnabled).isTrue()
+        assertThat(roomMenu.topbarTools.single { it.action == RoomTopbarAction.DeviceAgentChat }.isEnabled).isTrue()
         assertThat(roomMenu.deviceAgent?.boundDeviceId).isEqualTo("device-1")
     }
 

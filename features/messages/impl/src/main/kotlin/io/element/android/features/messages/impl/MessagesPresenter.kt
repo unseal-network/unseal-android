@@ -410,7 +410,12 @@ class MessagesPresenter(
                 }
                 is MessagesEvent.OpenDeviceAgentTerminal -> {
                     Timber.i("Device agent terminal requested for boundDeviceId=${event.deviceAgent.boundDeviceId}")
-                    deviceAgentTerminalPanel = DeviceAgentTerminalPanelState.waiting(event.deviceAgent, deviceAgentTerminalTarget)
+                    val existingPanel = deviceAgentTerminalPanel
+                    deviceAgentTerminalPanel = if (existingPanel?.deviceAgent?.boundDeviceId == event.deviceAgent.boundDeviceId) {
+                        DeviceAgentTerminalReducer.reduce(existingPanel, DeviceAgentTerminalEvent.ExpandedChanged(true))
+                    } else {
+                        DeviceAgentTerminalPanelState.waiting(event.deviceAgent, deviceAgentTerminalTarget)
+                    }
                 }
                 MessagesEvent.OpenDeviceAgentTerminalSession -> {
                     val panel = deviceAgentTerminalPanel ?: return
@@ -457,7 +462,7 @@ class MessagesPresenter(
                     }
                 }
                 MessagesEvent.DismissDeviceAgentTerminal -> {
-                    deviceAgentTerminalPanel = null
+                    reduceDeviceAgentTerminal(DeviceAgentTerminalEvent.ExpandedChanged(false))
                 }
                 MessagesEvent.DismissSelectableMessageText -> {
                     selectableMessageText = null

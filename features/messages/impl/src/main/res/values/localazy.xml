@@ -99,6 +99,9 @@
   <string name="screen_room_topbar_tools">"Room tools"</string>
   <string name="screen_room_topbar_remote_terminal">"Remote terminal"</string>
   <string name="screen_room_topbar_device_agent_chat">"Chat with device agent"</string>
+  <string name="screen_room_topbar_device_agent_waiting">"Waiting for desktop device"</string>
+  <string name="screen_room_topbar_collapse_remote_terminal">"Collapse remote terminal"</string>
+  <string name="screen_room_topbar_expand_remote_terminal">"Expand remote terminal"</string>
   <string name="screen_room_topbar_webhooks">"Webhook triggers"</string>
   <string name="screen_room_topbar_ai_config">"Room AI Config"</string>
   <string name="screen_room_topbar_close_remote_terminal">"Close remote terminal"</string>

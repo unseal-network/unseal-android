@@ -111,14 +111,12 @@ object RoomMenuReducer {
     ): RoomMenuRenderModel {
         val context = roomUnsealContext.dataOrNull()
         val deviceAgent = context?.deviceAgentInRoom
-        val actions = buildList {
-            add(RoomTopbarAction.Schedules)
-            add(RoomTopbarAction.Webhooks)
-            if (deviceAgent != null) {
-                add(RoomTopbarAction.DeviceAgentChat)
-                add(RoomTopbarAction.DeviceAgentTerminal)
-            }
-        }
+        val actions = listOf(
+            RoomTopbarAction.Schedules,
+            RoomTopbarAction.Webhooks,
+            RoomTopbarAction.DeviceAgentChat,
+            RoomTopbarAction.DeviceAgentTerminal,
+        )
         val attachmentActionEntries = buildAttachmentActionEntries(
             canShareLocation = canShareLocation,
             enableTextFormatting = enableTextFormatting,
@@ -145,6 +143,7 @@ object RoomMenuReducer {
             topbarTools = actions.toTopbarTools(
                 scheduleBadge = scheduleBadge,
                 webhookSummary = webhookSummary,
+                isDeviceAgentAvailable = deviceAgent != null,
                 isDeviceAgentChatActive = deviceAgent?.boundDeviceId == activeDeviceAgentBoundDeviceId,
             ),
             attachmentActions = attachmentActions,
@@ -216,15 +215,27 @@ private fun buildAttachmentActionEntries(
 private fun List<RoomTopbarAction>.toTopbarTools(
     scheduleBadge: RoomScheduleMenuBadge?,
     webhookSummary: RoomWebhookMenuSummary?,
+    isDeviceAgentAvailable: Boolean,
     isDeviceAgentChatActive: Boolean,
 ): List<RoomTopbarToolRenderModel> {
     val actionSet = toSet()
     return buildList {
         if (RoomTopbarAction.DeviceAgentTerminal in actionSet) {
-            add(RoomTopbarToolRenderModel(action = RoomTopbarAction.DeviceAgentTerminal))
+            add(
+                RoomTopbarToolRenderModel(
+                    action = RoomTopbarAction.DeviceAgentTerminal,
+                    isEnabled = isDeviceAgentAvailable,
+                )
+            )
         }
         if (RoomTopbarAction.DeviceAgentChat in actionSet) {
-            add(RoomTopbarToolRenderModel(action = RoomTopbarAction.DeviceAgentChat, isActive = isDeviceAgentChatActive))
+            add(
+                RoomTopbarToolRenderModel(
+                    action = RoomTopbarAction.DeviceAgentChat,
+                    isActive = isDeviceAgentChatActive,
+                    isEnabled = isDeviceAgentAvailable,
+                )
+            )
         }
         if (RoomTopbarAction.Webhooks in actionSet) {
             add(RoomTopbarToolRenderModel(action = RoomTopbarAction.Webhooks, badgeCount = webhookSummary?.activeCount?.takeIf { it > 0 }))

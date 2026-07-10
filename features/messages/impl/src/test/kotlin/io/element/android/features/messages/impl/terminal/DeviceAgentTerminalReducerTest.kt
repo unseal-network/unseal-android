@@ -15,6 +15,30 @@ import org.junit.Test
 
 class DeviceAgentTerminalReducerTest {
     @Test
+    fun `collapse and reopen preserve terminal state`() {
+        val connected = initialState().copy(
+            status = DeviceAgentTerminalPanelState.Status.Connected,
+            outputText = "Connected: zsh\nok\n",
+            sessionId = "session-1",
+        )
+
+        val collapsed = DeviceAgentTerminalReducer.reduce(
+            connected,
+            DeviceAgentTerminalEvent.ExpandedChanged(false),
+        )
+        val reopened = DeviceAgentTerminalReducer.reduce(
+            collapsed,
+            DeviceAgentTerminalEvent.ExpandedChanged(true),
+        )
+
+        assertThat(collapsed.isExpanded).isFalse()
+        assertThat(reopened.isExpanded).isTrue()
+        assertThat(reopened.status).isEqualTo(connected.status)
+        assertThat(reopened.sessionId).isEqualTo(connected.sessionId)
+        assertThat(reopened.outputText).isEqualTo(connected.outputText)
+    }
+
+    @Test
     fun `open request moves state to opening and stores request id`() {
         val state = DeviceAgentTerminalReducer.reduce(
             initialState(),

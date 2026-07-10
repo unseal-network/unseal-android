@@ -19,6 +19,7 @@ data class DeviceAgentTerminalPanelState(
     val pendingRequestId: String? = null,
     val sessionId: String? = null,
     val shell: String? = null,
+    val isExpanded: Boolean = true,
 ) {
     enum class Status {
         WaitingForDevice,
@@ -99,6 +100,7 @@ data class DeviceAgentTerminalPanelState(
 }
 
 sealed interface DeviceAgentTerminalEvent {
+    data class ExpandedChanged(val isExpanded: Boolean) : DeviceAgentTerminalEvent
     data class TargetDetected(val target: UnsealD2DTarget) : DeviceAgentTerminalEvent
     data class OpenRequested(val requestId: String?) : DeviceAgentTerminalEvent
     data class Ready(val requestId: String?, val sessionId: String?, val shell: String?) : DeviceAgentTerminalEvent
@@ -115,6 +117,7 @@ object DeviceAgentTerminalReducer {
         event: DeviceAgentTerminalEvent,
     ): DeviceAgentTerminalPanelState {
         return when (event) {
+            is DeviceAgentTerminalEvent.ExpandedChanged -> state.copy(isExpanded = event.isExpanded)
             is DeviceAgentTerminalEvent.TargetDetected -> when (state.status) {
                 DeviceAgentTerminalPanelState.Status.WaitingForDevice,
                 DeviceAgentTerminalPanelState.Status.ReadyToOpen -> state.copy(

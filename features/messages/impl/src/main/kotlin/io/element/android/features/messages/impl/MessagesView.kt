@@ -44,9 +44,9 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -112,7 +112,7 @@ import io.element.android.features.messages.impl.roomdata.RoomDeviceAgent
 import io.element.android.features.messages.impl.roomdata.RoomMenuRenderModel
 import io.element.android.features.messages.impl.roomdata.RoomTopbarAction
 import io.element.android.features.messages.impl.roomdata.RoomTopbarToolRenderModel
-import io.element.android.features.messages.impl.terminal.DeviceAgentTerminalPanelState
+import io.element.android.features.messages.impl.terminal.DeviceAgentTerminalPanel
 import io.element.android.features.messages.impl.timeline.FOCUS_ON_PINNED_EVENT_DEBOUNCE_DURATION_IN_MILLIS
 import io.element.android.features.messages.impl.timeline.TimelineEvent
 import io.element.android.features.messages.impl.timeline.TimelineView
@@ -150,7 +150,6 @@ import io.element.android.libraries.designsystem.theme.components.DropdownMenuIt
 import io.element.android.libraries.designsystem.theme.components.Icon
 import io.element.android.libraries.designsystem.theme.components.Scaffold
 import io.element.android.libraries.designsystem.theme.components.Text
-import io.element.android.libraries.designsystem.theme.components.TextField
 import io.element.android.libraries.designsystem.utils.HideKeyboardWhenDisposed
 import io.element.android.libraries.designsystem.utils.KeepScreenOn
 import io.element.android.libraries.designsystem.utils.OnLifecycleEvent
@@ -393,6 +392,11 @@ fun MessagesView(
 
                         DeviceAgentTerminalPanel(
                             panel = state.deviceAgentTerminalPanel,
+                            onExpand = {
+                                state.deviceAgentTerminalPanel?.deviceAgent?.let {
+                                    state.eventSink(MessagesEvent.OpenDeviceAgentTerminal(it))
+                                }
+                            },
                             onDismiss = { state.eventSink(MessagesEvent.DismissDeviceAgentTerminal) },
                             onOpen = { state.eventSink(MessagesEvent.OpenDeviceAgentTerminalSession) },
                             onInputChange = { state.eventSink(MessagesEvent.UpdateDeviceAgentTerminalInput(it)) },
@@ -689,6 +693,7 @@ private fun RoomToolMenu(
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
+            modifier = Modifier.widthIn(min = 248.dp, max = 320.dp),
         ) {
             tools.forEach { tool ->
                 RoomTopbarToolMenuItem(
@@ -730,11 +735,35 @@ private fun RoomTopbarToolMenuItem(
         RoomTopbarAction.Schedules -> stringResource(R.string.screen_room_topbar_ai_config)
         RoomTopbarAction.Threads -> stringResource(CommonStrings.common_threads)
     }
+    val deviceStatus = when (tool.action) {
+        RoomTopbarAction.DeviceAgentTerminal,
+        RoomTopbarAction.DeviceAgentChat -> deviceAgent?.displayName?.takeIf { it.isNotBlank() }
+            ?: deviceAgent?.boundDeviceId
+            ?: stringResource(R.string.screen_room_topbar_device_agent_waiting)
+        RoomTopbarAction.Schedules,
+        RoomTopbarAction.Webhooks,
+        RoomTopbarAction.Threads -> null
+    }
     DropdownMenuItem(
         onClick = onClick,
         enabled = enabled,
         text = {
-            Text(text = label)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = label,
+                    style = ElementTheme.typography.fontBodyMdMedium,
+                    color = if (enabled) ElementTheme.colors.textPrimary else ElementTheme.colors.textDisabled,
+                    maxLines = 1,
+                )
+                deviceStatus?.let {
+                    Text(
+                        text = it,
+                        style = ElementTheme.typography.fontBodyXsRegular,
+                        color = if (enabled) ElementTheme.colors.textSecondary else ElementTheme.colors.textDisabled,
+                        maxLines = 1,
+                    )
+                }
+            }
         },
         leadingIcon = {
             BadgedBox(
@@ -754,7 +783,11 @@ private fun RoomTopbarToolMenuItem(
             ) {
                 Icon(
                     modifier = Modifier.size(22.dp),
-                    tint = if (tool.isActive) ElementTheme.colors.iconSuccessPrimary else ElementTheme.colors.iconPrimary,
+                    tint = when {
+                        !enabled -> ElementTheme.colors.iconDisabled
+                        tool.isActive -> ElementTheme.colors.iconSuccessPrimary
+                        else -> ElementTheme.colors.iconPrimary
+                    },
                     imageVector = when (tool.action) {
                         RoomTopbarAction.DeviceAgentTerminal -> CompoundIcons.Code()
                         RoomTopbarAction.DeviceAgentChat -> CompoundIcons.Computer()
@@ -767,148 +800,6 @@ private fun RoomTopbarToolMenuItem(
             }
         },
     )
-}
-
-@Composable
-private fun DeviceAgentTerminalPanel(
-    panel: DeviceAgentTerminalPanelState?,
-    onDismiss: () -> Unit,
-    onOpen: () -> Unit,
-    onInputChange: (String) -> Unit,
-    onSendInput: () -> Unit,
-    onCloseSession: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    AnimatedVisibility(
-        visible = panel != null,
-        modifier = modifier,
-        enter = fadeIn(animationSpec = spring()) + slideInVertically(
-            animationSpec = spring(dampingRatio = 0.86f),
-            initialOffsetY = { it / 2 },
-        ),
-        exit = fadeOut(animationSpec = spring()) + slideOutVertically(
-            animationSpec = spring(dampingRatio = 0.86f),
-            targetOffsetY = { it / 2 },
-        ),
-    ) {
-        if (panel != null) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 420.dp)
-                    .shadow(12.dp, MaterialTheme.shapes.medium)
-                    .background(ElementTheme.colors.bgSubtleSecondary.copy(alpha = 0.94f), MaterialTheme.shapes.medium)
-                    .border(1.dp, ElementTheme.colors.borderInteractivePrimary, MaterialTheme.shapes.medium),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Icon(
-                        imageVector = CompoundIcons.Code(),
-                        contentDescription = null,
-                        tint = ElementTheme.colors.iconAccentPrimary,
-                    )
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(1.dp),
-                    ) {
-                        Text(
-                            text = panel.title,
-                            style = ElementTheme.typography.fontBodyMdMedium,
-                            color = ElementTheme.colors.textPrimary,
-                            maxLines = 1,
-                        )
-                        Text(
-                            text = panel.subtitle,
-                            style = ElementTheme.typography.fontBodyXsRegular,
-                            color = ElementTheme.colors.textSecondary,
-                            maxLines = 1,
-                        )
-                    }
-                    Text(
-                        text = panel.statusTitle,
-                        style = ElementTheme.typography.fontBodyXsRegular,
-                        color = ElementTheme.colors.textSecondary,
-                        maxLines = 1,
-                    )
-                    ToolbarCircleButton(
-                        onClick = onOpen,
-                        enabled = panel.canOpenTerminal,
-                    ) {
-                        Icon(
-                            imageVector = CompoundIcons.Play(),
-                            contentDescription = stringResource(R.string.screen_room_topbar_remote_terminal),
-                        )
-                    }
-                    ToolbarCircleButton(
-                        onClick = onCloseSession,
-                        enabled = panel.canCloseTerminal,
-                    ) {
-                        Icon(
-                            imageVector = CompoundIcons.Close(),
-                            contentDescription = stringResource(R.string.screen_room_topbar_close_remote_terminal),
-                        )
-                    }
-                    ToolbarCircleButton(
-                        onClick = onDismiss,
-                    ) {
-                        Icon(
-                            imageVector = CompoundIcons.Close(),
-                            contentDescription = stringResource(R.string.screen_room_topbar_close_remote_terminal),
-                        )
-                    }
-                }
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(180.dp)
-                        .background(Color.Black)
-                        .verticalScroll(rememberScrollState())
-                        .padding(10.dp),
-                ) {
-                    Text(
-                        text = panel.outputText,
-                        style = ElementTheme.typography.fontBodyXsRegular.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Normal,
-                        ),
-                        color = Color(0xFF45E06F),
-                    )
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    TextField(
-                        value = panel.inputText,
-                        onValueChange = onInputChange,
-                        placeholder = "Command",
-                        singleLine = true,
-                        enabled = panel.sessionId != null,
-                        modifier = Modifier.weight(1f),
-                    )
-                    ToolbarCircleButton(
-                        onClick = onSendInput,
-                        enabled = panel.canSendInput,
-                    ) {
-                        Icon(
-                            imageVector = CompoundIcons.SendSolid(),
-                            contentDescription = null,
-                        )
-                    }
-                }
-            }
-        }
-    }
 }
 
 @Composable

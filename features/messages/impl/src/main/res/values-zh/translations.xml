@@ -87,6 +87,9 @@
   <string name="screen_room_topbar_tools">"房间工具"</string>
   <string name="screen_room_topbar_remote_terminal">"远程终端"</string>
   <string name="screen_room_topbar_device_agent_chat">"与设备 Agent 对话"</string>
+  <string name="screen_room_topbar_device_agent_waiting">"正在查找桌面设备"</string>
+  <string name="screen_room_topbar_collapse_remote_terminal">"收起远程终端"</string>
+  <string name="screen_room_topbar_expand_remote_terminal">"展开远程终端"</string>
   <string name="screen_room_topbar_webhooks">"Webhook 触发器"</string>
   <string name="screen_room_topbar_ai_config">"房间 AI 配置"</string>
   <string name="screen_room_topbar_close_remote_terminal">"关闭远程终端"</string>
