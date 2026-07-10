@@ -17,6 +17,7 @@ import io.element.android.libraries.chatbot.api.model.analytics.AnalyticsTokensR
 import io.element.android.libraries.chatbot.api.model.approvals.ChatbotApproval
 import io.element.android.libraries.chatbot.api.model.approvals.ChatbotApprovalAction
 import io.element.android.libraries.chatbot.api.model.approvals.ChatbotApprovalStatus
+import io.element.android.libraries.chatbot.api.model.cards.ChatbotCardResponseResult
 import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelConnectBody
 import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelCredentials
 import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelPlatform
@@ -81,6 +82,7 @@ class FakeChatbotApiService : ChatbotApiService {
     var listAgentSkillsResult: (String) -> Result<List<ChatbotUserSkill>> = { Result.success(emptyList()) }
     var addAgentSkillResult: (String, String, String?) -> Result<Unit> = { _, _, _ -> Result.success(Unit) }
     var listRoomAgentSkillsResult: (String, String, String?) -> Result<ChatbotListRoomAgentSkillsResponse> = { _, _, _ -> Result.success(ChatbotListRoomAgentSkillsResponse()) }
+    var refreshRoomAgentSkillsResult: (String, String?, String, String?) -> Result<ChatbotListRoomAgentSkillsResponse> = { _, _, _, _ -> Result.success(ChatbotListRoomAgentSkillsResponse(status = "complete")) }
     var listUserSkillsResult: (ChatbotSkillVisibility?) -> Result<List<ChatbotUserSkill>> = { Result.success(emptyList()) }
     var listPublicSkillsResult: (Int, Int, String?) -> Result<ChatbotListPublicSkillsResponse> = { _, _, _ -> Result.success(ChatbotListPublicSkillsResponse()) }
     var listPublicSkillsWithFiltersResult: (Int, Int, ChatbotSkillListFilters) -> Result<ChatbotListPublicSkillsResponse> = { page, pageSize, filters -> listPublicSkillsResult(page, pageSize, filters.search.trim().takeIf { it.isNotEmpty() }) }
@@ -108,6 +110,9 @@ class FakeChatbotApiService : ChatbotApiService {
     var getApprovalResult: (String) -> Result<ChatbotApproval> = { Result.success(aChatbotApproval(approvalId = it)) }
     var approveApprovalResult: (String) -> Result<ChatbotApproval> = { Result.success(aChatbotApproval(approvalId = it, status = ChatbotApprovalStatus.Approved)) }
     var rejectApprovalResult: (String) -> Result<ChatbotApproval> = { Result.success(aChatbotApproval(approvalId = it, status = ChatbotApprovalStatus.Rejected)) }
+    var sendCardResponseResult: (String, String, String) -> Result<ChatbotCardResponseResult> = { roomId, eventId, actionId ->
+        Result.success(ChatbotCardResponseResult(eventId = eventId, roomId = roomId, actionId = actionId, duplicate = false))
+    }
     var listToolkitCategoriesResult: (String?, Int?) -> Result<ChatbotListToolkitCategoriesResponse> = { _, _ -> Result.success(ChatbotListToolkitCategoriesResponse()) }
     var listToolkitsResult: (String?, String?, String?, Int?) -> Result<ChatbotListToolkitsResponse> = { _, _, _, _ -> Result.success(ChatbotListToolkitsResponse()) }
     var initiateConnectionResult: (String, String) -> Result<ChatbotInitiateConnectionResponse> = { _, _ -> Result.success(ChatbotInitiateConnectionResponse(connectUrl = "https://connect.example")) }
@@ -165,6 +170,8 @@ class FakeChatbotApiService : ChatbotApiService {
     override suspend fun listAgentSkills(botName: String) = simulateLongTask { listAgentSkillsResult(botName) }
     override suspend fun addAgentSkill(botName: String, skillId: String, name: String?) = simulateLongTask { addAgentSkillResult(botName, skillId, name) }
     override suspend fun listRoomAgentSkills(roomId: String, agentId: String, runtimeOwnerUserId: String?) = simulateLongTask { listRoomAgentSkillsResult(roomId, agentId, runtimeOwnerUserId) }
+    override suspend fun refreshRoomAgentSkills(roomId: String, agentId: String?, cacheKey: String, runtimeOwnerUserId: String?) =
+        simulateLongTask { refreshRoomAgentSkillsResult(roomId, agentId, cacheKey, runtimeOwnerUserId) }
     override suspend fun listUserSkills(visibility: ChatbotSkillVisibility?) = simulateLongTask { listUserSkillsResult(visibility) }
     override suspend fun listPublicSkills(page: Int, pageSize: Int, search: String?) = simulateLongTask { listPublicSkillsResult(page, pageSize, search) }
     override suspend fun listPublicSkills(page: Int, pageSize: Int, filters: ChatbotSkillListFilters) =
@@ -198,6 +205,8 @@ class FakeChatbotApiService : ChatbotApiService {
     override suspend fun getApproval(approvalId: String) = simulateLongTask { getApprovalResult(approvalId) }
     override suspend fun approveApproval(approvalId: String) = simulateLongTask { approveApprovalResult(approvalId) }
     override suspend fun rejectApproval(approvalId: String) = simulateLongTask { rejectApprovalResult(approvalId) }
+    override suspend fun sendCardResponse(roomId: String, eventId: String, actionId: String) =
+        simulateLongTask { sendCardResponseResult(roomId, eventId, actionId) }
     override suspend fun listToolkitCategories(cursor: String?, limit: Int?) = simulateLongTask { listToolkitCategoriesResult(cursor, limit) }
     override suspend fun listToolkits(search: String?, category: String?, cursor: String?, limit: Int?) = simulateLongTask { listToolkitsResult(search, category, cursor, limit) }
     override suspend fun initiateConnection(toolkit: String, redirectUrl: String) = simulateLongTask { initiateConnectionResult(toolkit, redirectUrl) }

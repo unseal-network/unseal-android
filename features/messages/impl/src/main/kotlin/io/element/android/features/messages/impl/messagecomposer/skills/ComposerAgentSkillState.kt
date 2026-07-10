@@ -8,10 +8,12 @@
 package io.element.android.features.messages.impl.messagecomposer.skills
 
 import androidx.compose.runtime.Immutable
-import io.element.android.features.messages.impl.roomdata.RoomAgentSkillDescriptor
-import io.element.android.features.messages.impl.roomdata.RoomLegacyAgentSkillDescriptor
+import io.element.android.features.messages.impl.roomdata.RoomAgentSkillCatalogDescriptor
+import io.element.android.features.messages.impl.roomdata.RoomAgentSkillRelationDescriptor
 import io.element.android.features.messages.impl.roomdata.RoomMemberRender
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotRoomAgentSkillRelationKind
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotRoomAgentSkillSource
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.persistentListOf
@@ -166,10 +168,6 @@ object ComposerAgentSkillReducer {
         return targets.any { it.mxid !in selectedAgentMxids }
     }
 
-    fun hasRuntimeVisibleSkillCandidates(candidates: List<ComposerAgentSkillCandidate>): Boolean {
-        return candidates.any { it.runtimeVisible }
-    }
-
     fun visibleSkillCandidates(
         candidates: List<ComposerAgentSkillCandidate>,
         selectedSkills: List<ComposerSelectedAgentSkill>,
@@ -222,13 +220,6 @@ object ComposerAgentSkillReducer {
         }
     }
 
-    fun legacyAgentSkillLookupIds(target: ComposerAgentDescriptor): List<String> {
-        return buildList {
-            add(target.agentId)
-            agentLocalpart(target.mxid)?.takeIf { it !in this }?.let(::add)
-        }
-    }
-
     fun deduplicateSkillCandidates(candidates: List<ComposerAgentSkillCandidate>): List<ComposerAgentSkillCandidate> {
         val seen = mutableSetOf<String>()
         return candidates.filter { candidate ->
@@ -238,39 +229,61 @@ object ComposerAgentSkillReducer {
 
     fun roomSkillCandidates(
         target: ComposerAgentDescriptor,
-        skills: List<RoomAgentSkillDescriptor>,
+        agentId: String,
+        catalog: RoomAgentSkillCatalogDescriptor,
     ): List<ComposerAgentSkillCandidate> {
+        val relationMap = relationMapForTarget(agentId, target, catalog)
         return deduplicateSkillCandidates(
-            skills.map { skill ->
+            relationMap.map { (skillKey, relation) ->
+                val skill = catalog.skills[skillKey]
                 ComposerAgentSkillCandidate(
                     agent = target,
-                    skillKey = skill.id ?: skill.name,
-                    skillName = skill.name,
-                    source = ComposerAgentSkillSource.Db,
-                    relation = ComposerAgentSkillRelation.Runtime,
-                    path = null,
-                    directoryName = null,
-                    runtimeVisible = skill.runtimeVisible,
+                    skillKey = skillKey,
+                    skillName = skill?.name ?: skillKey,
+                    source = relation.source.toComposerSource(),
+                    relation = relation.relation.toComposerRelation(),
+                    path = relation.path,
+                    directoryName = relation.directoryName,
+                    runtimeVisible = relation.runtimeVisible,
                 )
             }
         )
     }
 
-    fun legacyInstalledSkillCandidates(
+    private fun relationMapForTarget(
+        agentId: String,
         target: ComposerAgentDescriptor,
-        skills: List<RoomLegacyAgentSkillDescriptor>,
-    ): List<ComposerAgentSkillCandidate> {
-        return skills.map { skill ->
-            ComposerAgentSkillCandidate(
-                agent = target,
-                skillKey = skill.name,
-                skillName = skill.name,
-                source = ComposerAgentSkillSource.S3,
-                relation = ComposerAgentSkillRelation.Installed,
-                path = null,
-                directoryName = skill.name,
-                runtimeVisible = true,
-            )
+        catalog: RoomAgentSkillCatalogDescriptor,
+    ): Map<String, RoomAgentSkillRelationDescriptor> {
+        val relationAgentIds = buildList {
+            add(agentId)
+            add(target.agentId)
+            add(target.mxid)
+            agentLocalpart(target.mxid)?.let(::add)
+        }
+        return relationAgentIds
+            .asSequence()
+            .filter { it.isNotEmpty() }
+            .mapNotNull { catalog.relations[it] }
+            .firstOrNull()
+            .orEmpty()
+    }
+
+    private fun ChatbotRoomAgentSkillSource.toComposerSource(): ComposerAgentSkillSource {
+        return when (this) {
+            ChatbotRoomAgentSkillSource.Workspace -> ComposerAgentSkillSource.Workspace
+            ChatbotRoomAgentSkillSource.S3 -> ComposerAgentSkillSource.S3
+            ChatbotRoomAgentSkillSource.Db -> ComposerAgentSkillSource.Db
+            ChatbotRoomAgentSkillSource.Bundled -> ComposerAgentSkillSource.Bundled
+        }
+    }
+
+    private fun ChatbotRoomAgentSkillRelationKind.toComposerRelation(): ComposerAgentSkillRelation {
+        return when (this) {
+            ChatbotRoomAgentSkillRelationKind.Installed -> ComposerAgentSkillRelation.Installed
+            ChatbotRoomAgentSkillRelationKind.Available -> ComposerAgentSkillRelation.Available
+            ChatbotRoomAgentSkillRelationKind.Runtime -> ComposerAgentSkillRelation.Runtime
+            ChatbotRoomAgentSkillRelationKind.Bundled -> ComposerAgentSkillRelation.Bundled
         }
     }
 

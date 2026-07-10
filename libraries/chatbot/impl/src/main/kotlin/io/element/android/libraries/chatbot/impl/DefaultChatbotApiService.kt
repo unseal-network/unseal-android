@@ -22,6 +22,7 @@ import io.element.android.libraries.chatbot.api.model.agent.ChatbotSetAgentVoice
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotUpdateAgentRequest
 import io.element.android.libraries.chatbot.api.model.analytics.AnalyticsTokensResponse
 import io.element.android.libraries.chatbot.api.model.approvals.ChatbotApproval
+import io.element.android.libraries.chatbot.api.model.cards.ChatbotCardResponseResult
 import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelConnectBody
 import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelCredentials
 import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelSummary
@@ -156,6 +157,19 @@ internal class DefaultChatbotApiService(
     override suspend fun listRoomAgentSkills(roomId: String, agentId: String, runtimeOwnerUserId: String?): Result<ChatbotListRoomAgentSkillsResponse> {
         val query = ChatbotUrlBuilder.query(mapOf("runtimeOwnerUserId" to runtimeOwnerUserId))
         return httpClient.requestJson("/api/rooms/${path(roomId)}/agents/${path(agentId)}/skills$query", ChatbotHttpMethod.GET)
+    }
+
+    override suspend fun refreshRoomAgentSkills(roomId: String, agentId: String?, cacheKey: String, runtimeOwnerUserId: String?): Result<ChatbotListRoomAgentSkillsResponse> {
+        val body = buildMap {
+            put("cacheKey", JsonPrimitive(cacheKey))
+            if (!agentId.isNullOrEmpty()) put("agentId", JsonPrimitive(agentId))
+            if (!runtimeOwnerUserId.isNullOrEmpty()) put("runtimeOwnerUserId", JsonPrimitive(runtimeOwnerUserId))
+        }
+        return httpClient.requestJson(
+            "/api/rooms/${path(roomId)}/agent-skills/refresh-workspace",
+            ChatbotHttpMethod.POST,
+            JsonObject(body).toString()
+        )
     }
 
     override suspend fun listUserSkills(visibility: ChatbotSkillVisibility?): Result<List<ChatbotUserSkill>> {
@@ -295,6 +309,13 @@ internal class DefaultChatbotApiService(
 
     override suspend fun rejectApproval(approvalId: String): Result<ChatbotApproval> =
         httpClient.requestJson("/chatbot/v1/approvals/${path(approvalId)}/reject", ChatbotHttpMethod.POST)
+
+    override suspend fun sendCardResponse(roomId: String, eventId: String, actionId: String): Result<ChatbotCardResponseResult> =
+        httpClient.requestJson(
+            "/chatbot/v1/cards/${path(roomId)}/${path(eventId)}/responses",
+            ChatbotHttpMethod.POST,
+            jsonObject("action_id" to actionId),
+        )
 
     override suspend fun listToolkitCategories(cursor: String?, limit: Int?): Result<ChatbotListToolkitCategoriesResponse> =
         httpClient.requestJson("/api/integrations/composio/toolkit-categories${ChatbotUrlBuilder.query(mapOf("cursor" to cursor, "limit" to limit?.toString()))}", ChatbotHttpMethod.GET)

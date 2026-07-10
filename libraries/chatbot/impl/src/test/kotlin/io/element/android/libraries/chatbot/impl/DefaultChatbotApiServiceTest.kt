@@ -247,6 +247,25 @@ class DefaultChatbotApiServiceTest {
     }
 
     @Test
+    fun `sendCardResponse - posts action marker to card response route`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"event_id":"${'$'}response","room_id":"!room:example","action_id":"approve","duplicate":false}"""
+            )
+        )
+
+        val response = service.sendCardResponse("!room:example", "${'$'}event/1", "approve").getOrThrow()
+
+        assertThat(response.eventId).isEqualTo("${'$'}response")
+        assertThat(response.roomId).isEqualTo("!room:example")
+        assertThat(response.actionId).isEqualTo("approve")
+        assertThat(response.duplicate).isFalse()
+        val request = server.takeRequest()
+        assertThat(request.path).isEqualTo("/chatbot/v1/cards/%21room%3Aexample/%24event%2F1/responses")
+        assertThat(request.body.readUtf8()).contains(""""action_id":"approve"""")
+    }
+
+    @Test
     fun `vault endpoints - use chatbot vault route and key path segment`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"items":[{"id":"id-1","key":"API_KEY"}]}"""))
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"item":{"id":"id-1","key":"API_KEY"},"value":"secret"}"""))

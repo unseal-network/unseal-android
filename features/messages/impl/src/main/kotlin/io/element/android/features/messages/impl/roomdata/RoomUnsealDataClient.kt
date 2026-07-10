@@ -13,8 +13,8 @@ interface RoomUnsealDataClient {
     suspend fun getRoomAgents(roomId: RoomId): Result<List<RoomAgentDescriptor>>
     suspend fun listAgents(): Result<List<AgentAccountDescriptor>>
     suspend fun listSchedules(roomId: RoomId): Result<List<RoomScheduleDescriptor>>
-    suspend fun listRoomAgentSkills(roomId: RoomId, agentId: String, runtimeOwnerUserId: String?): Result<List<RoomAgentSkillDescriptor>>
-    suspend fun listLegacyAgentSkills(agentLookupId: String): Result<List<RoomLegacyAgentSkillDescriptor>>
+    suspend fun listRoomAgentSkills(roomId: RoomId, agentId: String, runtimeOwnerUserId: String?): Result<RoomAgentSkillCatalogDescriptor>
+    suspend fun refreshRoomAgentSkills(roomId: RoomId, agentId: String?, cacheKey: String, runtimeOwnerUserId: String?): Result<RoomAgentSkillCatalogDescriptor>
     suspend fun listWebhookTriggers(roomId: RoomId): Result<List<RoomWebhookTriggerDescriptor>>
     suspend fun getRoomWorkingMemory(roomId: RoomId): Result<String>
     suspend fun loadRoomIdentityData(roomId: RoomId): RoomUnsealDataSnapshot {

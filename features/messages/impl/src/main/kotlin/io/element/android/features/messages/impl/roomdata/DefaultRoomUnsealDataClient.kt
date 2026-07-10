@@ -38,14 +38,14 @@ class DefaultRoomUnsealDataClient(
             .map { schedules -> schedules.map { it.toRoomScheduleDescriptor() } }
     }
 
-    override suspend fun listRoomAgentSkills(roomId: RoomId, agentId: String, runtimeOwnerUserId: String?): Result<List<RoomAgentSkillDescriptor>> {
+    override suspend fun listRoomAgentSkills(roomId: RoomId, agentId: String, runtimeOwnerUserId: String?): Result<RoomAgentSkillCatalogDescriptor> {
         return service().listRoomAgentSkills(roomId.value, agentId, runtimeOwnerUserId)
-            .map { response -> response.skills.map { it.toRoomAgentSkillDescriptor() } }
+            .map { response -> response.toRoomAgentSkillCatalogDescriptor() }
     }
 
-    override suspend fun listLegacyAgentSkills(agentLookupId: String): Result<List<RoomLegacyAgentSkillDescriptor>> {
-        return service().listAgentSkills(agentLookupId)
-            .map { skills -> skills.map { it.toRoomLegacyAgentSkillDescriptor() } }
+    override suspend fun refreshRoomAgentSkills(roomId: RoomId, agentId: String?, cacheKey: String, runtimeOwnerUserId: String?): Result<RoomAgentSkillCatalogDescriptor> {
+        return service().refreshRoomAgentSkills(roomId.value, agentId, cacheKey, runtimeOwnerUserId)
+            .map { response -> response.toRoomAgentSkillCatalogDescriptor() }
     }
 
     override suspend fun listWebhookTriggers(roomId: RoomId): Result<List<RoomWebhookTriggerDescriptor>> {
