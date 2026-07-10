@@ -27,6 +27,7 @@ setupDependencyInjection()
 dependencies {
     implementation(projects.libraries.core)
     implementation(projects.libraries.architecture)
+    implementation(projects.libraries.chatbot.api)
     implementation(projects.libraries.matrix.api)
     implementation(projects.libraries.matrixui)
     api(projects.features.roommembermoderation.api)
@@ -36,6 +37,7 @@ dependencies {
 
     testCommonDependencies(libs, true)
     testImplementation(projects.libraries.matrix.test)
+    testImplementation(projects.libraries.chatbot.test)
     testImplementation(projects.services.analytics.test)
     testImplementation(projects.libraries.testtags)
 }

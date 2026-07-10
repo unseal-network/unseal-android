@@ -78,6 +78,9 @@ class FakeChatbotApiService : ChatbotApiService {
     var listAgentRoomsResult: (String) -> Result<List<ChatbotAgentRoom>> = { Result.success(emptyList()) }
     var agentJoinRoomResult: (String, String) -> Result<Unit> = { _, _ -> Result.success(Unit) }
     var agentLeaveRoomResult: (String, String) -> Result<Unit> = { _, _ -> Result.success(Unit) }
+    var abortRunResult: (String, String?) -> Result<Unit> = { _, _ -> Result.success(Unit) }
+    var abortRoomAgentResult: (String, String, String?) -> Result<Unit> = { _, _, _ -> Result.success(Unit) }
+    var abortAgentResult: (String, String?) -> Result<Unit> = { _, _ -> Result.success(Unit) }
     var listAgentSkillsResult: (String) -> Result<List<ChatbotUserSkill>> = { Result.success(emptyList()) }
     var addAgentSkillResult: (String, String, String?) -> Result<Unit> = { _, _, _ -> Result.success(Unit) }
     var listRoomAgentSkillsResult: (String, String, String?) -> Result<ChatbotListRoomAgentSkillsResponse> = { _, _, _ -> Result.success(ChatbotListRoomAgentSkillsResponse()) }
@@ -162,6 +165,10 @@ class FakeChatbotApiService : ChatbotApiService {
     override suspend fun listAgentRooms(botName: String) = simulateLongTask { listAgentRoomsResult(botName) }
     override suspend fun agentJoinRoom(botName: String, roomName: String) = simulateLongTask { agentJoinRoomResult(botName, roomName) }
     override suspend fun agentLeaveRoom(botName: String, roomId: String) = simulateLongTask { agentLeaveRoomResult(botName, roomId) }
+    override suspend fun abortRun(streamId: String, reason: String?) = simulateLongTask { abortRunResult(streamId, reason) }
+    override suspend fun abortRoomAgent(roomId: String, agentId: String, reason: String?) =
+        simulateLongTask { abortRoomAgentResult(roomId, agentId, reason) }
+    override suspend fun abortAgent(agentId: String, reason: String?) = simulateLongTask { abortAgentResult(agentId, reason) }
     override suspend fun listAgentSkills(botName: String) = simulateLongTask { listAgentSkillsResult(botName) }
     override suspend fun addAgentSkill(botName: String, skillId: String, name: String?) = simulateLongTask { addAgentSkillResult(botName, skillId, name) }
     override suspend fun listRoomAgentSkills(roomId: String, agentId: String, runtimeOwnerUserId: String?) = simulateLongTask { listRoomAgentSkillsResult(roomId, agentId, runtimeOwnerUserId) }

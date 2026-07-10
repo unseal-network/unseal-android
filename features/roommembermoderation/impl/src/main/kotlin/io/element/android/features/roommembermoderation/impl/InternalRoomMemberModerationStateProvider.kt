@@ -75,6 +75,21 @@ class InternalRoomMemberModerationStateProvider : PreviewParameterProvider<Inter
                 selectedUser = anAlice(),
                 unbanUserAsyncAction = AsyncAction.Loading,
             ),
+            aRoomMembersModerationState(
+                selectedUser = anAlice(),
+                actions = listOf(
+                    ModerationActionState(action = ModerationAction.DisplayProfile, isEnabled = true),
+                    ModerationActionState(action = ModerationAction.StopAgentTasks, isEnabled = true),
+                ),
+            ),
+            aRoomMembersModerationState(
+                selectedUser = anAlice(),
+                stopAgentTasksAsyncAction = AsyncAction.ConfirmingNoParams,
+            ),
+            aRoomMembersModerationState(
+                selectedUser = anAlice(),
+                stopAgentTasksAsyncAction = AsyncAction.Loading,
+            ),
         )
 }
 
@@ -91,6 +106,7 @@ fun aRoomMembersModerationState(
     kickUserAsyncAction: AsyncAction<Unit> = AsyncAction.Uninitialized,
     banUserAsyncAction: AsyncAction<Unit> = AsyncAction.Uninitialized,
     unbanUserAsyncAction: AsyncAction<Unit> = AsyncAction.Uninitialized,
+    stopAgentTasksAsyncAction: AsyncAction<Unit> = AsyncAction.Uninitialized,
     eventSink: (RoomMemberModerationEvents) -> Unit = {},
 ) = InternalRoomMemberModerationState(
     permissions = permissions,
@@ -99,5 +115,6 @@ fun aRoomMembersModerationState(
     kickUserAsyncAction = kickUserAsyncAction,
     banUserAsyncAction = banUserAsyncAction,
     unbanUserAsyncAction = unbanUserAsyncAction,
+    stopAgentTasksAsyncAction = stopAgentTasksAsyncAction,
     eventSink = eventSink,
 )

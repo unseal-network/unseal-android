@@ -14,6 +14,27 @@ class AiMessageContentParserTest {
     private val parser = AiMessageContentParser()
 
     @Test
+    fun `parse - keeps stream initiator for runtime controls`() {
+        val content = parser.parse(
+            originalJson = """
+                {
+                  "type": "m.room.message",
+                  "content": {
+                    "msgtype": "m.text",
+                    "body": "Thinking…",
+                    "stream": { "id": "stream-1" },
+                    "target_user_id": "@alice:example.org"
+                  }
+                }
+            """.trimIndent(),
+            isEdited = false,
+        )
+
+        assertThat(content?.streamId).isEqualTo("stream-1")
+        assertThat(content?.targetUserId).isEqualTo("@alice:example.org")
+    }
+
+    @Test
     fun `parses aisdk protocol message with rich parts`() {
         val json = """
             {

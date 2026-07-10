@@ -9,6 +9,7 @@
 package io.element.android.features.roommembermoderation.impl
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -27,9 +28,11 @@ import io.element.android.features.roommembermoderation.api.roomMemberModeration
 import io.element.android.libraries.architecture.AsyncAction
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.architecture.runUpdatingState
+import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.core.coroutine.mapState
 import io.element.android.libraries.matrix.api.core.UserId
+import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.room.JoinedRoom
 import io.element.android.libraries.matrix.api.room.RoomMember
 import io.element.android.libraries.matrix.api.room.RoomMembershipState
@@ -53,6 +56,8 @@ class RoomMemberModerationPresenter(
     private val room: JoinedRoom,
     private val dispatchers: CoroutineDispatchers,
     private val analyticsService: AnalyticsService,
+    private val matrixClient: MatrixClient,
+    private val chatbotApiServiceFactory: ChatbotApiServiceFactory,
 ) : Presenter<RoomMemberModerationState> {
     @Composable
     override fun present(): RoomMemberModerationState {
@@ -72,10 +77,32 @@ class RoomMemberModerationPresenter(
             remember { mutableStateOf(AsyncAction.Uninitialized as AsyncAction<Unit>) }
         val unbanUserAsyncAction =
             remember { mutableStateOf(AsyncAction.Uninitialized as AsyncAction<Unit>) }
+        val stopAgentTasksAsyncAction =
+            remember { mutableStateOf(AsyncAction.Uninitialized as AsyncAction<Unit>) }
         var selectedUser by remember {
             mutableStateOf<MatrixUser?>(null)
         }
+        var roomAgentIds by remember { mutableStateOf(emptySet<String>()) }
         val moderationActions = remember { mutableStateOf<ImmutableList<ModerationActionState>>(persistentListOf()) }
+
+        LaunchedEffect(room.roomId) {
+            chatbotApiServiceFactory.createForHomeserver(matrixClient)
+                .getRoomAgents(room.roomId.value)
+                .onSuccess { response ->
+                    roomAgentIds = response.agents.mapTo(mutableSetOf()) { it.agentId }
+                    selectedUser?.takeIf { moderationActions.value.isNotEmpty() }?.let { user ->
+                        val member = room.membersStateFlow.value.roomMembers()?.firstOrNull {
+                            it.userId == user.userId
+                        }
+                        moderationActions.value = computeModerationActions(
+                            member = member,
+                            permissions = permissions,
+                            currentUserPowerLevel = currentUserPowerLevel,
+                            roomAgentIds = roomAgentIds,
+                        )
+                    }
+                }
+        }
 
         fun handleEvent(event: RoomMemberModerationEvents) {
             when (event) {
@@ -88,6 +115,7 @@ class RoomMemberModerationPresenter(
                         member = member,
                         permissions = permissions,
                         currentUserPowerLevel = currentUserPowerLevel,
+                        roomAgentIds = roomAgentIds,
                     )
                 }
                 is RoomMemberModerationEvents.ProcessAction -> {
@@ -96,6 +124,10 @@ class RoomMemberModerationPresenter(
 
                     when (event.action) {
                         is ModerationAction.DisplayProfile -> Unit
+                        is ModerationAction.StopAgentTasks -> {
+                            selectedUser = event.targetUser
+                            stopAgentTasksAsyncAction.value = AsyncAction.ConfirmingNoParams
+                        }
                         is ModerationAction.KickUser -> {
                             selectedUser = event.targetUser
                             kickUserAsyncAction.value = AsyncAction.ConfirmingNoParams
@@ -128,12 +160,18 @@ class RoomMemberModerationPresenter(
                     }
                     selectedUser = null
                 }
+                InternalRoomMemberModerationEvents.DoStopAgentTasks -> {
+                    selectedUser?.let {
+                        coroutineScope.stopAgentTasks(it.userId, stopAgentTasksAsyncAction)
+                    }
+                }
                 is InternalRoomMemberModerationEvents.Reset -> {
                     selectedUser = null
                     moderationActions.value = persistentListOf()
                     kickUserAsyncAction.value = AsyncAction.Uninitialized
                     banUserAsyncAction.value = AsyncAction.Uninitialized
                     unbanUserAsyncAction.value = AsyncAction.Uninitialized
+                    stopAgentTasksAsyncAction.value = AsyncAction.Uninitialized
                 }
             }
         }
@@ -145,6 +183,7 @@ class RoomMemberModerationPresenter(
             kickUserAsyncAction = kickUserAsyncAction.value,
             banUserAsyncAction = banUserAsyncAction.value,
             unbanUserAsyncAction = unbanUserAsyncAction.value,
+            stopAgentTasksAsyncAction = stopAgentTasksAsyncAction.value,
             eventSink = ::handleEvent,
         )
     }
@@ -153,9 +192,14 @@ class RoomMemberModerationPresenter(
         member: RoomMember?,
         permissions: RoomMemberModerationPermissions,
         currentUserPowerLevel: Long,
+        roomAgentIds: Set<String>,
     ): ImmutableList<ModerationActionState> {
         return buildList {
             add(ModerationActionState(action = ModerationAction.DisplayProfile, isEnabled = true))
+            val isAgent = member?.userType.isAgentUserType() || member?.userId?.value?.let(roomAgentIds::contains) == true
+            if (member?.membership == RoomMembershipState.JOIN && isAgent) {
+                add(ModerationActionState(action = ModerationAction.StopAgentTasks, isEnabled = true))
+            }
             // Assume the member is a regular user when it's unknown
             val targetMemberPowerLevel = member?.powerLevel ?: 0
             val canModerateThisUser = currentUserPowerLevel > targetMemberPowerLevel
@@ -184,6 +228,22 @@ class RoomMemberModerationPresenter(
                 }
             }
         }.toImmutableList()
+    }
+
+    private fun CoroutineScope.stopAgentTasks(
+        userId: UserId,
+        action: MutableState<AsyncAction<Unit>>,
+    ) {
+        launch(dispatchers.io) {
+            action.runUpdatingState {
+                chatbotApiServiceFactory.createForHomeserver(matrixClient)
+                    .abortRoomAgent(
+                        roomId = room.roomId.value,
+                        agentId = userId.value,
+                        reason = "Stopped from room member details",
+                    )
+            }
+        }
     }
 
     private fun CoroutineScope.kickUser(
@@ -245,3 +305,5 @@ class RoomMemberModerationPresenter(
         }
     }
 }
+
+private fun String?.isAgentUserType(): Boolean = this in setOf("agent", "bot", "external_bot", "trusted_external_bot")

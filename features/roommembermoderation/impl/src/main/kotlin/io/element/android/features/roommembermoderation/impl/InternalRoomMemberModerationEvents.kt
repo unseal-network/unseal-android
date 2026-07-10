@@ -14,5 +14,6 @@ sealed interface InternalRoomMemberModerationEvents : RoomMemberModerationEvents
     data class DoKickUser(val reason: String) : InternalRoomMemberModerationEvents
     data class DoBanUser(val reason: String) : InternalRoomMemberModerationEvents
     data class DoUnbanUser(val reason: String) : InternalRoomMemberModerationEvents
+    data object DoStopAgentTasks : InternalRoomMemberModerationEvents
     data object Reset : InternalRoomMemberModerationEvents
 }

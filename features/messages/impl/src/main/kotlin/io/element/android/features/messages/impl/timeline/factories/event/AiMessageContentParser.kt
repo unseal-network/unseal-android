@@ -89,6 +89,8 @@ class AiMessageContentParser {
                 ?: fallbackSender.takeIfNotBlank(),
             roomId = null,
             eventId = null,
+            targetUserId = effectiveContent.string("target_user_id").takeIfNotBlank()
+                ?: content.string("target_user_id").takeIfNotBlank(),
             thinkingSteps = effectiveContent.objectArray("thinking_process").mapNotNull { it.toThinkingStep() }.toImmutableList(),
             toolCalls = effectiveContent.objectArray("tool_calls").mapNotNull { it.toToolCall() }.toImmutableList(),
             sources = effectiveContent.objectArray("sources").mapNotNull { it.toSource() }.toImmutableList(),

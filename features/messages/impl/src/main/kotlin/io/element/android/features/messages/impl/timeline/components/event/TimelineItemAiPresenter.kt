@@ -30,6 +30,7 @@ import io.element.android.features.messages.impl.timeline.model.event.AiPptWorkf
 import io.element.android.features.messages.impl.timeline.model.event.AiTextStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiToolStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
+import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
 import io.element.android.libraries.agentstream.api.StreamRequest
 import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.agentstream.api.StreamSnapshotUpdateDecision
@@ -37,6 +38,7 @@ import io.element.android.libraries.agentstream.api.StreamSnapshotUpdatePolicy
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.di.RoomScope
+import io.element.android.libraries.matrix.api.MatrixClient
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -67,6 +69,8 @@ data class TimelineItemAiState(
     val workflowMessages: Map<String, WorkflowMessage> = emptyMap(),
     val workflowSlides: Map<String, List<String>> = emptyMap(),
     val miniAppDocumentLauncher: MiniAppDocumentLauncher? = null,
+    val canAbortRun: Boolean = false,
+    val onAbortRun: suspend () -> Boolean = { false },
 )
 
 private data class TimelineItemAiContentIdentity(
@@ -89,6 +93,8 @@ class TimelineItemAiPresenter(
     private val workflowProgressManager: WorkflowProgressProvider,
     private val workflowTaskStore: WorkflowTaskStore,
     private val miniAppDocumentLauncher: MiniAppDocumentLauncher,
+    private val matrixClient: MatrixClient,
+    private val chatbotApiServiceFactory: ChatbotApiServiceFactory,
 ) : Presenter<TimelineItemAiState> {
     @AssistedFactory
     fun interface Factory : TimelineItemPresenterFactory<TimelineItemAiContent, TimelineItemAiState> {
@@ -278,7 +284,24 @@ class TimelineItemAiPresenter(
             }
         }
 
-        return TimelineItemAiState(currentContent, workflowMessages, workflowSlides, miniAppDocumentLauncher)
+        return TimelineItemAiState(
+            content = currentContent,
+            workflowMessages = workflowMessages,
+            workflowSlides = workflowSlides,
+            miniAppDocumentLauncher = miniAppDocumentLauncher,
+            canAbortRun = currentContent.isStreaming &&
+                currentContent.streamId != null &&
+                currentContent.targetUserId == matrixClient.sessionId.value,
+            onAbortRun = { abortRun(currentContent.streamId) },
+        )
+    }
+
+    private suspend fun abortRun(streamId: String?): Boolean {
+        val id = streamId?.takeIf { it.isNotBlank() } ?: return false
+        return chatbotApiServiceFactory.createForHomeserver(matrixClient)
+            .abortRun(id, "Stopped by initiator from the message timeline")
+            .onFailure { Timber.e(it, "Failed to stop Agent run stream=%s", id) }
+            .isSuccess
     }
 
     private suspend fun loadCompletedCachedContent(
@@ -448,6 +471,7 @@ private fun TimelineItemAiContent.withFallbackMetadata(fallback: TimelineItemAiC
         sender = sender ?: fallback.sender,
         roomId = roomId ?: fallback.roomId,
         eventId = eventId ?: fallback.eventId,
+        targetUserId = targetUserId ?: fallback.targetUserId,
     )
 }
 

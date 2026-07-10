@@ -17,6 +17,8 @@ import io.element.android.features.roommembermoderation.api.RoomMemberModeration
 import io.element.android.features.roommembermoderation.api.RoomMemberModerationState
 import io.element.android.libraries.architecture.AsyncAction
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
+import io.element.android.libraries.chatbot.test.FakeChatbotApiServiceFactory
+import io.element.android.libraries.matrix.test.FakeMatrixClient
 import io.element.android.libraries.matrix.api.room.JoinedRoom
 import io.element.android.libraries.matrix.api.room.RoomMember
 import io.element.android.libraries.matrix.api.room.RoomMembersState
@@ -80,6 +82,31 @@ class RoomMemberModerationPresenterTest {
             assertThat(updatedState.actions).containsExactly(
                 ModerationActionState(action = ModerationAction.DisplayProfile, isEnabled = true),
             )
+        }
+    }
+
+    @Test
+    fun `present - joined Agent can be stopped without moderation power`() = runTest {
+        val room = aJoinedRoom(
+            canBan = false,
+            canKick = false,
+            myUserRole = RoomMember.Role.User,
+            targetRoomMember = aRoomMember(
+                userId = A_USER_ID,
+                membership = RoomMembershipState.JOIN,
+                powerLevel = RoomMember.Role.Admin.powerLevel,
+                userType = "agent",
+            ),
+        )
+        createRoomMemberModerationPresenter(room = room).test {
+            val initialState = awaitState()
+            initialState.eventSink(RoomMemberModerationEvents.ShowActionsForUser(targetUser))
+            skipItems(1)
+            val updatedState = awaitState()
+            assertThat(updatedState.actions).containsExactly(
+                ModerationActionState(action = ModerationAction.DisplayProfile, isEnabled = true),
+                ModerationActionState(action = ModerationAction.StopAgentTasks, isEnabled = true),
+            ).inOrder()
         }
     }
 
@@ -393,6 +420,8 @@ class RoomMemberModerationPresenterTest {
             room = room,
             dispatchers = dispatchers,
             analyticsService = analyticsService,
+            matrixClient = FakeMatrixClient(),
+            chatbotApiServiceFactory = FakeChatbotApiServiceFactory(),
         )
     }
 

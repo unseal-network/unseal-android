@@ -75,6 +75,9 @@ interface ChatbotApiService {
     suspend fun listAgentRooms(botName: String): Result<List<ChatbotAgentRoom>>
     suspend fun agentJoinRoom(botName: String, roomName: String): Result<Unit>
     suspend fun agentLeaveRoom(botName: String, roomId: String): Result<Unit>
+    suspend fun abortRun(streamId: String, reason: String?): Result<Unit>
+    suspend fun abortRoomAgent(roomId: String, agentId: String, reason: String?): Result<Unit>
+    suspend fun abortAgent(agentId: String, reason: String?): Result<Unit>
     suspend fun listAgentSkills(botName: String): Result<List<ChatbotUserSkill>>
     suspend fun addAgentSkill(botName: String, skillId: String, name: String?): Result<Unit>
     suspend fun listRoomAgentSkills(roomId: String, agentId: String, runtimeOwnerUserId: String?): Result<ChatbotListRoomAgentSkillsResponse>
