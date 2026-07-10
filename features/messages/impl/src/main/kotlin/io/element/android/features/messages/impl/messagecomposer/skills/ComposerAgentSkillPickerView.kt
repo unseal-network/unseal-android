@@ -17,11 +17,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -32,11 +32,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
+import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.messages.impl.R
 import io.element.android.features.messages.impl.components.SelectedStatePill
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import io.element.android.libraries.designsystem.theme.components.HorizontalDivider
+import io.element.android.libraries.designsystem.theme.components.Icon
+import io.element.android.libraries.designsystem.theme.components.IconButton
 import io.element.android.libraries.designsystem.theme.components.Surface
 import io.element.android.libraries.designsystem.theme.components.Text
 import kotlinx.collections.immutable.persistentListOf
@@ -45,6 +48,7 @@ import kotlinx.collections.immutable.persistentListOf
 internal fun ComposerAgentSkillPickerView(
     state: ComposerAgentSkillState,
     onTogglePicker: () -> Unit,
+    onReloadPicker: () -> Unit,
     onSelectTarget: (String) -> Unit,
     onSelectSkill: (ComposerAgentSkillCandidate) -> Unit,
     onRemoveSkill: (ComposerSelectedAgentSkill) -> Unit,
@@ -76,6 +80,7 @@ internal fun ComposerAgentSkillPickerView(
                 state = state,
                 visibleCandidateCount = visibleCandidates.size,
                 onTogglePicker = onTogglePicker,
+                onReloadPicker = onReloadPicker,
             )
             if (state.selectedSkills.isNotEmpty()) {
                 SelectedSkillsRow(
@@ -92,6 +97,7 @@ internal fun ComposerAgentSkillPickerView(
                 }
                 when {
                     state.isCatalogLoading -> LoadingRow()
+                    state.isWorkspaceLoading && visibleCandidates.isEmpty() -> LoadingRow()
                     state.error != null -> PickerMessage(text = state.error)
                     visibleCandidates.isEmpty() -> PickerMessage(text = stringResource(R.string.screen_room_agent_skill_picker_empty))
                     else -> CandidateList(
@@ -109,6 +115,7 @@ private fun PickerHeader(
     state: ComposerAgentSkillState,
     visibleCandidateCount: Int,
     onTogglePicker: () -> Unit,
+    onReloadPicker: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -129,14 +136,46 @@ private fun PickerHeader(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        TextButton(onClick = onTogglePicker) {
-            Text(
-                text = if (state.isPresented) {
-                    stringResource(R.string.screen_room_agent_skill_picker_hide)
-                } else {
-                    stringResource(R.string.screen_room_agent_skill_picker_choose)
+        if (state.isPresented) {
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                IconButton(
+                    modifier = Modifier.size(48.dp),
+                    onClick = onReloadPicker,
+                    enabled = !state.isCatalogLoading && !state.isWorkspaceLoading,
+                ) {
+                    if (state.isWorkspaceLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = ElementTheme.colors.iconPrimary,
+                        )
+                    } else {
+                        Icon(
+                            imageVector = CompoundIcons.Restart(),
+                            contentDescription = stringResource(R.string.a11y_room_agent_skill_picker_update),
+                        )
+                    }
                 }
-            )
+                IconButton(
+                    modifier = Modifier.size(48.dp),
+                    onClick = onTogglePicker,
+                ) {
+                    Icon(
+                        imageVector = CompoundIcons.Close(),
+                        contentDescription = stringResource(R.string.a11y_room_agent_skill_picker_close),
+                    )
+                }
+            }
+        } else {
+            IconButton(
+                modifier = Modifier.size(48.dp),
+                onClick = onTogglePicker,
+            ) {
+                Icon(
+                    imageVector = CompoundIcons.Extensions(),
+                    contentDescription = stringResource(R.string.a11y_room_agent_skill_picker_open),
+                )
+            }
         }
     }
 }
@@ -338,6 +377,7 @@ internal fun ComposerAgentSkillPickerViewPreview() = ElementPreview {
             isPresented = true,
         ),
         onTogglePicker = {},
+        onReloadPicker = {},
         onSelectTarget = {},
         onSelectSkill = {},
         onRemoveSkill = {},

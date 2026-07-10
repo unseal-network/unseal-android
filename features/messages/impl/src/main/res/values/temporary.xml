@@ -16,8 +16,9 @@
     <string name="screen_room_attachment_source_skill">Skill</string>
     <string name="screen_room_agent_skill_picker_title">Agent skills</string>
     <string name="screen_room_agent_skill_picker_summary">%1$d target(s) · %2$d available</string>
-    <string name="screen_room_agent_skill_picker_hide">Hide</string>
-    <string name="screen_room_agent_skill_picker_choose">Choose</string>
+    <string name="a11y_room_agent_skill_picker_open">Choose skills</string>
+    <string name="a11y_room_agent_skill_picker_update">Update skills</string>
+    <string name="a11y_room_agent_skill_picker_close">Close skills</string>
     <string name="screen_room_agent_skill_picker_loading">Loading skills…</string>
     <string name="screen_room_agent_skill_picker_empty">No visible skills available</string>
     <!-- iOS parity entries in the message action menu. Disabled until Android actions are wired. -->
