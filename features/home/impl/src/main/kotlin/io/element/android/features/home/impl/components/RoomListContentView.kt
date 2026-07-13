@@ -279,6 +279,11 @@ private fun RoomsViewList(
     val searchQuery = searchState.query.text.toString()
     val isSearchActive = searchState.isSearchActive
     val displayedSummaries = if (searchQuery.isNotBlank()) searchState.results else state.summaries
+    val hasSearchDrawerAnchor = state.securityBannerState != SecurityBannerState.None ||
+        state.fullScreenIntentPermissionsState.shouldDisplayBanner ||
+        state.batteryOptimizationState.shouldDisplayBanner ||
+        state.showNewNotificationSoundBanner ||
+        displayedSummaries.isNotEmpty()
     val focusManager = LocalFocusManager.current
     val currentSearchQuery by rememberUpdatedState(searchQuery)
     var hasHiddenSearchFieldInitially by remember { mutableStateOf(false) }
@@ -288,8 +293,8 @@ private fun RoomsViewList(
         searchState.eventSink(RoomListSearchEvent.SetSearchActive(false))
     }
 
-    LaunchedEffect(isSearchActive, searchQuery) {
-        if (!hasHiddenSearchFieldInitially && !isSearchActive && searchQuery.isBlank()) {
+    LaunchedEffect(hasSearchDrawerAnchor, isSearchActive, searchQuery) {
+        if (!hasHiddenSearchFieldInitially && hasSearchDrawerAnchor && !isSearchActive && searchQuery.isBlank()) {
             hasHiddenSearchFieldInitially = true
             lazyListState.scrollToItem(1)
         }

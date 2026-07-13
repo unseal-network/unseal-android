@@ -71,8 +71,10 @@ class RoomUnsealContextLoaderTest {
         override suspend fun getRoomAgents(roomId: RoomId): Result<List<RoomAgentDescriptor>> = Result.success(snapshot.roomAgents.value)
         override suspend fun listAgents(): Result<List<AgentAccountDescriptor>> = Result.success(snapshot.allAgents.value)
         override suspend fun listSchedules(roomId: RoomId): Result<List<RoomScheduleDescriptor>> = Result.success(snapshot.schedules.value)
-        override suspend fun listRoomAgentSkills(roomId: RoomId, agentId: String, runtimeOwnerUserId: String?): Result<List<RoomAgentSkillDescriptor>> = Result.success(emptyList())
-        override suspend fun listLegacyAgentSkills(agentLookupId: String): Result<List<RoomLegacyAgentSkillDescriptor>> = Result.success(emptyList())
+        override suspend fun listRoomAgentSkills(roomId: RoomId, agentId: String, runtimeOwnerUserId: String?): Result<RoomAgentSkillCatalogDescriptor> =
+            Result.success(RoomAgentSkillCatalogDescriptor())
+        override suspend fun refreshRoomAgentSkills(roomId: RoomId, agentId: String?, cacheKey: String, runtimeOwnerUserId: String?): Result<RoomAgentSkillCatalogDescriptor> =
+            Result.success(RoomAgentSkillCatalogDescriptor(status = "complete"))
         override suspend fun listWebhookTriggers(roomId: RoomId): Result<List<RoomWebhookTriggerDescriptor>> = Result.success(snapshot.webhookTriggers.value)
         override suspend fun getRoomWorkingMemory(roomId: RoomId): Result<String> = Result.success(snapshot.workingMemory.value)
         override suspend fun loadRoomData(roomId: RoomId): RoomUnsealDataSnapshot = snapshot

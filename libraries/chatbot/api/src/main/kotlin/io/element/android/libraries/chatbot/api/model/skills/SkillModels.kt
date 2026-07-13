@@ -255,5 +255,16 @@ data class ChatbotRoomAgentSkillRelation(
 
 @Serializable
 data class ChatbotListRoomAgentSkillsResponse(
-    val skills: List<ChatbotRoomAgentSkill> = emptyList(),
+    val status: String = "partial",
+    val cacheKey: String = "",
+    val agents: Map<String, ChatbotRoomAgentSkillAgent> = emptyMap(),
+    val skills: Map<String, ChatbotRoomAgentSkill> = emptyMap(),
+    val relations: Map<String, Map<String, ChatbotRoomAgentSkillRelation>> = emptyMap(),
+)
+
+@Serializable
+data class ChatbotRefreshRoomAgentSkillsRequest(
+    val cacheKey: String,
+    val agentId: String? = null,
+    val runtimeOwnerUserId: String? = null,
 )

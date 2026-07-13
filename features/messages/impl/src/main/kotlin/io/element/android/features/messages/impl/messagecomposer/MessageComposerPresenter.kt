@@ -44,6 +44,7 @@ import io.element.android.features.messages.impl.messagecomposer.skills.Composer
 import io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillCatalogLoader
 import io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillReducer
 import io.element.android.features.messages.impl.messagecomposer.skills.ComposerAgentSkillState
+import io.element.android.features.messages.impl.messagecomposer.skills.ComposerRoomAgentSkillCatalog
 import io.element.android.features.messages.impl.messagecomposer.skills.ComposerSelectedAgentSkill
 import io.element.android.features.messages.impl.messagecomposer.suggestions.ComposerSuggestionReducer
 import io.element.android.features.messages.impl.messagecomposer.suggestions.ComposerSuggestionRenderModel
@@ -287,12 +288,14 @@ class MessageComposerPresenter(
             activeAgentMxid = baseAgentSkillState.activeAgentMxid ?: agentSkillTargets.singleOrNull()?.mxid,
         )
         var agentSkillCandidates by remember { mutableStateOf<ImmutableList<ComposerAgentSkillCandidate>>(persistentListOf()) }
+        var agentSkillCatalogs by remember { mutableStateOf<List<ComposerRoomAgentSkillCatalog>>(emptyList()) }
         var selectedAgentSkills by remember { mutableStateOf<ImmutableList<ComposerSelectedAgentSkill>>(persistentListOf()) }
         var isAgentSkillPickerPresented by remember { mutableStateOf(false) }
         var pendingAgentSkillPickerOpen by remember { mutableStateOf(false) }
         var activeAgentSkillMxid by remember { mutableStateOf<String?>(null) }
         var agentSkillCatalogError by remember { mutableStateOf<String?>(null) }
         var isAgentSkillCatalogLoading by remember { mutableStateOf(false) }
+        var isAgentSkillWorkspaceLoading by remember { mutableStateOf(false) }
         var agentSkillCatalogLoadKey by remember { mutableStateOf<String?>(null) }
         fun clearComposerSuggestions() {
             suggestionSearchTrigger.value = null
@@ -321,6 +324,7 @@ class MessageComposerPresenter(
             if (target == null) {
                 pendingAgentSkillPickerOpen = true
                 isAgentSkillCatalogLoading = true
+                isAgentSkillWorkspaceLoading = false
                 agentSkillCatalogError = null
                 agentSkillCandidates = persistentListOf()
                 refreshAgentSkillContext()
@@ -329,6 +333,22 @@ class MessageComposerPresenter(
             }
             presentAgentSkillPickerForAgent(target)
         }
+        fun reloadAgentSkillPicker() {
+            if (isAgentSkillCatalogLoading || isAgentSkillWorkspaceLoading || agentSkillCatalogs.isEmpty()) return
+            localCoroutineScope.launch {
+                isAgentSkillWorkspaceLoading = true
+                agentSkillCatalogError = null
+                val result = composerAgentSkillCatalogLoader.refreshWorkspace(
+                    catalogs = agentSkillCatalogs,
+                    currentUserId = room.sessionId.value,
+                    force = true,
+                )
+                agentSkillCatalogs = result.catalogs
+                agentSkillCandidates = result.candidates.toImmutableList()
+                agentSkillCatalogError = result.error
+                isAgentSkillWorkspaceLoading = false
+            }
+        }
         LaunchedEffect(pendingAgentSkillPickerOpen, effectiveBaseAgentSkillState.targets) {
             if (!pendingAgentSkillPickerOpen) return@LaunchedEffect
             effectiveBaseAgentSkillState.targets.firstOrNull()?.let(::presentAgentSkillPickerForAgent)
@@ -336,19 +356,24 @@ class MessageComposerPresenter(
         LaunchedEffect(roomUnsealContextState, effectiveBaseAgentSkillState.targets, roomInfo.isDm, room.sessionId, isAgentSkillPickerPresented) {
             val context = roomUnsealContextState.dataOrNull()
             if (effectiveBaseAgentSkillState.targets.isEmpty() || !isAgentSkillPickerPresented) {
+                agentSkillCatalogs = emptyList()
                 agentSkillCandidates = persistentListOf()
                 agentSkillCatalogError = null
                 isAgentSkillCatalogLoading = false
+                isAgentSkillWorkspaceLoading = false
+                agentSkillCatalogLoadKey = null
                 return@LaunchedEffect
             }
             if (context == null) {
                 agentSkillCandidates = persistentListOf()
                 agentSkillCatalogError = null
                 isAgentSkillCatalogLoading = true
+                isAgentSkillWorkspaceLoading = false
                 roomUnsealContextStore.refresh(RoomUnsealRefreshReason.ComposerMentionStarted)
                 return@LaunchedEffect
             }
             isAgentSkillCatalogLoading = true
+            isAgentSkillWorkspaceLoading = false
             agentSkillCatalogError = null
             val catalogLoadKey = effectiveBaseAgentSkillState.catalogLoadKey(room.sessionId.value)
             if (agentSkillCatalogLoadKey == catalogLoadKey) {
@@ -362,16 +387,29 @@ class MessageComposerPresenter(
                 currentUserId = room.sessionId.value,
                 isDirectRoom = roomInfo.isDm,
             )
+            agentSkillCatalogs = result.catalogs
             agentSkillCandidates = result.candidates.toImmutableList()
             agentSkillCatalogError = result.error
             if (result.error != null && result.candidates.isEmpty()) {
                 agentSkillCatalogLoadKey = null
             }
             isAgentSkillCatalogLoading = false
+            if (result.refreshCatalogs.isNotEmpty()) {
+                isAgentSkillWorkspaceLoading = true
+                val refreshResult = composerAgentSkillCatalogLoader.refreshWorkspace(
+                    catalogs = result.refreshCatalogs,
+                    currentUserId = room.sessionId.value,
+                )
+                agentSkillCatalogs = refreshResult.catalogs
+                agentSkillCandidates = refreshResult.candidates.toImmutableList()
+                agentSkillCatalogError = refreshResult.error
+                isAgentSkillWorkspaceLoading = false
+            }
         }
         val agentSkillState = effectiveBaseAgentSkillState.copy(
             candidates = agentSkillCandidates,
             isCatalogLoading = isAgentSkillCatalogLoading,
+            isWorkspaceLoading = isAgentSkillWorkspaceLoading,
             error = agentSkillCatalogError,
             selectedSkills = selectedAgentSkills,
             isPresented = isAgentSkillPickerPresented,
@@ -614,6 +652,9 @@ class MessageComposerPresenter(
                     } else {
                         showAgentSkillPicker()
                     }
+                }
+                MessageComposerEvent.ReloadAgentSkillPicker -> {
+                    reloadAgentSkillPicker()
                 }
                 is MessageComposerEvent.SelectAgentSkillTarget -> {
                     effectiveBaseAgentSkillState.targets

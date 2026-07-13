@@ -17,4 +17,5 @@ data class TimelineItemsFactoryConfig(
     val computeReadReceipts: Boolean,
     val computeReactions: Boolean,
     val roomId: String? = null,
+    val currentUserId: String? = null,
 )

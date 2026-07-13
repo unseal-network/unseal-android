@@ -17,6 +17,7 @@ import io.element.android.libraries.chatbot.api.model.agent.ChatbotSetAgentVoice
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotUpdateAgentRequest
 import io.element.android.libraries.chatbot.api.model.analytics.AnalyticsTokensResponse
 import io.element.android.libraries.chatbot.api.model.approvals.ChatbotApproval
+import io.element.android.libraries.chatbot.api.model.cards.ChatbotCardResponseResult
 import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelConnectBody
 import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelCredentials
 import io.element.android.libraries.chatbot.api.model.channels.ChatbotChannelSummary
@@ -81,6 +82,7 @@ interface ChatbotApiService {
     suspend fun listAgentSkills(botName: String): Result<List<ChatbotUserSkill>>
     suspend fun addAgentSkill(botName: String, skillId: String, name: String?): Result<Unit>
     suspend fun listRoomAgentSkills(roomId: String, agentId: String, runtimeOwnerUserId: String?): Result<ChatbotListRoomAgentSkillsResponse>
+    suspend fun refreshRoomAgentSkills(roomId: String, agentId: String?, cacheKey: String, runtimeOwnerUserId: String?): Result<ChatbotListRoomAgentSkillsResponse>
     suspend fun listUserSkills(visibility: ChatbotSkillVisibility?): Result<List<ChatbotUserSkill>>
     suspend fun listPublicSkills(page: Int, pageSize: Int, search: String?): Result<ChatbotListPublicSkillsResponse>
     suspend fun listPublicSkills(page: Int, pageSize: Int, filters: ChatbotSkillListFilters): Result<ChatbotListPublicSkillsResponse>
@@ -118,6 +120,7 @@ interface ChatbotApiService {
     suspend fun getApproval(approvalId: String): Result<ChatbotApproval>
     suspend fun approveApproval(approvalId: String): Result<ChatbotApproval>
     suspend fun rejectApproval(approvalId: String): Result<ChatbotApproval>
+    suspend fun sendCardResponse(roomId: String, eventId: String, actionId: String): Result<ChatbotCardResponseResult>
     suspend fun listToolkitCategories(cursor: String?, limit: Int?): Result<ChatbotListToolkitCategoriesResponse>
     suspend fun listToolkits(search: String?, category: String?, cursor: String?, limit: Int?): Result<ChatbotListToolkitsResponse>
     suspend fun initiateConnection(toolkit: String, redirectUrl: String): Result<ChatbotInitiateConnectionResponse>

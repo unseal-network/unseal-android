@@ -20,6 +20,8 @@ import io.element.android.libraries.agentstream.api.StreamRequest
 import io.element.android.libraries.agentstream.api.StreamSnapshot
 import io.element.android.libraries.agentstream.api.StreamStatus
 import io.element.android.libraries.agentstream.api.StreamStorageProvider
+import io.element.android.libraries.matrix.api.core.EventId
+import io.element.android.libraries.matrix.api.core.UniqueId
 import io.element.android.libraries.matrix.api.room.RoomMember
 import io.element.android.libraries.matrix.api.timeline.MatrixTimelineItem
 import io.element.android.libraries.matrix.api.timeline.item.event.OtherState
@@ -28,6 +30,7 @@ import io.element.android.libraries.matrix.api.timeline.item.event.UnableToDecry
 import io.element.android.libraries.matrix.api.timeline.item.event.UnknownContent
 import io.element.android.libraries.matrix.test.A_UNIQUE_ID
 import io.element.android.libraries.matrix.test.A_USER_ID
+import io.element.android.libraries.matrix.test.A_USER_ID_2
 import io.element.android.libraries.matrix.test.room.aRoomMember
 import io.element.android.libraries.matrix.test.timeline.aTimelineItemDebugInfo
 import io.element.android.libraries.matrix.test.timeline.anEventTimelineItem
@@ -43,6 +46,7 @@ class TimelineItemsFactoryTest {
                 computeReadReceipts = true,
                 computeReactions = true,
                 roomId = "!room:keepsecret.io",
+                currentUserId = A_USER_ID.value,
             )
         )
         val event = MatrixTimelineItem.Event(
@@ -67,6 +71,7 @@ class TimelineItemsFactoryTest {
                 computeReadReceipts = true,
                 computeReactions = true,
                 roomId = "!room:keepsecret.io",
+                currentUserId = A_USER_ID.value,
             )
         )
         val event = MatrixTimelineItem.Event(
@@ -180,6 +185,85 @@ class TimelineItemsFactoryTest {
 
         assertThat(factory.timelineItems.first()).isEmpty()
     }
+
+    @Test
+    fun `replaceWith hides card response markers and marks related ai card actioned`() = runTest {
+        val factory = aTimelineItemsFactory(
+            config = TimelineItemsFactoryConfig(
+                computeReadReceipts = true,
+                computeReactions = true,
+                roomId = "!room:keepsecret.io",
+                currentUserId = A_USER_ID.value,
+            )
+        )
+        val cardEventId = EventId("\$card")
+        val markerEventId = EventId("\$response")
+        val cardEvent = MatrixTimelineItem.Event(
+            A_UNIQUE_ID,
+            anEventTimelineItem(
+                eventId = cardEventId,
+                content = UnknownContent,
+                sender = A_USER_ID,
+                debugInfoProvider = { aTimelineItemDebugInfo(originalJson = aiSdkEventJson()) },
+            )
+        )
+        val markerEvent = MatrixTimelineItem.Event(
+            UniqueId("marker"),
+            anEventTimelineItem(
+                eventId = markerEventId,
+                content = UnknownContent,
+                sender = A_USER_ID,
+                debugInfoProvider = { aTimelineItemDebugInfo(originalJson = cardResponseJson(cardEventId.value, actionId = "reject")) },
+            )
+        )
+
+        factory.replaceWith(listOf(cardEvent, markerEvent), roomMembers = emptyList())
+
+        val items = factory.timelineItems.first()
+        assertThat(items).hasSize(1)
+        val aiContent = (items.single() as TimelineItem.Event).content as TimelineItemAiContent
+        assertThat(aiContent.cardResponseState.actioned).isTrue()
+        assertThat(aiContent.cardResponseState.actionId).isEqualTo("reject")
+        assertThat(aiContent.cardResponseState.eventId).isEqualTo(markerEventId.value)
+    }
+
+    @Test
+    fun `replaceWith hides card response markers from other users without marking card actioned`() = runTest {
+        val factory = aTimelineItemsFactory(
+            config = TimelineItemsFactoryConfig(
+                computeReadReceipts = true,
+                computeReactions = true,
+                roomId = "!room:keepsecret.io",
+                currentUserId = A_USER_ID.value,
+            )
+        )
+        val cardEventId = EventId("\$card")
+        val cardEvent = MatrixTimelineItem.Event(
+            A_UNIQUE_ID,
+            anEventTimelineItem(
+                eventId = cardEventId,
+                content = UnknownContent,
+                sender = A_USER_ID,
+                debugInfoProvider = { aTimelineItemDebugInfo(originalJson = aiSdkEventJson()) },
+            )
+        )
+        val markerEvent = MatrixTimelineItem.Event(
+            UniqueId("marker"),
+            anEventTimelineItem(
+                eventId = EventId("\$response"),
+                content = UnknownContent,
+                sender = A_USER_ID_2,
+                debugInfoProvider = { aTimelineItemDebugInfo(originalJson = cardResponseJson(cardEventId.value, actionId = "reject")) },
+            )
+        )
+
+        factory.replaceWith(listOf(cardEvent, markerEvent), roomMembers = emptyList())
+
+        val items = factory.timelineItems.first()
+        assertThat(items).hasSize(1)
+        val aiContent = (items.single() as TimelineItem.Event).content as TimelineItemAiContent
+        assertThat(aiContent.cardResponseState.actioned).isFalse()
+    }
 }
 
 private fun List<TimelineItem>.singleAiContent(): TimelineItemAiContent {
@@ -205,6 +289,35 @@ private fun streamEventJson(streamId: String): String {
             "msgtype": "m.stream.start",
             "stream_id": "$streamId",
             "body": "$streamId"
+          }
+        }
+    """.trimIndent()
+}
+
+private fun aiSdkEventJson(): String {
+    return """
+        {
+          "type": "m.room.message",
+          "content": {
+            "msgtype": "m.aisdk.protocol",
+            "body": "Authorize this action"
+          }
+        }
+    """.trimIndent()
+}
+
+private fun cardResponseJson(cardEventId: String, actionId: String): String {
+    return """
+        {
+          "type": "io.unseal.card.response",
+          "content": {
+            "m.relates_to": {
+              "rel_type": "m.reference",
+              "event_id": "$cardEventId"
+            },
+            "io.unseal.card.response": {
+              "action_id": "$actionId"
+            }
           }
         }
     """.trimIndent()

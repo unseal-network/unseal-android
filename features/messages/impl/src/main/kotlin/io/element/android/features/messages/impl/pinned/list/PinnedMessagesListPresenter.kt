@@ -89,6 +89,7 @@ class PinnedMessagesListPresenter(
             computeReadReceipts = false,
             computeReactions = false,
             roomId = room.roomId.value,
+            currentUserId = room.sessionId.value,
         )
     )
 

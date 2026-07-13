@@ -10,11 +10,14 @@ package io.element.android.features.messages.impl.messagecomposer.skills
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.messages.impl.roomdata.AgentAccountDescriptor
 import io.element.android.features.messages.impl.roomdata.RoomAgentDescriptor
+import io.element.android.features.messages.impl.roomdata.RoomAgentSkillCatalogDescriptor
 import io.element.android.features.messages.impl.roomdata.RoomAgentSkillDescriptor
-import io.element.android.features.messages.impl.roomdata.RoomLegacyAgentSkillDescriptor
+import io.element.android.features.messages.impl.roomdata.RoomAgentSkillRelationDescriptor
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
 import io.element.android.features.messages.impl.roomdata.RoomUnsealDataSnapshot
 import io.element.android.features.messages.impl.roomdata.RoomUnsealResource
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotRoomAgentSkillRelationKind
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotRoomAgentSkillSource
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.room.RoomMembershipState
@@ -135,22 +138,6 @@ class ComposerAgentSkillReducerTest {
     }
 
     @Test
-    fun `legacyInstalledSkillCandidates mirrors iOS fallback semantics`() {
-        val agent = ComposerAgentDescriptor(agentId = AGENT_USER_ID.value, mxid = AGENT_USER_ID.value, label = "Gemini")
-
-        val candidates = ComposerAgentSkillReducer.legacyInstalledSkillCandidates(
-            target = agent,
-            skills = listOf(RoomLegacyAgentSkillDescriptor(id = "skill-1", name = "mail", description = "Mail")),
-        )
-
-        assertThat(candidates).hasSize(1)
-        assertThat(candidates.single().source).isEqualTo(ComposerAgentSkillSource.S3)
-        assertThat(candidates.single().relation).isEqualTo(ComposerAgentSkillRelation.Installed)
-        assertThat(candidates.single().directoryName).isEqualTo("mail")
-        assertThat(candidates.single().runtimeVisible).isTrue()
-    }
-
-    @Test
     fun `deduplicateSkillCandidates keeps first candidate per agent and skill`() {
         val agent = ComposerAgentDescriptor(agentId = AGENT_USER_ID.value, mxid = AGENT_USER_ID.value, label = "Gemini")
         val first = candidate(agent, "mail", source = ComposerAgentSkillSource.Db)
@@ -163,17 +150,42 @@ class ComposerAgentSkillReducerTest {
     }
 
     @Test
-    fun `roomSkillCandidates maps runtime visibility and db source`() {
+    fun `roomSkillCandidates maps relation catalog source and runtime visibility`() {
         val agent = ComposerAgentDescriptor(agentId = AGENT_USER_ID.value, mxid = AGENT_USER_ID.value, label = "Gemini")
 
         val candidates = ComposerAgentSkillReducer.roomSkillCandidates(
             target = agent,
-            skills = listOf(RoomAgentSkillDescriptor(id = "skill-1", name = "weather", description = null, runtimeVisible = false)),
+            agentId = AGENT_USER_ID.value,
+            catalog = RoomAgentSkillCatalogDescriptor(
+                skills = mapOf(
+                    "skill-1" to RoomAgentSkillDescriptor(
+                        id = "skill-1",
+                        name = "weather",
+                        description = null,
+                        sources = listOf(ChatbotRoomAgentSkillSource.Db),
+                        persisted = true,
+                        runtimeVisible = false,
+                    )
+                ),
+                relations = mapOf(
+                    AGENT_USER_ID.value to mapOf(
+                        "skill-1" to RoomAgentSkillRelationDescriptor(
+                            relation = ChatbotRoomAgentSkillRelationKind.Available,
+                            source = ChatbotRoomAgentSkillSource.Db,
+                            path = null,
+                            directoryName = null,
+                            runtimeVisible = false,
+                            persisted = true,
+                            stale = null,
+                        )
+                    )
+                ),
+            ),
         )
 
         assertThat(candidates.single().skillKey).isEqualTo("skill-1")
         assertThat(candidates.single().source).isEqualTo(ComposerAgentSkillSource.Db)
-        assertThat(candidates.single().relation).isEqualTo(ComposerAgentSkillRelation.Runtime)
+        assertThat(candidates.single().relation).isEqualTo(ComposerAgentSkillRelation.Available)
         assertThat(candidates.single().runtimeVisible).isFalse()
     }
 

@@ -3,8 +3,9 @@
     <string name="screen_room_attachment_source_skill">技能</string>
     <string name="screen_room_agent_skill_picker_title">Agent 技能</string>
     <string name="screen_room_agent_skill_picker_summary">%1$d 个目标 · %2$d 个可用</string>
-    <string name="screen_room_agent_skill_picker_hide">收起</string>
-    <string name="screen_room_agent_skill_picker_choose">选择</string>
+    <string name="a11y_room_agent_skill_picker_open">选择技能</string>
+    <string name="a11y_room_agent_skill_picker_update">更新技能</string>
+    <string name="a11y_room_agent_skill_picker_close">关闭技能</string>
     <string name="screen_room_agent_skill_picker_loading">正在加载技能…</string>
     <string name="screen_room_agent_skill_picker_empty">没有可用技能</string>
 </resources>

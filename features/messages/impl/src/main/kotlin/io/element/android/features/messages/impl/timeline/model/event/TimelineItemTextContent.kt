@@ -17,6 +17,7 @@ data class TimelineItemTextContent(
     override val formattedBody: CharSequence,
     override val isEdited: Boolean,
     override val linkPreviewUrls: List<String> = emptyList(),
+    override val agentProfilePreviewPlan: AgentProfilePreviewPlan = AgentProfilePreviewPlan.Empty,
 ) : TimelineItemTextBasedContent {
     override val type: String = "TimelineItemTextContent"
     override val plainText: String = htmlDocument?.toPlainText() ?: body

@@ -14,7 +14,10 @@ import io.element.android.libraries.chatbot.api.model.rooms.ChatbotRoomAgent
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotSchedule
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotListRoomAgentSkillsResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotRoomAgentSkill
-import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotRoomAgentSkillAgent
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotRoomAgentSkillRelation
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotRoomAgentSkillRelationKind
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotRoomAgentSkillSource
 import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookTrigger
 import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookTriggerStatus
 import io.element.android.libraries.chatbot.test.FakeChatbotApiService
@@ -130,7 +133,7 @@ class DefaultRoomUnsealDataClientTest {
     }
 
     @Test
-    fun `skills APIs map runtime and legacy skills`() = runTest {
+    fun `skills APIs map catalog and refresh workspace`() = runTest {
         val service = FakeChatbotApiService().apply {
             listRoomAgentSkillsResult = { roomId, agentId, runtimeOwner ->
                 assertThat(roomId).isEqualTo(A_ROOM_ID.value)
@@ -138,22 +141,49 @@ class DefaultRoomUnsealDataClientTest {
                 assertThat(runtimeOwner).isEqualTo("@me:example.org")
                 Result.success(
                     ChatbotListRoomAgentSkillsResponse(
-                        skills = listOf(ChatbotRoomAgentSkill(id = "runtime-1", name = "Runtime Skill", runtimeVisible = true))
+                        status = "partial",
+                        cacheKey = "cache-key",
+                        agents = mapOf("@agent:example.org" to ChatbotRoomAgentSkillAgent(agentId = "@agent:example.org", displayName = "Agent")),
+                        skills = mapOf(
+                            "runtime-1" to ChatbotRoomAgentSkill(
+                                id = "runtime-1",
+                                name = "Runtime Skill",
+                                sources = listOf(ChatbotRoomAgentSkillSource.Db),
+                                persisted = true,
+                                runtimeVisible = false,
+                            )
+                        ),
+                        relations = mapOf(
+                            "@agent:example.org" to mapOf(
+                                "runtime-1" to ChatbotRoomAgentSkillRelation(
+                                    relation = ChatbotRoomAgentSkillRelationKind.Available,
+                                    source = ChatbotRoomAgentSkillSource.Db,
+                                    runtimeVisible = false,
+                                    persisted = true,
+                                )
+                            )
+                        ),
                     )
                 )
             }
-            listAgentSkillsResult = { botName ->
-                assertThat(botName).isEqualTo("agent-bot")
-                Result.success(listOf(ChatbotUserSkill(id = "legacy-1", name = "Legacy Skill", description = "old")))
+            refreshRoomAgentSkillsResult = { roomId, agentId, cacheKey, runtimeOwner ->
+                assertThat(roomId).isEqualTo(A_ROOM_ID.value)
+                assertThat(agentId).isEqualTo("@agent:example.org")
+                assertThat(cacheKey).isEqualTo("cache-key")
+                assertThat(runtimeOwner).isEqualTo("@me:example.org")
+                Result.success(ChatbotListRoomAgentSkillsResponse(status = "complete", cacheKey = "cache-key"))
             }
         }
         val client = createClient(service)
 
-        val runtimeSkills = client.listRoomAgentSkills(A_ROOM_ID, "@agent:example.org", "@me:example.org").getOrThrow()
-        val legacySkills = client.listLegacyAgentSkills("agent-bot").getOrThrow()
+        val catalog = client.listRoomAgentSkills(A_ROOM_ID, "@agent:example.org", "@me:example.org").getOrThrow()
+        val refreshed = client.refreshRoomAgentSkills(A_ROOM_ID, "@agent:example.org", "cache-key", "@me:example.org").getOrThrow()
 
-        assertThat(runtimeSkills).containsExactly(RoomAgentSkillDescriptor(id = "runtime-1", name = "Runtime Skill", description = null, runtimeVisible = true))
-        assertThat(legacySkills).containsExactly(RoomLegacyAgentSkillDescriptor(id = "legacy-1", name = "Legacy Skill", description = "old"))
+        assertThat(catalog.status).isEqualTo("partial")
+        assertThat(catalog.cacheKey).isEqualTo("cache-key")
+        assertThat(catalog.skills["runtime-1"]?.name).isEqualTo("Runtime Skill")
+        assertThat(catalog.relations["@agent:example.org"]?.get("runtime-1")?.relation).isEqualTo(ChatbotRoomAgentSkillRelationKind.Available)
+        assertThat(refreshed.status).isEqualTo("complete")
     }
 
     @Test

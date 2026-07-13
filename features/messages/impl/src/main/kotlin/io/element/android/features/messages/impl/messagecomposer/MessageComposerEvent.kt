@@ -44,6 +44,7 @@ sealed interface MessageComposerEvent {
     data object DismissGamePicker : MessageComposerEvent
     data object ShowAgentSkillPicker : MessageComposerEvent
     data object ToggleAgentSkillPicker : MessageComposerEvent
+    data object ReloadAgentSkillPicker : MessageComposerEvent
     data class SelectAgentSkill(val candidate: ComposerAgentSkillCandidate) : MessageComposerEvent
     data class RemoveSelectedAgentSkill(val selected: ComposerSelectedAgentSkill) : MessageComposerEvent
     data class SelectAgentSkillTarget(val agentMxid: String) : MessageComposerEvent

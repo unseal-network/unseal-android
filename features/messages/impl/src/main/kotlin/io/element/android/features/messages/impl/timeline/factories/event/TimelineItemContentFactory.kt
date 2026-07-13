@@ -325,6 +325,7 @@ private fun TimelineItemAiContent.withFallbackMetadata(fallback: TimelineItemAiC
         sender = sender ?: fallback.sender,
         roomId = roomId ?: fallback.roomId,
         eventId = eventId ?: fallback.eventId,
+        cardResponseState = if (cardResponseState.actioned) cardResponseState else fallback.cardResponseState,
     )
 }
 

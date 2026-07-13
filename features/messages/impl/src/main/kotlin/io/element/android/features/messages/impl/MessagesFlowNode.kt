@@ -524,6 +524,10 @@ class MessagesFlowNode(
                     override fun navigateToThread(threadRootId: ThreadId) {
                         backstack.push(NavTarget.Thread(threadRootId, null))
                     }
+
+                    override fun navigateToAgentProfile(botName: String, matrixUserId: String?) {
+                        backstack.push(NavTarget.AgentProfile(botName, matrixUserId))
+                    }
                 }
                 createNode<PinnedMessagesListNode>(buildContext, plugins = listOf(callback))
             }

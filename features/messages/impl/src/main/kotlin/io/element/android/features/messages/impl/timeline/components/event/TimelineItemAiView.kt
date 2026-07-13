@@ -42,6 +42,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -59,7 +60,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material3.IconButton
 import androidx.compose.foundation.pager.HorizontalPager
@@ -139,6 +139,7 @@ import io.element.android.features.messages.impl.timeline.components.event.toolc
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.ToolCardFinalProps
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.resolveToolCardType
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.toCardDataJson
+import io.element.android.features.messages.impl.timeline.model.event.CardResponseState
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.ToolCallRootRenderModel
 import io.element.android.libraries.androidutils.text.LinkifyHelper
@@ -159,6 +160,7 @@ private const val SLIDE_DESIGN_WIDTH_PX = 1280
 // First N slides load immediately; the rest are staggered to avoid a renderer spike.
 private const val EAGER_LOAD_SLIDES = 2
 private const val SLIDE_STAGGER_MS = 250L
+private const val CARD_RESPONSE_DEFAULT_ACTION_ID = "continue"
 
 /**
  * Injects a <style> block that:
@@ -218,6 +220,7 @@ fun TimelineItemAiView(
     workflowMessages: Map<String, WorkflowMessage> = emptyMap(),
     workflowSlides: Map<String, List<String>> = emptyMap(),
     miniAppDocumentLauncher: MiniAppDocumentLauncher? = null,
+    onSendCardResponse: suspend (eventId: String, actionId: String) -> Boolean = { _, _ -> false },
     canAbortRun: Boolean = false,
     onAbortRun: suspend () -> Boolean = { false },
 ) {
@@ -245,6 +248,9 @@ fun TimelineItemAiView(
                 workflowSlides = workflowSlides,
                 miniAppDocumentLauncher = miniAppDocumentLauncher,
                 streamId = content.streamId,
+                eventId = content.eventId,
+                cardResponseState = content.cardResponseState,
+                onSendCardResponse = onSendCardResponse,
                 onLinkClick = onLinkClick,
                 onLinkLongClick = onLinkLongClick,
                 onLongClick = onLongClick,
@@ -416,6 +422,9 @@ private fun AiStreamPartsView(
     workflowSlides: Map<String, List<String>> = emptyMap(),
     miniAppDocumentLauncher: MiniAppDocumentLauncher? = null,
     streamId: String? = null,
+    eventId: String? = null,
+    cardResponseState: CardResponseState = CardResponseState(),
+    onSendCardResponse: suspend (eventId: String, actionId: String) -> Boolean = { _, _ -> false },
     onLinkClick: (Link) -> Unit,
     onLinkLongClick: (Link) -> Unit,
     onLongClick: (() -> Unit)?,
@@ -461,7 +470,17 @@ private fun AiStreamPartsView(
                     is AiSourceStreamPart -> SourcePart(part, onLinkClick, onLinkLongClick)
                     is AiFileStreamPart -> FilePart(part, onLinkClick, onLinkLongClick)
                     is AiErrorStreamPart -> ErrorPart(part)
-                    is AiDataStreamPart -> DataPart(part, onLinkClick, onLinkLongClick, toolCardInserted, workflowMessages, streamId)
+                    is AiDataStreamPart -> DataPart(
+                        part = part,
+                        onLinkClick = onLinkClick,
+                        onLinkLongClick = onLinkLongClick,
+                        toolCardInserted = toolCardInserted,
+                        workflowMessages = workflowMessages,
+                        streamId = streamId,
+                        eventId = eventId,
+                        cardResponseState = cardResponseState,
+                        onSendCardResponse = onSendCardResponse,
+                    )
                     is AiPptWorkflowStreamPart -> Unit // rendered in second pass below
                     is AiCustomStreamPart -> Unit
                 }
@@ -1966,11 +1985,19 @@ private fun DataPart(
     toolCardInserted: Boolean,
     workflowMessages: Map<String, WorkflowMessage> = emptyMap(),
     streamId: String? = null,
+    eventId: String? = null,
+    cardResponseState: CardResponseState = CardResponseState(),
+    onSendCardResponse: suspend (eventId: String, actionId: String) -> Boolean = { _, _ -> false },
 ) {
     when (part.type) {
         "data-error" -> ErrorPart(AiErrorStreamPart(id = part.id, state = part.state, errorText = part.payload.errorTextFromJson().orEmpty()))
         "data-error-card" -> ErrorCard(part.payload)
-        "data-tool-call-suspended" -> SuspendedToolCard(part.payload)
+        "data-tool-call-suspended" -> SuspendedToolCard(
+            payload = part.payload,
+            eventId = eventId,
+            cardResponseState = cardResponseState,
+            onSendCardResponse = onSendCardResponse,
+        )
         "data-ui-spec", "data-json-render", "data-spec" -> {
             if (!toolCardInserted) {
                 JsonSpecRender(
@@ -2084,8 +2111,17 @@ private fun ErrorBanner(title: String? = null, message: String) {
 }
 
 @Composable
-private fun SuspendedToolCard(payload: String) {
+private fun SuspendedToolCard(
+    payload: String,
+    eventId: String?,
+    cardResponseState: CardResponseState = CardResponseState(),
+    onSendCardResponse: suspend (eventId: String, actionId: String) -> Boolean = { _, _ -> false },
+) {
     val model = remember(payload) { payload.toSuspendedToolRenderModel() }
+    var isSubmitting by remember(payload, eventId) { mutableStateOf(false) }
+    var locallyActioned by remember(payload, eventId) { mutableStateOf(false) }
+    val isActioned = cardResponseState.actioned || locallyActioned
+    val coroutineScope = rememberCoroutineScope()
     val shape = RoundedCornerShape(16.dp)
     val accentColor = if (model.kind == SuspendedToolKind.DeleteSchedule || model.kind == SuspendedToolKind.DeleteAgentVaultEntry) {
         MaterialTheme.colorScheme.error
@@ -2163,11 +2199,26 @@ private fun SuspendedToolCard(payload: String) {
                     }
                 }
                 Text(
-                    text = stringResource(R.string.screen_room_timeline_ai_suspended),
+                    text = if (isActioned) {
+                        stringResource(R.string.screen_room_timeline_tool_card_linear_status_done)
+                    } else {
+                        stringResource(R.string.screen_room_timeline_ai_suspended)
+                    },
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = if (isActioned) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
                     modifier = Modifier
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f), RoundedCornerShape(50))
+                        .background(
+                            if (isActioned) {
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.70f)
+                            } else {
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                            },
+                            RoundedCornerShape(50),
+                        )
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                 )
             }
@@ -2192,6 +2243,19 @@ private fun SuspendedToolCard(payload: String) {
                 SuspendedToolFieldEditor(
                     fields = fields,
                     submitLabel = model.submitLabel ?: stringResource(R.string.screen_room_timeline_ai_continue),
+                    isActioned = isActioned,
+                    isSubmitting = isSubmitting,
+                    canSubmit = model.canRespond && !eventId.isNullOrBlank(),
+                    onSubmit = {
+                        val targetEventId = eventId ?: return@SuspendedToolFieldEditor
+                        if (isActioned || isSubmitting) return@SuspendedToolFieldEditor
+                        isSubmitting = true
+                        coroutineScope.launch {
+                            val sent = onSendCardResponse(targetEventId, CARD_RESPONSE_DEFAULT_ACTION_ID)
+                            locallyActioned = sent
+                            isSubmitting = false
+                        }
+                    },
                 )
             }
             if (model.details.size > 6 || model.choices.size > 6) {
@@ -2209,17 +2273,27 @@ private fun SuspendedToolCard(payload: String) {
 private fun SuspendedToolFieldEditor(
     fields: List<SuspendedToolField>,
     submitLabel: String,
+    isActioned: Boolean,
+    isSubmitting: Boolean,
+    canSubmit: Boolean,
+    onSubmit: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
         fields.take(4).forEach { field ->
             SuspendedToolDisplayField(label = field.label, value = field.value)
         }
         Button(
-            onClick = {},
-            enabled = false,
+            onClick = onSubmit,
+            enabled = canSubmit && !isActioned && !isSubmitting,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(submitLabel)
+            Text(
+                when {
+                    isActioned -> stringResource(R.string.screen_room_timeline_tool_card_linear_status_done)
+                    isSubmitting -> stringResource(R.string.screen_room_timeline_ai_suspended)
+                    else -> submitLabel
+                }
+            )
         }
     }
 }

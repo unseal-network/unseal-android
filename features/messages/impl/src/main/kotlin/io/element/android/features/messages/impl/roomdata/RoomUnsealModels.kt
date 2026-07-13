@@ -10,8 +10,12 @@ package io.element.android.features.messages.impl.roomdata
 import io.element.android.libraries.chatbot.api.model.agent.ChatbotAgent
 import io.element.android.libraries.chatbot.api.model.rooms.ChatbotRoomAgent
 import io.element.android.libraries.chatbot.api.model.schedules.ChatbotSchedule
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotListRoomAgentSkillsResponse
 import io.element.android.libraries.chatbot.api.model.skills.ChatbotRoomAgentSkill
-import io.element.android.libraries.chatbot.api.model.skills.ChatbotUserSkill
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotRoomAgentSkillAgent
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotRoomAgentSkillRelation
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotRoomAgentSkillRelationKind
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotRoomAgentSkillSource
 import io.element.android.libraries.chatbot.api.model.webhooks.ChatbotWebhookTrigger
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.room.RoomMember
@@ -192,13 +196,33 @@ data class RoomAgentSkillDescriptor(
     val id: String?,
     val name: String,
     val description: String?,
+    val sources: List<ChatbotRoomAgentSkillSource> = emptyList(),
+    val persisted: Boolean = false,
     val runtimeVisible: Boolean,
+    val stale: Boolean? = null,
 )
 
-data class RoomLegacyAgentSkillDescriptor(
-    val id: String,
-    val name: String,
-    val description: String?,
+data class RoomAgentSkillAgentDescriptor(
+    val agentId: String,
+    val displayName: String?,
+)
+
+data class RoomAgentSkillRelationDescriptor(
+    val relation: ChatbotRoomAgentSkillRelationKind,
+    val source: ChatbotRoomAgentSkillSource,
+    val path: String?,
+    val directoryName: String?,
+    val runtimeVisible: Boolean,
+    val persisted: Boolean,
+    val stale: Boolean?,
+)
+
+data class RoomAgentSkillCatalogDescriptor(
+    val status: String = "partial",
+    val cacheKey: String = "",
+    val agents: Map<String, RoomAgentSkillAgentDescriptor> = emptyMap(),
+    val skills: Map<String, RoomAgentSkillDescriptor> = emptyMap(),
+    val relations: Map<String, Map<String, RoomAgentSkillRelationDescriptor>> = emptyMap(),
 )
 
 data class RoomWebhookTriggerDescriptor(
@@ -443,20 +467,46 @@ internal fun ChatbotSchedule.toRoomScheduleDescriptor(): RoomScheduleDescriptor 
     )
 }
 
+internal fun ChatbotListRoomAgentSkillsResponse.toRoomAgentSkillCatalogDescriptor(): RoomAgentSkillCatalogDescriptor {
+    return RoomAgentSkillCatalogDescriptor(
+        status = status,
+        cacheKey = cacheKey,
+        agents = agents.mapValues { (_, agent) -> agent.toRoomAgentSkillAgentDescriptor() },
+        skills = skills.mapValues { (_, skill) -> skill.toRoomAgentSkillDescriptor() },
+        relations = relations.mapValues { (_, relationMap) ->
+            relationMap.mapValues { (_, relation) -> relation.toRoomAgentSkillRelationDescriptor() }
+        },
+    )
+}
+
+internal fun ChatbotRoomAgentSkillAgent.toRoomAgentSkillAgentDescriptor(): RoomAgentSkillAgentDescriptor {
+    return RoomAgentSkillAgentDescriptor(
+        agentId = agentId,
+        displayName = displayName,
+    )
+}
+
 internal fun ChatbotRoomAgentSkill.toRoomAgentSkillDescriptor(): RoomAgentSkillDescriptor {
     return RoomAgentSkillDescriptor(
         id = id,
         name = name,
         description = description,
+        sources = sources,
+        persisted = persisted,
         runtimeVisible = runtimeVisible,
+        stale = stale,
     )
 }
 
-internal fun ChatbotUserSkill.toRoomLegacyAgentSkillDescriptor(): RoomLegacyAgentSkillDescriptor {
-    return RoomLegacyAgentSkillDescriptor(
-        id = id,
-        name = name,
-        description = description,
+internal fun ChatbotRoomAgentSkillRelation.toRoomAgentSkillRelationDescriptor(): RoomAgentSkillRelationDescriptor {
+    return RoomAgentSkillRelationDescriptor(
+        relation = relation,
+        source = source,
+        path = path,
+        directoryName = directoryName,
+        runtimeVisible = runtimeVisible,
+        persisted = persisted,
+        stale = stale,
     )
 }
 

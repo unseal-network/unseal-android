@@ -1129,6 +1129,9 @@ private fun MessagesViewComposerBottomSheetContents(
                             onTogglePicker = {
                                 state.composerState.eventSink(MessageComposerEvent.ToggleAgentSkillPicker)
                             },
+                            onReloadPicker = {
+                                state.composerState.eventSink(MessageComposerEvent.ReloadAgentSkillPicker)
+                            },
                             onSelectTarget = {
                                 state.composerState.eventSink(MessageComposerEvent.SelectAgentSkillTarget(it))
                             },

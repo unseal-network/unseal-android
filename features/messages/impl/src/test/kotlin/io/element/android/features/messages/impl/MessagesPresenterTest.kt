@@ -27,8 +27,7 @@ import io.element.android.features.messages.impl.messagecomposer.aMessageCompose
 import io.element.android.features.messages.impl.pinned.banner.aLoadedPinnedMessagesBannerState
 import io.element.android.features.messages.impl.roomdata.AgentAccountDescriptor
 import io.element.android.features.messages.impl.roomdata.RoomAgentDescriptor
-import io.element.android.features.messages.impl.roomdata.RoomAgentSkillDescriptor
-import io.element.android.features.messages.impl.roomdata.RoomLegacyAgentSkillDescriptor
+import io.element.android.features.messages.impl.roomdata.RoomAgentSkillCatalogDescriptor
 import io.element.android.features.messages.impl.roomdata.RoomScheduleDescriptor
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
 import io.element.android.features.messages.impl.roomdata.RoomUnsealDataClient
@@ -1801,8 +1800,10 @@ private class FakeRoomUnsealDataClient(
     override suspend fun getRoomAgents(roomId: RoomId): Result<List<RoomAgentDescriptor>> = Result.success(emptyList())
     override suspend fun listAgents(): Result<List<AgentAccountDescriptor>> = Result.success(emptyList())
     override suspend fun listSchedules(roomId: RoomId): Result<List<RoomScheduleDescriptor>> = Result.success(emptyList())
-    override suspend fun listRoomAgentSkills(roomId: RoomId, agentId: String, runtimeOwnerUserId: String?): Result<List<RoomAgentSkillDescriptor>> = Result.success(emptyList())
-    override suspend fun listLegacyAgentSkills(agentLookupId: String): Result<List<RoomLegacyAgentSkillDescriptor>> = Result.success(emptyList())
+    override suspend fun listRoomAgentSkills(roomId: RoomId, agentId: String, runtimeOwnerUserId: String?): Result<RoomAgentSkillCatalogDescriptor> =
+        Result.success(RoomAgentSkillCatalogDescriptor())
+    override suspend fun refreshRoomAgentSkills(roomId: RoomId, agentId: String?, cacheKey: String, runtimeOwnerUserId: String?): Result<RoomAgentSkillCatalogDescriptor> =
+        Result.success(RoomAgentSkillCatalogDescriptor(status = "complete"))
     override suspend fun listWebhookTriggers(roomId: RoomId): Result<List<RoomWebhookTriggerDescriptor>> = Result.success(emptyList())
     override suspend fun getRoomWorkingMemory(roomId: RoomId): Result<String> = Result.success("")
     override suspend fun loadRoomData(roomId: RoomId): RoomUnsealDataSnapshot = snapshot

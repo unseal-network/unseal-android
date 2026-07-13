@@ -33,7 +33,10 @@ import io.element.android.features.messages.impl.roomdata.AgentAccountDescriptor
 import io.element.android.features.messages.impl.roomdata.FakeRoomUnsealDataClient
 import io.element.android.features.messages.impl.messagecomposer.suggestions.SuggestionsProcessor
 import io.element.android.features.messages.impl.roomdata.FakeRoomUnsealContextStore
+import io.element.android.features.messages.impl.roomdata.RoomAgentSkillAgentDescriptor
+import io.element.android.features.messages.impl.roomdata.RoomAgentSkillCatalogDescriptor
 import io.element.android.features.messages.impl.roomdata.RoomAgentSkillDescriptor
+import io.element.android.features.messages.impl.roomdata.RoomAgentSkillRelationDescriptor
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
 import io.element.android.features.messages.impl.roomdata.RoomUnsealDataSnapshot
 import io.element.android.features.messages.impl.roomdata.RoomUnsealResource
@@ -43,6 +46,8 @@ import io.element.android.features.messages.impl.utils.FakeTextPillificationHelp
 import io.element.android.features.messages.impl.utils.TextPillificationHelper
 import io.element.android.libraries.architecture.AsyncAction
 import io.element.android.libraries.architecture.AsyncData
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotRoomAgentSkillRelationKind
+import io.element.android.libraries.chatbot.api.model.skills.ChatbotRoomAgentSkillSource
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.core.mimetype.MimeTypes
 import io.element.android.libraries.designsystem.utils.snackbar.SnackbarDispatcher
@@ -529,8 +534,8 @@ class MessageComposerPresenterTest {
             )
         )
         val roomUnsealDataClient = FakeRoomUnsealDataClient().apply {
-            roomAgentSkillsResult = { _, _, _ ->
-                Result.success(listOf(RoomAgentSkillDescriptor(id = "skill-mail", name = "mail", description = null, runtimeVisible = true)))
+            roomAgentSkillsResult = { _, agentId, _ ->
+                Result.success(roomAgentSkillCatalog(agentId = agentId))
             }
         }
         var rawContent: String? = null
@@ -1380,8 +1385,8 @@ class MessageComposerPresenterTest {
             )
         )
         val roomUnsealDataClient = FakeRoomUnsealDataClient().apply {
-            roomAgentSkillsResult = { _, _, _ ->
-                Result.success(listOf(RoomAgentSkillDescriptor(id = "skill-mail", name = "mail", description = null, runtimeVisible = true)))
+            roomAgentSkillsResult = { _, agentId, _ ->
+                Result.success(roomAgentSkillCatalog(agentId = agentId))
             }
         }
         val presenter = createPresenter(
@@ -1426,8 +1431,8 @@ class MessageComposerPresenterTest {
             initialContext = AsyncData.Success(roomUnsealContextWithAgent(agentUserId))
         )
         val roomUnsealDataClient = FakeRoomUnsealDataClient().apply {
-            roomAgentSkillsResult = { _, _, _ ->
-                Result.success(listOf(RoomAgentSkillDescriptor(id = "skill-mail", name = "mail", description = null, runtimeVisible = true)))
+            roomAgentSkillsResult = { _, agentId, _ ->
+                Result.success(roomAgentSkillCatalog(agentId = agentId))
             }
         }
         val presenter = createPresenter(
@@ -1473,8 +1478,8 @@ class MessageComposerPresenterTest {
             initialContext = AsyncData.Success(roomUnsealContextWithAgent(agentUserId))
         )
         val roomUnsealDataClient = FakeRoomUnsealDataClient().apply {
-            roomAgentSkillsResult = { _, _, _ ->
-                Result.success(listOf(RoomAgentSkillDescriptor(id = "skill-mail", name = "mail", description = null, runtimeVisible = true)))
+            roomAgentSkillsResult = { _, agentId, _ ->
+                Result.success(roomAgentSkillCatalog(agentId = agentId))
             }
         }
         val presenter = createPresenter(
@@ -1510,8 +1515,8 @@ class MessageComposerPresenterTest {
             initialContext = AsyncData.Success(roomUnsealContextWithAgent(agentUserId))
         )
         val roomUnsealDataClient = FakeRoomUnsealDataClient().apply {
-            roomAgentSkillsResult = { _, _, _ ->
-                Result.success(listOf(RoomAgentSkillDescriptor(id = "skill-mail", name = "mail", description = null, runtimeVisible = true)))
+            roomAgentSkillsResult = { _, agentId, _ ->
+                Result.success(roomAgentSkillCatalog(agentId = agentId))
             }
         }
         val presenter = createPresenter(
@@ -1547,8 +1552,8 @@ class MessageComposerPresenterTest {
         )
         val roomUnsealContextStore = FakeRoomUnsealContextStore(initialContext = AsyncData.Uninitialized)
         val roomUnsealDataClient = FakeRoomUnsealDataClient().apply {
-            roomAgentSkillsResult = { _, _, _ ->
-                Result.success(listOf(RoomAgentSkillDescriptor(id = "skill-mail", name = "mail", description = null, runtimeVisible = true)))
+            roomAgentSkillsResult = { _, agentId, _ ->
+                Result.success(roomAgentSkillCatalog(agentId = agentId))
             }
         }
         val presenter = createPresenter(
@@ -2101,6 +2106,36 @@ class MessageComposerPresenterTest {
                             isDeviceAgent = false,
                             boundDeviceId = null,
                         )
+                    )
+                )
+            ),
+        )
+    }
+
+    private fun roomAgentSkillCatalog(agentId: String): RoomAgentSkillCatalogDescriptor {
+        return RoomAgentSkillCatalogDescriptor(
+            status = "complete",
+            agents = mapOf(agentId to RoomAgentSkillAgentDescriptor(agentId = agentId, displayName = "Mail Agent")),
+            skills = mapOf(
+                "skill-mail" to RoomAgentSkillDescriptor(
+                    id = "skill-mail",
+                    name = "mail",
+                    description = null,
+                    sources = listOf(ChatbotRoomAgentSkillSource.Workspace),
+                    persisted = false,
+                    runtimeVisible = true,
+                )
+            ),
+            relations = mapOf(
+                agentId to mapOf(
+                    "skill-mail" to RoomAgentSkillRelationDescriptor(
+                        relation = ChatbotRoomAgentSkillRelationKind.Runtime,
+                        source = ChatbotRoomAgentSkillSource.Workspace,
+                        path = "/workspace/mail/SKILL.md",
+                        directoryName = "mail",
+                        runtimeVisible = true,
+                        persisted = false,
+                        stale = null,
                     )
                 )
             ),

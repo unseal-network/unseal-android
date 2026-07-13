@@ -9,6 +9,7 @@ package io.element.android.features.messages.impl.messagecomposer.skills
 
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
+import io.element.android.features.messages.impl.roomdata.RoomAgentSkillCatalogDescriptor
 import io.element.android.features.messages.impl.roomdata.RoomUnsealContext
 import io.element.android.features.messages.impl.roomdata.RoomUnsealDataClient
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
@@ -20,6 +21,14 @@ import timber.log.Timber
 data class ComposerAgentSkillCatalogLoadResult(
     val candidates: List<ComposerAgentSkillCandidate>,
     val error: String?,
+    val catalogs: List<ComposerRoomAgentSkillCatalog> = emptyList(),
+    val refreshCatalogs: List<ComposerRoomAgentSkillCatalog> = emptyList(),
+)
+
+data class ComposerRoomAgentSkillCatalog(
+    val agentId: String,
+    val target: ComposerAgentDescriptor,
+    val catalog: RoomAgentSkillCatalogDescriptor,
 )
 
 @SingleIn(RoomScope::class)
@@ -45,56 +54,96 @@ class ComposerAgentSkillCatalogLoader(
             return@withContext ComposerAgentSkillCatalogLoadResult(candidates = emptyList(), error = null)
         }
 
-        val roomCatalogResult = loadRoomAgentSkillCandidates(catalogTargets, currentUserId)
+        val roomCatalogResult = loadRoomAgentSkillCatalogs(catalogTargets, currentUserId)
         roomCatalogResult.exceptionOrNull()?.let { error ->
             Timber.w(error, "Failed loading room agent skill catalog")
-            val fallback = loadLegacyInstalledSkillCandidates(targets)
             return@withContext ComposerAgentSkillCatalogLoadResult(
-                candidates = fallback,
-                error = error.message.takeIf { fallback.isEmpty() },
+                candidates = emptyList(),
+                error = error.message,
             )
         }
 
-        val roomCandidates = roomCatalogResult.getOrDefault(emptyList())
-        if (ComposerAgentSkillReducer.hasRuntimeVisibleSkillCandidates(roomCandidates)) {
-            return@withContext ComposerAgentSkillCatalogLoadResult(candidates = roomCandidates, error = null)
-        }
-
+        val catalogs = roomCatalogResult.getOrDefault(emptyList())
         return@withContext ComposerAgentSkillCatalogLoadResult(
-            candidates = loadLegacyInstalledSkillCandidates(targets),
+            candidates = candidatesFromCatalogs(catalogs),
             error = null,
+            catalogs = catalogs,
+            refreshCatalogs = catalogs.takeIf { entries ->
+                entries.any { it.catalog.status != COMPLETE_STATUS && it.catalog.cacheKey.isNotEmpty() }
+            }.orEmpty(),
         )
     }
 
-    private suspend fun loadRoomAgentSkillCandidates(
+    suspend fun refreshWorkspace(
+        catalogs: List<ComposerRoomAgentSkillCatalog>,
+        currentUserId: String,
+        force: Boolean = false,
+    ): ComposerAgentSkillCatalogLoadResult = withContext(dispatchers.io) {
+        val refreshedCatalogs = catalogs.map { entry ->
+            if ((!force && entry.catalog.status == COMPLETE_STATUS) || entry.catalog.cacheKey.isEmpty()) {
+                return@map entry
+            }
+            roomUnsealDataClient
+                .refreshRoomAgentSkills(room.roomId, entry.agentId, entry.catalog.cacheKey, currentUserId)
+                .fold(
+                    onSuccess = { catalog -> entry.copy(catalog = catalog) },
+                    onFailure = { error ->
+                        Timber.w(error, "Failed refreshing room agent skill catalog for ${entry.agentId}")
+                        entry
+                    },
+                )
+        }
+        return@withContext ComposerAgentSkillCatalogLoadResult(
+            candidates = candidatesFromCatalogs(refreshedCatalogs),
+            error = null,
+            catalogs = refreshedCatalogs,
+        )
+    }
+
+    private suspend fun loadRoomAgentSkillCatalogs(
         targets: List<ComposerAgentDescriptor>,
         currentUserId: String,
-    ): Result<List<ComposerAgentSkillCandidate>> {
+    ): Result<List<ComposerRoomAgentSkillCatalog>> {
         val targetByAgentId = ComposerAgentSkillReducer.targetByRelationAgentId(targets)
         return runCatching {
             ComposerAgentSkillReducer.skillCatalogAgentIds(targets)
-                .flatMap { agentId ->
-                    val target = targetByAgentId[agentId] ?: return@flatMap emptyList()
-                    val skills = roomUnsealDataClient
+                .mapNotNull { agentId ->
+                    val target = targetByAgentId[agentId] ?: return@mapNotNull null
+                    val catalog = roomUnsealDataClient
                         .listRoomAgentSkills(room.roomId, agentId, currentUserId)
                         .getOrThrow()
-                    ComposerAgentSkillReducer.roomSkillCandidates(target, skills)
+                    ComposerRoomAgentSkillCatalog(agentId = agentId, target = target, catalog = catalog)
                 }
-                .sortedWith(compareBy<ComposerAgentSkillCandidate> { it.agent.label }.thenBy { it.skillName })
         }
     }
 
-    private suspend fun loadLegacyInstalledSkillCandidates(targets: List<ComposerAgentDescriptor>): List<ComposerAgentSkillCandidate> {
-        return targets.flatMap { target ->
-            val loadedSkills = ComposerAgentSkillReducer.legacyAgentSkillLookupIds(target)
-                .firstNotNullOfOrNull { lookupId ->
-                    roomUnsealDataClient.listLegacyAgentSkills(lookupId)
-                        .onFailure { error -> Timber.w(error, "Legacy skill lookup failed for $lookupId") }
-                        .getOrNull()
-                        ?.takeIf { it.isNotEmpty() }
-                }
-                .orEmpty()
-            ComposerAgentSkillReducer.legacyInstalledSkillCandidates(target, loadedSkills)
-        }.sortedWith(compareBy<ComposerAgentSkillCandidate> { it.agent.label }.thenBy { it.skillName })
+    private fun candidatesFromCatalogs(catalogs: List<ComposerRoomAgentSkillCatalog>): List<ComposerAgentSkillCandidate> {
+        return catalogs
+            .flatMap { entry ->
+                ComposerAgentSkillReducer.roomSkillCandidates(
+                    target = entry.target,
+                    agentId = entry.agentId,
+                    catalog = entry.catalog,
+                )
+            }
+            .sortedWith(
+                compareBy<ComposerAgentSkillCandidate> { it.agent.label }
+                    .thenBy { sourceRank(it.source) }
+                    .thenBy { it.skillName }
+            )
+            .let(ComposerAgentSkillReducer::deduplicateSkillCandidates)
+    }
+
+    private fun sourceRank(source: ComposerAgentSkillSource): Int {
+        return when (source) {
+            ComposerAgentSkillSource.Workspace -> 0
+            ComposerAgentSkillSource.S3 -> 1
+            ComposerAgentSkillSource.Db -> 2
+            ComposerAgentSkillSource.Bundled -> 3
+        }
+    }
+
+    private companion object {
+        const val COMPLETE_STATUS = "complete"
     }
 }

@@ -35,6 +35,10 @@ sealed interface TimelineItemTextBasedContent :
     val linkPreviewUrls: List<String>
         get() = emptyList()
 
+    /** Exact Unseal agent profile URLs that can be rendered as agent profile preview cards. */
+    val agentProfilePreviewPlan: AgentProfilePreviewPlan
+        get() = AgentProfilePreviewPlan.Empty
+
     /** The raw HTML body of the event. */
     val htmlBody: String?
         get() = htmlDocument?.body()?.html()

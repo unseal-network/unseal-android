@@ -27,6 +27,8 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVideoContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVoiceContent
+import io.element.android.features.messages.impl.timeline.model.event.AgentProfilePreviewCandidate
+import io.element.android.features.messages.impl.timeline.model.event.AgentProfilePreviewPlan
 import io.element.android.features.messages.impl.utils.TextPillificationHelper
 import io.element.android.features.messages.impl.utils.toUnsealAgentProfileLink
 import io.element.android.libraries.androidutils.filesize.FileSizeFormatter
@@ -262,23 +264,27 @@ class TimelineItemContentMessageFactory(
                 val dom = messageType.formatted?.toHtmlDocument(permalinkParser = permalinkParser)
                 val formattedBody = dom?.let(::parseHtml)
                     ?: textPillificationHelper.pillify(body).safeLinkify()
+                val previewLinks = formattedBody.extractPreviewLinks(permalinkParser)
                 TimelineItemTextContent(
                     body = body,
                     htmlDocument = dom,
                     formattedBody = formattedBody,
                     isEdited = content.isEdited,
-                    linkPreviewUrls = formattedBody.extractLinkPreviewUrls(permalinkParser),
+                    linkPreviewUrls = previewLinks.regularUrls,
+                    agentProfilePreviewPlan = previewLinks.agentProfilePreviewPlan,
                 )
             }
             is GalleryMessageType -> {
                 val body = messageType.body.trimEnd()
                 val formattedBody = textPillificationHelper.pillify(body).safeLinkify()
+                val previewLinks = formattedBody.extractPreviewLinks(permalinkParser)
                 TimelineItemTextContent(
                     body = body,
                     htmlDocument = null,
                     formattedBody = formattedBody,
                     isEdited = content.isEdited,
-                    linkPreviewUrls = formattedBody.extractLinkPreviewUrls(permalinkParser),
+                    linkPreviewUrls = previewLinks.regularUrls,
+                    agentProfilePreviewPlan = previewLinks.agentProfilePreviewPlan,
                 )
             }
             is OtherMessageType -> {
@@ -291,12 +297,14 @@ class TimelineItemContentMessageFactory(
                 }
                 val body = messageType.body.trimEnd()
                 val formattedBody = textPillificationHelper.pillify(body).safeLinkify()
+                val previewLinks = formattedBody.extractPreviewLinks(permalinkParser)
                 TimelineItemTextContent(
                     body = body,
                     htmlDocument = null,
                     formattedBody = formattedBody,
                     isEdited = content.isEdited,
-                    linkPreviewUrls = formattedBody.extractLinkPreviewUrls(permalinkParser),
+                    linkPreviewUrls = previewLinks.regularUrls,
+                    agentProfilePreviewPlan = previewLinks.agentProfilePreviewPlan,
                 )
             }
         }
@@ -327,25 +335,65 @@ private fun String.withLinks(): CharSequence? {
     return spannable.takeIf { spannable.getSpans<URLSpan>(0, length).isNotEmpty() }
 }
 
-private fun CharSequence.extractLinkPreviewUrls(permalinkParser: PermalinkParser): List<String> {
-    if (this !is Spanned) return emptyList()
-    return getSpans<URLSpan>(0, length)
-        .filter { isRegularPreviewLink(it) }
+private data class ExtractedPreviewLinks(
+    val regularUrls: List<String>,
+    val agentProfilePreviewPlan: AgentProfilePreviewPlan,
+)
+
+private fun CharSequence.extractPreviewLinks(permalinkParser: PermalinkParser): ExtractedPreviewLinks {
+    if (this !is Spanned) {
+        return ExtractedPreviewLinks(
+            regularUrls = emptyList(),
+            agentProfilePreviewPlan = AgentProfilePreviewPlan.Empty,
+        )
+    }
+    val candidates = getSpans<URLSpan>(0, length)
+        .mapNotNull { toPreviewCandidate(it) }
+    val regularUrls = candidates
         .map { it.url }
         .filter { it.isPreviewableUrl(permalinkParser) }
         .distinct()
         .take(2)
+    val agentCandidates = candidates.mapNotNull { candidate ->
+        candidate.url.toUnsealAgentProfileLink()?.let { profileLink ->
+            AgentProfilePreviewCandidate(
+                profileLink = profileLink,
+                url = candidate.url,
+                visibleText = candidate.visibleText,
+            )
+        }
+    }
+    return ExtractedPreviewLinks(
+        regularUrls = regularUrls,
+        agentProfilePreviewPlan = AgentProfilePreviewPlan.build(
+            agentCandidates = agentCandidates,
+            genericPreviewUrls = regularUrls,
+            visibleText = toString(),
+        ),
+    )
 }
 
-private fun Spanned.isRegularPreviewLink(urlSpan: URLSpan): Boolean {
+private data class PreviewCandidate(
+    val url: String,
+    val visibleText: String,
+)
+
+private fun Spanned.toPreviewCandidate(urlSpan: URLSpan): PreviewCandidate? {
     val start = getSpanStart(urlSpan)
     val end = getSpanEnd(urlSpan)
-    if (start < 0 || end <= start) return false
-    if (getMentionSpans(start, end).isNotEmpty()) return false
+    if (start < 0 || end <= start) return null
+    if (getMentionSpans(start, end).isNotEmpty()) return null
 
     val visibleText = subSequence(start, end).toString().trim()
-    return visibleText.startsWith("http://", ignoreCase = true) ||
-        visibleText.startsWith("https://", ignoreCase = true)
+    if (!visibleText.startsWith("http://", ignoreCase = true) &&
+        !visibleText.startsWith("https://", ignoreCase = true)
+    ) {
+        return null
+    }
+    return PreviewCandidate(
+        url = urlSpan.url,
+        visibleText = visibleText,
+    )
 }
 
 private fun String.isPreviewableUrl(permalinkParser: PermalinkParser): Boolean {

@@ -69,6 +69,7 @@ data class TimelineItemAiState(
     val workflowMessages: Map<String, WorkflowMessage> = emptyMap(),
     val workflowSlides: Map<String, List<String>> = emptyMap(),
     val miniAppDocumentLauncher: MiniAppDocumentLauncher? = null,
+    val onSendCardResponse: suspend (eventId: String, actionId: String) -> Boolean = { _, _ -> false },
     val canAbortRun: Boolean = false,
     val onAbortRun: suspend () -> Boolean = { false },
 )
@@ -289,19 +290,44 @@ class TimelineItemAiPresenter(
             workflowMessages = workflowMessages,
             workflowSlides = workflowSlides,
             miniAppDocumentLauncher = miniAppDocumentLauncher,
+            onSendCardResponse = { eventId, actionId ->
+                sendCardResponse(
+                    roomId = currentContent.roomId ?: initialContent.roomId,
+                    eventId = eventId,
+                    actionId = actionId,
+                )
+            },
             canAbortRun = currentContent.isStreaming &&
                 currentContent.streamId != null &&
                 currentContent.targetUserId == matrixClient.sessionId.value,
-            onAbortRun = { abortRun(currentContent.streamId) },
+            onAbortRun = {
+                abortRun(currentContent.streamId)
+            },
         )
     }
 
-    private suspend fun abortRun(streamId: String?): Boolean {
-        val id = streamId?.takeIf { it.isNotBlank() } ?: return false
-        return chatbotApiServiceFactory.createForHomeserver(matrixClient)
-            .abortRun(id, "Stopped by initiator from the message timeline")
-            .onFailure { Timber.e(it, "Failed to stop Agent run stream=%s", id) }
-            .isSuccess
+    private suspend fun sendCardResponse(
+        roomId: String?,
+        eventId: String,
+        actionId: String,
+    ): Boolean {
+        if (roomId.isNullOrBlank() || eventId.isBlank() || actionId.isBlank()) {
+            Timber.tag("CardResponse").w(
+                "Missing card response context roomId=%s eventId=%s actionId=%s",
+                roomId,
+                eventId,
+                actionId,
+            )
+            return false
+        }
+
+        return withContext(dispatchers.io) {
+            chatbotApiServiceFactory
+                .createForHomeserver(matrixClient)
+                .sendCardResponse(roomId = roomId, eventId = eventId, actionId = actionId)
+                .onFailure { Timber.tag("CardResponse").w(it, "Failed to send card response marker") }
+                .isSuccess
+        }
     }
 
     private suspend fun loadCompletedCachedContent(
@@ -318,6 +344,14 @@ class TimelineItemAiPresenter(
                     .also(aiStreamContentCache::put)
             }
         }
+    }
+
+    private suspend fun abortRun(streamId: String?): Boolean {
+        val id = streamId?.takeIf { it.isNotBlank() } ?: return false
+        return chatbotApiServiceFactory.createForHomeserver(matrixClient)
+            .abortRun(id, "Stopped by initiator from the message timeline")
+            .onFailure { Timber.e(it, "Failed to stop Agent run stream=%s", id) }
+            .isSuccess
     }
 
     private suspend fun collectStreamContent(
@@ -472,6 +506,7 @@ private fun TimelineItemAiContent.withFallbackMetadata(fallback: TimelineItemAiC
         roomId = roomId ?: fallback.roomId,
         eventId = eventId ?: fallback.eventId,
         targetUserId = targetUserId ?: fallback.targetUserId,
+        cardResponseState = if (cardResponseState.actioned) cardResponseState else fallback.cardResponseState,
     )
 }
 

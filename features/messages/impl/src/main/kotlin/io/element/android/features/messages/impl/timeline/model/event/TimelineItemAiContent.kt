@@ -32,6 +32,7 @@ data class AiStreamRenderModel(
     val renderableToolParts: ImmutableList<AiToolStreamPart> = persistentListOf(),
     val toolCardEntries: ImmutableList<AiToolCardEntry> = persistentListOf(),
     val toolCallRoot: ToolCallRootRenderModel? = null,
+    val cardResponseState: CardResponseState = CardResponseState(),
     val passthroughParts: ImmutableList<AiStreamPart> = persistentListOf(),
     val visibleParts: ImmutableList<AiStreamPart> = persistentListOf(),
     val firstToolPartIndex: Int? = null,
@@ -64,6 +65,7 @@ data class AiStreamRenderModel(
             renderableToolParts = renderableToolParts,
             toolCardEntries = toolCardEntries,
             toolCallRoot = toolCallRoot,
+            cardResponseState = cardResponseState,
             passthroughParts = passthroughParts,
             visibleParts = visibleParts,
             firstToolPartIndex = firstToolPartIndex,
@@ -120,6 +122,7 @@ data class TimelineItemAiContent(
     val renderableToolParts: ImmutableList<AiToolStreamPart> = persistentListOf(),
     val toolCardEntries: ImmutableList<AiToolCardEntry> = persistentListOf(),
     val toolCallRoot: ToolCallRootRenderModel? = null,
+    val cardResponseState: CardResponseState = CardResponseState(),
     val passthroughParts: ImmutableList<AiStreamPart> = persistentListOf(),
     /** Ordered, hidden-filtered parts (tool markers kept) — the render source, mirrors iOS groupedParts. */
     val visibleParts: ImmutableList<AiStreamPart> = persistentListOf(),
@@ -131,6 +134,13 @@ data class TimelineItemAiContent(
     val hasRichParts: Boolean
         get() = parts.isNotEmpty() || thinkingSteps.isNotEmpty() || toolCalls.isNotEmpty() || sources.isNotEmpty() || quickActions.isNotEmpty()
 }
+
+@Immutable
+data class CardResponseState(
+    val actioned: Boolean = false,
+    val actionId: String? = null,
+    val eventId: String? = null,
+)
 
 @Immutable
 sealed interface AiStreamPart {
