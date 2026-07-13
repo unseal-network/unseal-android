@@ -97,7 +97,7 @@ class OnboardingViewTest {
                 ),
                 onSignIn = callback,
             )
-            clickOn(R.string.screen_onboarding_sign_in)
+            clickOn(R.string.screen_onboarding_sign_in_manually)
         }
     }
 
@@ -118,7 +118,7 @@ class OnboardingViewTest {
                 ),
                 onSignIn = callback,
             )
-            clickOn(R.string.screen_onboarding_sign_in)
+            clickOn(CommonStrings.action_continue)
         }
     }
 

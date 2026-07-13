@@ -301,6 +301,11 @@ private fun OnBoardingButtons(
     }
 
     ButtonColumnMolecule {
+        val signInButtonStringRes = if (state.canLoginWithQrCode) {
+            R.string.screen_onboarding_sign_in_manually
+        } else {
+            CommonStrings.action_continue
+        }
         if (state.canLoginWithQrCode) {
             Button(
                 text = stringResource(id = R.string.screen_onboarding_sign_in_with_qr_code),
@@ -312,7 +317,7 @@ private fun OnBoardingButtons(
         val defaultAccountProvider = state.defaultAccountProvider
         if (defaultAccountProvider == null) {
             Button(
-                text = stringResource(id = R.string.screen_onboarding_sign_in),
+                text = stringResource(id = signInButtonStringRes),
                 onClick = {
                     onSignIn(state.mustChooseAccountProvider)
                 },
