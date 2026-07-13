@@ -39,22 +39,15 @@ import org.robolectric.RobolectricTestParameterInjector
 @RunWith(RobolectricTestParameterInjector::class)
 class OnboardingViewTest {
     @Test
-    fun `when can create account - clicking on create account calls the expected callback`() = runAndroidComposeUiTest {
+    fun `create account button is not shown`() = runAndroidComposeUiTest {
         val eventSink = EventsRecorder<OnBoardingEvents>(expectEvents = false)
-        ensureCalledOnce { callback ->
-            setOnboardingView(
-                state = anOnBoardingState(
-                    canCreateAccount = true,
-                    showDeveloperSettings = false,
-                    eventSink = eventSink,
-                ),
-                onCreateAccount = callback,
-            )
-            clickOn(R.string.screen_onboarding_sign_up)
-            // Developer settings should not be shown
-            val developerSettingsText = activity!!.getString(CommonStrings.common_developer_options)
-            onNodeWithContentDescription(developerSettingsText).assertDoesNotExist()
-        }
+        setOnboardingView(
+            state = anOnBoardingState(
+                showDeveloperSettings = false,
+                eventSink = eventSink,
+            ),
+        )
+        onNodeWithText(activity!!.getString(R.string.screen_onboarding_sign_up)).assertDoesNotExist()
     }
 
     @Test
@@ -88,7 +81,7 @@ class OnboardingViewTest {
     }
 
     @Test
-    fun `when can login with QR code - clicking on sign in manually calls the expected callback`(
+    fun `when can login with QR code - clicking on sign in calls the expected callback`(
         @TestParameter mustChooseAccountProvider: Boolean = namedTestValues(
             "can search account provider" to false,
             "cannot search account provider" to true,
@@ -104,12 +97,12 @@ class OnboardingViewTest {
                 ),
                 onSignIn = callback,
             )
-            clickOn(R.string.screen_onboarding_sign_in_manually)
+            clickOn(R.string.screen_onboarding_sign_in)
         }
     }
 
     @Test
-    fun `when cannot login with QR code or create account - clicking on continue calls the sign in callback`(
+    fun `when cannot login with QR code - clicking on sign in calls the expected callback`(
         @TestParameter mustChooseAccountProvider: Boolean = namedTestValues(
             "can search account provider" to false,
             "cannot search account provider" to true,
@@ -120,13 +113,12 @@ class OnboardingViewTest {
             setOnboardingView(
                 state = anOnBoardingState(
                     canLoginWithQrCode = false,
-                    canCreateAccount = false,
                     mustChooseAccountProvider = mustChooseAccountProvider,
                     eventSink = eventSink,
                 ),
                 onSignIn = callback,
             )
-            clickOn(CommonStrings.action_continue)
+            clickOn(R.string.screen_onboarding_sign_in)
         }
     }
 
@@ -257,7 +249,6 @@ class OnboardingViewTest {
         onDeveloperSettingsClick: () -> Unit = EnsureNeverCalled(),
         onSignInWithQrCode: () -> Unit = EnsureNeverCalled(),
         onSignIn: (Boolean) -> Unit = EnsureNeverCalledWithParam(),
-        onCreateAccount: () -> Unit = EnsureNeverCalled(),
         onReportProblem: () -> Unit = EnsureNeverCalled(),
         onOAuthDetails: (OAuthDetails) -> Unit = EnsureNeverCalledWithParam(),
         onNeedLoginPassword: () -> Unit = EnsureNeverCalled(),
@@ -271,7 +262,6 @@ class OnboardingViewTest {
                 onDeveloperSettingsClick = onDeveloperSettingsClick,
                 onSignInWithQrCode = onSignInWithQrCode,
                 onSignIn = onSignIn,
-                onCreateAccount = onCreateAccount,
                 onReportProblem = onReportProblem,
                 onOAuthDetails = onOAuthDetails,
                 onNeedLoginPassword = onNeedLoginPassword,

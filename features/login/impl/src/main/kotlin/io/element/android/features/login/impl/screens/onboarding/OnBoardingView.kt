@@ -56,7 +56,6 @@ import io.element.android.libraries.designsystem.theme.components.Icon
 import io.element.android.libraries.designsystem.theme.components.IconButton
 import io.element.android.libraries.designsystem.theme.components.IconSource
 import io.element.android.libraries.designsystem.theme.components.Text
-import io.element.android.libraries.designsystem.theme.components.TextButton
 import io.element.android.libraries.matrix.api.auth.OAuthDetails
 import io.element.android.libraries.testtags.TestTags
 import io.element.android.libraries.testtags.testTag
@@ -74,7 +73,6 @@ fun OnBoardingView(
     onDeveloperSettingsClick: () -> Unit,
     onSignInWithQrCode: () -> Unit,
     onSignIn: (mustChooseAccountProvider: Boolean) -> Unit,
-    onCreateAccount: () -> Unit,
     onOAuthDetails: (OAuthDetails) -> Unit,
     onNeedLoginPassword: () -> Unit,
     onLearnMoreClick: () -> Unit,
@@ -99,7 +97,6 @@ fun OnBoardingView(
             state = state,
             onSignInWithQrCode = onSignInWithQrCode,
             onSignIn = onSignIn,
-            onCreateAccount = onCreateAccount,
             onReportProblem = onReportProblem,
         )
     }
@@ -295,7 +292,6 @@ private fun OnBoardingButtons(
     state: OnBoardingState,
     onSignInWithQrCode: () -> Unit,
     onSignIn: (mustChooseAccountProvider: Boolean) -> Unit,
-    onCreateAccount: () -> Unit,
     onReportProblem: () -> Unit,
 ) {
     val isLoading by remember(state.loginMode) {
@@ -305,11 +301,6 @@ private fun OnBoardingButtons(
     }
 
     ButtonColumnMolecule {
-        val signInButtonStringRes = if (state.canLoginWithQrCode || state.canCreateAccount) {
-            R.string.screen_onboarding_sign_in_manually
-        } else {
-            CommonStrings.action_continue
-        }
         if (state.canLoginWithQrCode) {
             Button(
                 text = stringResource(id = R.string.screen_onboarding_sign_in_with_qr_code),
@@ -321,7 +312,7 @@ private fun OnBoardingButtons(
         val defaultAccountProvider = state.defaultAccountProvider
         if (defaultAccountProvider == null) {
             Button(
-                text = stringResource(id = signInButtonStringRes),
+                text = stringResource(id = R.string.screen_onboarding_sign_in),
                 onClick = {
                     onSignIn(state.mustChooseAccountProvider)
                 },
@@ -337,14 +328,6 @@ private fun OnBoardingButtons(
                     state.eventSink(OnBoardingEvents.OnSignIn(defaultAccountProvider))
                 },
                 enabled = state.submitEnabled || isLoading,
-                modifier = Modifier
-                    .fillMaxWidth()
-            )
-        }
-        if (state.canCreateAccount) {
-            TextButton(
-                text = stringResource(id = R.string.screen_onboarding_sign_up),
-                onClick = onCreateAccount,
                 modifier = Modifier
                     .fillMaxWidth()
             )
@@ -387,7 +370,6 @@ internal fun OnBoardingViewPreview(
         onDeveloperSettingsClick = {},
         onSignInWithQrCode = {},
         onSignIn = {},
-        onCreateAccount = {},
         onReportProblem = {},
         onOAuthDetails = {},
         onNeedLoginPassword = {},

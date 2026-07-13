@@ -74,10 +74,10 @@ class LoginHelper(
                 }
             }.map { matrixHomeServerDetails ->
                 if (matrixHomeServerDetails.supportsOAuthLogin) {
-                    // Retrieve the details right now
-                    val oAuthPrompt = if (isAccountCreation) OAuthPrompt.Create else OAuthPrompt.Login
+                    // Account providers own registration. OAuthPrompt.Login maps to the OIDC consent prompt,
+                    // which is compatible with providers that do not support the create prompt.
                     LoginMode.OAuth(
-                        authenticationService.getOAuthUrl(prompt = oAuthPrompt, loginHint = loginHint).getOrThrow()
+                        authenticationService.getOAuthUrl(prompt = OAuthPrompt.Login, loginHint = loginHint).getOrThrow()
                     )
                 } else if (isAccountCreation) {
                     val url = webClientUrlForAuthenticationRetriever.retrieve(homeserverUrl)

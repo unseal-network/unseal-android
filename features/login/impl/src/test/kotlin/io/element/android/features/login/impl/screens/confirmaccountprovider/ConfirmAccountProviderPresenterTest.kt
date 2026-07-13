@@ -19,6 +19,7 @@ import io.element.android.features.login.impl.web.FakeWebClientUrlForAuthenticat
 import io.element.android.features.login.impl.web.WebClientUrlForAuthenticationRetriever
 import io.element.android.libraries.architecture.AsyncData
 import io.element.android.libraries.matrix.api.auth.MatrixAuthenticationService
+import io.element.android.libraries.matrix.api.auth.OAuthPrompt
 import io.element.android.libraries.matrix.test.AN_EXCEPTION
 import io.element.android.libraries.matrix.test.auth.FakeMatrixAuthenticationService
 import io.element.android.libraries.matrix.test.auth.aMatrixHomeServerDetails
@@ -311,7 +312,7 @@ class ConfirmAccountProviderPresenterTest {
     }
 
     @Test
-    fun `present - confirm account creation with OAuth is successful`() = runTest {
+    fun `present - confirm account creation with OAuth uses the consent prompt`() = runTest {
         val authenticationService = FakeMatrixAuthenticationService(
             setHomeserverResult = {
                 Result.success(aMatrixHomeServerDetails(supportsOAuthLogin = true))
@@ -328,6 +329,7 @@ class ConfirmAccountProviderPresenterTest {
             val submittedState = awaitItem()
             assertThat(submittedState.loginMode).isInstanceOf(AsyncData.Success::class.java)
             assertThat(submittedState.loginMode.dataOrNull()).isInstanceOf(LoginMode.OAuth::class.java)
+            assertThat(authenticationService.lastOAuthPrompt).isEqualTo(OAuthPrompt.Login)
         }
     }
 

@@ -42,6 +42,8 @@ class FakeMatrixAuthenticationService(
     private var loginError: Throwable? = null
     private var matrixClient: MatrixClient? = null
     private var onAuthenticationListener: ((MatrixClient) -> Unit)? = null
+    var lastOAuthPrompt: OAuthPrompt? = null
+        private set
 
     override suspend fun restoreSession(sessionId: SessionId): Result<MatrixClient> {
         matrixClientResult?.let {
@@ -74,6 +76,7 @@ class FakeMatrixAuthenticationService(
         prompt: OAuthPrompt,
         loginHint: String?,
     ): Result<OAuthDetails> = simulateLongTask {
+        lastOAuthPrompt = prompt
         oAuthError?.let { Result.failure(it) } ?: Result.success(AN_OAUTH_DATA)
     }
 

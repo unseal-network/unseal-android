@@ -10,7 +10,6 @@ package io.element.android.features.login.impl.screens.onboarding
 
 import com.google.common.truth.Truth.assertThat
 import io.element.android.appconfig.AuthenticationConfig
-import io.element.android.appconfig.OnBoardingConfig
 import io.element.android.features.enterprise.api.EnterpriseService
 import io.element.android.features.enterprise.test.FakeEnterpriseService
 import io.element.android.features.login.impl.accesscontrol.DefaultAccountProviderAccessControl
@@ -86,7 +85,6 @@ class OnBoardingPresenterTest {
             assertThat(initialState.defaultAccountProvider).isNull()
             assertThat(initialState.canLoginWithQrCode).isFalse()
             assertThat(initialState.productionApplicationName).isEqualTo("B")
-            assertThat(initialState.canCreateAccount).isEqualTo(OnBoardingConfig.CAN_CREATE_ACCOUNT)
             assertThat(initialState.canReportBug).isFalse()
             assertThat(initialState.isAddingAccount).isFalse()
             val finalState = awaitItem()
@@ -188,7 +186,6 @@ class OnBoardingPresenterTest {
             awaitItem().also {
                 assertThat(it.defaultAccountProvider).isEqualTo(ACCOUNT_PROVIDER_FROM_LINK)
                 assertThat(it.canLoginWithQrCode).isFalse()
-                assertThat(it.canCreateAccount).isFalse()
             }
         }
     }
@@ -211,7 +208,6 @@ class OnBoardingPresenterTest {
             awaitItem().also {
                 assertThat(it.defaultAccountProvider).isNull()
                 assertThat(it.canLoginWithQrCode).isTrue()
-                assertThat(it.canCreateAccount).isFalse()
             }
         }
     }
@@ -233,7 +229,6 @@ class OnBoardingPresenterTest {
             awaitItem().also {
                 assertThat(it.defaultAccountProvider).isEqualTo(ACCOUNT_PROVIDER_FROM_CONFIG)
                 assertThat(it.canLoginWithQrCode).isTrue()
-                assertThat(it.canCreateAccount).isFalse()
             }
         }
     }
