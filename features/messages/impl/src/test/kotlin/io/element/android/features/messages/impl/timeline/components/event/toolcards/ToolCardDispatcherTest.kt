@@ -93,6 +93,192 @@ class ToolCardDispatcherTest {
     }
 
     @Test
+    fun `finance data envelope is normalized for root tool cards`() {
+        val payload = JSONObject(
+            """
+            {
+              "data": {
+                "summary": {
+                  "title": "SpaceX",
+                  "stock": "SPCX",
+                  "exchange": "NASDAQ",
+                  "extracted_price": 135,
+                  "currency": "USD"
+                },
+                "news_results": [
+                  {
+                    "title": "SpaceX is public",
+                    "source": "TechCrunch",
+                    "date": "3 weeks ago",
+                    "link": "https://techcrunch.com/spacex"
+                  }
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        val transformed = CardTransforms.transform(payload, "finance")
+
+        assertThat(transformed.hasCardContentFor("finance")).isTrue()
+        assertThat(transformed.optJSONObject("quote")?.cardString("name")).isEqualTo("SpaceX")
+        assertThat(transformed.cardObjects("news")).hasSize(1)
+    }
+
+    @Test
+    fun `finance financials only payload is renderable`() {
+        val payload = JSONObject(
+            """
+            {
+              "financials": [
+                {
+                  "title": "Quarterly financials",
+                  "results": [
+                    {
+                      "date": "Q2 2026",
+                      "table": [
+                        { "title": "Revenue", "value": "$2.1B" }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+            """.trimIndent()
+        )
+
+        val transformed = CardTransforms.transform(payload, "finance")
+
+        assertThat(transformed.cardObjects("financials")).hasSize(1)
+        assertThat(transformed.hasCardContentFor("finance")).isTrue()
+    }
+
+    @Test
+    fun `finance bare symbol payload is not treated as renderable card content`() {
+        val payload = JSONObject(
+            """
+            {
+              "symbol": "SPCX",
+              "name": "SpaceX"
+            }
+            """.trimIndent()
+        )
+
+        assertThat(payload.hasCardContentFor("finance")).isFalse()
+    }
+
+    @Test
+    fun `weather bare location payload is not treated as renderable card content`() {
+        val payload = JSONObject(
+            """
+            {
+              "city": "Shanghai",
+              "condition": "Sunny"
+            }
+            """.trimIndent()
+        )
+
+        assertThat(payload.hasCardContentFor("weather")).isFalse()
+    }
+
+    @Test
+    fun `headline data envelope is normalized for root tool cards`() {
+        val payload = JSONObject(
+            """
+            {
+              "data": {
+                "news_results": [
+                  {
+                    "title": "SpaceX is public",
+                    "source": "TechCrunch",
+                    "date": "3 weeks ago",
+                    "link": "https://techcrunch.com/spacex"
+                  }
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        val transformed = CardTransforms.transform(payload, "headlineList")
+
+        assertThat(transformed.hasCardContentFor("headlineList")).isTrue()
+        assertThat(transformed.cardObjects("headlines")).hasSize(1)
+    }
+
+    @Test
+    fun `product top level results array is normalized`() {
+        val payload = JSONObject(
+            """
+            {
+              "results": [
+                {
+                  "title": "SpaceX hoodie",
+                  "price": "$65",
+                  "source": "Shop",
+                  "link": "https://example.com/hoodie"
+                }
+              ]
+            }
+            """.trimIndent()
+        )
+
+        val transformed = CardTransforms.transform(payload, "productList")
+
+        assertThat(transformed.hasCardContentFor("productList")).isTrue()
+        assertThat(transformed.cardObjects("products")).hasSize(1)
+    }
+
+    @Test
+    fun `url content direct result arrays are accepted as renderable card content`() {
+        val payload = JSONObject(
+            """
+            {
+              "results": [
+                {
+                  "url": "https://example.com/article",
+                  "title": "Fetched article"
+                }
+              ]
+            }
+            """.trimIndent()
+        )
+
+        assertThat(payload.hasCardContentFor("urlContent")).isTrue()
+    }
+
+    @Test
+    fun `breaking news requires a resolvable headline title`() {
+        val emptyTitlePayload = JSONObject(
+            """
+            {
+              "headlines": [
+                {
+                  "source": "Wire",
+                  "url": "https://example.com/no-title"
+                }
+              ]
+            }
+            """.trimIndent()
+        )
+        val titledPayload = JSONObject(
+            """
+            {
+              "headlines": [
+                {
+                  "title": "Markets open higher",
+                  "source": "Wire"
+                }
+              ]
+            }
+            """.trimIndent()
+        )
+
+        assertThat(emptyTitlePayload.hasCardContentFor("breakingNews")).isFalse()
+        assertThat(titledPayload.hasCardContentFor("breakingNews")).isTrue()
+    }
+
+    @Test
     fun `weather tool is registered and normalizes current forecast data`() {
         val payload = JSONObject(
             """

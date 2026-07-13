@@ -153,6 +153,7 @@ class StartChatPresenterTest {
             )
         }
     }
+
 }
 
 internal fun createStartChatPresenter(

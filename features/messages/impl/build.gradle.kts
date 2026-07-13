@@ -28,6 +28,7 @@ setupDependencyInjection()
 dependencies {
     api(projects.features.messages.api)
     implementation(projects.appconfig)
+    implementation(projects.features.agentmanagement.api)
     implementation(projects.features.call.api)
     implementation(projects.features.enterprise.api)
     implementation(projects.features.forward.api)

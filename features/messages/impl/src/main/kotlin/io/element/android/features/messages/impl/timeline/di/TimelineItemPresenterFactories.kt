@@ -15,6 +15,7 @@ import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.Multibinds
 import dev.zacsweers.metro.SingleIn
+import io.element.android.features.messages.impl.timeline.cache.BoundedTimelineCache
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEventContent
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.di.RoomScope
@@ -44,7 +45,7 @@ interface TimelineItemPresenterFactoriesModule {
 class TimelineItemPresenterFactories(
     private val factories: @JvmSuppressWildcards Map<KClass<out TimelineItemEventContent>, TimelineItemPresenterFactory<*, *>>,
 ) {
-    private val presenters: MutableMap<TimelineItemEventContent, Presenter<*>> = mutableMapOf()
+    private val presenters = BoundedTimelineCache<TimelineItemEventContent, Presenter<*>>(MAX_CACHED_PRESENTERS)
 
     /**
      * Creates and caches a presenter for the given content.
@@ -71,6 +72,10 @@ class TimelineItemPresenterFactories(
                 presenters[content] = this
             }
         }
+    }
+
+    private companion object {
+        const val MAX_CACHED_PRESENTERS = 384
     }
 }
 

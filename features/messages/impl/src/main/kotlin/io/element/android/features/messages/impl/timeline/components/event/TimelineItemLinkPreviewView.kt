@@ -7,9 +7,9 @@
 
 package io.element.android.features.messages.impl.timeline.components.event
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,16 +33,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.features.messages.impl.R
+import io.element.android.features.messages.impl.timeline.cache.BoundedTimelineCache
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.wysiwyg.link.Link
 import kotlinx.coroutines.Dispatchers
@@ -50,7 +51,6 @@ import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import java.net.URI
-import java.util.concurrent.ConcurrentHashMap
 
 @Composable
 fun TimelineItemLinkPreviewView(
@@ -345,7 +345,7 @@ private fun LinkPreviewStyle.badgeForeground(): Color = when (this) {
 }
 
 internal object LinkPreviewMetadataProvider {
-    private val cache = ConcurrentHashMap<String, LinkPreviewMetadata>()
+    private val cache = BoundedTimelineCache<String, LinkPreviewMetadata>(MAX_CACHED_METADATA)
 
     fun cached(url: String): LinkPreviewMetadata? = cache[url]
 
@@ -365,6 +365,8 @@ internal object LinkPreviewMetadataProvider {
         cache[url] = metadata
         return metadata
     }
+
+    private const val MAX_CACHED_METADATA = 256
 }
 
 private fun Document.toLinkPreviewMetadata(url: String): LinkPreviewMetadata {

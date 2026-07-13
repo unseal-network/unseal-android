@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import com.bumble.appyx.core.modality.BuildContext
 import com.bumble.appyx.testing.junit4.util.MainDispatcherRule
 import com.google.common.truth.Truth.assertThat
+import io.element.android.features.agentmanagement.api.AgentManagementEntryPoint
 import io.element.android.features.call.test.FakeElementCallEntryPoint
 import io.element.android.features.forward.test.FakeForwardEntryPoint
 import io.element.android.features.knockrequests.test.FakeKnockRequestsListEntryPoint
@@ -89,6 +90,7 @@ class DefaultMessagesEntryPointTest {
                 timelineController = createTimelineController(),
                 knockRequestsListEntryPoint = FakeKnockRequestsListEntryPoint(),
                 webhookTriggersEntryPoint = FakeWebhookTriggersEntryPoint(),
+                agentManagementEntryPoint = mockk<AgentManagementEntryPoint>(relaxed = true),
                 dateFormatter = FakeDateFormatter(),
                 coroutineDispatchers = testCoroutineDispatchers(),
                 hasVulkanSupport = DeviceHasVulkanSupport(mockk(relaxed = true))

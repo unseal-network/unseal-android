@@ -43,46 +43,58 @@ class AiMessageContentParser {
         val raw = originalJson?.takeIf { it.isNotBlank() } ?: return null
         val root = runCatching { json.parseToJsonElement(raw).jsonObject }.getOrNull() ?: return null
         val content = root["content"] as? JsonObject ?: return null
+        val replacement = content["m.new_content"] as? JsonObject
+        val effectiveContent = replacement ?: content
 
         val eventType = root.string("type")
-        val msgType = content.string("msgtype")
-        val stream = content["stream"] as? JsonObject
+        val msgType = effectiveContent.string("msgtype")
+        val stream = effectiveContent["stream"] as? JsonObject
+            ?: content["stream"] as? JsonObject
         val streamId = stream?.string("id").takeIfNotBlank()
+            ?: effectiveContent.string("streamId").takeIfNotBlank()
+            ?: effectiveContent.string("stream_id").takeIfNotBlank()
             ?: content.string("streamId").takeIfNotBlank()
             ?: content.string("stream_id").takeIfNotBlank()
-            ?: content.string("body").takeIfNotBlank().takeIf { msgType == MSGTYPE_STREAM_START || msgType == MSGTYPE_STREAM_COMPLETE }
-        val isStream = stream != null || streamId != null
+            ?: effectiveContent.string("body").takeIfNotBlank().takeIf { msgType == MSGTYPE_STREAM_START || msgType == MSGTYPE_STREAM_COMPLETE }
         val isStreamEvent = eventType == MSGTYPE_STREAM_START ||
             eventType == MSGTYPE_STREAM_COMPLETE ||
             msgType == MSGTYPE_STREAM_START ||
             msgType == MSGTYPE_STREAM_COMPLETE
-        val isAiMessage = msgType == MSGTYPE_AISDK || isStreamEvent || isStream
+        val isAiMessage = msgType == MSGTYPE_AISDK || isStreamEvent || (msgType == MSGTYPE_TEXT && streamId != null)
         if (!isAiMessage) return null
         val isStartEvent = eventType == MSGTYPE_STREAM_START || msgType == MSGTYPE_STREAM_START
         val isCompleteEvent = eventType == MSGTYPE_STREAM_COMPLETE || msgType == MSGTYPE_STREAM_COMPLETE
 
         return TimelineItemAiContent(
-            body = content.string("content") ?: content.string("body").orEmpty(),
+            body = effectiveContent.string("content")
+                ?: effectiveContent.string("body")
+                ?: content.string("content")
+                ?: content.string("body").orEmpty(),
             isEdited = isEdited,
-            isStreaming = content.boolean("is_streaming")
+            isStreaming = effectiveContent.boolean("is_streaming")
+                ?: effectiveContent.boolean("streaming")
+                ?: effectiveContent.boolean("isStream")
+                ?: content.boolean("is_streaming")
                 ?: content.boolean("streaming")
                 ?: content.boolean("isStream")
                 ?: when {
                     isCompleteEvent -> false
                     isStartEvent -> true
-                    else -> stream?.streamingStatus() ?: isStream
+                    else -> stream?.streamingStatus() ?: (streamId != null)
                 },
             streamId = streamId,
-            sender = content.string("sender").takeIfNotBlank()
+            sender = effectiveContent.string("sender").takeIfNotBlank()
+                ?: content.string("sender").takeIfNotBlank()
                 ?: stream?.string("sender").takeIfNotBlank()
                 ?: fallbackSender.takeIfNotBlank(),
             roomId = null,
             eventId = null,
-            targetUserId = content.string("target_user_id").takeIfNotBlank(),
-            thinkingSteps = content.objectArray("thinking_process").mapNotNull { it.toThinkingStep() }.toImmutableList(),
-            toolCalls = content.objectArray("tool_calls").mapNotNull { it.toToolCall() }.toImmutableList(),
-            sources = content.objectArray("sources").mapNotNull { it.toSource() }.toImmutableList(),
-            quickActions = content.objectArray("quick_actions").mapNotNull { it.toQuickAction() }.toImmutableList(),
+            targetUserId = effectiveContent.string("target_user_id").takeIfNotBlank()
+                ?: content.string("target_user_id").takeIfNotBlank(),
+            thinkingSteps = effectiveContent.objectArray("thinking_process").mapNotNull { it.toThinkingStep() }.toImmutableList(),
+            toolCalls = effectiveContent.objectArray("tool_calls").mapNotNull { it.toToolCall() }.toImmutableList(),
+            sources = effectiveContent.objectArray("sources").mapNotNull { it.toSource() }.toImmutableList(),
+            quickActions = effectiveContent.objectArray("quick_actions").mapNotNull { it.toQuickAction() }.toImmutableList(),
         )
     }
 
@@ -146,6 +158,7 @@ class AiMessageContentParser {
 
     private companion object {
         const val MSGTYPE_AISDK = "m.aisdk.protocol"
+        const val MSGTYPE_TEXT = "m.text"
         const val MSGTYPE_STREAM_START = "m.stream.start"
         const val MSGTYPE_STREAM_COMPLETE = "m.stream.complete"
     }

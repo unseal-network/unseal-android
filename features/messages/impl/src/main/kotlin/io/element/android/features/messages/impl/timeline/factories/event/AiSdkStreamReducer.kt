@@ -13,10 +13,10 @@ import io.element.android.features.messages.impl.timeline.components.event.toolc
 import io.element.android.features.messages.impl.timeline.components.event.toolcards.isRegisteredToolName
 import io.element.android.features.messages.impl.timeline.model.event.AiCustomStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiDataStreamPart
-import io.element.android.features.messages.impl.timeline.model.event.AiPptWorkflowStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiErrorStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiFileStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiMarkdownBlock
+import io.element.android.features.messages.impl.timeline.model.event.AiPptWorkflowStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiQuickAction
 import io.element.android.features.messages.impl.timeline.model.event.AiReasoningStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiSource
@@ -24,8 +24,8 @@ import io.element.android.features.messages.impl.timeline.model.event.AiSourceSt
 import io.element.android.features.messages.impl.timeline.model.event.AiStreamCursorMode
 import io.element.android.features.messages.impl.timeline.model.event.AiStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiStreamRenderModel
-import io.element.android.features.messages.impl.timeline.model.event.AiThinkingStep
 import io.element.android.features.messages.impl.timeline.model.event.AiTextStreamPart
+import io.element.android.features.messages.impl.timeline.model.event.AiThinkingStep
 import io.element.android.features.messages.impl.timeline.model.event.AiToolCall
 import io.element.android.features.messages.impl.timeline.model.event.AiToolStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
@@ -276,14 +276,9 @@ class AiSdkStreamReducer {
     }
 
     private fun StreamSnapshot.renderVersion(parts: List<AiStreamPart>): String {
-        val partsSignature = parts.joinToString(separator = "|") { part ->
-            listOf(
-                part.id,
-                part::class.simpleName.orEmpty(),
-                part.state,
-                part.contentSignature().hashCode().toString(16),
-            ).joinToString(separator = "/")
-        }.hashCode().toString(16)
+        val partsSignature = parts.fold(1) { acc, part ->
+            31 * acc + part.signatureHash()
+        }.toString(16)
         return listOf(
             streamId,
             schemaVersion.toString(),
@@ -295,17 +290,31 @@ class AiSdkStreamReducer {
         ).joinToString(":")
     }
 
-    private fun AiStreamPart.contentSignature(): String {
+    private fun AiStreamPart.signatureHash(): Int {
+        var result = id.hashCode()
+        result = 31 * result + this::class.simpleName.orEmpty().hashCode()
+        result = 31 * result + state.hashCode()
+        result = 31 * result + contentHash()
+        return result
+    }
+
+    private fun AiStreamPart.contentHash(): Int {
         return when (this) {
-            is AiTextStreamPart -> text
-            is AiReasoningStreamPart -> text
-            is AiToolStreamPart -> listOf(toolName, title, input, rawInput, output, errorText).joinToString()
-            is AiSourceStreamPart -> listOf(sourceType, title, url, filename, mediaType).joinToString()
-            is AiErrorStreamPart -> errorText
-            is AiDataStreamPart -> listOf(type, payload).joinToString()
-            is AiFileStreamPart -> listOf(mediaType, filename, url).joinToString()
-            is AiCustomStreamPart -> listOf(type, payload).joinToString()
-            is AiPptWorkflowStreamPart -> listOf(taskId, totalSlides.toString(), websocketUrl, isStreaming.toString()).joinToString()
+            is AiTextStreamPart -> text.hashCode()
+            is AiReasoningStreamPart -> text.hashCode()
+            is AiToolStreamPart -> contentHashOf(toolName, title, input, rawInput, output, errorText)
+            is AiSourceStreamPart -> contentHashOf(sourceType, title, url, filename, mediaType)
+            is AiErrorStreamPart -> errorText.hashCode()
+            is AiDataStreamPart -> contentHashOf(type, payload)
+            is AiFileStreamPart -> contentHashOf(mediaType, filename, url)
+            is AiCustomStreamPart -> contentHashOf(type, payload)
+            is AiPptWorkflowStreamPart -> contentHashOf(taskId, totalSlides, websocketUrl, isStreaming)
+        }
+    }
+
+    private fun contentHashOf(vararg values: Any?): Int {
+        return values.fold(1) { acc, value ->
+            31 * acc + (value?.hashCode() ?: 0)
         }
     }
 

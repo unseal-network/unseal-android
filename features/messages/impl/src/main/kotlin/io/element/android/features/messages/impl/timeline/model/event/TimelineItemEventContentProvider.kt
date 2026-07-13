@@ -98,12 +98,14 @@ fun aTimelineItemTextContent(
     formattedBody: CharSequence = body,
     isEdited: Boolean = false,
     linkPreviewUrls: List<String> = emptyList(),
+    agentProfilePreviewPlan: AgentProfilePreviewPlan = AgentProfilePreviewPlan.Empty,
 ) = TimelineItemTextContent(
     body = body,
     htmlDocument = htmlDocument,
     formattedBody = formattedBody,
     isEdited = isEdited,
     linkPreviewUrls = linkPreviewUrls,
+    agentProfilePreviewPlan = agentProfilePreviewPlan,
 )
 
 fun aTimelineItemUnknownContent() = TimelineItemUnknownContent

@@ -80,6 +80,7 @@ fun TimelineItemEventContentView(
                 workflowMessages = state.workflowMessages,
                 workflowSlides = state.workflowSlides,
                 miniAppDocumentLauncher = state.miniAppDocumentLauncher,
+                onSendCardResponse = state.onSendCardResponse,
                 canAbortRun = state.canAbortRun,
                 onAbortRun = state.onAbortRun,
                 onLinkClick = onLinkClick,

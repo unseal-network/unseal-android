@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -1285,7 +1286,7 @@ private fun FinanceCard(data: JSONObject, onLinkClick: () -> Unit) {
         if (stats.isNotEmpty()) add(FinanceTab("Stats", statsLabel))
     }
     var selectedTab by remember(tabs.map { it.key }.joinToString("|")) { mutableStateOf(0) }
-    if (selectedTab >= tabs.size) selectedTab = 0
+    val requestScrollToTop = LocalToolCardRequestScrollToTop.current
 
     if (quote == null && graph.isEmpty() && markets.isEmpty() && tabs.isEmpty()) return
 
@@ -1302,6 +1303,7 @@ private fun FinanceCard(data: JSONObject, onLinkClick: () -> Unit) {
             DividedList(markets.take(MAX_ITEMS)) { MarketRow(it) }
         }
         if (tabs.isNotEmpty()) {
+            val safeSelectedTab = selectedTab.coerceIn(tabs.indices)
             HorizontalDivider(
                 modifier = Modifier.padding(top = 12.dp, bottom = 10.dp),
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
@@ -1309,17 +1311,22 @@ private fun FinanceCard(data: JSONObject, onLinkClick: () -> Unit) {
             if (tabs.size > 1) {
                 FinanceSegmentedTabs(
                     tabs = tabs.map { it.label },
-                    selectedIndex = selectedTab,
-                    onSelected = { selectedTab = it },
+                    selectedIndex = safeSelectedTab,
+                    onSelected = {
+                        selectedTab = it
+                        requestScrollToTop()
+                    },
                 )
             } else {
                 FinanceSectionHeader(tabs.first().label)
             }
-            when (tabs[selectedTab].key) {
-                "News" -> DividedList(news.take(MAX_ITEMS)) { NewsRow(it, onLinkClick) }
-                "Financials" -> FinancialsList(financials)
-                "Events" -> DividedList(keyEvents.take(MAX_ITEMS)) { KeyEventRow(it) }
-                "Stats" -> StatsGrid(stats.take(MAX_ITEMS))
+            FinanceTabContentSurface {
+                when (tabs[safeSelectedTab].key) {
+                    "News" -> DividedList(news.take(MAX_ITEMS)) { NewsRow(it, onLinkClick) }
+                    "Financials" -> FinancialsList(financials)
+                    "Events" -> DividedList(keyEvents.take(MAX_ITEMS)) { KeyEventRow(it) }
+                    "Stats" -> StatsGrid(stats.take(MAX_ITEMS))
+                }
             }
         }
     }
@@ -1329,6 +1336,26 @@ private data class FinanceTab(
     val key: String,
     val label: String,
 )
+
+@Composable
+private fun FinanceTabContentSurface(content: ColumnContent) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        border = BorderStroke(0.7.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.72f)),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 2.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
+            content = content,
+        )
+    }
+}
 
 @Composable
 private fun FinanceSegmentedTabs(

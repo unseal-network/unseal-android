@@ -27,6 +27,8 @@ import io.element.android.libraries.agentstream.api.StreamSubscription
 import io.element.android.libraries.agentstream.api.TextPartState
 import io.element.android.libraries.agentstream.api.ToolPartState
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
+import io.element.android.libraries.chatbot.api.model.cards.ChatbotCardResponseResult
+import io.element.android.libraries.chatbot.test.FakeChatbotApiService
 import io.element.android.libraries.chatbot.test.FakeChatbotApiServiceFactory
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.matrix.api.MatrixClient
@@ -90,6 +92,44 @@ class TimelineItemAiPresenterTest {
                 includeRawEvents = false,
             )
         )
+    }
+
+    @Test
+    fun `present - keeps matrix body while stream snapshot has no renderable parts`() = runTest {
+        val client = FakeAgentStreamClient(
+            initialSnapshot = snapshot(
+                streamId = "stream-1",
+                status = StreamStatus.Loading,
+            )
+        )
+        val presenter = createPresenter(
+            content = aTimelineItemAiContent(
+                body = "Final assistant text from Matrix",
+                streamId = "stream-1",
+                sender = "@bot:keepsecret.io",
+            ),
+            agentStreamClient = client,
+            dispatchers = testCoroutineDispatchers(useUnconfinedTestDispatcher = true),
+        )
+
+        presenter.test {
+            assertThat(awaitItem().content.body).isEqualTo("Final assistant text from Matrix")
+
+            client.handle.emit(
+                snapshot(
+                    streamId = "stream-1",
+                    status = StreamStatus.Completed,
+                    parts = emptyList(),
+                )
+            )
+
+            val updated = awaitItem().content
+            assertThat(updated.body).isEqualTo("Final assistant text from Matrix")
+            assertThat(updated.visibleParts).isEmpty()
+            assertThat(updated.isTerminal).isTrue()
+
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test
@@ -410,6 +450,46 @@ class TimelineItemAiPresenterTest {
     }
 
     @Test
+    fun `present - cached fallback body does not override edited matrix body`() = runTest {
+        val client = FakeAgentStreamClient(
+            initialSnapshot = snapshot(
+                streamId = "stream-1",
+                status = StreamStatus.Loading,
+            )
+        )
+        val contentCache = AiStreamContentCache().apply {
+            put(
+                aTimelineItemAiContent(
+                    body = "Old assistant text",
+                    streamId = "stream-1",
+                ).copy(
+                    isStreaming = false,
+                    isTerminal = true,
+                )
+            )
+        }
+        val presenter = createPresenter(
+            content = aTimelineItemAiContent(
+                body = "Edited assistant text",
+                streamId = "stream-1",
+                sender = "@bot:keepsecret.io",
+            ),
+            agentStreamClient = client,
+            streamContentCache = contentCache,
+            dispatchers = testCoroutineDispatchers(useUnconfinedTestDispatcher = true),
+        )
+
+        presenter.test {
+            val initial = awaitItem().content
+
+            assertThat(initial.body).isEqualTo("Edited assistant text")
+            assertThat(initial.isTerminal).isTrue()
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `present - completed durable snapshot renders before binding sdk stream`() = runTest {
         val client = FakeAgentStreamClient(
             initialSnapshot = snapshot(
@@ -443,6 +523,86 @@ class TimelineItemAiPresenterTest {
             assertThat(updated.body).isEqualTo("stored final")
             assertThat(updated.isStreaming).isFalse()
             assertThat(client.requests).isEmpty()
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - send card response calls homeserver service`() = runTest {
+        val service = FakeChatbotApiService()
+        val requests = mutableListOf<Triple<String, String, String>>()
+        service.sendCardResponseResult = { roomId, eventId, actionId ->
+            requests += Triple(roomId, eventId, actionId)
+            Result.success(
+                ChatbotCardResponseResult(
+                    eventId = eventId,
+                    roomId = roomId,
+                    actionId = actionId,
+                    duplicate = false,
+                )
+            )
+        }
+        val presenter = createPresenter(
+            content = aTimelineItemAiContent(
+                roomId = "!room:keepsecret.io",
+                eventId = "\$event-1",
+            ),
+            chatbotApiServiceFactory = FakeChatbotApiServiceFactory(service),
+            dispatchers = testCoroutineDispatchers(useUnconfinedTestDispatcher = true),
+        )
+
+        presenter.test {
+            val state = awaitItem()
+
+            assertThat(state.onSendCardResponse("\$event-1", "continue")).isTrue()
+            assertThat(requests).containsExactly(Triple("!room:keepsecret.io", "\$event-1", "continue"))
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - send card response fails closed without room context`() = runTest {
+        val service = FakeChatbotApiService()
+        var requestCount = 0
+        service.sendCardResponseResult = { roomId, eventId, actionId ->
+            requestCount++
+            Result.success(ChatbotCardResponseResult(eventId = eventId, roomId = roomId, actionId = actionId, duplicate = false))
+        }
+        val presenter = createPresenter(
+            content = aTimelineItemAiContent(eventId = "\$event-1"),
+            chatbotApiServiceFactory = FakeChatbotApiServiceFactory(service),
+            dispatchers = testCoroutineDispatchers(useUnconfinedTestDispatcher = true),
+        )
+
+        presenter.test {
+            val state = awaitItem()
+
+            assertThat(state.onSendCardResponse("\$event-1", "continue")).isFalse()
+            assertThat(requestCount).isEqualTo(0)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - send card response returns false when service fails`() = runTest {
+        val service = FakeChatbotApiService()
+        service.sendCardResponseResult = { _, _, _ -> Result.failure(IllegalStateException("boom")) }
+        val presenter = createPresenter(
+            content = aTimelineItemAiContent(
+                roomId = "!room:keepsecret.io",
+                eventId = "\$event-1",
+            ),
+            chatbotApiServiceFactory = FakeChatbotApiServiceFactory(service),
+            dispatchers = testCoroutineDispatchers(useUnconfinedTestDispatcher = true),
+        )
+
+        presenter.test {
+            val state = awaitItem()
+
+            assertThat(state.onSendCardResponse("\$event-1", "continue")).isFalse()
 
             cancelAndIgnoreRemainingEvents()
         }
@@ -548,6 +708,7 @@ class TimelineItemAiPresenterTest {
 
     private companion object {
         fun aTimelineItemAiContent(
+            body: String = "",
             streamId: String? = null,
             sender: String? = null,
             roomId: String? = null,
@@ -555,7 +716,7 @@ class TimelineItemAiPresenterTest {
             parts: ImmutableList<AiStreamPart> = persistentListOf(),
         ): TimelineItemAiContent {
             return TimelineItemAiContent(
-                body = "",
+                body = body,
                 isEdited = false,
                 isStreaming = true,
                 streamId = streamId,

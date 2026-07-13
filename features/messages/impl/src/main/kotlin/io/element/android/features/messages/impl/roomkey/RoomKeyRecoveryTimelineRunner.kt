@@ -70,7 +70,7 @@ class RoomKeyRecoveryTimelineRunner(
         sessionVerifiedStatus: SessionVerifiedStatus,
         backupState: BackupState,
     ) {
-        val requests = timelineItems.mapNotNull { it.roomKeyRecoveryRequest() }
+        val requests = timelineItems.mapNotNull { it.roomKeyRecoveryRequest(roomId) }
         val agentRequests = timelineItems.mapNotNull { it.agentRoomKeyRecoveryRequest(roomId) }
         stores.agentPendingStore.retainOnly(agentRequests)
         lastAgentRequests = agentRequests
@@ -158,10 +158,16 @@ class RoomKeyRecoveryTimelineRunner(
         }
     }
 
-    private fun MatrixTimelineItem.roomKeyRecoveryRequest(): RoomKeyRecoveryRequest? {
+    private fun MatrixTimelineItem.roomKeyRecoveryRequest(fallbackRoomId: RoomId): RoomKeyRecoveryRequest? {
         val event = (this as? MatrixTimelineItem.Event)?.event ?: return null
-        if (event.content !is UnableToDecryptContent) return null
-        return parser.parse(event.timelineItemDebugInfoProvider().originalJson)
+        val content = event.content as? UnableToDecryptContent ?: return null
+        val data = content.data as? UnableToDecryptContent.Data.MegolmV1AesSha2
+        return parser.parse(
+            originalJson = event.timelineItemDebugInfoProvider().originalJson,
+            fallbackRoomId = fallbackRoomId,
+            fallbackSenderId = event.sender,
+            fallbackSessionId = data?.sessionId,
+        )
     }
 
     private fun MatrixTimelineItem.agentRoomKeyRecoveryRequest(fallbackRoomId: RoomId): AgentRoomKeyRecoveryRequest? {

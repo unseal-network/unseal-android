@@ -11,16 +11,19 @@ package io.element.android.features.messages.impl.timeline.factories
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryStatus
 import io.element.android.features.messages.impl.timeline.diff.TimelineItemsCacheInvalidator
 import io.element.android.features.messages.impl.timeline.factories.event.TimelineItemEventFactory
 import io.element.android.features.messages.impl.timeline.factories.virtual.TimelineItemVirtualFactory
 import io.element.android.features.messages.impl.timeline.groups.TimelineItemGrouper
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
+import io.element.android.features.messages.impl.timeline.model.event.CardResponseState
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContent
-import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryStatus
 import io.element.android.libraries.androidutils.diff.DiffCacheUpdater
 import io.element.android.libraries.androidutils.diff.MutableListDiffCache
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
+import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.room.RoomMember
 import io.element.android.libraries.matrix.api.timeline.MatrixTimelineItem
 import io.element.android.libraries.matrix.api.timeline.item.event.FailedToParseStateContent
@@ -35,6 +38,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
 @AssistedInject
 class TimelineItemsFactory(
@@ -83,6 +87,9 @@ class TimelineItemsFactory(
         roomMembers: List<RoomMember>,
         roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
     ) {
+        val roomMembersByUserId = lazy(LazyThreadSafetyMode.NONE) { roomMembersByUserId(roomMembers) }
+        val hasRoomMembers = roomMembers.isNotEmpty()
+        val cardResponseStates = timelineItems.cardResponseStates()
         val newTimelineItemStates = ArrayList<TimelineItem>()
         for (index in diffCache.indices().reversed()) {
             val matrixTimelineItem = timelineItems[index]
@@ -92,21 +99,21 @@ class TimelineItemsFactory(
             }
             val cacheItem = diffCache.get(index)
             if (cacheItem == null) {
-                buildAndCacheItem(timelineItems, index, roomMembers, roomKeyRecoveryStatuses)?.also { timelineItemState ->
-                    newTimelineItemStates.add(timelineItemState)
+                buildAndCacheItem(timelineItems, index, roomMembersByUserId, roomKeyRecoveryStatuses)?.also { timelineItemState ->
+                    newTimelineItemStates.add(timelineItemState.withCardResponseState(matrixTimelineItem, cardResponseStates))
                 }
             } else {
-                val updatedItem = if (cacheItem is TimelineItem.Event && shouldUpdateCachedEvent(cacheItem, matrixTimelineItem, roomMembers)) {
+                val updatedItem = if (cacheItem is TimelineItem.Event && shouldUpdateCachedEvent(cacheItem, matrixTimelineItem, hasRoomMembers)) {
                     eventItemFactory.update(
                         timelineItem = cacheItem,
                         receivedMatrixTimelineItem = matrixTimelineItem as MatrixTimelineItem.Event,
-                        roomMembers = roomMembers,
+                        roomMembersByUserId = roomMembersByUserId,
                         roomKeyRecoveryStatuses = roomKeyRecoveryStatuses,
                     )
                 } else {
                     cacheItem
                 }
-                newTimelineItemStates.add(updatedItem)
+                newTimelineItemStates.add(updatedItem.withCardResponseState(matrixTimelineItem, cardResponseStates))
             }
         }
         val result = timelineItemGrouper.group(newTimelineItemStates).toImmutableList()
@@ -116,12 +123,12 @@ class TimelineItemsFactory(
     private suspend fun buildAndCacheItem(
         timelineItems: List<MatrixTimelineItem>,
         index: Int,
-        roomMembers: List<RoomMember>,
+        roomMembersByUserId: Lazy<Map<UserId, RoomMember>>,
         roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
     ): TimelineItem? {
         val timelineItem =
             when (val currentTimelineItem = timelineItems[index]) {
-                is MatrixTimelineItem.Event -> eventItemFactory.create(currentTimelineItem, index, timelineItems, roomMembers, roomKeyRecoveryStatuses)
+                is MatrixTimelineItem.Event -> eventItemFactory.create(currentTimelineItem, index, timelineItems, roomMembersByUserId, roomKeyRecoveryStatuses)
                 is MatrixTimelineItem.Virtual -> virtualItemFactory.create(currentTimelineItem)
                 MatrixTimelineItem.Other -> null
             }
@@ -129,23 +136,80 @@ class TimelineItemsFactory(
         return timelineItem
     }
 
+    private fun TimelineItem.withCardResponseState(
+        matrixTimelineItem: MatrixTimelineItem,
+        cardResponseStates: Map<String, CardResponseState>,
+    ): TimelineItem {
+        if (this !is TimelineItem.Event || matrixTimelineItem !is MatrixTimelineItem.Event) return this
+        val eventId = matrixTimelineItem.eventId?.value ?: return this
+        val content = content as? TimelineItemAiContent ?: return this
+        val state = cardResponseStates[eventId] ?: CardResponseState()
+        if (content.cardResponseState == state) return this
+        return copy(content = content.copy(cardResponseState = state))
+    }
+
     private fun shouldUpdateCachedEvent(
         cachedItem: TimelineItem.Event,
         matrixTimelineItem: MatrixTimelineItem,
-        roomMembers: List<RoomMember>,
+        hasRoomMembers: Boolean,
     ): Boolean {
         if (matrixTimelineItem !is MatrixTimelineItem.Event) return false
         if (cachedItem.content is TimelineItemEncryptedContent) return true
         return config.computeReadReceipts &&
-            roomMembers.isNotEmpty() &&
+            hasRoomMembers &&
             matrixTimelineItem.event.receipts.isNotEmpty()
     }
 
+    private fun roomMembersByUserId(roomMembers: List<RoomMember>): Map<UserId, RoomMember> {
+        if (!config.computeReadReceipts || roomMembers.isEmpty()) {
+            return emptyMap()
+        }
+        return roomMembers.associateBy { it.userId }
+    }
+
     private fun MatrixTimelineItem.Event.isHiddenMetadataEvent(): Boolean {
+        if (cardResponseMarker() != null) {
+            return true
+        }
         if (event.content !is LiveLocationContent && event.timelineItemDebugInfoProvider().originalJson?.contains(EVENT_TYPE_BEACON_INFO) == true) {
             return true
         }
         return event.content.isBeaconInfoStateContent()
+    }
+
+    private fun List<MatrixTimelineItem>.cardResponseStates(): Map<String, CardResponseState> {
+        val states = mutableMapOf<String, CardResponseState>()
+        forEach { item ->
+            val marker = (item as? MatrixTimelineItem.Event)?.cardResponseMarker() ?: return@forEach
+            if (config.currentUserId != null && marker.senderId != config.currentUserId) {
+                return@forEach
+            }
+            states[marker.targetEventId] = CardResponseState(
+                actioned = true,
+                actionId = marker.actionId,
+                eventId = marker.markerEventId,
+            )
+        }
+        return states
+    }
+
+    private fun MatrixTimelineItem.Event.cardResponseMarker(): CardResponseMarker? {
+        val raw = event.timelineItemDebugInfoProvider().originalJson?.takeIf { it.isNotBlank() } ?: return null
+        val root = runCatching { JSONObject(raw) }.getOrNull() ?: return null
+        if (root.optString("type") != CARD_RESPONSE_EVENT_TYPE) return null
+        val content = root.optJSONObject("content") ?: return null
+        val relatesTo = content.optJSONObject("m.relates_to") ?: return null
+        if (relatesTo.optString("rel_type") != CARD_RESPONSE_RELATION_TYPE) return null
+        val targetEventId = relatesTo.optString("event_id").takeIf { it.isNotBlank() } ?: return null
+        val response = content.optJSONObject(CARD_RESPONSE_CONTENT_KEY) ?: return null
+        val actionId = response.optString("action_id").takeIf { it.isNotBlank() } ?: return null
+        val markerEventId = eventId?.value ?: root.optString("event_id").takeIf { it.isNotBlank() }
+        return CardResponseMarker(
+            targetEventId = targetEventId,
+            actionId = actionId,
+            markerEventId = markerEventId,
+            senderId = event.sender.value,
+        )
     }
 
     private fun io.element.android.libraries.matrix.api.timeline.item.event.EventContent.isBeaconInfoStateContent(): Boolean {
@@ -159,3 +223,13 @@ class TimelineItemsFactory(
 }
 
 private const val EVENT_TYPE_BEACON_INFO = "org.matrix.msc3672.beacon_info"
+private const val CARD_RESPONSE_EVENT_TYPE = "io.unseal.card.response"
+private const val CARD_RESPONSE_CONTENT_KEY = "io.unseal.card.response"
+private const val CARD_RESPONSE_RELATION_TYPE = "m.reference"
+
+private data class CardResponseMarker(
+    val targetEventId: String,
+    val actionId: String,
+    val markerEventId: String?,
+    val senderId: String,
+)

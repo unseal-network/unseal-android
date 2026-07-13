@@ -7,11 +7,26 @@
 
 package io.element.android.features.messages.impl.timeline.components.event
 
+import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.v2.runAndroidComposeUiTest
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import io.element.android.features.messages.impl.R
+import io.element.android.features.messages.impl.timeline.model.event.AiDataStreamPart
+import io.element.android.features.messages.impl.timeline.model.event.CardResponseState
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import kotlinx.collections.immutable.persistentListOf
 import org.junit.Test
+import org.junit.runner.RunWith
 
+@OptIn(ExperimentalTestApi::class)
+@RunWith(AndroidJUnit4::class)
 class TimelineItemAiViewLogicTest {
     @Test
     fun `stream placeholder body is not rendered as markdown fallback`() {
@@ -99,6 +114,58 @@ class TimelineItemAiViewLogicTest {
         assertThat(nextIndex).isEqualTo(32)
     }
 
+    @Test
+    fun `suspended moltbook card sends response once and disables after success`() = runAndroidComposeUiTest<ComponentActivity> {
+        val requests = mutableListOf<Pair<String, String>>()
+        val content = aiContentWithSuspendedMoltbookCard()
+
+        setContent {
+            TimelineItemAiView(
+                content = content,
+                onLinkClick = {},
+                onLinkLongClick = {},
+                onLongClick = null,
+                onSendCardResponse = { eventId, actionId ->
+                    requests += eventId to actionId
+                    true
+                },
+            )
+        }
+
+        onNodeWithText(activity!!.getString(R.string.screen_room_timeline_ai_continue)).performClick()
+        waitForIdle()
+
+        assertThat(requests).containsExactly("\$event-1" to "continue")
+        onDisabledButtonWithText(activity!!.getString(R.string.screen_room_timeline_tool_card_linear_status_done)).assertIsNotEnabled()
+    }
+
+    @Test
+    fun `suspended moltbook card with response marker starts disabled`() = runAndroidComposeUiTest<ComponentActivity> {
+        var requestCount = 0
+        val content = aiContentWithSuspendedMoltbookCard(
+            cardResponseState = CardResponseState(actioned = true, actionId = "continue", eventId = "\$response-1")
+        )
+
+        setContent {
+            TimelineItemAiView(
+                content = content,
+                onLinkClick = {},
+                onLinkLongClick = {},
+                onLongClick = null,
+                onSendCardResponse = { _, _ ->
+                    requestCount++
+                    true
+                },
+            )
+        }
+
+        onDisabledButtonWithText(activity!!.getString(R.string.screen_room_timeline_tool_card_linear_status_done)).assertIsNotEnabled()
+        assertThat(requestCount).isEqualTo(0)
+    }
+
+    private fun androidx.compose.ui.test.SemanticsNodeInteractionsProvider.onDisabledButtonWithText(text: String) =
+        onNode(hasText(text) and hasClickAction())
+
     private fun aiContent(body: String, streamId: String?): TimelineItemAiContent {
         return TimelineItemAiContent(
             body = body,
@@ -109,6 +176,48 @@ class TimelineItemAiViewLogicTest {
             toolCalls = persistentListOf(),
             sources = persistentListOf(),
             quickActions = persistentListOf(),
+        )
+    }
+
+    private fun aiContentWithSuspendedMoltbookCard(
+        cardResponseState: CardResponseState = CardResponseState(),
+    ): TimelineItemAiContent {
+        val part = AiDataStreamPart(
+            id = "suspend-moltbook",
+            state = "output-available",
+            type = "data-tool-call-suspended",
+            payload = """
+                {
+                  "toolCallId": "moltbook-register-1",
+                  "toolName": "moltbookRegister",
+                  "targetUserId": "@ruihan:keepsecret.io",
+                  "title": "Connect Moltbook",
+                  "reason": "Enter your Moltbook credentials to register this agent.",
+                  "suspendPayload": {
+                    "kind": "moltbookRegister",
+                    "agentId": "agent-mail",
+                    "moltyName": "Mail Agent",
+                    "claimUrl": "https://moltbook.example/claim/abc",
+                    "verificationCode": "842193"
+                  }
+                }
+            """.trimIndent(),
+        )
+        return TimelineItemAiContent(
+            body = "",
+            isEdited = false,
+            isStreaming = false,
+            isTerminal = true,
+            streamId = "stream-1",
+            roomId = "!room:keepsecret.io",
+            eventId = "\$event-1",
+            thinkingSteps = persistentListOf(),
+            toolCalls = persistentListOf(),
+            sources = persistentListOf(),
+            quickActions = persistentListOf(),
+            parts = persistentListOf(part),
+            visibleParts = persistentListOf(part),
+            cardResponseState = cardResponseState,
         )
     }
 }

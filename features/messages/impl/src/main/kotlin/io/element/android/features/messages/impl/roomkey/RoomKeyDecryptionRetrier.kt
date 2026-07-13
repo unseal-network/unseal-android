@@ -51,12 +51,18 @@ class TimelineRoomKeyDecryptionRetrier(
     private suspend fun stillMissingRoomKey(request: RoomKeyRecoveryRequest): Boolean {
         return timelineController.timelineItems()
             .first()
-            .any { item -> item.roomKeyRecoveryRequest()?.identityKey == request.identityKey }
+            .any { item -> item.roomKeyRecoveryRequest(request)?.identityKey == request.identityKey }
     }
 
-    private fun MatrixTimelineItem.roomKeyRecoveryRequest(): RoomKeyRecoveryRequest? {
+    private fun MatrixTimelineItem.roomKeyRecoveryRequest(request: RoomKeyRecoveryRequest): RoomKeyRecoveryRequest? {
         val event = (this as? MatrixTimelineItem.Event)?.event ?: return null
-        if (event.content !is UnableToDecryptContent) return null
-        return parser.parse(event.timelineItemDebugInfoProvider().originalJson)
+        val content = event.content as? UnableToDecryptContent ?: return null
+        val data = content.data as? UnableToDecryptContent.Data.MegolmV1AesSha2
+        return parser.parse(
+            originalJson = event.timelineItemDebugInfoProvider().originalJson,
+            fallbackRoomId = request.roomId,
+            fallbackSenderId = event.sender,
+            fallbackSessionId = data?.sessionId,
+        )
     }
 }

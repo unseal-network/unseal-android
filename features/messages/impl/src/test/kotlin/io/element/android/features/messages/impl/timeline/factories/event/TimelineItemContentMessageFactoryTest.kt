@@ -19,6 +19,8 @@ import androidx.core.text.inSpans
 import androidx.core.text.toSpannable
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.location.api.Location
+import io.element.android.features.messages.impl.timeline.model.event.AgentProfilePreviewDisplayMode
+import io.element.android.features.messages.impl.timeline.model.event.AgentProfilePreviewPlan
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAudioContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEmoteContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemFileContent
@@ -30,6 +32,7 @@ import io.element.android.features.messages.impl.timeline.model.event.TimelineIt
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVideoContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemVoiceContent
 import io.element.android.features.messages.impl.utils.FakeTextPillificationHelper
+import io.element.android.features.messages.impl.utils.UnsealAgentProfileLink
 import io.element.android.features.messages.test.timeline.FakeHtmlConverterProvider
 import io.element.android.libraries.androidutils.filesize.FakeFileSizeFormatter
 import io.element.android.libraries.core.mimetype.MimeTypes
@@ -68,6 +71,8 @@ import io.element.android.libraries.matrix.test.timeline.aProfileDetails
 import io.element.android.libraries.matrix.test.timeline.aStickerContent
 import io.element.android.libraries.matrix.ui.components.A_BLUR_HASH
 import io.element.android.libraries.mediaviewer.test.util.FileExtensionExtractorWithoutValidation
+import io.element.android.libraries.textcomposer.mentions.MentionSpan
+import io.element.android.libraries.textcomposer.mentions.MentionType
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.test.runTest
@@ -230,6 +235,182 @@ import kotlin.time.Duration.Companion.minutes
         ) as TimelineItemTextContent
 
         assertThat(result.linkPreviewUrls).containsExactly("https://www.example.org")
+    }
+
+    @Test
+    fun `test create TextMessageType excludes mention links from preview`() = runTest {
+        val mentionUrl = "http://keepsecret.io"
+        val pillifiedBody = buildSpannedString {
+            inSpans(MentionSpan(MentionType.User(A_USER_ID)), URLSpan(mentionUrl)) {
+                append("@")
+            }
+            append(" help me")
+        }
+        val sut = createTimelineItemContentMessageFactory(
+            textPillificationHelper = FakeTextPillificationHelper { _, _ -> pillifiedBody },
+        )
+        val result = sut.create(
+            content = createMessageContent(type = TextMessageType("@geminirayson1:keepsecret.io help me", null)),
+            senderId = A_USER_ID,
+            senderProfile = aProfileDetails(),
+            eventId = AN_EVENT_ID,
+        ) as TimelineItemTextContent
+
+        assertThat(result.linkPreviewUrls).isEmpty()
+        assertThat(result.agentProfilePreviewPlan).isEqualTo(AgentProfilePreviewPlan.Empty)
+    }
+
+    @Test
+    fun `test create TextMessageType excludes display-name links from preview`() = runTest {
+        val mentionUrl = "http://keepsecret.io"
+        val pillifiedBody = buildSpannedString {
+            inSpans(URLSpan(mentionUrl)) {
+                append("geminirayson1")
+            }
+            append(" help me")
+        }
+        val sut = createTimelineItemContentMessageFactory(
+            textPillificationHelper = FakeTextPillificationHelper { _, _ -> pillifiedBody },
+        )
+        val result = sut.create(
+            content = createMessageContent(type = TextMessageType("geminirayson1 help me", null)),
+            senderId = A_USER_ID,
+            senderProfile = aProfileDetails(),
+            eventId = AN_EVENT_ID,
+        ) as TimelineItemTextContent
+
+        assertThat(result.linkPreviewUrls).isEmpty()
+        assertThat(result.agentProfilePreviewPlan).isEqualTo(AgentProfilePreviewPlan.Empty)
+    }
+
+    @Test
+    fun `test create TextMessageType excludes agent links with non URL visible text from preview`() = runTest {
+        val pillifiedBody = buildSpannedString {
+            inSpans(URLSpan("https://unseal.network/@kimi-claw")) {
+                append("Ask Kimi")
+            }
+        }
+        val sut = createTimelineItemContentMessageFactory(
+            textPillificationHelper = FakeTextPillificationHelper { _, _ -> pillifiedBody },
+        )
+        val result = sut.create(
+            content = createMessageContent(type = TextMessageType("Ask Kimi", null)),
+            senderId = A_USER_ID,
+            senderProfile = aProfileDetails(),
+            eventId = AN_EVENT_ID,
+        ) as TimelineItemTextContent
+
+        assertThat(result.linkPreviewUrls).isEmpty()
+        assertThat(result.agentProfilePreviewPlan).isEqualTo(AgentProfilePreviewPlan.Empty)
+    }
+
+    @Test
+    fun `test create TextMessageType builds standalone agent profile plan from URL-only profile link`() = runTest {
+        val sut = createTimelineItemContentMessageFactory()
+        val result = sut.create(
+            content = createMessageContent(type = TextMessageType("https://unseal.network/@kimi-claw", null)),
+            senderId = A_USER_ID,
+            senderProfile = aProfileDetails(),
+            eventId = AN_EVENT_ID,
+        ) as TimelineItemTextContent
+
+        assertThat(result.linkPreviewUrls).isEmpty()
+        assertThat(result.agentProfilePreviewPlan.displayMode).isEqualTo(AgentProfilePreviewDisplayMode.Standalone)
+        assertThat(result.agentProfilePreviewPlan.profiles).containsExactly(
+            UnsealAgentProfileLink(
+                botName = "kimi-claw",
+                profileUrl = "https://unseal.network/@kimi-claw",
+                jsonUrl = "https://unseal.network/@kimi-claw.json",
+                mdUrl = "https://unseal.network/@kimi-claw.md",
+            )
+        )
+    }
+
+    @Test
+    fun `test create TextMessageType builds attached agent profile plan when authored text remains`() = runTest {
+        val sut = createTimelineItemContentMessageFactory()
+        val result = sut.create(
+            content = createMessageContent(type = TextMessageType("Ask this agent https://unseal.network/@kimi-claw", null)),
+            senderId = A_USER_ID,
+            senderProfile = aProfileDetails(),
+            eventId = AN_EVENT_ID,
+        ) as TimelineItemTextContent
+
+        assertThat(result.linkPreviewUrls).isEmpty()
+        assertThat(result.agentProfilePreviewPlan.displayMode).isEqualTo(AgentProfilePreviewDisplayMode.Attached)
+        assertThat(result.agentProfilePreviewPlan.profiles.map { it.botName }).containsExactly("kimi-claw")
+    }
+
+    @Test
+    fun `test create TextMessageType keeps agent profiles beyond generic preview cap`() = runTest {
+        val sut = createTimelineItemContentMessageFactory()
+        val result = sut.create(
+            content = createMessageContent(
+                type = TextMessageType(
+                    body = listOf(
+                        "https://example.org/one",
+                        "https://example.org/two",
+                        "https://example.org/three",
+                        "https://unseal.network/@agent-one",
+                        "https://unseal.network/@agent-two",
+                        "https://unseal.network/@agent-three",
+                        "https://unseal.network/@agent-four",
+                        "https://unseal.network/@agent-five",
+                        "https://unseal.network/@agent-six",
+                    ).joinToString(" "),
+                    formatted = null,
+                )
+            ),
+            senderId = A_USER_ID,
+            senderProfile = aProfileDetails(),
+            eventId = AN_EVENT_ID,
+        ) as TimelineItemTextContent
+
+        assertThat(result.linkPreviewUrls).containsExactly(
+            "https://example.org/one",
+            "https://example.org/two",
+        ).inOrder()
+        assertThat(result.agentProfilePreviewPlan.displayMode).isEqualTo(AgentProfilePreviewDisplayMode.Attached)
+        assertThat(result.agentProfilePreviewPlan.profiles.map { it.botName }).containsExactly(
+            "agent-one",
+            "agent-two",
+            "agent-three",
+            "agent-four",
+            "agent-five",
+        ).inOrder()
+    }
+
+    @Test
+    fun `test create TextMessageType keeps body visible when URL-only agent profiles exceed card cap`() = runTest {
+        val sut = createTimelineItemContentMessageFactory()
+        val result = sut.create(
+            content = createMessageContent(
+                type = TextMessageType(
+                    body = listOf(
+                        "https://unseal.network/@agent-one",
+                        "https://unseal.network/@agent-two",
+                        "https://unseal.network/@agent-three",
+                        "https://unseal.network/@agent-four",
+                        "https://unseal.network/@agent-five",
+                        "https://unseal.network/@agent-six",
+                    ).joinToString(" "),
+                    formatted = null,
+                )
+            ),
+            senderId = A_USER_ID,
+            senderProfile = aProfileDetails(),
+            eventId = AN_EVENT_ID,
+        ) as TimelineItemTextContent
+
+        assertThat(result.linkPreviewUrls).isEmpty()
+        assertThat(result.agentProfilePreviewPlan.displayMode).isEqualTo(AgentProfilePreviewDisplayMode.Attached)
+        assertThat(result.agentProfilePreviewPlan.profiles.map { it.botName }).containsExactly(
+            "agent-one",
+            "agent-two",
+            "agent-three",
+            "agent-four",
+            "agent-five",
+        ).inOrder()
     }
 
     @Test
@@ -840,12 +1021,13 @@ import kotlin.time.Duration.Companion.minutes
         htmlConverterTransform: (String) -> CharSequence = { it },
         domConverterTransform: (Document) -> CharSequence = { it.body().html() },
         permalinkParser: FakePermalinkParser = FakePermalinkParser(),
+        textPillificationHelper: FakeTextPillificationHelper = FakeTextPillificationHelper(),
     ) = TimelineItemContentMessageFactory(
         fileSizeFormatter = FakeFileSizeFormatter(),
         fileExtensionExtractor = FileExtensionExtractorWithoutValidation(),
         htmlConverterProvider = FakeHtmlConverterProvider(htmlConverterTransform, domConverterTransform),
         permalinkParser = permalinkParser,
-        textPillificationHelper = FakeTextPillificationHelper(),
+        textPillificationHelper = textPillificationHelper,
     )
 
     private fun createStickerContent(

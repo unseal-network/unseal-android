@@ -10,15 +10,16 @@ package io.element.android.features.messages.impl.timeline.factories.event
 
 import dev.zacsweers.metro.Inject
 import io.element.android.features.location.api.Location
+import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryRequestParser
+import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryStatus
+import io.element.android.features.messages.impl.timeline.model.event.AiTextStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.RtcNotificationState
+import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEventContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLegacyCallInviteContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemRtcNotificationContent
-import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemUnknownContent
-import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryRequestParser
-import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryStatus
 import io.element.android.libraries.dateformatter.api.DateFormatter
 import io.element.android.libraries.dateformatter.api.DateFormatterMode
 import io.element.android.libraries.matrix.api.core.EventId
@@ -140,7 +141,7 @@ class TimelineItemContentFactory(
         }
         val cachedSnapshot = aiStreamHandleStore.cachedCompletedSnapshot(streamId)
         if (cachedSnapshot == null) {
-            Timber.tag("WsDbg").w("hydrateAi NO SNAPSHOT stream=%s body=%s", streamId, aiContent.body.take(40))
+            Timber.tag("WsDbg").w("hydrateAi NO SNAPSHOT stream=%s", streamId)
             return aiContent
         }
         Timber.tag("WsDbg").d("hydrateAi LOADED snapshot stream=%s parts=%d", streamId, cachedSnapshot.parts.size)
@@ -296,8 +297,15 @@ class TimelineItemContentFactory(
     private fun EventTimelineItem.roomKeyRecoveryStatus(
         roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
     ): RoomKeyRecoveryStatus? {
-        if (content !is UnableToDecryptContent) return null
-        val request = roomKeyRecoveryRequestParser.parse(timelineItemDebugInfoProvider().originalJson) ?: return null
+        val unableToDecryptContent = content as? UnableToDecryptContent ?: return null
+        val megolmData = unableToDecryptContent.data as? UnableToDecryptContent.Data.MegolmV1AesSha2
+        val fallbackRoomId = roomKeyRecoveryStatuses.values.firstOrNull()?.request?.roomId
+        val request = roomKeyRecoveryRequestParser.parse(
+            originalJson = timelineItemDebugInfoProvider().originalJson,
+            fallbackRoomId = fallbackRoomId,
+            fallbackSenderId = sender,
+            fallbackSessionId = megolmData?.sessionId,
+        ) ?: return null
         return roomKeyRecoveryStatuses[request.identityKey]
     }
 
@@ -312,11 +320,22 @@ class TimelineItemContentFactory(
 
 private fun TimelineItemAiContent.withFallbackMetadata(fallback: TimelineItemAiContent): TimelineItemAiContent {
     return copy(
+        body = bodyWithCurrentFallback(fallback),
         isEdited = fallback.isEdited,
         sender = sender ?: fallback.sender,
         roomId = roomId ?: fallback.roomId,
         eventId = eventId ?: fallback.eventId,
+        cardResponseState = if (cardResponseState.actioned) cardResponseState else fallback.cardResponseState,
     )
+}
+
+private fun TimelineItemAiContent.bodyWithCurrentFallback(fallback: TimelineItemAiContent): String {
+    val hasSdkTextBody = parts.any { it is AiTextStreamPart && it.text.isNotBlank() }
+    return if (!hasSdkTextBody && fallback.body.isNotBlank()) {
+        fallback.body
+    } else {
+        body
+    }
 }
 
 private const val EVENT_TYPE_BEACON_INFO = "org.matrix.msc3672.beacon_info"

@@ -26,6 +26,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
+import io.element.android.features.messages.impl.timeline.model.event.AgentProfilePreviewDisplayMode
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextBasedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemTextBasedContentProvider
 import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemTextContent
@@ -55,56 +56,62 @@ fun TimelineItemTextView(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        when {
-            htmlTables.isNotEmpty() -> {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .semantics { contentDescription = content.plainText }
-                ) {
-                    HtmlTableBody(tables = htmlTables)
+        val shouldRenderStandaloneAgentProfiles = renderLinkPreviews &&
+            content.agentProfilePreviewPlan.displayMode == AgentProfilePreviewDisplayMode.Standalone &&
+            content.agentProfilePreviewPlan.profiles.isNotEmpty()
+        if (!shouldRenderStandaloneAgentProfiles) {
+            when {
+                htmlTables.isNotEmpty() -> {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .semantics { contentDescription = content.plainText }
+                    ) {
+                        HtmlTableBody(tables = htmlTables)
+                    }
                 }
-            }
-            content.shouldRenderBodyAsMarkdown() -> {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .semantics { contentDescription = content.plainText }
-                ) {
-                    MarkdownBody(
-                        text = content.body,
-                        renderMode = MarkdownRenderMode.Stable,
-                        onLinkClick = onLinkClick,
-                        onLongClick = onLongClick,
-                        modifier = Modifier,
-                    )
-                }
-            }
-            else -> {
-                val emojiOnly = content.formattedBody.toString() == content.body &&
-                    content.body.replace(" ", "").containsOnlyEmojis()
-                val textStyle = when {
-                    emojiOnly -> ElementTheme.typography.fontHeadingXlRegular
-                    else -> ElementTheme.typography.fontBodyLgRegular
-                }
-                CompositionLocalProvider(
-                    LocalContentColor provides ElementTheme.colors.textPrimary,
-                    LocalTextStyle provides textStyle
-                ) {
-                    val text = getTextWithResolvedMentions(content)
-                    Box(Modifier.semantics { contentDescription = content.plainText }) {
-                        EditorStyledText(
-                            text = text,
-                            onLinkClickedListener = onLinkClick,
-                            onLinkLongClickedListener = onLinkLongClick,
-                            style = ElementRichTextEditorStyle.textStyle(),
-                            releaseOnDetach = false,
+                content.shouldRenderBodyAsMarkdown() -> {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .semantics { contentDescription = content.plainText }
+                    ) {
+                        MarkdownBody(
+                            text = content.body,
+                            renderMode = MarkdownRenderMode.Stable,
+                            onLinkClick = onLinkClick,
+                            onLongClick = onLongClick,
+                            modifier = Modifier,
                         )
+                    }
+                }
+                else -> {
+                    val emojiOnly = content.formattedBody.toString() == content.body &&
+                        content.body.replace(" ", "").containsOnlyEmojis()
+                    val textStyle = when {
+                        emojiOnly -> ElementTheme.typography.fontHeadingXlRegular
+                        else -> ElementTheme.typography.fontBodyLgRegular
+                    }
+                    CompositionLocalProvider(
+                        LocalContentColor provides ElementTheme.colors.textPrimary,
+                        LocalTextStyle provides textStyle
+                    ) {
+                        val text = getTextWithResolvedMentions(content)
+                        Box(Modifier.semantics { contentDescription = content.plainText }) {
+                            EditorStyledText(
+                                text = text,
+                                onLinkClickedListener = onLinkClick,
+                                onLinkLongClickedListener = onLinkLongClick,
+                                style = ElementRichTextEditorStyle.textStyle(),
+                                releaseOnDetach = false,
+                            )
+                        }
                     }
                 }
             }
         }
         if (renderLinkPreviews) {
+            TimelineItemAgentProfilePreviewCarousel(content.agentProfilePreviewPlan.profiles, onLinkClick)
             TimelineLinkPreviews(content.linkPreviewUrls, onLinkClick)
         }
     }

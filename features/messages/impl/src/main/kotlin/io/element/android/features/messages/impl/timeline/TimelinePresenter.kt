@@ -119,6 +119,7 @@ class TimelinePresenter(
             computeReadReceipts = true,
             computeReactions = true,
             roomId = room.roomId.value,
+            currentUserId = room.sessionId.value,
         )
     )
     private var timelineItems by mutableStateOf<ImmutableList<TimelineItem>>(persistentListOf())

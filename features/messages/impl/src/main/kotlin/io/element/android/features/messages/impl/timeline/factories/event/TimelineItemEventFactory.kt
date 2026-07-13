@@ -11,6 +11,7 @@ package io.element.android.features.messages.impl.timeline.factories.event
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
+import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryStatus
 import io.element.android.features.messages.impl.timeline.factories.TimelineItemsFactoryConfig
 import io.element.android.features.messages.impl.timeline.groups.canBeDisplayedInBubbleBlock
 import io.element.android.features.messages.impl.timeline.model.AggregatedReaction
@@ -24,7 +25,6 @@ import io.element.android.features.messages.impl.timeline.model.TimelineItemThre
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEncryptedContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEventContent
-import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryStatus
 import io.element.android.features.messages.impl.utils.messagesummary.MessageSummaryFormatter
 import io.element.android.libraries.core.bool.orTrue
 import io.element.android.libraries.dateformatter.api.DateFormatter
@@ -32,6 +32,7 @@ import io.element.android.libraries.dateformatter.api.DateFormatterMode
 import io.element.android.libraries.designsystem.components.avatar.AvatarData
 import io.element.android.libraries.designsystem.components.avatar.AvatarSize
 import io.element.android.libraries.matrix.api.MatrixClient
+import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.permalink.PermalinkParser
 import io.element.android.libraries.matrix.api.room.RoomMember
 import io.element.android.libraries.matrix.api.timeline.MatrixTimelineItem
@@ -60,7 +61,7 @@ class TimelineItemEventFactory(
         currentTimelineItem: MatrixTimelineItem.Event,
         index: Int,
         timelineItems: List<MatrixTimelineItem>,
-        roomMembers: List<RoomMember>,
+        roomMembersByUserId: Lazy<Map<UserId, RoomMember>>,
         roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
     ): TimelineItem.Event {
         val currentSender = currentTimelineItem.event.sender
@@ -124,7 +125,7 @@ class TimelineItemEventFactory(
             sentDate = sentDate,
             groupPosition = groupPosition,
             reactionsState = currentTimelineItem.computeReactionsState(),
-            readReceiptState = currentTimelineItem.computeReadReceiptState(roomMembers),
+            readReceiptState = currentTimelineItem.computeReadReceiptState(roomMembersByUserId),
             localSendState = currentTimelineItem.event.localSendState,
             inReplyTo = currentTimelineItem.event.inReplyTo()?.map(permalinkParser = permalinkParser),
             threadInfo = mappedThreadInfo,
@@ -147,7 +148,7 @@ class TimelineItemEventFactory(
     suspend fun update(
         timelineItem: TimelineItem.Event,
         receivedMatrixTimelineItem: MatrixTimelineItem.Event,
-        roomMembers: List<RoomMember>,
+        roomMembersByUserId: Lazy<Map<UserId, RoomMember>>,
         roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
     ): TimelineItem.Event {
         val updatedContent = when (timelineItem.content) {
@@ -158,7 +159,7 @@ class TimelineItemEventFactory(
                 .withTimelineContext(roomId = config.roomId, eventId = receivedMatrixTimelineItem.eventId?.value)
             else -> timelineItem.content
         }
-        val updatedReadReceiptState = receivedMatrixTimelineItem.computeReadReceiptState(roomMembers)
+        val updatedReadReceiptState = receivedMatrixTimelineItem.computeReadReceiptState(roomMembersByUserId)
         if (updatedContent == timelineItem.content && updatedReadReceiptState == timelineItem.readReceiptState) {
             return timelineItem
         }
@@ -208,15 +209,16 @@ class TimelineItemEventFactory(
     }
 
     private fun MatrixTimelineItem.Event.computeReadReceiptState(
-        roomMembers: List<RoomMember>,
+        roomMembersByUserId: Lazy<Map<UserId, RoomMember>>,
     ): TimelineItemReadReceipts {
-        if (!config.computeReadReceipts) {
+        if (!config.computeReadReceipts || event.receipts.isEmpty()) {
             return TimelineItemReadReceipts(receipts = persistentListOf())
         }
+        val roomMembers = roomMembersByUserId.value
         return TimelineItemReadReceipts(
             receipts = event.receipts
                 .map { receipt ->
-                    val roomMember = roomMembers.find { it.userId == receipt.userId }
+                    val roomMember = roomMembers[receipt.userId]
                     ReadReceiptData(
                         avatarData = AvatarData(
                             id = receipt.userId.value,

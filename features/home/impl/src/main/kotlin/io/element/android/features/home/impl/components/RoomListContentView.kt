@@ -8,6 +8,7 @@
 
 package io.element.android.features.home.impl.components
 
+import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.animation.core.animate
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -35,8 +37,10 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.PreviewParameter
@@ -57,6 +61,9 @@ import io.element.android.features.home.impl.roomlist.RoomListContentState
 import io.element.android.features.home.impl.roomlist.RoomListContentStateProvider
 import io.element.android.features.home.impl.roomlist.RoomListEvent
 import io.element.android.features.home.impl.roomlist.SecurityBannerState
+import io.element.android.features.home.impl.search.RoomListSearchEvent
+import io.element.android.features.home.impl.search.RoomListSearchState
+import io.element.android.features.home.impl.search.aRoomListSearchState
 import io.element.android.features.home.impl.spacefilters.SpaceFiltersState
 import io.element.android.features.home.impl.spacefilters.anUnselectedSpaceFiltersState
 import io.element.android.libraries.designsystem.preview.ElementPreview
@@ -64,6 +71,7 @@ import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import io.element.android.libraries.designsystem.theme.components.Button
 import io.element.android.libraries.designsystem.theme.components.HorizontalDivider
 import io.element.android.libraries.designsystem.theme.components.IconSource
+import io.element.android.libraries.designsystem.theme.components.SearchField
 import io.element.android.libraries.designsystem.theme.components.Text
 import io.element.android.libraries.designsystem.utils.OnVisibleRangeChangeEffect
 import io.element.android.libraries.ui.strings.CommonStrings
@@ -76,6 +84,7 @@ import kotlin.math.roundToInt
 fun RoomListContentView(
     contentState: RoomListContentState,
     filtersState: RoomListFiltersState,
+    searchState: RoomListSearchState,
     spaceFiltersState: SpaceFiltersState,
     lazyListState: LazyListState,
     hideInvitesAvatars: Boolean,
@@ -111,6 +120,7 @@ fun RoomListContentView(
                 state = contentState,
                 hideInvitesAvatars = hideInvitesAvatars,
                 filtersState = filtersState,
+                searchState = searchState,
                 spaceFiltersState = spaceFiltersState,
                 eventSink = eventSink,
                 onSetUpRecoveryClick = onSetUpRecoveryClick,
@@ -191,6 +201,7 @@ private fun RoomsView(
     state: RoomListContentState.Rooms,
     hideInvitesAvatars: Boolean,
     filtersState: RoomListFiltersState,
+    searchState: RoomListSearchState,
     spaceFiltersState: SpaceFiltersState,
     eventSink: (RoomListEvent) -> Unit,
     onSetUpRecoveryClick: () -> Unit,
@@ -212,6 +223,7 @@ private fun RoomsView(
         RoomsViewList(
             state = state,
             hideInvitesAvatars = hideInvitesAvatars,
+            searchState = searchState,
             eventSink = eventSink,
             onSetUpRecoveryClick = onSetUpRecoveryClick,
             onConfirmRecoveryKeyClick = onConfirmRecoveryKeyClick,
@@ -234,6 +246,7 @@ private data class ActiveSwipe(
 private fun RoomsViewList(
     state: RoomListContentState.Rooms,
     hideInvitesAvatars: Boolean,
+    searchState: RoomListSearchState,
     eventSink: (RoomListEvent) -> Unit,
     onSetUpRecoveryClick: () -> Unit,
     onConfirmRecoveryKeyClick: () -> Unit,
@@ -257,12 +270,35 @@ private fun RoomsViewList(
         fullScreenIntentBannerVisible = state.fullScreenIntentPermissionsState.shouldDisplayBanner,
         batteryOptimizationBannerVisible = state.batteryOptimizationState.shouldDisplayBanner,
         newNotificationSoundBannerVisible = state.showNewNotificationSoundBanner,
-    )
+    ) + 1
     // Read the latest values inside the (Unit-keyed, never-relaunched) gesture detector.
     val currentSummaries by rememberUpdatedState(state.summaries)
     val currentHeaderItemCount by rememberUpdatedState(headerItemCount)
     val currentSelectedRoomId by rememberUpdatedState(state.selectedRoomId)
     val currentActivityVisibility by rememberUpdatedState(state.activityVisibility)
+    val searchQuery = searchState.query.text.toString()
+    val isSearchActive = searchState.isSearchActive
+    val displayedSummaries = if (searchQuery.isNotBlank()) searchState.results else state.summaries
+    val hasSearchDrawerAnchor = state.securityBannerState != SecurityBannerState.None ||
+        state.fullScreenIntentPermissionsState.shouldDisplayBanner ||
+        state.batteryOptimizationState.shouldDisplayBanner ||
+        state.showNewNotificationSoundBanner ||
+        displayedSummaries.isNotEmpty()
+    val focusManager = LocalFocusManager.current
+    val currentSearchQuery by rememberUpdatedState(searchQuery)
+    var hasHiddenSearchFieldInitially by remember { mutableStateOf(false) }
+
+    BackHandler(enabled = isSearchActive) {
+        focusManager.clearFocus()
+        searchState.eventSink(RoomListSearchEvent.SetSearchActive(false))
+    }
+
+    LaunchedEffect(hasSearchDrawerAnchor, isSearchActive, searchQuery) {
+        if (!hasHiddenSearchFieldInitially && hasSearchDrawerAnchor && !isSearchActive && searchQuery.isBlank()) {
+            hasHiddenSearchFieldInitially = true
+            lazyListState.scrollToItem(1)
+        }
+    }
 
     // Scrolling closes the open row — affects only the one active row (no per-row wrapper churn).
     LaunchedEffect(lazyListState.isScrollInProgress) {
@@ -277,13 +313,22 @@ private fun RoomsViewList(
         lazyListState = lazyListState,
         notifyWhileScrolling = false,
     ) { visibleRange ->
-        eventSink(RoomListEvent.UpdateVisibleRange(visibleRange))
+        if (searchQuery.isNotBlank()) {
+            searchState.eventSink(RoomListSearchEvent.UpdateVisibleRange(visibleRange))
+        } else {
+            eventSink(RoomListEvent.UpdateVisibleRange(visibleRange))
+        }
     }
     LazyColumn(
         state = lazyListState,
         modifier = modifier.pointerInput(Unit) {
             detectHorizontalDragGestures(
                 onDragStart = { position ->
+                    if (currentSearchQuery.isNotBlank()) {
+                        activeSwipe = null
+                        swipeOffsetPx = 0f
+                        return@detectHorizontalDragGestures
+                    }
                     settleJob?.cancel()
                     val items = lazyListState.layoutInfo.visibleItemsInfo.map {
                         RoomRowBounds(index = it.index, top = it.offset, height = it.size)
@@ -337,6 +382,15 @@ private fun RoomsViewList(
         },
         contentPadding = contentPadding,
     ) {
+        item {
+            HomeRoomListSearchField(
+                state = searchState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
+            )
+        }
+
         when (state.securityBannerState) {
             SecurityBannerState.SetUpRecovery -> {
                 item {
@@ -377,37 +431,59 @@ private fun RoomsViewList(
             }
         }
 
-        // Note: do not use a key for the LazyColumn, or the scroll will not behave as expected if a room
-        // is moved to the top of the list.
-        itemsIndexed(
-            items = state.summaries,
-            contentType = { _, room -> room.contentType() },
-        ) { index, room ->
-            RoomSummaryRow(
-                room = room,
-                hideInviteAvatars = hideInvitesAvatars,
-                isInviteSeen = room.displayType != RoomSummaryDisplayType.INVITE ||
-                    state.seenRoomInvites.contains(room.roomId),
-                isSelected = room.roomId == state.selectedRoomId,
-                activityVisibility = state.activityVisibility,
-                showUnreadCount = state.showUnreadCount,
-                isSwipeActive = room.id == activeSwipe?.id,
-                swipeOffsetProvider = { swipeOffsetPx },
-                onCloseSwipe = {
-                    settleJob?.cancel()
-                    settleJob = swipeScope.launch {
-                        animate(swipeOffsetPx, 0f) { value, _ -> swipeOffsetPx = value }
-                        activeSwipe = null
-                    }
-                },
-                onClick = onRoomClick,
-                eventSink = eventSink,
-            )
-            if (index != state.summaries.lastIndex) {
-                HorizontalDivider()
+        if (!isSearchActive || searchQuery.isNotBlank()) {
+            // Note: do not use a key for the LazyColumn, or the scroll will not behave as expected if a room
+            // is moved to the top of the list.
+            itemsIndexed(
+                items = displayedSummaries,
+                contentType = { _, room -> room.contentType() },
+            ) { index, room ->
+                RoomSummaryRow(
+                    room = room,
+                    hideInviteAvatars = hideInvitesAvatars,
+                    isInviteSeen = room.displayType != RoomSummaryDisplayType.INVITE ||
+                        state.seenRoomInvites.contains(room.roomId),
+                    isSelected = room.roomId == state.selectedRoomId,
+                    activityVisibility = state.activityVisibility,
+                    showUnreadCount = state.showUnreadCount,
+                    isSwipeActive = searchQuery.isBlank() && room.id == activeSwipe?.id,
+                    swipeOffsetProvider = { swipeOffsetPx },
+                    onCloseSwipe = {
+                        settleJob?.cancel()
+                        settleJob = swipeScope.launch {
+                            animate(swipeOffsetPx, 0f) { value, _ -> swipeOffsetPx = value }
+                            activeSwipe = null
+                        }
+                    },
+                    onClick = onRoomClick,
+                    eventSink = eventSink,
+                )
+                if (index != displayedSummaries.lastIndex) {
+                    HorizontalDivider()
+                }
             }
         }
     }
+}
+
+@Composable
+private fun HomeRoomListSearchField(
+    state: RoomListSearchState,
+    modifier: Modifier = Modifier,
+) {
+    val focusManager = LocalFocusManager.current
+    SearchField(
+        modifier = modifier.onFocusChanged { focusState ->
+            state.eventSink(RoomListSearchEvent.SetSearchActive(focusState.isFocused || state.query.text.isNotBlank()))
+        },
+        state = state.query,
+        placeholder = stringResource(CommonStrings.action_search),
+        showClearWhenNotEmpty = true,
+        onClear = {
+            focusManager.clearFocus()
+            state.eventSink(RoomListSearchEvent.SetSearchActive(false))
+        },
+    )
 }
 
 @Composable
@@ -467,6 +543,7 @@ internal fun RoomListContentViewPreview(@PreviewParameter(RoomListContentStatePr
                 )
             }
         ),
+        searchState = aRoomListSearchState(),
         spaceFiltersState = anUnselectedSpaceFiltersState(),
         hideInvitesAvatars = false,
         eventSink = {},

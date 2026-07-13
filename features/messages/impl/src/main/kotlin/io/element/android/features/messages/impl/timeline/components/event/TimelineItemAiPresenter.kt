@@ -22,11 +22,12 @@ import dev.zacsweers.metro.ContributesTo
 import dev.zacsweers.metro.IntoMap
 import io.element.android.features.messages.impl.timeline.di.TimelineItemEventContentKey
 import io.element.android.features.messages.impl.timeline.di.TimelineItemPresenterFactory
+import io.element.android.features.messages.impl.timeline.factories.event.AiSdkStreamReducer
 import io.element.android.features.messages.impl.timeline.factories.event.AiStreamContentCache
 import io.element.android.features.messages.impl.timeline.factories.event.AiStreamHandleStore
-import io.element.android.features.messages.impl.timeline.factories.event.AiSdkStreamReducer
 import io.element.android.features.messages.impl.timeline.model.event.AiDataStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiPptWorkflowStreamPart
+import io.element.android.features.messages.impl.timeline.model.event.AiTextStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.AiToolStreamPart
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAiContent
 import io.element.android.libraries.chatbot.api.ChatbotApiServiceFactory
@@ -68,8 +69,19 @@ data class TimelineItemAiState(
     val workflowMessages: Map<String, WorkflowMessage> = emptyMap(),
     val workflowSlides: Map<String, List<String>> = emptyMap(),
     val miniAppDocumentLauncher: MiniAppDocumentLauncher? = null,
+    val onSendCardResponse: suspend (eventId: String, actionId: String) -> Boolean = { _, _ -> false },
     val canAbortRun: Boolean = false,
     val onAbortRun: suspend () -> Boolean = { false },
+)
+
+private data class TimelineItemAiContentIdentity(
+    val streamId: String?,
+    val fallbackBody: String,
+    val isEdited: Boolean,
+    val sender: String?,
+    val roomId: String?,
+    val eventId: String?,
+    val parts: Any,
 )
 
 @AssistedInject
@@ -94,7 +106,15 @@ class TimelineItemAiPresenter(
     override fun present(): TimelineItemAiState {
         val initialContent = content
         val streamId = initialContent.streamId
-        val contentIdentity = streamId ?: initialContent.parts
+        val contentIdentity = TimelineItemAiContentIdentity(
+            streamId = streamId,
+            fallbackBody = initialContent.body,
+            isEdited = initialContent.isEdited,
+            sender = initialContent.sender,
+            roomId = initialContent.roomId,
+            eventId = initialContent.eventId,
+            parts = initialContent.parts,
+        )
         val cachedContent = remember(contentIdentity) {
             streamId?.let(aiStreamContentCache::get)?.withFallbackMetadata(initialContent)
         }
@@ -234,7 +254,13 @@ class TimelineItemAiPresenter(
                                             workflowTaskStore.saveSlides(taskId, taskType, updated, "running", knownTotal = msg.totalSlides)
                                         }
                                         wsSlideCount++
-                                        Timber.tag("WsDbg").d("slide PROGRESS taskId=%s wsIdx=%d total=%d wsTotal=%s", taskId, wsSlideCount, workflowSlides[taskId]?.size, msg.totalSlides)
+                                        Timber.tag("WsDbg").d(
+                                            "slide PROGRESS taskId=%s wsIdx=%d total=%d wsTotal=%s",
+                                            taskId,
+                                            wsSlideCount,
+                                            workflowSlides[taskId]?.size,
+                                            msg.totalSlides,
+                                        )
                                     }
                                 }
                                 is WorkflowMessage.Completed -> {
@@ -264,19 +290,44 @@ class TimelineItemAiPresenter(
             workflowMessages = workflowMessages,
             workflowSlides = workflowSlides,
             miniAppDocumentLauncher = miniAppDocumentLauncher,
+            onSendCardResponse = { eventId, actionId ->
+                sendCardResponse(
+                    roomId = currentContent.roomId ?: initialContent.roomId,
+                    eventId = eventId,
+                    actionId = actionId,
+                )
+            },
             canAbortRun = currentContent.isStreaming &&
                 currentContent.streamId != null &&
                 currentContent.targetUserId == matrixClient.sessionId.value,
-            onAbortRun = { abortRun(currentContent.streamId) },
+            onAbortRun = {
+                abortRun(currentContent.streamId)
+            },
         )
     }
 
-    private suspend fun abortRun(streamId: String?): Boolean {
-        val id = streamId?.takeIf { it.isNotBlank() } ?: return false
-        return chatbotApiServiceFactory.createForHomeserver(matrixClient)
-            .abortRun(id, "Stopped by initiator from the message timeline")
-            .onFailure { Timber.e(it, "Failed to stop Agent run stream=%s", id) }
-            .isSuccess
+    private suspend fun sendCardResponse(
+        roomId: String?,
+        eventId: String,
+        actionId: String,
+    ): Boolean {
+        if (roomId.isNullOrBlank() || eventId.isBlank() || actionId.isBlank()) {
+            Timber.tag("CardResponse").w(
+                "Missing card response context roomId=%s eventId=%s actionId=%s",
+                roomId,
+                eventId,
+                actionId,
+            )
+            return false
+        }
+
+        return withContext(dispatchers.io) {
+            chatbotApiServiceFactory
+                .createForHomeserver(matrixClient)
+                .sendCardResponse(roomId = roomId, eventId = eventId, actionId = actionId)
+                .onFailure { Timber.tag("CardResponse").w(it, "Failed to send card response marker") }
+                .isSuccess
+        }
     }
 
     private suspend fun loadCompletedCachedContent(
@@ -289,9 +340,18 @@ class TimelineItemAiPresenter(
                     snapshot = snapshot,
                     isEdited = fallbackContent.isEdited,
                     sender = fallbackContent.sender,
-                ).also(aiStreamContentCache::put)
+                ).withFallbackMetadata(fallbackContent)
+                    .also(aiStreamContentCache::put)
             }
         }
+    }
+
+    private suspend fun abortRun(streamId: String?): Boolean {
+        val id = streamId?.takeIf { it.isNotBlank() } ?: return false
+        return chatbotApiServiceFactory.createForHomeserver(matrixClient)
+            .abortRun(id, "Stopped by initiator from the message timeline")
+            .onFailure { Timber.e(it, "Failed to stop Agent run stream=%s", id) }
+            .isSuccess
     }
 
     private suspend fun collectStreamContent(
@@ -314,7 +374,7 @@ class TimelineItemAiPresenter(
                     snapshot = snapshot,
                     isEdited = fallbackContent.isEdited,
                     sender = fallbackContent.sender,
-                )
+                ).withFallbackMetadata(fallbackContent)
                 aiStreamContentCache.put(updated)
                 withContext(dispatchers.main) {
                     updateContent(updated)
@@ -440,10 +500,21 @@ private fun TimelineItemAiContent.isTerminalRenderableStream(streamId: String): 
 
 private fun TimelineItemAiContent.withFallbackMetadata(fallback: TimelineItemAiContent): TimelineItemAiContent {
     return copy(
+        body = bodyWithCurrentFallback(fallback),
         isEdited = fallback.isEdited,
         sender = sender ?: fallback.sender,
         roomId = roomId ?: fallback.roomId,
         eventId = eventId ?: fallback.eventId,
         targetUserId = targetUserId ?: fallback.targetUserId,
+        cardResponseState = if (cardResponseState.actioned) cardResponseState else fallback.cardResponseState,
     )
+}
+
+private fun TimelineItemAiContent.bodyWithCurrentFallback(fallback: TimelineItemAiContent): String {
+    val hasSdkTextBody = parts.any { it is AiTextStreamPart && it.text.isNotBlank() }
+    return if (!hasSdkTextBody && fallback.body.isNotBlank()) {
+        fallback.body
+    } else {
+        body
+    }
 }

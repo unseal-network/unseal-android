@@ -17,21 +17,26 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 class RoomKeyRecoveryRequestParser {
-    fun parse(originalJson: String?): RoomKeyRecoveryRequest? {
+    fun parse(
+        originalJson: String?,
+        fallbackRoomId: RoomId? = null,
+        fallbackSenderId: UserId? = null,
+        fallbackSessionId: String? = null,
+    ): RoomKeyRecoveryRequest? {
         val root = originalJson
             ?.let { runCatching { Json.parseToJsonElement(it).jsonObject }.getOrNull() }
             ?: return null
         val content = root.jsonObjectOrNull("content") ?: return null
         if (content.optionalString("algorithm") != MEGOLM_ALGORITHM) return null
 
-        val roomId = root.requiredString("room_id") ?: return null
-        val senderUserId = root.requiredString("sender") ?: return null
+        val roomId = root.requiredString("room_id")?.let(::RoomId) ?: fallbackRoomId ?: return null
+        val senderUserId = root.requiredString("sender")?.let(::UserId) ?: fallbackSenderId ?: return null
         val senderKey = content.requiredString("sender_key") ?: return null
-        val sessionId = content.requiredString("session_id") ?: return null
+        val sessionId = content.requiredString("session_id") ?: fallbackSessionId ?: return null
 
         return RoomKeyRecoveryRequest(
-            roomId = RoomId(roomId),
-            senderUserId = UserId(senderUserId),
+            roomId = roomId,
+            senderUserId = senderUserId,
             senderDeviceId = content.optionalString("device_id"),
             senderKey = senderKey,
             sessionId = sessionId,

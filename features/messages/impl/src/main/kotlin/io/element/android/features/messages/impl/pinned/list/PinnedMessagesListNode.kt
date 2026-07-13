@@ -26,6 +26,7 @@ import io.element.android.features.messages.impl.actionlist.ActionListPresenter
 import io.element.android.features.messages.impl.timeline.di.LocalTimelineItemPresenterFactories
 import io.element.android.features.messages.impl.timeline.di.TimelineItemPresenterFactories
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
+import io.element.android.features.messages.impl.utils.toUnsealAgentProfileLink
 import io.element.android.libraries.androidutils.system.copyToClipboard
 import io.element.android.libraries.androidutils.system.openUrlInExternalApp
 import io.element.android.libraries.architecture.callback
@@ -59,6 +60,7 @@ class PinnedMessagesListNode(
         fun navigateToEventDebugInfo(eventId: EventId?, debugInfo: TimelineItemDebugInfo)
         fun handleForwardEventClick(eventId: EventId)
         fun navigateToThread(threadRootId: ThreadId)
+        fun navigateToAgentProfile(botName: String, matrixUserId: String?)
     }
 
     private val callback: Callback = callback()
@@ -71,6 +73,10 @@ class PinnedMessagesListNode(
     )
 
     private fun onLinkClick(context: Context, url: String) {
+        url.toUnsealAgentProfileLink()?.let { profile ->
+            callback.navigateToAgentProfile(profile.botName, profile.matrixUserId)
+            return
+        }
         when (val permalink = permalinkParser.parse(url)) {
             is PermalinkData.UserLink -> {
                 // Open the room member profile, it will fallback to

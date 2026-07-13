@@ -29,6 +29,7 @@ import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
 import im.vector.app.features.analytics.plan.Interaction
 import io.element.android.annotations.ContributesNode
+import io.element.android.features.agentmanagement.api.AgentManagementEntryPoint
 import io.element.android.features.call.api.CallData
 import io.element.android.features.call.api.ElementCallEntryPoint
 import io.element.android.features.forward.api.ForwardEntryPoint
@@ -78,6 +79,7 @@ import io.element.android.libraries.di.RoomScope
 import io.element.android.libraries.di.annotations.ApplicationContext
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.RoomId
+import io.element.android.libraries.matrix.api.core.RoomIdOrAlias
 import io.element.android.libraries.matrix.api.core.SessionId
 import io.element.android.libraries.matrix.api.core.ThreadId
 import io.element.android.libraries.matrix.api.core.UserId
@@ -136,6 +138,7 @@ class MessagesFlowNode(
     private val timelineController: TimelineController,
     private val knockRequestsListEntryPoint: KnockRequestsListEntryPoint,
     private val webhookTriggersEntryPoint: WebhookTriggersEntryPoint,
+    private val agentManagementEntryPoint: AgentManagementEntryPoint,
     private val dateFormatter: DateFormatter,
     private val coroutineDispatchers: CoroutineDispatchers,
     private val hasVulkanSupport: DeviceHasVulkanSupport,
@@ -212,6 +215,9 @@ class MessagesFlowNode(
 
         @Parcelize
         data class RoomWebhooks(val roomId: RoomId, val roomName: String) : NavTarget
+
+        @Parcelize
+        data class AgentProfile(val botName: String, val matrixUserId: String?) : NavTarget
     }
 
     private val params = plugins.filterIsInstance<MessagesEntryPoint.Params>().first()
@@ -367,6 +373,10 @@ class MessagesFlowNode(
                             meetId = meetId,
                         ))
                     }
+
+                    override fun navigateToAgentProfile(botName: String, matrixUserId: String?) {
+                        backstack.push(NavTarget.AgentProfile(botName, matrixUserId))
+                    }
                 }
                 val inputs = MessagesNode.Inputs(
                     focusedEventId = navTarget.focusedEventId,
@@ -514,6 +524,10 @@ class MessagesFlowNode(
                     override fun navigateToThread(threadRootId: ThreadId) {
                         backstack.push(NavTarget.Thread(threadRootId, null))
                     }
+
+                    override fun navigateToAgentProfile(botName: String, matrixUserId: String?) {
+                        backstack.push(NavTarget.AgentProfile(botName, matrixUserId))
+                    }
                 }
                 createNode<PinnedMessagesListNode>(buildContext, plugins = listOf(callback))
             }
@@ -630,6 +644,10 @@ class MessagesFlowNode(
                     override fun navigateToDeveloperSettings() {
                         callback.navigateToDeveloperSettings()
                     }
+
+                    override fun navigateToAgentProfile(botName: String, matrixUserId: String?) {
+                        backstack.push(NavTarget.AgentProfile(botName, matrixUserId))
+                    }
                 }
                 createNode<ThreadedMessagesNode>(buildContext, listOf(inputs, callback))
             }
@@ -648,6 +666,33 @@ class MessagesFlowNode(
                     meetId = navTarget.meetId,
                 )
                 createNode<MiniAppNode>(buildContext, plugins = listOf(inputs))
+            }
+            is NavTarget.AgentProfile -> {
+                agentManagementEntryPoint.createNode(
+                    parentNode = this,
+                    buildContext = buildContext,
+                    params = AgentManagementEntryPoint.Params(
+                        initialTarget = AgentManagementEntryPoint.InitialTarget.Profile(
+                            botName = navTarget.botName,
+                            matrixUserId = navTarget.matrixUserId,
+                        )
+                    ),
+                    callback = object : AgentManagementEntryPoint.Callback {
+                        override fun onDone() {
+                            backstack.pop()
+                        }
+
+                        override fun onOpenRoom(roomIdOrAlias: RoomIdOrAlias) {
+                            callback.handlePermalinkClick(PermalinkData.RoomLink(roomIdOrAlias), pushToBackstack = true)
+                        }
+
+                        override fun onOpenSkills(botName: String?) = Unit
+
+                        override fun onOpenCreatedDirectRoom(roomId: RoomId) {
+                            callback.navigateToRoom(roomId)
+                        }
+                    },
+                )
             }
         }
     }
