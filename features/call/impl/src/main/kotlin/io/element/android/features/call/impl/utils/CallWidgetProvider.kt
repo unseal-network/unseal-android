@@ -20,6 +20,7 @@ interface CallWidgetProvider {
         clientId: String,
         languageTag: String?,
         theme: String?,
+        audienceBroadcastId: String?,
     ): Result<GetWidgetResult>
 
     data class GetWidgetResult(

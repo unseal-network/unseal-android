@@ -92,6 +92,12 @@ class RustBaseRoom(
 
     override suspend fun subscribeToSync() = roomSyncSubscriber.subscribe(roomId)
 
+    override suspend fun getStateEventJson(eventType: String, stateKey: String): Result<String?> = withContext(roomDispatcher) {
+        runCatchingExceptions {
+            innerRoom.getStateEventJson(eventType, stateKey)
+        }
+    }
+
     override suspend fun updateMembers() {
         val useCache = membersStateFlow.value is RoomMembersState.Unknown
         val source = if (useCache) {

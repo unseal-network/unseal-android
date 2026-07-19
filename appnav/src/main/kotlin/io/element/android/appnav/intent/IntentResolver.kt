@@ -32,6 +32,7 @@ sealed interface ResolvedIntent {
     data class Login(val params: LoginParams) : ResolvedIntent
     data class IncomingShare(val shareIntentData: ShareIntentData) : ResolvedIntent
     data class DebugImportSession(val externalSession: ExternalSession) : ResolvedIntent
+    data class Audience(val broadcastId: String) : ResolvedIntent
 }
 
 @Inject
@@ -56,6 +57,12 @@ class IntentResolver(
         val actionViewData = intent
             .takeIf { it.action == Intent.ACTION_VIEW }
             ?.dataString
+
+        val audienceBroadcastId = intent
+            .takeIf { it.action == Intent.ACTION_VIEW }
+            ?.data
+            ?.let(::parseAudienceBroadcastId)
+        if (audienceBroadcastId != null) return ResolvedIntent.Audience(audienceBroadcastId)
 
         val debugImportSession = actionViewData
             ?.let(::parseDebugImportSession)
@@ -82,6 +89,13 @@ class IntentResolver(
         return null
     }
 
+    private fun parseAudienceBroadcastId(uri: android.net.Uri): String? {
+        if (uri.scheme?.lowercase() != "https" || uri.host?.lowercase() != "keepsecret.io" || uri.port != -1) return null
+        if (uri.userInfo != null || uri.query != null || uri.fragment != null) return null
+        val match = AUDIENCE_PATH_PATTERN.matchEntire(uri.encodedPath.orEmpty()) ?: return null
+        return match.groupValues[1]
+    }
+
     private fun parseDebugImportSession(uriString: String): ExternalSession? {
         if (!isInDebug) return null
         val uri = uriString.toUri()
@@ -103,6 +117,8 @@ class IntentResolver(
         )
     }
 }
+
+private val AUDIENCE_PATH_PATTERN = Regex("^/audience/(bcast_[A-Za-z0-9_-]+)$")
 
 private fun Intent.canBeIgnored(): Boolean {
     return action == Intent.ACTION_MAIN &&

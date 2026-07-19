@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="call_manage_listeners">Manage meeting listeners</string>
+    <string name="call_listener_access_title">Listener access</string>
+    <string name="call_listener_access_description">Choose who can listen to this meeting through the read-only broadcast.</string>
+    <string name="call_listener_authenticated">Allow any signed-in listener</string>
+    <string name="call_listener_room_members">Allow room members only</string>
+    <string name="call_listener_disable">Turn off listeners</string>
+    <string name="call_listener_updating">Updating listener stream…</string>
+    <string name="screen_call_audience_connecting">Connecting to the listener stream…</string>
+    <string name="screen_call_audience_reconnecting">Reconnecting to the listener stream…</string>
+    <string name="screen_call_audience_waiting_for_media">Waiting for meeting media…</string>
+    <string name="screen_call_audience_ended">This listener stream has ended.</string>
+    <string name="screen_call_audience_unavailable">The listener stream is unavailable.</string>
+    <string name="screen_call_audience_listening">Listening to meeting</string>
+    <string name="screen_call_audience_counts">%1$d participants · %2$d listeners</string>
+    <string name="a11y_leave_listener_mode">Leave listener mode</string>
+    <string name="common_meeting_listener_notification_channel">Meeting listener playback</string>
+    <string name="common_meeting_listener_notification_title">Listening to meeting</string>
+    <string name="common_meeting_listener_notification_message">Meeting audio is playing in the background.</string>
+</resources>

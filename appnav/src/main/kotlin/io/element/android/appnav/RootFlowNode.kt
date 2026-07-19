@@ -39,12 +39,15 @@ import io.element.android.appnav.intent.IntentResolver
 import io.element.android.appnav.intent.ResolvedIntent
 import io.element.android.appnav.room.RoomFlowNode
 import io.element.android.appnav.room.RoomNavigationTarget
+import io.element.android.appnav.root.PostLoginWelcomeView
 import io.element.android.appnav.root.RootNavStateFlowFactory
 import io.element.android.appnav.root.RootPresenter
 import io.element.android.appnav.root.RootView
-import io.element.android.appnav.root.PostLoginWelcomeView
 import io.element.android.appnav.root.UnsealSplashView
 import io.element.android.features.announcement.api.AnnouncementService
+import io.element.android.features.call.api.AudienceBroadcastService
+import io.element.android.features.call.api.CallData
+import io.element.android.features.call.api.ElementCallEntryPoint
 import io.element.android.features.login.api.LoginParams
 import io.element.android.features.login.api.accesscontrol.AccountProviderAccessControl
 import io.element.android.features.rageshake.api.bugreport.BugReportEntryPoint
@@ -77,6 +80,7 @@ import io.element.android.libraries.sessionstorage.api.SessionStore
 import io.element.android.libraries.ui.common.nodes.emptyNode
 import io.element.android.services.analytics.api.AnalyticsLongRunningTransaction
 import io.element.android.services.analytics.api.AnalyticsService
+import io.element.android.services.apperror.api.AppErrorStateService
 import io.element.android.services.analytics.api.watchers.AnalyticsColdStartWatcher
 import io.element.android.services.appnavstate.api.ROOM_OPENED_FROM_NOTIFICATION
 import kotlinx.coroutines.CoroutineScope
@@ -111,6 +115,9 @@ class RootFlowNode(
     private val announcementService: AnnouncementService,
     private val analyticsService: AnalyticsService,
     private val analyticsColdStartWatcher: AnalyticsColdStartWatcher,
+    private val audienceBroadcastService: AudienceBroadcastService,
+    private val elementCallEntryPoint: ElementCallEntryPoint,
+    private val appErrorStateService: AppErrorStateService,
     @AppCoroutineScope private val appCoroutineScope: CoroutineScope,
 ) : BaseFlowNode<RootFlowNode.NavTarget>(
     backstack = BackStack(
@@ -469,7 +476,35 @@ class RootFlowNode(
             is ResolvedIntent.Permalink -> navigateTo(resolvedIntent.permalinkData)
             is ResolvedIntent.IncomingShare -> onIncomingShare(resolvedIntent.shareIntentData)
             is ResolvedIntent.DebugImportSession -> onDebugImportSession(resolvedIntent.externalSession)
+            is ResolvedIntent.Audience -> onAudienceLink(resolvedIntent.broadcastId)
         }
+    }
+
+    private suspend fun onAudienceLink(broadcastId: String) {
+        val sessionId = sessionStore.getLatestSessionId()
+        if (sessionId == null) {
+            switchToNotLoggedInFlow(null)
+            return
+        }
+        attachSession(sessionId)
+        audienceBroadcastService.awaitRuntimeStatus(sessionId, broadcastId)
+            .onSuccess { runtime ->
+                elementCallEntryPoint.startCall(
+                    CallData(
+                        sessionId = sessionId,
+                        roomId = runtime.roomId,
+                        isAudioCall = false,
+                        audienceBroadcastId = broadcastId,
+                    )
+                )
+            }
+            .onFailure { failure ->
+                Timber.w(failure, "Unable to open audience broadcast $broadcastId")
+                appErrorStateService.showError(
+                    titleRes = R.string.error_audience_open_title,
+                    bodyRes = R.string.error_audience_open_message,
+                )
+            }
     }
 
     private suspend fun onDebugImportSession(externalSession: ExternalSession) {

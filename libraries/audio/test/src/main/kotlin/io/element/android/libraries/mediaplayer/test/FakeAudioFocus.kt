@@ -9,6 +9,7 @@
 package io.element.android.libraries.mediaplayer.test
 
 import io.element.android.libraries.audio.api.AudioFocus
+import io.element.android.libraries.audio.api.AudioFocusLoss
 import io.element.android.libraries.audio.api.AudioFocusRequester
 import io.element.android.tests.testutils.lambda.lambdaError
 
@@ -18,9 +19,10 @@ class FakeAudioFocus(
 ) : AudioFocus {
     override fun requestAudioFocus(
         requester: AudioFocusRequester,
-        onFocusLost: () -> Unit,
+        onFocusGained: () -> Unit,
+        onFocusLost: (AudioFocusLoss) -> Unit,
     ) {
-        requestAudioFocusResult(requester, onFocusLost)
+        requestAudioFocusResult(requester) { onFocusLost(AudioFocusLoss.Permanent) }
     }
 
     override fun releaseAudioFocus() {

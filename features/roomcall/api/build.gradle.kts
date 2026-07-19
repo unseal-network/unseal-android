@@ -15,6 +15,7 @@ android {
 }
 
 dependencies {
+    api(projects.features.call.api)
     implementation(projects.libraries.architecture)
     implementation(projects.libraries.matrix.api)
     implementation(libs.androidx.compose.ui.tooling.preview)

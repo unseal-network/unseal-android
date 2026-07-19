@@ -12,8 +12,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -23,7 +25,10 @@ import dev.zacsweers.metro.AssistedFactory
 import dev.zacsweers.metro.AssistedInject
 import im.vector.app.features.analytics.plan.MobileScreen
 import io.element.android.compound.theme.ElementTheme
+import io.element.android.features.call.api.AudienceBroadcastService
 import io.element.android.features.call.api.CallData
+import io.element.android.features.call.impl.audience.AudiencePlaybackController
+import io.element.android.features.call.impl.audience.AudiencePlaybackState
 import io.element.android.features.call.impl.data.WidgetMessage
 import io.element.android.features.call.impl.utils.ActiveCallManager
 import io.element.android.features.call.impl.utils.CallWidgetProvider
@@ -35,6 +40,8 @@ import io.element.android.libraries.architecture.runCatchingUpdatingState
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.di.annotations.AppCoroutineScope
 import io.element.android.libraries.matrix.api.MatrixClientProvider
+import io.element.android.libraries.matrix.api.room.powerlevels.canCall
+import io.element.android.libraries.matrix.api.room.powerlevels.permissionsFlow
 import io.element.android.libraries.matrix.api.sync.SyncState
 import io.element.android.libraries.matrix.api.widget.MatrixWidgetDriver
 import io.element.android.libraries.network.useragent.UserAgentProvider
@@ -61,6 +68,8 @@ class CallScreenPresenter(
     private val matrixClientsProvider: MatrixClientProvider,
     private val screenTracker: ScreenTracker,
     private val activeCallManager: ActiveCallManager,
+    private val audienceBroadcastService: AudienceBroadcastService,
+    private val audiencePlaybackController: AudiencePlaybackController,
     private val languageTagProvider: LanguageTagProvider,
     private val appForegroundStateService: AppForegroundStateService,
     @AppCoroutineScope
@@ -85,21 +94,46 @@ class CallScreenPresenter(
         var webViewError by remember { mutableStateOf<String?>(null) }
         val languageTag = languageTagProvider.provideLanguageTag()
         val theme = if (ElementTheme.isLightTheme) "light" else "dark"
+        val audienceClientId = rememberSaveable(callData.audienceBroadcastId) {
+            "client_${UUID.randomUUID().toString().replace("-", "")}"
+        }
+        val audiencePlaybackState by produceState<AudiencePlaybackState>(
+            initialValue = AudiencePlaybackState.Connecting,
+            callData.sessionId,
+            callData.audienceBroadcastId,
+            audienceClientId,
+        ) {
+            val broadcastId = callData.audienceBroadcastId ?: return@produceState
+            audiencePlaybackController.observe(callData.sessionId, broadcastId, audienceClientId).collect { value = it }
+        }
+        val audienceHostControl by audienceBroadcastService
+            .observeHostControl(callData.sessionId, callData.roomId)
+            .collectAsState()
+        val canManageAudience by produceState(false, callData.sessionId, callData.roomId, callData.audienceBroadcastId) {
+            if (callData.audienceBroadcastId != null) return@produceState
+            val room = matrixClientsProvider.getOrRestore(callData.sessionId).getOrNull()?.getJoinedRoom(callData.roomId)
+                ?: return@produceState
+            room.permissionsFlow(false) { permissions -> permissions.canCall() }.collect { value = it }
+        }
 
         DisposableEffect(Unit) {
             coroutineScope.launch {
-                // Sets the call as joined
-                activeCallManager.joinedCall(callData)
-                fetchRoomCallUrl(
-                    callData = callData,
-                    urlState = urlState,
-                    callWidgetDriver = callWidgetDriver,
-                    languageTag = languageTag,
-                    theme = theme,
-                )
+                if (callData.audienceBroadcastId == null) {
+                    // Sets the call as joined
+                    activeCallManager.joinedCall(callData)
+                    fetchRoomCallUrl(
+                        callData = callData,
+                        urlState = urlState,
+                        callWidgetDriver = callWidgetDriver,
+                        languageTag = languageTag,
+                        theme = theme,
+                    )
+                }
             }
             onDispose {
-                appCoroutineScope.launch { activeCallManager.hangUpCall(callData) }
+                if (callData.audienceBroadcastId == null) {
+                    appCoroutineScope.launch { activeCallManager.hangUpCall(callData) }
+                }
             }
         }
         screenTracker.TrackScreen(screen = MobileScreen.ScreenName.RoomCall)
@@ -155,6 +189,10 @@ class CallScreenPresenter(
         fun handleEvent(event: CallScreenEvent) {
             when (event) {
                 is CallScreenEvent.Hangup -> {
+                    if (callData.audienceBroadcastId != null) {
+                        coroutineScope.launch { close(callWidgetDriver.value, navigator) }
+                        return
+                    }
                     val widgetId = callWidgetDriver.value?.id
                     val interceptor = messageInterceptor.value
                     if (widgetId != null && interceptor != null && isWidgetLoaded) {
@@ -183,6 +221,15 @@ class CallScreenPresenter(
                     }
                     // Else ignore the error, give a chance the Element Call to recover by itself.
                 }
+                is CallScreenEvent.SetAudienceRelay -> {
+                    coroutineScope.launch {
+                        if (event.accessMode == null) {
+                            audienceBroadcastService.disableRelay(callData.sessionId, callData.roomId)
+                        } else {
+                            audienceBroadcastService.enableRelay(callData.sessionId, callData.roomId, event.accessMode)
+                        }
+                    }
+                }
             }
         }
 
@@ -190,7 +237,15 @@ class CallScreenPresenter(
             urlState = urlState.value,
             webViewError = webViewError,
             userAgent = userAgent,
-            isCallActive = isWidgetLoaded,
+            isCallActive = if (callData.audienceBroadcastId != null) {
+                audiencePlaybackState !is AudiencePlaybackState.Ended && audiencePlaybackState !is AudiencePlaybackState.Failed
+            } else {
+                isWidgetLoaded
+            },
+            isAudience = callData.audienceBroadcastId != null,
+            audiencePlaybackState = audiencePlaybackState,
+            canManageAudience = canManageAudience,
+            audienceHostControl = audienceHostControl,
             eventSink = ::handleEvent,
         )
     }
@@ -210,6 +265,7 @@ class CallScreenPresenter(
                 isAudioCall = callData.isAudioCall,
                 languageTag = languageTag,
                 theme = theme,
+                audienceBroadcastId = callData.audienceBroadcastId,
             ).getOrThrow()
             callWidgetDriver.value = result.driver
             Timber.d("Call widget driver initialized for sessionId: ${callData.sessionId}, roomId: ${callData.roomId}")

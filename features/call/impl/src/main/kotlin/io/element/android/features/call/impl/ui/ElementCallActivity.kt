@@ -45,12 +45,14 @@ import io.element.android.features.call.impl.pip.PictureInPictureEvent
 import io.element.android.features.call.impl.pip.PictureInPicturePresenter
 import io.element.android.features.call.impl.pip.PictureInPictureState
 import io.element.android.features.call.impl.pip.PipView
+import io.element.android.features.call.impl.services.AudiencePlaybackForegroundService
 import io.element.android.features.call.impl.services.CallForegroundService
 import io.element.android.features.enterprise.api.EnterpriseService
 import io.element.android.libraries.androidutils.browser.ConsoleMessageLogger
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.architecture.bindings
 import io.element.android.libraries.audio.api.AudioFocus
+import io.element.android.libraries.audio.api.AudioFocusLoss
 import io.element.android.libraries.audio.api.AudioFocusRequester
 import io.element.android.libraries.core.log.logger.LoggerTag
 import io.element.android.libraries.core.meta.BuildMeta
@@ -82,6 +84,12 @@ class ElementCallActivity :
     private val requestPermissionsLauncher = registerPermissionResultLauncher()
 
     private val webViewTarget = mutableStateOf<CallData?>(null)
+
+    private val audiencePlaybackEnabled = mutableStateOf(true)
+
+    private var isCallActive = false
+    private var isAudienceCall = false
+    private var audienceFocusNeedsRestore = false
 
     private var eventSink: ((CallScreenEvent) -> Unit)? = null
 
@@ -145,14 +153,13 @@ class ElementCallActivity :
             ) {
                 val state = presenter.present()
                 eventSink = state.eventSink
-                LaunchedEffect(state.isCallActive) {
-                    if (state.isCallActive) {
-                        setCallIsActive()
-                    }
+                LaunchedEffect(state.isCallActive, state.isAudience) {
+                    setCallIsActive(state.isCallActive, state.isAudience)
                 }
                 CallScreenView(
                     state = state,
                     pipState = pipState,
+                    audiencePlaybackEnabled = audiencePlaybackEnabled.value,
                     onConsoleMessage = {
                         consoleMessageLogger.log("ElementCall", it)
                     },
@@ -165,15 +172,56 @@ class ElementCallActivity :
         }
     }
 
-    private fun setCallIsActive() {
-        audioFocus.requestAudioFocus(
-            requester = AudioFocusRequester.ElementCall,
-            onFocusLost = {
-                // If the audio focus is lost, we do not stop the call.
-                Timber.tag(loggerTag.value).w("Audio focus lost")
+    private fun setCallIsActive(isActive: Boolean, isAudience: Boolean) {
+        isCallActive = isActive
+        isAudienceCall = isAudience
+        if (!isActive) {
+            if (isAudience) audiencePlaybackEnabled.value = false
+            audienceFocusNeedsRestore = false
+            audioFocus.releaseAudioFocus()
+            if (isAudience) {
+                AudiencePlaybackForegroundService.stop(this)
+            } else {
+                CallForegroundService.stop(this)
             }
+            return
+        }
+        if (isAudience) audiencePlaybackEnabled.value = true
+        requestCallAudioFocus(isAudience)
+        if (isAudience) {
+            AudiencePlaybackForegroundService.start(this)
+        } else {
+            CallForegroundService.start(this)
+        }
+    }
+
+    private fun requestCallAudioFocus(isAudience: Boolean) {
+        audienceFocusNeedsRestore = false
+        audioFocus.requestAudioFocus(
+            requester = if (isAudience) AudioFocusRequester.MediaViewer else AudioFocusRequester.ElementCall,
+            onFocusLost = { loss ->
+                if (isAudience) {
+                    audiencePlaybackEnabled.value = false
+                    audienceFocusNeedsRestore = loss == AudioFocusLoss.Permanent
+                } else {
+                    // If the audio focus is lost, we do not stop the participant call.
+                    Timber.tag(loggerTag.value).w("Audio focus lost")
+                }
+            },
+            onFocusGained = {
+                if (isAudience) {
+                    audienceFocusNeedsRestore = false
+                    audiencePlaybackEnabled.value = true
+                }
+            },
         )
-        CallForegroundService.start(this)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (isCallActive && isAudienceCall && audienceFocusNeedsRestore) {
+            requestCallAudioFocus(isAudience = true)
+        }
     }
 
     @Composable
@@ -214,8 +262,10 @@ class ElementCallActivity :
 
     override fun onDestroy() {
         super.onDestroy()
+        audiencePlaybackEnabled.value = false
         audioFocus.releaseAudioFocus()
         CallForegroundService.stop(this)
+        AudiencePlaybackForegroundService.stop(this)
         pictureInPicturePresenter.setPipView(null)
     }
 

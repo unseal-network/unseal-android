@@ -9,12 +9,17 @@
 package io.element.android.features.roomcall.impl
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import dev.zacsweers.metro.Inject
+import io.element.android.features.call.api.AudienceBroadcastDiscovery
+import io.element.android.features.call.api.AudienceBroadcastService
 import io.element.android.features.call.api.CurrentCall
 import io.element.android.features.call.api.CurrentCallService
 import io.element.android.features.enterprise.api.SessionEnterpriseService
@@ -31,6 +36,7 @@ class RoomCallStatePresenter(
     private val room: JoinedRoom,
     private val currentCallService: CurrentCallService,
     private val sessionEnterpriseService: SessionEnterpriseService,
+    private val audienceBroadcastService: AudienceBroadcastService,
 ) : Presenter<RoomCallState> {
     @Composable
     override fun present(): RoomCallState {
@@ -38,6 +44,27 @@ class RoomCallStatePresenter(
             value = sessionEnterpriseService.isElementCallAvailable()
         }
         val roomInfo by room.roomInfoFlow.collectAsState()
+        val audienceHostControl by audienceBroadcastService
+            .observeHostControl(room.sessionId, room.roomId)
+            .collectAsState()
+        var previouslyHadRoomCall by remember(room.roomId) { mutableStateOf(roomInfo.hasRoomCall) }
+        LaunchedEffect(roomInfo.hasRoomCall) {
+            if (!roomInfo.hasRoomCall) {
+                audienceBroadcastService.clearMeetingFence(
+                    room.sessionId,
+                    room.roomId,
+                    force = previouslyHadRoomCall,
+                )
+            }
+            previouslyHadRoomCall = roomInfo.hasRoomCall
+        }
+        val audienceDiscovery by produceState<AudienceBroadcastDiscovery?>(null, roomInfo.hasRoomCall, room.roomId) {
+            if (!roomInfo.hasRoomCall) {
+                value = null
+            } else {
+                audienceBroadcastService.observeRoomDiscovery(room.sessionId, room.roomId).collect { value = it }
+            }
+        }
         val canJoinCall by room.permissionsAsState(false) { perms -> perms.canCall() }
         val isUserInTheCall by remember {
             derivedStateOf {
@@ -59,10 +86,13 @@ class RoomCallStatePresenter(
                         isUserInTheCall = isUserInTheCall,
                         isUserLocallyInTheCall = isUserLocallyInTheCall,
                         isAudioCall = roomInfo.activeCallIntentConsensus.isAudio(),
+                        audienceBroadcastId = audienceDiscovery?.broadcastId,
+                        audienceHostControl = audienceHostControl,
                     )
                     else -> RoomCallState.StandBy(
                         canStartCall = canJoinCall,
-                        isDM = roomInfo.isDm
+                        isDM = roomInfo.isDm,
+                        audienceHostControl = audienceHostControl,
                     )
                 }
             }

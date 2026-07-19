@@ -310,6 +310,7 @@ internal fun MessagesViewTopBarPreview() = ElementPreview {
                 roomCallState = roomCallState,
                 roomMenu = roomMenu,
                 onJoinCallClick = {},
+                onJoinAudienceClick = {},
                 onRoomSchedulesClick = {},
                 onThreadsListClick = {},
             )

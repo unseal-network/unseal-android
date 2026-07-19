@@ -38,6 +38,48 @@ import org.robolectric.RuntimeEnvironment
 @RunWith(RobolectricTestRunner::class)
 class IntentResolverTest {
     @Test
+    fun `test resolve canonical audience link`() {
+        val sut = createIntentResolver(
+            deeplinkParserResult = null,
+            oAuthIntentResolverResult = { null },
+        )
+        val intent = Intent(RuntimeEnvironment.getApplication(), Activity::class.java).apply {
+            action = Intent.ACTION_VIEW
+            data = "https://keepsecret.io/audience/bcast_demo-123".toUri()
+        }
+
+        assertThat(sut.resolve(intent)).isEqualTo(ResolvedIntent.Audience("bcast_demo-123"))
+    }
+
+    @Test
+    fun `test reject malformed audience links`() {
+        val sut = createIntentResolver(
+            deeplinkParserResult = null,
+            loginIntentResolverResult = { null },
+            permalinkParserResult = { PermalinkData.FallbackLink(Uri.parse(it)) },
+            oAuthIntentResolverResult = { null },
+        )
+        val invalidLinks = listOf(
+            "http://keepsecret.io/audience/bcast_demo",
+            "https://other.example/audience/bcast_demo",
+            "https://keepsecret.io/audience/",
+            "https://keepsecret.io/audience/not-a-broadcast",
+            "https://keepsecret.io/audience/bcast_demo/extra",
+            "https://keepsecret.io/audience/bcast_demo%2Fextra",
+            "https://keepsecret.io/audience/bcast_demo?source=share",
+            "https://user@keepsecret.io/audience/bcast_demo",
+        )
+
+        invalidLinks.forEach { link ->
+            val intent = Intent(RuntimeEnvironment.getApplication(), Activity::class.java).apply {
+                action = Intent.ACTION_VIEW
+                data = link.toUri()
+            }
+            assertThat(sut.resolve(intent)).isNull()
+        }
+    }
+
+    @Test
     fun `resolve launcher intent should return null`() {
         val sut = createIntentResolver()
         val intent = Intent(RuntimeEnvironment.getApplication(), Activity::class.java).apply {

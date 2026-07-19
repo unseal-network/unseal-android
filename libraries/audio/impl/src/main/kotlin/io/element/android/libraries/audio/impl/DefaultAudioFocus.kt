@@ -17,6 +17,7 @@ import androidx.core.content.getSystemService
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import io.element.android.libraries.audio.api.AudioFocus
+import io.element.android.libraries.audio.api.AudioFocusLoss
 import io.element.android.libraries.audio.api.AudioFocusRequester
 import io.element.android.libraries.di.annotations.ApplicationContext
 import timber.log.Timber
@@ -33,25 +34,26 @@ class DefaultAudioFocus(
     @Suppress("DEPRECATION")
     override fun requestAudioFocus(
         requester: AudioFocusRequester,
-        onFocusLost: () -> Unit,
+        onFocusGained: () -> Unit,
+        onFocusLost: (AudioFocusLoss) -> Unit,
     ) {
         val listener = AudioManager.OnAudioFocusChangeListener {
             when (it) {
                 AudioManager.AUDIOFOCUS_GAIN -> {
-                    // Do nothing
                     Timber.d("AudioFocus: AUDIOFOCUS_GAIN")
+                    onFocusGained()
                 }
                 AudioManager.AUDIOFOCUS_LOSS -> {
                     // Permanent focus loss (e.g., phone call) — always stop/pause.
                     Timber.d("AudioFocus: AUDIOFOCUS_LOSS")
-                    onFocusLost()
+                    onFocusLost(AudioFocusLoss.Permanent)
                 }
                 AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
                 AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
                     // For recording, ignore transient focus losses (e.g., notification sounds).
                     // The AudioRecord API keeps capturing regardless.
                     if (requester != AudioFocusRequester.RecordVoiceMessage) {
-                        onFocusLost()
+                        onFocusLost(AudioFocusLoss.Transient)
                     }
                 }
             }

@@ -91,6 +91,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.features.call.api.AudienceAccessMode
 import io.element.android.features.location.api.LiveLocationSharingBanner
 import io.element.android.features.messages.api.timeline.voicemessages.composer.VoiceMessageComposerEvent
 import io.element.android.features.messages.impl.actionlist.ActionListEvent
@@ -183,6 +184,9 @@ fun MessagesView(
     onSendLocationClick: () -> Unit,
     onCreatePollClick: () -> Unit,
     onJoinCallClick: (isAudioCall: Boolean) -> Unit,
+    onJoinAudienceClick: (broadcastId: String) -> Unit,
+    onStartCallWithListeners: (AudienceAccessMode) -> Unit = {},
+    onSetAudienceRelay: (AudienceAccessMode?) -> Unit = {},
     onRoomSchedulesClick: () -> Unit,
     onRoomWebhooksClick: () -> Unit = {},
     onViewAllPinnedMessagesClick: () -> Unit,
@@ -358,6 +362,9 @@ fun MessagesView(
                                         roomMenu = state.roomMenu,
                                         roomCallState = state.roomCallState,
                                         onJoinCallClick = onJoinCallClick,
+                                        onJoinAudienceClick = onJoinAudienceClick,
+                                        onStartCallWithListeners = onStartCallWithListeners,
+                                        onSetAudienceRelay = onSetAudienceRelay,
                                         onRoomSchedulesClick = onRoomSchedulesClick,
                                         onRoomWebhooksClick = onRoomWebhooksClick,
                                         onThreadsListClick = onThreadsListClick,
@@ -575,6 +582,9 @@ internal fun RowScope.MessagesMenuActions(
     roomMenu: RoomMenuRenderModel,
     roomCallState: RoomCallState,
     onJoinCallClick: (isAudioCall: Boolean) -> Unit,
+    onJoinAudienceClick: (broadcastId: String) -> Unit,
+    onStartCallWithListeners: (AudienceAccessMode) -> Unit = {},
+    onSetAudienceRelay: (AudienceAccessMode?) -> Unit = {},
     onRoomSchedulesClick: () -> Unit,
     onRoomWebhooksClick: () -> Unit = {},
     onThreadsListClick: () -> Unit,
@@ -584,6 +594,9 @@ internal fun RowScope.MessagesMenuActions(
     RoomCallButton(
         roomCallState = roomCallState,
         onJoinCallClick = onJoinCallClick,
+        onJoinAudienceClick = onJoinAudienceClick,
+        onStartCallWithListeners = onStartCallWithListeners,
+        onSetAudienceRelay = onSetAudienceRelay,
     )
     RoomToolMenu(
         roomMenu = roomMenu,
@@ -598,7 +611,12 @@ internal fun RowScope.MessagesMenuActions(
 private fun RoomCallButton(
     roomCallState: RoomCallState,
     onJoinCallClick: (isAudioCall: Boolean) -> Unit,
+    onJoinAudienceClick: (broadcastId: String) -> Unit,
+    onStartCallWithListeners: (AudienceAccessMode) -> Unit,
+    onSetAudienceRelay: (AudienceAccessMode?) -> Unit,
 ) {
+    var showMeetingEntry by remember { mutableStateOf(false) }
+    var showListenerSettings by remember { mutableStateOf(false) }
     when (roomCallState) {
         RoomCallState.Unavailable -> Unit
         is RoomCallState.StandBy -> {
@@ -615,7 +633,7 @@ private fun RoomCallButton(
                 }
             }
             ToolbarCircleButton(
-                onClick = { onJoinCallClick(false) },
+                onClick = { showMeetingEntry = true },
                 enabled = roomCallState.canStartCall,
             ) {
                 Icon(
@@ -626,7 +644,31 @@ private fun RoomCallButton(
             }
         }
         is RoomCallState.OnGoing -> {
+            if (roomCallState.isUserLocallyInTheCall && roomCallState.canJoinCall) {
+                ToolbarCircleButton(
+                    onClick = { showListenerSettings = true },
+                    enabled = !roomCallState.audienceHostControl.isUpdating,
+                    isActive = roomCallState.audienceHostControl.isEnabled,
+                ) {
+                    Icon(
+                        modifier = Modifier.size(22.dp),
+                        imageVector = CompoundIcons.HeadphonesSolid(),
+                        contentDescription = stringResource(R.string.a11y_manage_meeting_listeners),
+                    )
+                }
+            }
             if (!roomCallState.isUserLocallyInTheCall) {
+                roomCallState.audienceBroadcastId?.let { broadcastId ->
+                    ToolbarCircleButton(
+                        onClick = { onJoinAudienceClick(broadcastId) },
+                    ) {
+                        Icon(
+                            modifier = Modifier.size(22.dp),
+                            imageVector = CompoundIcons.HeadphonesSolid(),
+                            contentDescription = stringResource(R.string.a11y_listen_to_meeting),
+                        )
+                    }
+                }
                 ToolbarCircleButton(
                     onClick = { onJoinCallClick(roomCallState.isAudioCall) },
                     enabled = roomCallState.canJoinCall,
@@ -640,6 +682,90 @@ private fun RoomCallButton(
                         },
                         contentDescription = stringResource(CommonStrings.action_join),
                     )
+                }
+            }
+        }
+    }
+    if (showMeetingEntry && roomCallState is RoomCallState.StandBy) {
+        ListenerMeetingDialog(
+            title = stringResource(R.string.listener_meeting_start_title),
+            isUpdating = roomCallState.audienceHostControl.isUpdating,
+            errorMessage = roomCallState.audienceHostControl.errorMessage,
+            showDisable = false,
+            onStandard = {
+                showMeetingEntry = false
+                onJoinCallClick(false)
+            },
+            onEnable = { mode -> onStartCallWithListeners(mode) },
+            onDisable = {},
+            onDismiss = { if (!roomCallState.audienceHostControl.isUpdating) showMeetingEntry = false },
+        )
+    }
+    if (showListenerSettings && roomCallState is RoomCallState.OnGoing) {
+        ListenerMeetingDialog(
+            title = stringResource(R.string.listener_meeting_settings_title),
+            isUpdating = roomCallState.audienceHostControl.isUpdating,
+            errorMessage = roomCallState.audienceHostControl.errorMessage,
+            showDisable = roomCallState.audienceHostControl.isEnabled,
+            onStandard = null,
+            onEnable = onSetAudienceRelay,
+            onDisable = { onSetAudienceRelay(null) },
+            onDismiss = { if (!roomCallState.audienceHostControl.isUpdating) showListenerSettings = false },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ListenerMeetingDialog(
+    title: String,
+    isUpdating: Boolean,
+    errorMessage: String?,
+    showDisable: Boolean,
+    onStandard: (() -> Unit)?,
+    onEnable: (AudienceAccessMode) -> Unit,
+    onDisable: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    BasicAlertDialog(onDismissRequest = onDismiss) {
+        Surface(shape = MaterialTheme.shapes.extraLarge) {
+            Column(
+                modifier = Modifier.padding(24.dp).widthIn(min = 280.dp, max = 420.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(text = title, style = ElementTheme.typography.fontHeadingMdBold)
+                Text(
+                    text = stringResource(R.string.listener_meeting_access_description),
+                    color = ElementTheme.colors.textSecondary,
+                )
+                errorMessage?.let {
+                    Text(text = it, color = ElementTheme.colors.textCriticalPrimary)
+                }
+                onStandard?.let { action ->
+                    TextButton(onClick = action, enabled = !isUpdating) {
+                        Text(stringResource(R.string.listener_meeting_standard))
+                    }
+                }
+                TextButton(onClick = { onEnable(AudienceAccessMode.Authenticated) }, enabled = !isUpdating) {
+                    Text(stringResource(R.string.listener_meeting_authenticated))
+                }
+                TextButton(onClick = { onEnable(AudienceAccessMode.RoomMembers) }, enabled = !isUpdating) {
+                    Text(stringResource(R.string.listener_meeting_room_members))
+                }
+                if (showDisable) {
+                    TextButton(onClick = onDisable, enabled = !isUpdating) {
+                        Text(stringResource(R.string.listener_meeting_disable))
+                    }
+                }
+                if (isUpdating) {
+                    Text(
+                        text = stringResource(R.string.listener_meeting_arming),
+                        color = ElementTheme.colors.textSecondary,
+                    )
+                } else {
+                    TextButton(onClick = onDismiss) {
+                        Text(stringResource(CommonStrings.action_cancel))
+                    }
                 }
             }
         }
@@ -1161,6 +1287,7 @@ internal fun MessagesViewPreview(@PreviewParameter(MessagesStateProvider::class)
         onSendLocationClick = {},
         onCreatePollClick = {},
         onJoinCallClick = {},
+        onJoinAudienceClick = {},
         onRoomSchedulesClick = {},
         onViewAllPinnedMessagesClick = { },
         forceJumpToBottomVisibility = true,
@@ -1217,6 +1344,7 @@ internal fun MessagesViewA11yPreview() = ElementPreview {
         onSendLocationClick = {},
         onCreatePollClick = {},
         onJoinCallClick = {},
+        onJoinAudienceClick = {},
         onRoomSchedulesClick = {},
         onViewAllPinnedMessagesClick = {},
         onThreadsListClick = {},

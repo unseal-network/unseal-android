@@ -29,6 +29,7 @@ import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
 import io.element.android.compound.theme.ElementTheme
+import io.element.android.features.call.api.AudienceBroadcastService
 import io.element.android.features.knockrequests.api.banner.KnockRequestsBannerRenderer
 import io.element.android.features.messages.impl.actionlist.ActionListPresenter
 import io.element.android.features.messages.impl.actionlist.model.TimelineItemActionPostProcessor
@@ -88,6 +89,7 @@ class MessagesNode(
     @ApplicationContext private val context: Context,
     @SessionCoroutineScope private val sessionCoroutineScope: CoroutineScope,
     private val room: JoinedRoom,
+    private val audienceBroadcastService: AudienceBroadcastService,
     private val analyticsService: AnalyticsService,
     messageComposerPresenterFactory: MessageComposerPresenter.Factory,
     timelinePresenterFactory: TimelinePresenter.Factory,
@@ -133,6 +135,7 @@ class MessagesNode(
         fun navigateToEditPoll(eventId: EventId)
         fun navigateToCurrentLiveLocation()
         fun navigateToRoomCall(roomId: RoomId, isAudioCall: Boolean)
+        fun navigateToRoomAudience(roomId: RoomId, broadcastId: String)
         fun navigateToThread(threadRootId: ThreadId, focusedEventId: EventId?)
         fun navigateToRoomDetails()
         fun navigateToPinnedMessagesList()
@@ -316,6 +319,26 @@ class MessagesNode(
                 onCreatePollClick = callback::navigateToCreatePoll,
                 onJoinCallClick = { isAudioCall ->
                     callback.navigateToRoomCall(room.roomId, isAudioCall)
+                },
+                onJoinAudienceClick = { broadcastId ->
+                    callback.navigateToRoomAudience(room.roomId, broadcastId)
+                },
+                onStartCallWithListeners = { accessMode ->
+                    sessionCoroutineScope.launch {
+                        audienceBroadcastService.enableRelay(room.sessionId, room.roomId, accessMode)
+                            .onSuccess { control ->
+                                if (control.broadcastArmed) callback.navigateToRoomCall(room.roomId, false)
+                            }
+                    }
+                },
+                onSetAudienceRelay = { accessMode ->
+                    sessionCoroutineScope.launch {
+                        if (accessMode == null) {
+                            audienceBroadcastService.disableRelay(room.sessionId, room.roomId)
+                        } else {
+                            audienceBroadcastService.enableRelay(room.sessionId, room.roomId, accessMode)
+                        }
+                    }
                 },
                 onRoomSchedulesClick = {
                     callback.navigateToRoomSchedules(

@@ -338,6 +338,17 @@ class MessagesFlowNode(
                         elementCallEntryPoint.startCall(callData)
                     }
 
+                    override fun navigateToRoomAudience(roomId: RoomId, broadcastId: String) {
+                        elementCallEntryPoint.startCall(
+                            CallData(
+                                sessionId = sessionId,
+                                roomId = roomId,
+                                isAudioCall = false,
+                                audienceBroadcastId = broadcastId,
+                            )
+                        )
+                    }
+
                     override fun navigateToPinnedMessagesList() {
                         backstack.push(NavTarget.PinnedMessagesList)
                     }
@@ -635,6 +646,17 @@ class MessagesFlowNode(
                         )
                         analyticsService.captureInteraction(Interaction.Name.MobileRoomCallButton)
                         elementCallEntryPoint.startCall(callData)
+                    }
+
+                    override fun navigateToRoomAudience(roomId: RoomId, broadcastId: String) {
+                        elementCallEntryPoint.startCall(
+                            CallData(
+                                sessionId = sessionId,
+                                roomId = roomId,
+                                isAudioCall = false,
+                                audienceBroadcastId = broadcastId,
+                            )
+                        )
                     }
 
                     override fun navigateToThread(threadRootId: ThreadId, focusedEventId: EventId?) {

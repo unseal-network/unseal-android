@@ -9,6 +9,7 @@
 package io.element.android.features.call.utils
 
 import com.google.common.truth.Truth.assertThat
+import io.element.android.features.call.impl.audience.AudienceBroadcastHttpClient
 import io.element.android.features.call.impl.utils.DefaultCallWidgetProvider
 import io.element.android.libraries.matrix.api.MatrixClientProvider
 import io.element.android.libraries.matrix.api.widget.CallWidgetSettingsProvider
@@ -24,14 +25,16 @@ import io.element.android.libraries.preferences.api.store.AppPreferencesStore
 import io.element.android.libraries.preferences.test.InMemoryAppPreferencesStore
 import io.element.android.services.appnavstate.api.ActiveRoomsHolder
 import io.element.android.services.appnavstate.impl.DefaultActiveRoomsHolder
+import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.junit.Test
 
 class DefaultCallWidgetProviderTest {
     @Test
     fun `getWidget - fails if the session does not exist`() = runTest {
         val provider = createProvider(matrixClientProvider = FakeMatrixClientProvider { Result.failure(Exception("Session not found")) })
-        assertThat(provider.getWidget(A_SESSION_ID, A_ROOM_ID, false, "clientId", "languageTag", "theme").isFailure).isTrue()
+        assertThat(provider.getWidget(A_SESSION_ID, A_ROOM_ID, false, "clientId", "languageTag", "theme", null).isFailure).isTrue()
     }
 
     @Test
@@ -40,7 +43,7 @@ class DefaultCallWidgetProviderTest {
             givenGetRoomResult(A_ROOM_ID, null)
         }
         val provider = createProvider(matrixClientProvider = FakeMatrixClientProvider { Result.success(client) })
-        assertThat(provider.getWidget(A_SESSION_ID, A_ROOM_ID, true, "clientId", "languageTag", "theme").isFailure).isTrue()
+        assertThat(provider.getWidget(A_SESSION_ID, A_ROOM_ID, true, "clientId", "languageTag", "theme", null).isFailure).isTrue()
     }
 
     @Test
@@ -52,7 +55,7 @@ class DefaultCallWidgetProviderTest {
             givenGetRoomResult(A_ROOM_ID, room)
         }
         val provider = createProvider(matrixClientProvider = FakeMatrixClientProvider { Result.success(client) })
-        assertThat(provider.getWidget(A_SESSION_ID, A_ROOM_ID, false, "clientId", "languageTag", "theme").isFailure).isTrue()
+        assertThat(provider.getWidget(A_SESSION_ID, A_ROOM_ID, false, "clientId", "languageTag", "theme", null).isFailure).isTrue()
     }
 
     @Test
@@ -65,7 +68,7 @@ class DefaultCallWidgetProviderTest {
             givenGetRoomResult(A_ROOM_ID, room)
         }
         val provider = createProvider(matrixClientProvider = FakeMatrixClientProvider { Result.success(client) })
-        assertThat(provider.getWidget(A_SESSION_ID, A_ROOM_ID, false, "clientId", "languageTag", "theme").isFailure).isTrue()
+        assertThat(provider.getWidget(A_SESSION_ID, A_ROOM_ID, false, "clientId", "languageTag", "theme", null).isFailure).isTrue()
     }
 
     @Test
@@ -78,7 +81,7 @@ class DefaultCallWidgetProviderTest {
             givenGetRoomResult(A_ROOM_ID, room)
         }
         val provider = createProvider(matrixClientProvider = FakeMatrixClientProvider { Result.success(client) })
-        assertThat(provider.getWidget(A_SESSION_ID, A_ROOM_ID, false, "clientId", "languageTag", "theme").getOrNull()).isNotNull()
+        assertThat(provider.getWidget(A_SESSION_ID, A_ROOM_ID, false, "clientId", "languageTag", "theme", null).getOrNull()).isNotNull()
     }
 
     @Test
@@ -101,7 +104,7 @@ class DefaultCallWidgetProviderTest {
             matrixClientProvider = FakeMatrixClientProvider { Result.success(client) },
             activeRoomsHolder = activeRoomsHolder
         )
-        assertThat(provider.getWidget(A_SESSION_ID, A_ROOM_ID, false, "clientId", "languageTag", "theme").isSuccess).isTrue()
+        assertThat(provider.getWidget(A_SESSION_ID, A_ROOM_ID, false, "clientId", "languageTag", "theme", null).isSuccess).isTrue()
     }
 
     @Test
@@ -122,9 +125,61 @@ class DefaultCallWidgetProviderTest {
             callWidgetSettingsProvider = settingsProvider,
             appPreferencesStore = preferencesStore,
         )
-        provider.getWidget(A_SESSION_ID, A_ROOM_ID, false, "clientId", "languageTag", "theme")
+        provider.getWidget(A_SESSION_ID, A_ROOM_ID, false, "clientId", "languageTag", "theme", null)
 
         assertThat(settingsProvider.providedBaseUrls).containsExactly("https://custom.element.io")
+    }
+
+    @Test
+    fun `getWidget - audience mode opens canonical read only route without joining a room`() = runTest {
+        val preferencesStore = InMemoryAppPreferencesStore().apply {
+            setCustomElementCallBaseUrl("https://call.keepsecret.io/")
+        }
+        val provider = createProvider(
+            matrixClientProvider = FakeMatrixClientProvider { Result.success(FakeMatrixClient()) },
+            appPreferencesStore = preferencesStore,
+        )
+
+        val result = provider.getWidget(
+            A_SESSION_ID,
+            A_ROOM_ID,
+            false,
+            "clientId",
+            "languageTag",
+            "theme",
+            "bcast_demo",
+        ).getOrThrow()
+        val uri = result.url.toHttpUrl()
+
+        assertThat(uri.host).isEqualTo("call.keepsecret.io")
+        assertThat(uri.fragment).isEqualTo("/audience/bcast_demo")
+        assertThat(uri.queryParameter("parentUrl")).isEqualTo("https://keepsecret.io/audience/bcast_demo")
+        assertThat(uri.queryParameter("baseUrl")).isEqualTo("https://keepsecret.io")
+    }
+
+    @Test
+    fun `getWidget - audience mode defaults to the same-host Unseal Call deployment`() = runTest {
+        val provider = createProvider(
+            matrixClientProvider = FakeMatrixClientProvider { Result.success(FakeMatrixClient()) },
+        )
+
+        val result = provider.getWidget(
+            A_SESSION_ID,
+            A_ROOM_ID,
+            false,
+            "clientId",
+            "languageTag",
+            "theme",
+            "bcast_demo",
+        ).getOrThrow()
+        val uri = result.url.toHttpUrl()
+
+        assertThat(uri.scheme).isEqualTo("https")
+        assertThat(uri.host).isEqualTo("keepsecret.io")
+        assertThat(uri.encodedPath).isEqualTo("/call/")
+        assertThat(uri.fragment).isEqualTo("/audience/bcast_demo")
+        assertThat(uri.queryParameter("parentUrl")).isEqualTo("https://keepsecret.io/audience/bcast_demo")
+        assertThat(uri.queryParameter("baseUrl")).isEqualTo("https://keepsecret.io")
     }
 
     private fun createProvider(
@@ -137,5 +192,6 @@ class DefaultCallWidgetProviderTest {
         appPreferencesStore = appPreferencesStore,
         callWidgetSettingsProvider = callWidgetSettingsProvider,
         activeRoomsHolder = activeRoomsHolder,
+        audienceBroadcastHttpClient = mockk<AudienceBroadcastHttpClient>(relaxed = true),
     )
 }

@@ -14,10 +14,13 @@ import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import im.vector.app.features.analytics.plan.MobileScreen
 import io.element.android.features.call.api.CallData
+import io.element.android.features.call.audience.FakeAudiencePlaybackController
+import io.element.android.features.call.impl.notifications.CallNotificationData
 import io.element.android.features.call.impl.ui.CallScreenEvent
 import io.element.android.features.call.impl.ui.CallScreenNavigator
 import io.element.android.features.call.impl.ui.CallScreenPresenter
 import io.element.android.features.call.impl.utils.WidgetMessageSerializer
+import io.element.android.features.call.test.FakeAudienceBroadcastService
 import io.element.android.features.call.utils.FakeActiveCallManager
 import io.element.android.features.call.utils.FakeCallWidgetProvider
 import io.element.android.features.call.utils.FakeWidgetMessageInterceptor
@@ -90,6 +93,35 @@ class CallScreenPresenterTest {
 
             assertThat(awaitItem().urlState).isInstanceOf(AsyncData.Success::class.java)
         }
+    }
+
+    @Test
+    fun `present - audience mode never joins or hangs up ActiveCallManager`() = runTest {
+        val joinedCallLambda = lambdaRecorder<CallData, Unit> {}
+        val hangUpCallLambda = lambdaRecorder<CallData, CallNotificationData?, Unit> { _, _ -> }
+        val presenter = createCallScreenPresenter(
+            callData = CallData(
+                sessionId = A_SESSION_ID,
+                roomId = A_ROOM_ID,
+                isAudioCall = false,
+                audienceBroadcastId = "bcast_demo",
+            ),
+            activeCallManager = FakeActiveCallManager(
+                joinedCallResult = joinedCallLambda,
+                hangUpCallResult = hangUpCallLambda,
+            ),
+            screenTracker = FakeScreenTracker {},
+        )
+
+        presenter.test {
+            assertThat(awaitItem().isCallActive).isTrue()
+            advanceTimeBy(1.seconds)
+            cancelAndIgnoreRemainingEvents()
+        }
+        runCurrent()
+
+        joinedCallLambda.assertions().isNeverCalled()
+        hangUpCallLambda.assertions().isNeverCalled()
     }
 
     @Test
@@ -311,6 +343,7 @@ class CallScreenPresenterTest {
         activeCallManager: FakeActiveCallManager = FakeActiveCallManager(),
         screenTracker: ScreenTracker = FakeScreenTracker(),
         appForegroundStateService: FakeAppForegroundStateService = FakeAppForegroundStateService(),
+        audiencePlaybackController: FakeAudiencePlaybackController = FakeAudiencePlaybackController(),
     ): CallScreenPresenter {
         val userAgentProvider = object : UserAgentProvider {
             override fun provide(): String {
@@ -327,6 +360,8 @@ class CallScreenPresenterTest {
             dispatchers = dispatchers,
             matrixClientsProvider = matrixClientsProvider,
             activeCallManager = activeCallManager,
+            audienceBroadcastService = FakeAudienceBroadcastService(),
+            audiencePlaybackController = audiencePlaybackController,
             screenTracker = screenTracker,
             languageTagProvider = FakeLanguageTagProvider("en-US"),
             appForegroundStateService = appForegroundStateService,

@@ -9,6 +9,8 @@
 package io.element.android.features.call.impl.ui
 
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
+import io.element.android.features.call.api.AudienceHostControlState
+import io.element.android.features.call.impl.audience.AudiencePlaybackState
 import io.element.android.libraries.architecture.AsyncData
 
 open class CallScreenStateProvider : PreviewParameterProvider<CallScreenState> {
@@ -18,6 +20,9 @@ open class CallScreenStateProvider : PreviewParameterProvider<CallScreenState> {
             aCallScreenState(urlState = AsyncData.Loading()),
             aCallScreenState(urlState = AsyncData.Failure(Exception("An error occurred"))),
             aCallScreenState(webViewError = "Error details from WebView"),
+            aCallScreenState(isAudience = true, audiencePlaybackState = AudiencePlaybackState.Connecting),
+            aCallScreenState(isAudience = true, audiencePlaybackState = AudiencePlaybackState.Ended),
+            aCallScreenState(isAudience = true, audiencePlaybackState = AudiencePlaybackState.Failed("audience_access_denied")),
         )
 }
 
@@ -26,6 +31,10 @@ internal fun aCallScreenState(
     webViewError: String? = null,
     userAgent: String = "",
     isCallActive: Boolean = true,
+    isAudience: Boolean = false,
+    audiencePlaybackState: AudiencePlaybackState = AudiencePlaybackState.Connecting,
+    canManageAudience: Boolean = true,
+    audienceHostControl: AudienceHostControlState = AudienceHostControlState(),
     eventSink: (CallScreenEvent) -> Unit = {},
 ): CallScreenState {
     return CallScreenState(
@@ -33,6 +42,10 @@ internal fun aCallScreenState(
         webViewError = webViewError,
         userAgent = userAgent,
         isCallActive = isCallActive,
+        isAudience = isAudience,
+        audiencePlaybackState = audiencePlaybackState,
+        canManageAudience = canManageAudience,
+        audienceHostControl = audienceHostControl,
         eventSink = eventSink,
     )
 }

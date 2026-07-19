@@ -102,6 +102,14 @@ interface BaseRoom : Closeable {
     suspend fun powerLevels(): Result<RoomPowerLevelsValues>
 
     /**
+     * Reads the content of a state event from the Matrix SDK room cache.
+     *
+     * Callers should observe the room's normal sync signal and re-read through this method instead
+     * of issuing Matrix Client-Server HTTP requests alongside the SDK.
+     */
+    suspend fun getStateEventJson(eventType: String, stateKey: String): Result<String?>
+
+    /**
      * Gets the role of the user with the provided [userId] in the room.
      */
     suspend fun userRole(userId: UserId): Result<RoomMember.Role>

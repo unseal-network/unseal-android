@@ -15,16 +15,23 @@ enum class AudioFocusRequester {
     MediaViewer,
 }
 
+enum class AudioFocusLoss {
+    Transient,
+    Permanent,
+}
+
 interface AudioFocus {
     /**
      * Request audio focus for the given requester.
      * @param requester The mode for which to request audio focus.
-     * @param onFocusLost Callback to be invoked when the audio focus is lost.
+     * @param onFocusGained Callback to be invoked when audio focus is regained.
+     * @param onFocusLost Callback to be invoked with the kind of audio focus loss.
      * @return true if the audio focus was successfully requested, false otherwise.
      */
     fun requestAudioFocus(
         requester: AudioFocusRequester,
-        onFocusLost: () -> Unit,
+        onFocusGained: () -> Unit = {},
+        onFocusLost: (AudioFocusLoss) -> Unit,
     )
 
     /**

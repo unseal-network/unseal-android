@@ -18,5 +18,6 @@ import kotlinx.parcelize.Parcelize
 data class CallData(
     val sessionId: SessionId,
     val roomId: RoomId,
-    val isAudioCall: Boolean
+    val isAudioCall: Boolean,
+    val audienceBroadcastId: String? = null,
 ) : NodeInputs, Parcelable

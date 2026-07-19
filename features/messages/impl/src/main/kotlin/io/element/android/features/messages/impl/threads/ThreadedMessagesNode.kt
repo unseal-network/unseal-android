@@ -140,6 +140,7 @@ class ThreadedMessagesNode(
         fun navigateToEditPoll(eventId: EventId)
         fun navigateToCurrentLiveLocation()
         fun navigateToRoomCall(roomId: RoomId, isAudioCall: Boolean)
+        fun navigateToRoomAudience(roomId: RoomId, broadcastId: String)
         fun navigateToThread(threadRootId: ThreadId, focusedEventId: EventId?)
         fun navigateToDeveloperSettings()
         fun navigateToAgentProfile(botName: String, matrixUserId: String?)
@@ -314,6 +315,9 @@ class ThreadedMessagesNode(
                     onCreatePollClick = callback::navigateToCreatePoll,
                     onJoinCallClick = { isAudioCall ->
                         callback.navigateToRoomCall(room.roomId, isAudioCall)
+                    },
+                    onJoinAudienceClick = { broadcastId ->
+                        callback.navigateToRoomAudience(room.roomId, broadcastId)
                     },
                     onRoomSchedulesClick = {},
                     onViewAllPinnedMessagesClick = {},

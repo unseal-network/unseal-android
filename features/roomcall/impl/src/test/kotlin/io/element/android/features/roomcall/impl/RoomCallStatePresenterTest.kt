@@ -9,8 +9,12 @@
 package io.element.android.features.roomcall.impl
 
 import com.google.common.truth.Truth.assertThat
+import io.element.android.features.call.api.AudienceAccessMode
+import io.element.android.features.call.api.AudienceBroadcastDiscovery
+import io.element.android.features.call.api.AudienceRuntimePhase
 import io.element.android.features.call.api.CurrentCall
 import io.element.android.features.call.api.CurrentCallService
+import io.element.android.features.call.test.FakeAudienceBroadcastService
 import io.element.android.features.call.test.FakeCurrentCallService
 import io.element.android.features.enterprise.test.FakeSessionEnterpriseService
 import io.element.android.features.roomcall.api.RoomCallState
@@ -25,6 +29,7 @@ import io.element.android.libraries.matrix.test.room.powerlevels.FakeRoomPermiss
 import io.element.android.tests.testutils.lambda.lambdaError
 import io.element.android.tests.testutils.test
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -285,6 +290,41 @@ class RoomCallStatePresenterTest {
     }
 
     @Test
+    fun `present - active call exposes audience entry after discovery`() = runTest {
+        val room = FakeJoinedRoom(
+            baseRoom = FakeBaseRoom(
+                roomPermissions = roomPermissions(true),
+                initialRoomInfo = aRoomInfo(hasRoomCall = true),
+            )
+        )
+        val discovery = AudienceBroadcastDiscovery(
+            broadcastId = "bcast_demo",
+            meetingInstanceId = "4d1c64a7-6d0a-4fac-91f8-5bcbf2fc6a9d",
+            accessMode = AudienceAccessMode.Authenticated,
+            phase = AudienceRuntimePhase.Live,
+        )
+        val presenter = createRoomCallStatePresenter(
+            joinedRoom = room,
+            audienceBroadcastService = FakeAudienceBroadcastService(
+                discovery = { _, _ -> flowOf(discovery) },
+            ),
+        )
+
+        presenter.test {
+            skipItems(1)
+            assertThat(awaitItem()).isEqualTo(
+                RoomCallState.OnGoing(
+                    canJoinCall = true,
+                    isAudioCall = false,
+                    isUserInTheCall = false,
+                    isUserLocallyInTheCall = false,
+                    audienceBroadcastId = "bcast_demo",
+                )
+            )
+        }
+    }
+
+    @Test
     fun `present - user leaves the call`() = runTest {
         val room = FakeJoinedRoom(
             baseRoom = FakeBaseRoom(
@@ -367,6 +407,7 @@ class RoomCallStatePresenterTest {
         joinedRoom: JoinedRoom,
         currentCallService: CurrentCallService = FakeCurrentCallService(),
         isElementCallAvailable: Boolean = true,
+        audienceBroadcastService: FakeAudienceBroadcastService = FakeAudienceBroadcastService(),
     ): RoomCallStatePresenter {
         return RoomCallStatePresenter(
             room = joinedRoom,
@@ -374,6 +415,7 @@ class RoomCallStatePresenterTest {
             sessionEnterpriseService = FakeSessionEnterpriseService(
                 isElementCallAvailableResult = { isElementCallAvailable },
             ),
+            audienceBroadcastService = audienceBroadcastService,
         )
     }
 }

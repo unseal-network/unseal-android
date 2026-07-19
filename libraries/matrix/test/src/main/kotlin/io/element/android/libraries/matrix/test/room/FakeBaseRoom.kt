@@ -65,6 +65,7 @@ class FakeBaseRoom(
     private val reportRoomResult: (String?) -> Result<Unit> = { lambdaError() },
     private val predecessorRoomResult: () -> PredecessorRoom? = { null },
     private val threadRootIdForEventResult: (EventId) -> Result<ThreadId?> = { lambdaError() },
+    private val getStateEventJsonResult: (String, String) -> Result<String?> = { _, _ -> lambdaError() },
 ) : BaseRoom {
     private val _roomInfoFlow: MutableStateFlow<RoomInfo> = MutableStateFlow(initialRoomInfo)
     override val roomInfoFlow: StateFlow<RoomInfo> = _roomInfoFlow
@@ -97,6 +98,10 @@ class FakeBaseRoom(
 
     override suspend fun subscribeToSync() {
         subscribeToSyncLambda()
+    }
+
+    override suspend fun getStateEventJson(eventType: String, stateKey: String): Result<String?> {
+        return getStateEventJsonResult(eventType, stateKey)
     }
 
     override suspend fun powerLevels(): Result<RoomPowerLevelsValues> {

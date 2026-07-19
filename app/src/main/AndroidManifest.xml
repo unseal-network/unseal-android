@@ -99,6 +99,18 @@
                 <data android:host="develop.unseal.network" />
                 <data android:host="staging.unseal.network" />
             </intent-filter>
+            <!-- Canonical meeting audience share links. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:scheme="https"
+                    android:host="keepsecret.io"
+                    android:pathPrefix="/audience/" />
+            </intent-filter>
             <!--
               Unseal mobile links
               Example: https://mobile.unseal.network/unseal/?account_provider=example.org&login_hint=mxid:@alice:example.org

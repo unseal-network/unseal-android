@@ -34,6 +34,7 @@ import io.element.android.emojibasebindings.Emoji
 import io.element.android.emojibasebindings.EmojibaseCategory
 import io.element.android.emojibasebindings.EmojibaseStore
 import io.element.android.features.messages.impl.actionlist.ActionListEvent
+import io.element.android.features.call.api.AudienceAccessMode
 import io.element.android.features.messages.impl.actionlist.ActionListState
 import io.element.android.features.messages.impl.actionlist.anActionListState
 import io.element.android.features.messages.impl.actionlist.model.TimelineItemAction
@@ -132,6 +133,17 @@ class MessagesViewTest {
             )
             val joinCallContentDescription = activity!!.getString(CommonStrings.a11y_start_call)
             onNodeWithContentDescription(joinCallContentDescription).performClick()
+            onNodeWithText("Start standard meeting").performClick()
+        }
+    }
+
+    @Test
+    fun `starting a listener meeting selects room member access before joining`() = runAndroidComposeUiTest {
+        val state = aMessagesState(eventSink = EventsRecorder<MessagesEvent>(expectEvents = false))
+        ensureCalledOnceWithParam(AudienceAccessMode.RoomMembers) { callback ->
+            setMessagesView(state = state, onStartCallWithListeners = callback)
+            onNodeWithContentDescription(activity!!.getString(CommonStrings.a11y_start_call)).performClick()
+            onNodeWithText("Allow room members only").performClick()
         }
     }
 
@@ -727,6 +739,8 @@ private fun AndroidComposeUiTest<ComponentActivity>.setMessagesView(
     onSendLocationClick: () -> Unit = EnsureNeverCalled(),
     onCreatePollClick: () -> Unit = EnsureNeverCalled(),
     onJoinCallClick: (Boolean) -> Unit = EnsureNeverCalledWithParam(),
+    onJoinAudienceClick: (String) -> Unit = EnsureNeverCalledWithParam(),
+    onStartCallWithListeners: (AudienceAccessMode) -> Unit = EnsureNeverCalledWithParam(),
     onViewAllPinnedMessagesClick: () -> Unit = EnsureNeverCalled(),
     onThreadsListClicked: () -> Unit = EnsureNeverCalled(),
     onRoomSchedulesClick: () -> Unit = EnsureNeverCalled(),
@@ -744,6 +758,8 @@ private fun AndroidComposeUiTest<ComponentActivity>.setMessagesView(
                 onSendLocationClick = onSendLocationClick,
                 onCreatePollClick = onCreatePollClick,
                 onJoinCallClick = onJoinCallClick,
+                onJoinAudienceClick = onJoinAudienceClick,
+                onStartCallWithListeners = onStartCallWithListeners,
                 onViewAllPinnedMessagesClick = onViewAllPinnedMessagesClick,
                 onRoomSchedulesClick = onRoomSchedulesClick,
                 knockRequestsBannerView = {},

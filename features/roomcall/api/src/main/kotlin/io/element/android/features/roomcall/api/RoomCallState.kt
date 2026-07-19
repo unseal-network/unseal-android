@@ -9,6 +9,7 @@
 package io.element.android.features.roomcall.api
 
 import androidx.compose.runtime.Immutable
+import io.element.android.features.call.api.AudienceHostControlState
 import io.element.android.features.roomcall.api.RoomCallState.OnGoing
 import io.element.android.features.roomcall.api.RoomCallState.StandBy
 
@@ -19,6 +20,7 @@ sealed interface RoomCallState {
     data class StandBy(
         val canStartCall: Boolean,
         val isDM: Boolean,
+        val audienceHostControl: AudienceHostControlState = AudienceHostControlState(),
     ) : RoomCallState
 
     data class OnGoing(
@@ -26,6 +28,8 @@ sealed interface RoomCallState {
         val isAudioCall: Boolean,
         val isUserInTheCall: Boolean,
         val isUserLocallyInTheCall: Boolean,
+        val audienceBroadcastId: String? = null,
+        val audienceHostControl: AudienceHostControlState = AudienceHostControlState(),
     ) : RoomCallState
 }
 

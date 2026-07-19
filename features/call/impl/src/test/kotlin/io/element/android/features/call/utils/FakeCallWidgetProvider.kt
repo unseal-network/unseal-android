@@ -26,7 +26,8 @@ class FakeCallWidgetProvider(
         isAudioCall: Boolean,
         clientId: String,
         languageTag: String?,
-        theme: String?
+        theme: String?,
+        audienceBroadcastId: String?,
     ): Result<CallWidgetProvider.GetWidgetResult> {
         getWidgetCalled = true
         return Result.success(
