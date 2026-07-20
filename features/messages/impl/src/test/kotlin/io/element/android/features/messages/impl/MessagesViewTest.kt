@@ -145,8 +145,28 @@ class MessagesViewTest {
         val state = aMessagesState(eventSink = EventsRecorder<MessagesEvent>(expectEvents = false))
         ensureCalledOnceWithParam(AudienceAccessMode.RoomMembers) { callback ->
             setMessagesView(state = state, onStartCallWithListeners = callback)
-            onNodeWithContentDescription(activity!!.getString(CommonStrings.a11y_start_call)).performClick()
+            onNodeWithContentDescription(activity!!.getString(R.string.a11y_start_meeting_with_listeners)).performClick()
             onNodeWithText("Allow room members only").performClick()
+        }
+    }
+
+    @Test
+    fun `ongoing listener broadcast exposes listen only in the room top bar`() = runAndroidComposeUiTest {
+        val state = aMessagesState(
+            eventSink = EventsRecorder<MessagesEvent>(expectEvents = false),
+            roomCallState = anOngoingCallState(
+                canJoinCall = false,
+                audienceBroadcastId = "bcast_demo",
+                isUserLocallyInTheCall = false,
+            ),
+        )
+        ensureCalledOnceWithParam("bcast_demo") { callback ->
+            setMessagesView(
+                state = state,
+                onJoinAudienceClick = callback,
+            )
+            onNodeWithContentDescription(activity!!.getString(R.string.a11y_listen_to_meeting))
+                .performClick()
         }
     }
 
@@ -215,6 +235,27 @@ class MessagesViewTest {
 
         onNodeWithContentDescription(activity!!.getString(CommonStrings.action_join))
             .assertIsNotEnabled()
+    }
+
+    @Test
+    fun `ongoing standard meeting exposes listener controls in the room top bar`() = runAndroidComposeUiTest {
+        val state = aMessagesState(
+            eventSink = EventsRecorder<MessagesEvent>(expectEvents = false),
+            roomCallState = anOngoingCallState(
+                canJoinCall = true,
+                audienceBroadcastId = null,
+                isUserLocallyInTheCall = false,
+            ),
+        )
+        ensureCalledOnceWithParam(AudienceAccessMode.RoomMembers) { callback ->
+            setMessagesView(
+                state = state,
+                onSetAudienceRelay = { mode -> callback(checkNotNull(mode)) },
+            )
+            onNodeWithContentDescription(activity!!.getString(R.string.a11y_manage_meeting_listeners))
+                .performClick()
+            onNodeWithText("Allow room members only").performClick()
+        }
     }
 
     @Test
@@ -811,6 +852,7 @@ private fun AndroidComposeUiTest<ComponentActivity>.setMessagesView(
     onJoinCallClick: (Boolean) -> Unit = EnsureNeverCalledWithParam(),
     onJoinAudienceClick: (String) -> Unit = EnsureNeverCalledWithParam(),
     onStartCallWithListeners: (AudienceAccessMode) -> Unit = EnsureNeverCalledWithParam(),
+    onSetAudienceRelay: (AudienceAccessMode?) -> Unit = EnsureNeverCalledWithParam(),
     onViewAllPinnedMessagesClick: () -> Unit = EnsureNeverCalled(),
     onThreadsListClicked: () -> Unit = EnsureNeverCalled(),
     onRoomSchedulesClick: () -> Unit = EnsureNeverCalled(),
@@ -830,6 +872,7 @@ private fun AndroidComposeUiTest<ComponentActivity>.setMessagesView(
                 onJoinCallClick = onJoinCallClick,
                 onJoinAudienceClick = onJoinAudienceClick,
                 onStartCallWithListeners = onStartCallWithListeners,
+                onSetAudienceRelay = onSetAudienceRelay,
                 onViewAllPinnedMessagesClick = onViewAllPinnedMessagesClick,
                 onRoomSchedulesClick = onRoomSchedulesClick,
                 knockRequestsBannerView = {},

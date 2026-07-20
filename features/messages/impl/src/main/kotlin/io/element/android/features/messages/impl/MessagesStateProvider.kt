@@ -42,6 +42,7 @@ import io.element.android.features.messages.impl.timeline.protection.TimelinePro
 import io.element.android.features.messages.impl.timeline.protection.aTimelineProtectionState
 import io.element.android.features.roomcall.api.RoomCallState
 import io.element.android.features.roomcall.api.aStandByCallState
+import io.element.android.features.roomcall.api.anOngoingCallState
 import io.element.android.features.roommembermoderation.api.RoomMemberModerationEvents
 import io.element.android.features.roommembermoderation.api.RoomMemberModerationPermissions
 import io.element.android.features.roommembermoderation.api.RoomMemberModerationState
@@ -96,6 +97,13 @@ open class MessagesStateProvider : PreviewParameterProvider<MessagesState> {
             aMessagesState(
                 composerState = aMessageComposerState(textEditorState = aTextEditorStateMarkdown()),
                 identityChangeState = anIdentityChangeState(listOf(aRoomMemberIdentityStateChange()))
+            ),
+            aMessagesState(roomCallState = anOngoingCallState()),
+            aMessagesState(
+                roomCallState = anOngoingCallState(
+                    canJoinCall = false,
+                    audienceBroadcastId = "bcast_demo",
+                ),
             ),
         )
 }

@@ -660,18 +660,29 @@ private fun RoomCallButton(
                     contentDescription = stringResource(CommonStrings.a11y_start_call),
                 )
             }
+            ListenerToolbarButton(
+                onClick = { showMeetingEntry = true },
+                enabled = roomCallState.canStartCall,
+                contentDescription = stringResource(R.string.a11y_start_meeting_with_listeners),
+            )
         }
         is RoomCallState.OnGoing -> {
-            if (roomCallState.isUserLocallyInTheCall && roomCallState.canJoinCall) {
-                ToolbarCircleButton(
+            val shouldManageListeners = roomCallState.audienceHostControl.isEnabled ||
+                roomCallState.canJoinCall &&
+                (roomCallState.isUserLocallyInTheCall || roomCallState.audienceBroadcastId == null)
+            if (shouldManageListeners) {
+                ListenerToolbarButton(
                     onClick = { showListenerSettings = true },
                     enabled = !roomCallState.audienceHostControl.isUpdating,
                     isActive = roomCallState.audienceHostControl.isEnabled,
-                ) {
-                    Icon(
-                        modifier = Modifier.size(22.dp),
-                        imageVector = CompoundIcons.HeadphonesSolid(),
-                        contentDescription = stringResource(R.string.a11y_manage_meeting_listeners),
+                    contentDescription = stringResource(R.string.a11y_manage_meeting_listeners),
+                )
+            } else if (!roomCallState.isUserLocallyInTheCall) {
+                roomCallState.audienceBroadcastId?.let { broadcastId ->
+                    ListenerToolbarButton(
+                        onClick = { onJoinAudienceClick(broadcastId) },
+                        enabled = !roomCallState.isAudienceDiscoveryPending,
+                        contentDescription = stringResource(R.string.a11y_listen_to_meeting),
                     )
                 }
             }
@@ -743,6 +754,36 @@ private fun RoomCallButton(
             onDismiss = { if (!roomCallState.audienceHostControl.isUpdating) showListenerSettings = false },
         )
     }
+}
+
+@Composable
+private fun ListenerToolbarButton(
+    onClick: () -> Unit,
+    enabled: Boolean,
+    contentDescription: String,
+    isActive: Boolean = false,
+) {
+    ToolbarCircleButton(
+        onClick = onClick,
+        enabled = enabled,
+        isActive = isActive,
+    ) {
+        Icon(
+            modifier = Modifier.size(22.dp),
+            imageVector = CompoundIcons.HeadphonesSolid(),
+            contentDescription = contentDescription,
+        )
+    }
+}
+
+@PreviewsDayNight
+@Composable
+internal fun ListenerToolbarButtonPreview() = ElementPreview {
+    ListenerToolbarButton(
+        onClick = {},
+        enabled = true,
+        contentDescription = stringResource(R.string.a11y_manage_meeting_listeners),
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
