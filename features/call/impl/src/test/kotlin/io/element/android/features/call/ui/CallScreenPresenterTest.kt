@@ -100,6 +100,7 @@ class CallScreenPresenterTest {
         val hangUpCallLambda = lambdaRecorder<CallData, CallNotificationData?, Unit> { _, _ -> }
         val widgetDriver = FakeMatrixWidgetDriver()
         val widgetProvider = FakeCallWidgetProvider(widgetDriver)
+        val navigator = FakeCallScreenNavigator()
         val presenter = createCallScreenPresenter(
             callData = CallData(
                 sessionId = A_SESSION_ID,
@@ -113,6 +114,7 @@ class CallScreenPresenterTest {
             ),
             widgetDriver = widgetDriver,
             widgetProvider = widgetProvider,
+            navigator = navigator,
             screenTracker = FakeScreenTracker {},
         )
         val messageInterceptor = FakeWidgetMessageInterceptor()
@@ -136,12 +138,72 @@ class CallScreenPresenterTest {
                     }
                 """.trimIndent()
             )
+
+            loadedState.eventSink(CallScreenEvent.Hangup)
+            runCurrent()
+            assertThat(messageInterceptor.sentMessages.last()).contains("\"action\":\"im.vector.hangup\"")
+            assertThat(navigator.closeCalled).isFalse()
+            messageInterceptor.givenInterceptedMessage(
+                """
+                    {
+                        "action":"io.element.close",
+                        "api":"fromWidget",
+                        "widgetId":"unseal-audience-bcast_demo",
+                        "requestId":"2"
+                    }
+                """.trimIndent()
+            )
+            runCurrent()
             cancelAndIgnoreRemainingEvents()
         }
         runCurrent()
 
         joinedCallLambda.assertions().isNeverCalled()
         hangUpCallLambda.assertions().isNeverCalled()
+        assertThat(navigator.closeCalled).isTrue()
+        assertThat(widgetDriver.closeCalledCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `present - audience mode becomes inactive when its widget URL fails`() = runTest {
+        val presenter = createCallScreenPresenter(
+            callData = CallData(A_SESSION_ID, A_ROOM_ID, false, audienceBroadcastId = "bcast_demo"),
+            widgetProvider = FakeCallWidgetProvider(error = IllegalStateException("Failed")),
+            screenTracker = FakeScreenTracker {},
+        )
+
+        presenter.test {
+            advanceTimeBy(1.seconds)
+            val failedState = expectMostRecentItem()
+            assertThat(failedState.urlState).isInstanceOf(AsyncData.Failure::class.java)
+            assertThat(failedState.isCallActive).isFalse()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - audience mode becomes inactive when content loading times out`() = runTest {
+        val presenter = createCallScreenPresenter(
+            callData = CallData(A_SESSION_ID, A_ROOM_ID, false, audienceBroadcastId = "bcast_demo"),
+            dispatchers = testCoroutineDispatchers(useUnconfinedTestDispatcher = true),
+            screenTracker = FakeScreenTracker {},
+        )
+        val messageInterceptor = FakeWidgetMessageInterceptor()
+
+        presenter.test {
+            advanceTimeBy(1.seconds)
+            val loadedState = expectMostRecentItem()
+            assertThat(loadedState.isCallActive).isTrue()
+            loadedState.eventSink(CallScreenEvent.SetupMessageChannels(messageInterceptor))
+            runCurrent()
+            advanceTimeBy(10.seconds)
+            runCurrent()
+
+            val failedState = expectMostRecentItem()
+            assertThat(failedState.webViewError).isNotNull()
+            assertThat(failedState.isCallActive).isFalse()
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test

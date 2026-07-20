@@ -18,6 +18,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.v2.runAndroidComposeUiTest
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.google.common.truth.Truth.assertThat
 import io.element.android.features.call.impl.pip.PictureInPictureEvent
 import io.element.android.features.call.impl.pip.PictureInPictureState
 import io.element.android.features.call.impl.pip.aPictureInPictureState
@@ -27,6 +28,7 @@ import io.element.android.features.call.impl.ui.CallScreenView
 import io.element.android.features.call.impl.ui.JavascriptBackHandlerBridge
 import io.element.android.features.call.impl.ui.aCallScreenState
 import io.element.android.features.call.impl.ui.handleCallWebPermissionRequest
+import io.element.android.features.call.impl.ui.updateAudienceWebViewAudio
 import io.element.android.tests.testutils.EventsRecorder
 import io.element.android.tests.testutils.pressBackKey
 import io.mockk.mockk
@@ -43,6 +45,44 @@ import org.robolectric.shadows.ShadowWebView
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 class CallScreenViewTest {
+    @Test
+    fun `audience audio focus mutes media without pausing the WebView`() {
+        val webView = mockk<WebView>(relaxed = true)
+        var muted: Boolean? = null
+
+        updateAudienceWebViewAudio(
+            webView = webView,
+            playbackEnabled = false,
+            isMuteSupported = { true },
+            setAudioMuted = { _, value -> muted = value },
+        )
+
+        assertThat(muted).isTrue()
+        verify(exactly = 0) {
+            webView.onPause()
+            webView.onResume()
+        }
+    }
+
+    @Test
+    fun `audience audio focus uses a page mute fallback without pausing an older WebView`() {
+        val webView = mockk<WebView>(relaxed = true)
+
+        updateAudienceWebViewAudio(
+            webView = webView,
+            playbackEnabled = false,
+            isMuteSupported = { false },
+        )
+
+        verify {
+            webView.evaluateJavascript(match { it.contains("window.__unsealAudienceMuted = true") }, null)
+        }
+        verify(exactly = 0) {
+            webView.onPause()
+            webView.onResume()
+        }
+    }
+
     @Test
     fun `legacy audience web permission request is denied without requesting Android media permissions`() {
         val request = mockk<PermissionRequest>(relaxed = true)

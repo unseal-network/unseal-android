@@ -45,7 +45,6 @@ import io.element.android.appnav.root.RootPresenter
 import io.element.android.appnav.root.RootView
 import io.element.android.appnav.root.UnsealSplashView
 import io.element.android.features.announcement.api.AnnouncementService
-import io.element.android.features.call.api.AudienceBroadcastService
 import io.element.android.features.call.api.CallData
 import io.element.android.features.call.api.ElementCallEntryPoint
 import io.element.android.features.login.api.LoginParams
@@ -80,7 +79,6 @@ import io.element.android.libraries.sessionstorage.api.SessionStore
 import io.element.android.libraries.ui.common.nodes.emptyNode
 import io.element.android.services.analytics.api.AnalyticsLongRunningTransaction
 import io.element.android.services.analytics.api.AnalyticsService
-import io.element.android.services.apperror.api.AppErrorStateService
 import io.element.android.services.analytics.api.watchers.AnalyticsColdStartWatcher
 import io.element.android.services.appnavstate.api.ROOM_OPENED_FROM_NOTIFICATION
 import kotlinx.coroutines.CoroutineScope
@@ -115,9 +113,7 @@ class RootFlowNode(
     private val announcementService: AnnouncementService,
     private val analyticsService: AnalyticsService,
     private val analyticsColdStartWatcher: AnalyticsColdStartWatcher,
-    private val audienceBroadcastService: AudienceBroadcastService,
     private val elementCallEntryPoint: ElementCallEntryPoint,
-    private val appErrorStateService: AppErrorStateService,
     @AppCoroutineScope private val appCoroutineScope: CoroutineScope,
 ) : BaseFlowNode<RootFlowNode.NavTarget>(
     backstack = BackStack(
@@ -481,30 +477,13 @@ class RootFlowNode(
     }
 
     private suspend fun onAudienceLink(broadcastId: String) {
-        val sessionId = sessionStore.getLatestSessionId()
-        if (sessionId == null) {
+        val callData = directAudienceCallData(sessionStore.getLatestSessionId(), broadcastId)
+        if (callData == null) {
             switchToNotLoggedInFlow(null)
             return
         }
-        attachSession(sessionId)
-        audienceBroadcastService.awaitRuntimeStatus(sessionId, broadcastId)
-            .onSuccess { runtime ->
-                elementCallEntryPoint.startCall(
-                    CallData(
-                        sessionId = sessionId,
-                        roomId = runtime.roomId,
-                        isAudioCall = false,
-                        audienceBroadcastId = broadcastId,
-                    )
-                )
-            }
-            .onFailure { failure ->
-                Timber.w(failure, "Unable to open audience broadcast $broadcastId")
-                appErrorStateService.showError(
-                    titleRes = R.string.error_audience_open_title,
-                    bodyRes = R.string.error_audience_open_message,
-                )
-            }
+        attachSession(callData.sessionId)
+        elementCallEntryPoint.startCall(callData)
     }
 
     private suspend fun onDebugImportSession(externalSession: ExternalSession) {
@@ -668,6 +647,9 @@ class RootFlowNode(
         }.attachSession()
     }
 }
+
+internal fun directAudienceCallData(sessionId: SessionId?, broadcastId: String): CallData? =
+    sessionId?.let { CallData.forDirectAudienceRoute(it, broadcastId) }
 
 private suspend fun SessionStore.getLatestSessionId() = getLatestSession()?.userId?.let(::SessionId)
 

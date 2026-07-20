@@ -182,10 +182,6 @@ class CallScreenPresenter(
         fun handleEvent(event: CallScreenEvent) {
             when (event) {
                 is CallScreenEvent.Hangup -> {
-                    if (callData.audienceBroadcastId != null) {
-                        coroutineScope.launch { close(callWidgetDriver.value, navigator) }
-                        return
-                    }
                     val widgetId = callWidgetDriver.value?.id
                     val interceptor = messageInterceptor.value
                     if (widgetId != null && interceptor != null && isWidgetLoaded) {
@@ -233,7 +229,11 @@ class CallScreenPresenter(
             // Listener playback must stay active while the widget is connecting. Reporting it
             // inactive pauses the WebView before it can send content_loaded, which deadlocks
             // audience startup.
-            isCallActive = callData.audienceBroadcastId != null || isWidgetLoaded,
+            isCallActive = if (callData.audienceBroadcastId != null) {
+                urlState.value !is AsyncData.Failure && webViewError == null
+            } else {
+                isWidgetLoaded
+            },
             isAudience = callData.audienceBroadcastId != null,
             canManageAudience = canManageAudience,
             audienceHostControl = audienceHostControl,

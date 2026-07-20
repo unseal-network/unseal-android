@@ -38,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,6 +47,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.features.call.api.AudienceAccessMode
@@ -83,6 +86,7 @@ internal fun CallScreenView(
     modifier: Modifier = Modifier,
 ) {
     var callWebView by remember { mutableStateOf<WebView?>(null) }
+    val currentAudiencePlaybackEnabled by rememberUpdatedState(audiencePlaybackEnabled)
 
     fun handleBack(fromNative: Boolean = false) {
         if (state.isAudience) {
@@ -102,12 +106,8 @@ internal fun CallScreenView(
         handleBack(fromNative = true)
     }
     LaunchedEffect(state.isAudience, audiencePlaybackEnabled, callWebView) {
-        if (state.isAudience) {
-            if (audiencePlaybackEnabled) {
-                callWebView?.onResume()
-            } else {
-                callWebView?.onPause()
-            }
+        if (state.isAudience && callWebView != null) {
+            updateAudienceWebViewAudio(callWebView!!, audiencePlaybackEnabled)
         }
     }
     if (state.webViewError != null) {
@@ -146,10 +146,12 @@ internal fun CallScreenView(
                         webView = webView,
                         onUrlLoaded = { url ->
                             webView.evaluateJavascript("controls.onBackButtonPressed = () => { backHandler.onBackPressed() }", null)
-                            if (!state.isAudience && webViewAudioManager?.isInCallMode?.get() == false) {
+                            if (state.isAudience) {
+                                updateAudienceWebViewAudio(webView, currentAudiencePlaybackEnabled)
+                            } else if (webViewAudioManager?.isInCallMode?.get() == false) {
                                 Timber.d("URL $url is loaded, starting in-call audio mode")
                                 webViewAudioManager?.onCallStarted()
-                            } else if (!state.isAudience) {
+                            } else {
                                 Timber.d("Can't start in-call audio mode since the app is already in it.")
                             }
                         },
@@ -211,6 +213,50 @@ internal fun CallScreenView(
             }
             is AsyncData.Success -> Unit
         }
+    }
+}
+
+internal fun updateAudienceWebViewAudio(
+    webView: WebView,
+    playbackEnabled: Boolean,
+    isMuteSupported: () -> Boolean = { WebViewFeature.isFeatureSupported(WebViewFeature.MUTE_AUDIO) },
+    setAudioMuted: (WebView, Boolean) -> Unit = WebViewCompat::setAudioMuted,
+) {
+    if (isMuteSupported()) {
+        setAudioMuted(webView, !playbackEnabled)
+    } else {
+        val muted = !playbackEnabled
+        webView.evaluateJavascript(
+            """
+            (() => {
+                window.__unsealAudienceMuted = $muted;
+                window.__unsealAudienceOriginalMuted =
+                    window.__unsealAudienceOriginalMuted || new WeakMap();
+                const applyAudienceMute = () => {
+                    document.querySelectorAll("audio,video").forEach((element) => {
+                        if (window.__unsealAudienceMuted) {
+                            if (!window.__unsealAudienceOriginalMuted.has(element)) {
+                                window.__unsealAudienceOriginalMuted.set(element, element.muted);
+                            }
+                            element.muted = true;
+                        } else if (window.__unsealAudienceOriginalMuted.has(element)) {
+                            element.muted = window.__unsealAudienceOriginalMuted.get(element);
+                            window.__unsealAudienceOriginalMuted.delete(element);
+                        }
+                    });
+                };
+                applyAudienceMute();
+                if (!window.__unsealAudienceMuteObserver) {
+                    window.__unsealAudienceMuteObserver = new MutationObserver(applyAudienceMute);
+                    window.__unsealAudienceMuteObserver.observe(document.documentElement, {
+                        childList: true,
+                        subtree: true,
+                    });
+                }
+            })();
+            """.trimIndent(),
+            null,
+        )
     }
 }
 

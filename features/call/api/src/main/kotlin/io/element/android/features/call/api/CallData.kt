@@ -20,4 +20,21 @@ data class CallData(
     val roomId: RoomId,
     val isAudioCall: Boolean,
     val audienceBroadcastId: String? = null,
-) : NodeInputs, Parcelable
+) : NodeInputs, Parcelable {
+    companion object {
+        private val DIRECT_AUDIENCE_ROUTE_ROOM_ID = RoomId("!audience-route:keepsecret.io")
+
+        /**
+         * Opens a canonical audience link before its runtime has resolved the actual Matrix room.
+         *
+         * Audience widget authentication and runtime resolution are scoped by [audienceBroadcastId];
+         * the synthetic room ID only satisfies the legacy participant-call activity input.
+         */
+        fun forDirectAudienceRoute(sessionId: SessionId, audienceBroadcastId: String): CallData = CallData(
+            sessionId = sessionId,
+            roomId = DIRECT_AUDIENCE_ROUTE_ROOM_ID,
+            isAudioCall = false,
+            audienceBroadcastId = audienceBroadcastId,
+        )
+    }
+}
