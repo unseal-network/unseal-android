@@ -11,6 +11,7 @@ import com.google.common.truth.Truth.assertThat
 import io.element.android.features.call.impl.audience.AudienceBroadcastHttpClient
 import io.element.android.features.call.impl.audience.AudienceWidgetDriver
 import io.element.android.libraries.matrix.test.A_SESSION_ID
+import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
@@ -50,6 +51,67 @@ class AudienceWidgetDriverTest {
         assertThat(response["api"]?.jsonPrimitive?.content).isEqualTo("toWidget")
         assertThat(response["widgetId"]?.jsonPrimitive?.content).isEqualTo("audience-widget")
         assertThat(response["requestId"]?.jsonPrimitive?.content).isEqualTo("request-1")
-        assertThat(response["response"]?.jsonObject?.get("supported_versions")).isNotNull()
+        assertThat(
+            response["response"]
+                ?.jsonObject
+                ?.get("supported_versions")
+                .toString()
+        ).contains("org.matrix.msc4039")
+    }
+
+    @Test
+    fun `widget downloads Matrix thumbnails as bounded data URLs`() = runTest {
+        val httpClient = mockk<AudienceBroadcastHttpClient> {
+            coEvery {
+                loadAudienceThumbnail(
+                    sessionId = A_SESSION_ID,
+                    mxcUrl = "mxc://keepsecret.io/avatar",
+                    size = 96,
+                )
+            } returns PNG_HEADER
+        }
+        val driver = AudienceWidgetDriver(
+            id = "audience-widget",
+            sessionId = A_SESSION_ID,
+            broadcastId = "bcast_demo",
+            httpClient = httpClient,
+        )
+        val incoming = async(start = CoroutineStart.UNDISPATCHED) {
+            driver.incomingMessages.first()
+        }
+
+        driver.send(
+            """
+            {
+              "api": "fromWidget",
+              "widgetId": "audience-widget",
+              "requestId": "request-2",
+              "action": "org.matrix.msc4039.download_file",
+              "data": {
+                "content_uri": "mxc://keepsecret.io/avatar"
+              }
+            }
+            """.trimIndent()
+        )
+
+        val response = Json.parseToJsonElement(incoming.await()).jsonObject
+        assertThat(
+            response["response"]
+                ?.jsonObject
+                ?.get("file")
+                ?.jsonPrimitive
+                ?.content
+        ).isEqualTo("data:image/png;base64,iVBORw0KGgo=")
     }
 }
+
+private val PNG_HEADER = byteArrayOf(
+    0x89.toByte(),
+    0x50,
+    0x4E,
+    0x47,
+    0x0D,
+    0x0A,
+    0x1A,
+    0x0A,
+)

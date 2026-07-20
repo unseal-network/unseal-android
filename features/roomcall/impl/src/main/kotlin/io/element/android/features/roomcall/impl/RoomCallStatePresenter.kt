@@ -30,6 +30,7 @@ import io.element.android.libraries.matrix.api.room.CallIntentConsensus
 import io.element.android.libraries.matrix.api.room.JoinedRoom
 import io.element.android.libraries.matrix.api.room.powerlevels.canCall
 import io.element.android.libraries.matrix.api.room.powerlevels.permissionsAsState
+import kotlinx.coroutines.flow.catch
 
 @Inject
 class RoomCallStatePresenter(
@@ -58,11 +59,37 @@ class RoomCallStatePresenter(
             }
             previouslyHadRoomCall = roomInfo.hasRoomCall
         }
-        val audienceDiscovery by produceState<AudienceBroadcastDiscovery?>(null, roomInfo.hasRoomCall, room.roomId) {
+        val audienceDiscoveryState by produceState(
+            initialValue = AudienceDiscoveryState(
+                roomHasCall = roomInfo.hasRoomCall,
+                discovery = null,
+                isResolved = !roomInfo.hasRoomCall,
+            ),
+            key1 = roomInfo.hasRoomCall,
+            key2 = room.roomId,
+        ) {
             if (!roomInfo.hasRoomCall) {
-                value = null
+                value = AudienceDiscoveryState(
+                    roomHasCall = false,
+                    discovery = null,
+                    isResolved = true,
+                )
             } else {
-                audienceBroadcastService.observeRoomDiscovery(room.sessionId, room.roomId).collect { value = it }
+                value = AudienceDiscoveryState(
+                    roomHasCall = true,
+                    discovery = null,
+                    isResolved = false,
+                )
+                audienceBroadcastService
+                    .observeRoomDiscovery(room.sessionId, room.roomId)
+                    .catch { emit(null) }
+                    .collect { discovery ->
+                        value = AudienceDiscoveryState(
+                            roomHasCall = true,
+                            discovery = discovery,
+                            isResolved = true,
+                        )
+                    }
             }
         }
         val canJoinCall by room.permissionsAsState(false) { perms -> perms.canCall() }
@@ -86,7 +113,12 @@ class RoomCallStatePresenter(
                         isUserInTheCall = isUserInTheCall,
                         isUserLocallyInTheCall = isUserLocallyInTheCall,
                         isAudioCall = roomInfo.activeCallIntentConsensus.isAudio(),
-                        audienceBroadcastId = audienceDiscovery?.broadcastId,
+                        audienceBroadcastId = audienceDiscoveryState
+                            .takeIf { it.roomHasCall == roomInfo.hasRoomCall && it.isResolved }
+                            ?.discovery
+                            ?.broadcastId,
+                        isAudienceDiscoveryPending = roomInfo.hasRoomCall &&
+                            (audienceDiscoveryState.roomHasCall != roomInfo.hasRoomCall || !audienceDiscoveryState.isResolved),
                         audienceHostControl = audienceHostControl,
                     )
                     else -> RoomCallState.StandBy(
@@ -100,6 +132,12 @@ class RoomCallStatePresenter(
         return callState
     }
 }
+
+private data class AudienceDiscoveryState(
+    val roomHasCall: Boolean,
+    val discovery: AudienceBroadcastDiscovery?,
+    val isResolved: Boolean,
+)
 
 fun CallIntentConsensus.isAudio(): Boolean {
     val intent = when (this) {

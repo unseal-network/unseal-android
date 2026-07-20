@@ -22,6 +22,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import java.util.Base64
 
 class AudienceWidgetDriver(
     override val id: String,
@@ -42,10 +43,14 @@ class AudienceWidgetDriver(
         val action = request.string("action") ?: return
         val response = when (action) {
             "supported_api_versions" -> buildJsonObject {
-                put("supported_versions", buildJsonArray { add(JsonPrimitive("0.0.1")) })
+                put("supported_versions", buildJsonArray {
+                    add(JsonPrimitive("0.0.1"))
+                    add(JsonPrimitive(MSC4039_API_VERSION))
+                })
             }
             "content_loaded" -> JsonObject(emptyMap())
             AUDIENCE_REQUEST_ACTION -> handleAudienceRequest(request["data"] as? JsonObject)
+            DOWNLOAD_FILE_ACTION -> handleDownloadFile(request["data"] as? JsonObject)
             else -> buildJsonObject {
                 put("error", buildJsonObject {
                     put("message", "Unsupported widget action")
@@ -116,6 +121,29 @@ class AudienceWidgetDriver(
         }
     }
 
+    private suspend fun handleDownloadFile(data: JsonObject?): JsonElement {
+        val mxcUrl = data
+            ?.takeIf { it.keys == setOf("content_uri") }
+            ?.string("content_uri")
+            ?: return widgetError("Invalid Matrix media request")
+        return try {
+            val bytes = httpClient.loadAudienceThumbnail(
+                sessionId = sessionId,
+                mxcUrl = mxcUrl,
+                size = AVATAR_THUMBNAIL_SIZE,
+            )
+            val mimeType = bytes.imageMimeType()
+                ?: return widgetError("Unsupported Matrix media type")
+            buildJsonObject {
+                put("file", "data:$mimeType;base64,${Base64.getEncoder().encodeToString(bytes)}")
+            }
+        } catch (failure: CancellationException) {
+            throw failure
+        } catch (failure: Throwable) {
+            widgetError("Unable to load Matrix media")
+        }
+    }
+
     private fun parseServerError(raw: String): JsonObject? {
         val root = runCatching { json.parseToJsonElement(raw) as? JsonObject }.getOrNull()
         return root?.get("error") as? JsonObject
@@ -138,10 +166,38 @@ class AudienceWidgetDriver(
         })
     }
 
+    private fun widgetError(message: String): JsonObject = buildJsonObject {
+        put("error", buildJsonObject {
+            put("message", message)
+        })
+    }
+
     override fun close() = Unit
 
     private fun JsonObject.string(name: String): String? = this[name]?.jsonPrimitive?.contentOrNull
 }
 
 private const val AUDIENCE_REQUEST_ACTION = "io.element.unseal.meeting_broadcast_request"
+private const val DOWNLOAD_FILE_ACTION = "org.matrix.msc4039.download_file"
+private const val MSC4039_API_VERSION = "org.matrix.msc4039"
+private const val AVATAR_THUMBNAIL_SIZE = 96
 private val AUDIENCE_REQUEST_FIELDS = setOf("method", "path", "body")
+
+private fun ByteArray.imageMimeType(): String? = when {
+    size >= 8 &&
+        this[0] == 0x89.toByte() &&
+        this[1] == 0x50.toByte() &&
+        this[2] == 0x4E.toByte() &&
+        this[3] == 0x47.toByte() &&
+        this[4] == 0x0D.toByte() &&
+        this[5] == 0x0A.toByte() &&
+        this[6] == 0x1A.toByte() &&
+        this[7] == 0x0A.toByte() -> "image/png"
+    size >= 3 &&
+        this[0] == 0xFF.toByte() &&
+        this[1] == 0xD8.toByte() &&
+        this[2] == 0xFF.toByte() -> "image/jpeg"
+    size >= 6 && decodeToString(0, 6) in setOf("GIF87a", "GIF89a") -> "image/gif"
+    size >= 12 && decodeToString(0, 4) == "RIFF" && decodeToString(8, 12) == "WEBP" -> "image/webp"
+    else -> null
+}

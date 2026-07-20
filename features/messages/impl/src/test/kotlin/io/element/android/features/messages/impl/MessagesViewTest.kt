@@ -15,6 +15,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.test.AndroidComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -30,6 +31,7 @@ import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.test.v2.runAndroidComposeUiTest
 import androidx.compose.ui.text.AnnotatedString
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.google.common.truth.Truth.assertThat
 import io.element.android.emojibasebindings.Emoji
 import io.element.android.emojibasebindings.EmojibaseCategory
 import io.element.android.emojibasebindings.EmojibaseStore
@@ -59,6 +61,7 @@ import io.element.android.features.messages.impl.timeline.components.receipt.bot
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.timeline.model.event.aTimelineItemTextContent
 import io.element.android.features.roomcall.api.aStandByCallState
+import io.element.android.features.roomcall.api.anOngoingCallState
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.UserId
 import io.element.android.libraries.matrix.api.room.tombstone.SuccessorRoom
@@ -145,6 +148,73 @@ class MessagesViewTest {
             onNodeWithContentDescription(activity!!.getString(CommonStrings.a11y_start_call)).performClick()
             onNodeWithText("Allow room members only").performClick()
         }
+    }
+
+    @Test
+    fun `joining a broadcast offers meeting and listen only choices`() = runAndroidComposeUiTest {
+        val state = aMessagesState(
+            eventSink = EventsRecorder<MessagesEvent>(expectEvents = false),
+            roomCallState = anOngoingCallState(
+                canJoinCall = false,
+                audienceBroadcastId = "bcast_demo",
+            ),
+        )
+        var joinedCall: Boolean? = null
+        var joinedBroadcast: String? = null
+        setMessagesView(
+            state = state,
+            onJoinCallClick = { joinedCall = it },
+            onJoinAudienceClick = { joinedBroadcast = it },
+        )
+
+        onNodeWithContentDescription(activity!!.getString(CommonStrings.action_join)).performClick()
+
+        assertThat(joinedCall).isNull()
+        assertThat(joinedBroadcast).isNull()
+        onNodeWithText("Join as participant").assertExists()
+        onNodeWithText("Listen only").performClick()
+        assertThat(joinedBroadcast).isEqualTo("bcast_demo")
+        assertThat(joinedCall).isNull()
+    }
+
+    @Test
+    fun `joining a broadcast as a participant keeps the normal meeting path`() = runAndroidComposeUiTest {
+        val state = aMessagesState(
+            eventSink = EventsRecorder<MessagesEvent>(expectEvents = false),
+            roomCallState = anOngoingCallState(
+                canJoinCall = true,
+                isAudioCall = false,
+                audienceBroadcastId = "bcast_demo",
+            ),
+        )
+        var joinedCall: Boolean? = null
+        var joinedBroadcast: String? = null
+        setMessagesView(
+            state = state,
+            onJoinCallClick = { joinedCall = it },
+            onJoinAudienceClick = { joinedBroadcast = it },
+        )
+
+        onNodeWithContentDescription(activity!!.getString(CommonStrings.action_join)).performClick()
+        onNodeWithText("Join as participant").performClick()
+
+        assertThat(joinedCall).isFalse()
+        assertThat(joinedBroadcast).isNull()
+    }
+
+    @Test
+    fun `joining is disabled while listener discovery is pending`() = runAndroidComposeUiTest {
+        val state = aMessagesState(
+            eventSink = EventsRecorder<MessagesEvent>(expectEvents = false),
+            roomCallState = anOngoingCallState(
+                canJoinCall = true,
+                isAudienceDiscoveryPending = true,
+            ),
+        )
+        setMessagesView(state = state)
+
+        onNodeWithContentDescription(activity!!.getString(CommonStrings.action_join))
+            .assertIsNotEnabled()
     }
 
     @Test

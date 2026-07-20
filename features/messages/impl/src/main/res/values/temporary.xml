@@ -18,6 +18,10 @@
     <string name="listener_meeting_room_members">Allow room members only</string>
     <string name="listener_meeting_disable">Turn off listeners</string>
     <string name="listener_meeting_arming">Preparing listener stream…</string>
+    <string name="listener_meeting_join_title">Join meeting</string>
+    <string name="listener_meeting_join_description">Choose whether to participate in the meeting or watch the live stream without publishing audio or video.</string>
+    <string name="listener_meeting_join_participant">Join as participant</string>
+    <string name="listener_meeting_join_audience">Listen only</string>
     <!-- Game picker entry in the attachment source picker menu -->
     <string name="screen_room_attachment_source_game">Game</string>
     <!-- iOS parity entries in the attachment source picker menu. Disabled until the Android bottom layer exists. -->

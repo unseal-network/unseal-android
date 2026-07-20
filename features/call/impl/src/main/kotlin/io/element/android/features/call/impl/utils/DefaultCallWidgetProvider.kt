@@ -13,6 +13,7 @@ import dev.zacsweers.metro.ContributesBinding
 import io.element.android.features.call.api.isValidAudienceBroadcastId
 import io.element.android.features.call.impl.audience.AudienceBroadcastHttpClient
 import io.element.android.features.call.impl.audience.AudienceWidgetDriver
+import io.element.android.libraries.chatbot.api.ChatbotBaseUrlResolver
 import io.element.android.libraries.core.extensions.runCatchingExceptions
 import io.element.android.libraries.matrix.api.MatrixClientProvider
 import io.element.android.libraries.matrix.api.core.RoomId
@@ -21,11 +22,11 @@ import io.element.android.libraries.matrix.api.widget.CallWidgetSettingsProvider
 import io.element.android.libraries.preferences.api.store.AppPreferencesStore
 import io.element.android.services.appnavstate.api.ActiveRoomsHolder
 import kotlinx.coroutines.flow.firstOrNull
+import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 
 private const val EMBEDDED_CALL_WIDGET_BASE_URL = "https://appassets.androidplatform.net/element-call/index.html"
-private const val AUDIENCE_ORIGIN = "https://keepsecret.io"
-private const val DEFAULT_UNSEAL_CALL_BASE_URL = "$AUDIENCE_ORIGIN/call/"
+private const val EMBEDDED_CALL_WIDGET_ORIGIN = "https://appassets.androidplatform.net"
 
 @ContributesBinding(AppScope::class)
 class DefaultCallWidgetProvider(
@@ -34,6 +35,7 @@ class DefaultCallWidgetProvider(
     private val callWidgetSettingsProvider: CallWidgetSettingsProvider,
     private val activeRoomsHolder: ActiveRoomsHolder,
     private val audienceBroadcastHttpClient: AudienceBroadcastHttpClient,
+    private val baseUrlResolver: ChatbotBaseUrlResolver,
 ) : CallWidgetProvider {
     override suspend fun getWidget(
         sessionId: SessionId,
@@ -45,15 +47,17 @@ class DefaultCallWidgetProvider(
         audienceBroadcastId: String?,
     ): Result<CallWidgetProvider.GetWidgetResult> = runCatchingExceptions {
         val matrixClient = matrixClientsProvider.getOrRestore(sessionId).getOrThrow()
-        val customBaseUrl = appPreferencesStore.getCustomElementCallBaseUrlFlow().firstOrNull()
         if (audienceBroadcastId != null) {
             require(audienceBroadcastId.isValidAudienceBroadcastId()) { "Invalid audience broadcast ID" }
-            val baseUrl = customBaseUrl ?: DEFAULT_UNSEAL_CALL_BASE_URL
+            val mediaOrigin = baseUrlResolver
+                .resolveUnsealApiBaseUrl(matrixClient.userIdServerName())
+                .toHttpUrl()
+                .origin()
             val widgetId = "unseal-audience-$audienceBroadcastId"
-            val audienceUrl = baseUrl.toHttpUrl().newBuilder()
+            val audienceUrl = EMBEDDED_CALL_WIDGET_BASE_URL.toHttpUrl().newBuilder()
                 .addQueryParameter("widgetId", widgetId)
-                .addQueryParameter("parentUrl", "$AUDIENCE_ORIGIN/audience/$audienceBroadcastId")
-                .addQueryParameter("baseUrl", AUDIENCE_ORIGIN)
+                .addQueryParameter("parentUrl", EMBEDDED_CALL_WIDGET_ORIGIN)
+                .addQueryParameter("baseUrl", mediaOrigin)
                 .fragment("/audience/$audienceBroadcastId")
                 .build()
                 .toString()
@@ -67,6 +71,7 @@ class DefaultCallWidgetProvider(
                 url = audienceUrl,
             )
         }
+        val customBaseUrl = appPreferencesStore.getCustomElementCallBaseUrlFlow().firstOrNull()
         val baseUrl = customBaseUrl ?: EMBEDDED_CALL_WIDGET_BASE_URL
         val room = activeRoomsHolder.getActiveRoomMatching(sessionId, roomId)
             ?: matrixClient.getJoinedRoom(roomId)
@@ -96,3 +101,11 @@ class DefaultCallWidgetProvider(
         )
     }
 }
+
+private fun HttpUrl.origin(): String = newBuilder()
+    .encodedPath("/")
+    .query(null)
+    .fragment(null)
+    .build()
+    .toString()
+    .removeSuffix("/")

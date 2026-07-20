@@ -18,6 +18,7 @@ import io.element.android.libraries.chatbot.api.ChatbotBaseUrlResolver
 import io.element.android.libraries.matrix.api.MatrixClientProvider
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.SessionId
+import io.element.android.libraries.matrix.api.media.MediaSource
 import io.element.android.libraries.sessionstorage.api.SessionStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -104,6 +105,22 @@ class AudienceBroadcastHttpClient(
         require(broadcastId.isValidAudienceBroadcastId()) { "Invalid broadcast ID" }
         require(isAllowedAudienceRequest(method, path, body, broadcastId)) { "Unsupported audience API request" }
         return request(sessionId, method, path, body?.toString())
+    }
+
+    suspend fun loadAudienceThumbnail(
+        sessionId: SessionId,
+        mxcUrl: String,
+        size: Int,
+    ): ByteArray {
+        require(MXC_URL_PATTERN.matches(mxcUrl)) { "Invalid Matrix media URL" }
+        require(size in MIN_AVATAR_SIZE..MAX_AVATAR_SIZE) { "Invalid thumbnail size" }
+        val matrixClient = matrixClientProvider.getOrRestore(sessionId).getOrThrow()
+        return matrixClient.matrixMediaLoader
+            .loadMediaThumbnail(MediaSource(mxcUrl), size.toLong(), size.toLong())
+            .getOrThrow()
+            .also { bytes ->
+                require(bytes.isNotEmpty() && bytes.size <= MAX_AVATAR_BYTES) { "Invalid thumbnail payload" }
+            }
     }
 
     suspend fun createAudienceSession(
@@ -592,12 +609,16 @@ private val RUNTIME_STATUS_FIELDS = RUNTIME_STATUS_REQUIRED_FIELDS + "error"
 private val UUID_PATTERN = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$")
 private val AUDIENCE_CLIENT_ID_PATTERN = Regex("^client_[A-Za-z0-9_-]+$")
 private val AUDIENCE_SESSION_ID_PATTERN = Regex("^aud_[A-Za-z0-9_-]+$")
+private val MXC_URL_PATTERN = Regex("^mxc://[^/?#\\s]+/[^/?#\\s]+$")
 private val AUDIENCE_SESSION_PATH_PATTERN =
     Regex("^/meeting-broadcast/v1/broadcasts/(bcast_[A-Za-z0-9_-]+)/audience-sessions/(aud_[A-Za-z0-9_-]+)(/heartbeat)?$")
 private const val MIN_POLL_MS = 250L
 private const val MAX_LIVE_POLL_MS = 1_000L
 private const val MAX_POLL_MS = 5_000L
 private const val MIN_HEARTBEAT_MS = 1_000L
+private const val MIN_AVATAR_SIZE = 16
+private const val MAX_AVATAR_SIZE = 256
+private const val MAX_AVATAR_BYTES = 512 * 1024
 private val JSON_MEDIA_TYPE = "application/json".toMediaType()
 private val LOCAL_API_HOSTS = setOf("127.0.0.1", "10.0.2.2", "localhost")
 private val GRANT_MANIFEST_PATH_PATTERN = Regex("^/live/g/[^/]+/bcast_[A-Za-z0-9_-]+/[1-9][0-9]*/manifest\\.json$")

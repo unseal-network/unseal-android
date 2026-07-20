@@ -2,6 +2,8 @@ import extension.buildConfigFieldStr
 import extension.readLocalProperty
 import extension.setupDependencyInjection
 import extension.testCommonDependencies
+import java.security.MessageDigest
+import java.util.zip.ZipFile
 
 /*
  * Copyright (c) 2025 Element Creations Ltd.
@@ -64,6 +66,50 @@ android {
 
 setupDependencyInjection()
 
+val verifyEmbeddedUnsealCall by tasks.registering {
+    val embeddedAar = layout.projectDirectory.file("libs/unseal-call-embedded.aar")
+    inputs.file(embeddedAar)
+    doLast {
+        val checksum = embeddedAar.asFile.inputStream().use { input ->
+            val digest = MessageDigest.getInstance("SHA-256")
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val bytesRead = input.read(buffer)
+                if (bytesRead < 0) break
+                digest.update(buffer, 0, bytesRead)
+            }
+            digest.digest().joinToString("") { "%02x".format(it) }
+        }
+        check(checksum == "e361a89e944d2ea4d4457542d357a54ae5f77415803f2611f0e8fb9799508de7") {
+            "Embedded Unseal Call does not match the reviewed AAR checksum"
+        }
+        ZipFile(embeddedAar.asFile).use { archive ->
+            val versionEntry = checkNotNull(archive.getEntry("assets/element-call/version.json")) {
+                "Embedded Unseal Call has no version manifest"
+            }
+            val version = archive.getInputStream(versionEntry).bufferedReader().use { it.readText() }
+            check("\"package_type\":\"embedded\"" in version) {
+                "Unseal Call must be built as an embedded package"
+            }
+            check("\"unseal_call_sha\":\"635841bb5fe63e7f1b85398ebd124bcdee3e4c1c\"" in version) {
+                "Embedded Unseal Call does not match the reviewed source revision"
+            }
+            val containsAudienceRoute = archive.entries().asSequence()
+                .filter { it.name.startsWith("assets/element-call/assets/") && it.name.endsWith(".js") }
+                .any { entry ->
+                    archive.getInputStream(entry).bufferedReader().use { "meeting-broadcast/v1" in it.readText() }
+                }
+            check(containsAudienceRoute) {
+                "Embedded Unseal Call does not contain the audience client"
+            }
+        }
+    }
+}
+
+tasks.named("preBuild") {
+    dependsOn(verifyEmbeddedUnsealCall)
+}
+
 dependencies {
     implementation(projects.appconfig)
     implementation(projects.features.enterprise.api)
@@ -93,7 +139,7 @@ dependencies {
     implementation(platform(libs.network.okhttp.bom))
     implementation(libs.network.okhttp)
     implementation(libs.serialization.json)
-    implementation(libs.element.call.embedded)
+    implementation(files("libs/unseal-call-embedded.aar"))
     api(projects.features.call.api)
 
     testCommonDependencies(libs, true)

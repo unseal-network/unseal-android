@@ -28,7 +28,9 @@ import io.element.android.libraries.matrix.test.room.aRoomInfo
 import io.element.android.libraries.matrix.test.room.powerlevels.FakeRoomPermissions
 import io.element.android.tests.testutils.lambda.lambdaError
 import io.element.android.tests.testutils.test
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -319,6 +321,74 @@ class RoomCallStatePresenterTest {
                     isUserInTheCall = false,
                     isUserLocallyInTheCall = false,
                     audienceBroadcastId = "bcast_demo",
+                )
+            )
+        }
+    }
+
+    @Test
+    fun `present - active call blocks joining until audience discovery completes`() = runTest {
+        val room = FakeJoinedRoom(
+            baseRoom = FakeBaseRoom(
+                roomPermissions = roomPermissions(true),
+                initialRoomInfo = aRoomInfo(hasRoomCall = true),
+            )
+        )
+        val discoveryFlow = MutableSharedFlow<AudienceBroadcastDiscovery?>()
+        val presenter = createRoomCallStatePresenter(
+            joinedRoom = room,
+            audienceBroadcastService = FakeAudienceBroadcastService(
+                discovery = { _, _ -> discoveryFlow },
+            ),
+        )
+
+        presenter.test {
+            skipItems(1)
+            assertThat(awaitItem()).isEqualTo(
+                RoomCallState.OnGoing(
+                    canJoinCall = true,
+                    isAudioCall = false,
+                    isUserInTheCall = false,
+                    isUserLocallyInTheCall = false,
+                    isAudienceDiscoveryPending = true,
+                )
+            )
+
+            discoveryFlow.emit(null)
+            assertThat(awaitItem()).isEqualTo(
+                RoomCallState.OnGoing(
+                    canJoinCall = true,
+                    isAudioCall = false,
+                    isUserInTheCall = false,
+                    isUserLocallyInTheCall = false,
+                )
+            )
+        }
+    }
+
+    @Test
+    fun `present - discovery failure restores normal meeting entry`() = runTest {
+        val room = FakeJoinedRoom(
+            baseRoom = FakeBaseRoom(
+                roomPermissions = roomPermissions(true),
+                initialRoomInfo = aRoomInfo(hasRoomCall = true),
+            )
+        )
+        val presenter = createRoomCallStatePresenter(
+            joinedRoom = room,
+            audienceBroadcastService = FakeAudienceBroadcastService(
+                discovery = { _, _ -> flow { throw IllegalStateException("Discovery unavailable") } },
+            ),
+        )
+
+        presenter.test {
+            skipItems(1)
+            assertThat(awaitItem()).isEqualTo(
+                RoomCallState.OnGoing(
+                    canJoinCall = true,
+                    isAudioCall = false,
+                    isUserInTheCall = false,
+                    isUserLocallyInTheCall = false,
                 )
             )
         }

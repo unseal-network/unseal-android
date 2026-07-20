@@ -11,6 +11,7 @@ package io.element.android.features.call.utils
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.call.impl.audience.AudienceBroadcastHttpClient
 import io.element.android.features.call.impl.utils.DefaultCallWidgetProvider
+import io.element.android.libraries.chatbot.api.ChatbotBaseUrlResolver
 import io.element.android.libraries.matrix.api.MatrixClientProvider
 import io.element.android.libraries.matrix.api.widget.CallWidgetSettingsProvider
 import io.element.android.libraries.matrix.test.A_ROOM_ID
@@ -25,6 +26,7 @@ import io.element.android.libraries.preferences.api.store.AppPreferencesStore
 import io.element.android.libraries.preferences.test.InMemoryAppPreferencesStore
 import io.element.android.services.appnavstate.api.ActiveRoomsHolder
 import io.element.android.services.appnavstate.impl.DefaultActiveRoomsHolder
+import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -131,13 +133,19 @@ class DefaultCallWidgetProviderTest {
     }
 
     @Test
-    fun `getWidget - audience mode opens canonical read only route without joining a room`() = runTest {
+    fun `getWidget - audience mode ignores remote call preferences and opens the embedded read only route`() = runTest {
         val preferencesStore = InMemoryAppPreferencesStore().apply {
             setCustomElementCallBaseUrl("https://call.keepsecret.io/")
         }
+        val baseUrlResolver = mockk<ChatbotBaseUrlResolver> {
+            coEvery { resolveUnsealApiBaseUrl(any()) } returns "https://api.matrix.example/unseal"
+        }
         val provider = createProvider(
-            matrixClientProvider = FakeMatrixClientProvider { Result.success(FakeMatrixClient()) },
+            matrixClientProvider = FakeMatrixClientProvider {
+                Result.success(FakeMatrixClient(userIdServerNameLambda = { "matrix.example" }))
+            },
             appPreferencesStore = preferencesStore,
+            baseUrlResolver = baseUrlResolver,
         )
 
         val result = provider.getWidget(
@@ -151,16 +159,19 @@ class DefaultCallWidgetProviderTest {
         ).getOrThrow()
         val uri = result.url.toHttpUrl()
 
-        assertThat(uri.host).isEqualTo("call.keepsecret.io")
+        assertThat(uri.host).isEqualTo("appassets.androidplatform.net")
+        assertThat(uri.encodedPath).isEqualTo("/element-call/index.html")
         assertThat(uri.fragment).isEqualTo("/audience/bcast_demo")
-        assertThat(uri.queryParameter("parentUrl")).isEqualTo("https://keepsecret.io/audience/bcast_demo")
-        assertThat(uri.queryParameter("baseUrl")).isEqualTo("https://keepsecret.io")
+        assertThat(uri.queryParameter("parentUrl")).isEqualTo("https://appassets.androidplatform.net")
+        assertThat(uri.queryParameter("baseUrl")).isEqualTo("https://api.matrix.example")
     }
 
     @Test
-    fun `getWidget - audience mode defaults to the same-host Unseal Call deployment`() = runTest {
+    fun `getWidget - audience mode is packaged in the app`() = runTest {
         val provider = createProvider(
-            matrixClientProvider = FakeMatrixClientProvider { Result.success(FakeMatrixClient()) },
+            matrixClientProvider = FakeMatrixClientProvider {
+                Result.success(FakeMatrixClient(userIdServerNameLambda = { "keepsecret.io" }))
+            },
         )
 
         val result = provider.getWidget(
@@ -175,10 +186,10 @@ class DefaultCallWidgetProviderTest {
         val uri = result.url.toHttpUrl()
 
         assertThat(uri.scheme).isEqualTo("https")
-        assertThat(uri.host).isEqualTo("keepsecret.io")
-        assertThat(uri.encodedPath).isEqualTo("/call/")
+        assertThat(uri.host).isEqualTo("appassets.androidplatform.net")
+        assertThat(uri.encodedPath).isEqualTo("/element-call/index.html")
         assertThat(uri.fragment).isEqualTo("/audience/bcast_demo")
-        assertThat(uri.queryParameter("parentUrl")).isEqualTo("https://keepsecret.io/audience/bcast_demo")
+        assertThat(uri.queryParameter("parentUrl")).isEqualTo("https://appassets.androidplatform.net")
         assertThat(uri.queryParameter("baseUrl")).isEqualTo("https://keepsecret.io")
     }
 
@@ -187,11 +198,15 @@ class DefaultCallWidgetProviderTest {
         appPreferencesStore: AppPreferencesStore = InMemoryAppPreferencesStore(),
         callWidgetSettingsProvider: CallWidgetSettingsProvider = FakeCallWidgetSettingsProvider(),
         activeRoomsHolder: ActiveRoomsHolder = DefaultActiveRoomsHolder(),
+        baseUrlResolver: ChatbotBaseUrlResolver = mockk {
+            coEvery { resolveUnsealApiBaseUrl(any()) } returns "https://keepsecret.io"
+        },
     ) = DefaultCallWidgetProvider(
         matrixClientsProvider = matrixClientProvider,
         appPreferencesStore = appPreferencesStore,
         callWidgetSettingsProvider = callWidgetSettingsProvider,
         activeRoomsHolder = activeRoomsHolder,
         audienceBroadcastHttpClient = mockk<AudienceBroadcastHttpClient>(relaxed = true),
+        baseUrlResolver = baseUrlResolver,
     )
 }

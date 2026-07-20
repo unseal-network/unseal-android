@@ -28,11 +28,15 @@ fun anOngoingCallState(
     isUserInTheCall: Boolean = false,
     isUserLocallyInTheCall: Boolean = isUserInTheCall,
     isAudioCall: Boolean = false,
+    audienceBroadcastId: String? = null,
+    isAudienceDiscoveryPending: Boolean = false,
 ) = RoomCallState.OnGoing(
     canJoinCall = canJoinCall,
     isUserInTheCall = isUserInTheCall,
     isUserLocallyInTheCall = isUserLocallyInTheCall,
-    isAudioCall = isAudioCall
+    isAudioCall = isAudioCall,
+    audienceBroadcastId = audienceBroadcastId,
+    isAudienceDiscoveryPending = isAudienceDiscoveryPending,
 )
 
 fun aStandByCallState(

@@ -29,6 +29,7 @@ sealed interface RoomCallState {
         val isUserInTheCall: Boolean,
         val isUserLocallyInTheCall: Boolean,
         val audienceBroadcastId: String? = null,
+        val isAudienceDiscoveryPending: Boolean = false,
         val audienceHostControl: AudienceHostControlState = AudienceHostControlState(),
     ) : RoomCallState
 }
