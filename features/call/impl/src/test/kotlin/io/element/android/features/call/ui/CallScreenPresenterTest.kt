@@ -14,7 +14,6 @@ import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import im.vector.app.features.analytics.plan.MobileScreen
 import io.element.android.features.call.api.CallData
-import io.element.android.features.call.audience.FakeAudiencePlaybackController
 import io.element.android.features.call.impl.notifications.CallNotificationData
 import io.element.android.features.call.impl.ui.CallScreenEvent
 import io.element.android.features.call.impl.ui.CallScreenNavigator
@@ -96,9 +95,11 @@ class CallScreenPresenterTest {
     }
 
     @Test
-    fun `present - audience mode never joins or hangs up ActiveCallManager`() = runTest {
+    fun `present - audience mode loads the Unseal Call widget without joining ActiveCallManager`() = runTest {
         val joinedCallLambda = lambdaRecorder<CallData, Unit> {}
         val hangUpCallLambda = lambdaRecorder<CallData, CallNotificationData?, Unit> { _, _ -> }
+        val widgetDriver = FakeMatrixWidgetDriver()
+        val widgetProvider = FakeCallWidgetProvider(widgetDriver)
         val presenter = createCallScreenPresenter(
             callData = CallData(
                 sessionId = A_SESSION_ID,
@@ -110,12 +111,31 @@ class CallScreenPresenterTest {
                 joinedCallResult = joinedCallLambda,
                 hangUpCallResult = hangUpCallLambda,
             ),
+            widgetDriver = widgetDriver,
+            widgetProvider = widgetProvider,
             screenTracker = FakeScreenTracker {},
         )
+        val messageInterceptor = FakeWidgetMessageInterceptor()
 
         presenter.test {
-            assertThat(awaitItem().isCallActive).isTrue()
             advanceTimeBy(1.seconds)
+            val loadedState = expectMostRecentItem()
+            assertThat(loadedState.urlState).isInstanceOf(AsyncData.Success::class.java)
+            assertThat(loadedState.isCallActive).isTrue()
+            assertThat(widgetProvider.getWidgetCalled).isTrue()
+            assertThat(widgetDriver.runCalledCount).isEqualTo(1)
+
+            loadedState.eventSink(CallScreenEvent.SetupMessageChannels(messageInterceptor))
+            messageInterceptor.givenInterceptedMessage(
+                """
+                    {
+                        "action":"content_loaded",
+                        "api":"fromWidget",
+                        "widgetId":"unseal-audience-bcast_demo",
+                        "requestId":"1"
+                    }
+                """.trimIndent()
+            )
             cancelAndIgnoreRemainingEvents()
         }
         runCurrent()
@@ -343,7 +363,6 @@ class CallScreenPresenterTest {
         activeCallManager: FakeActiveCallManager = FakeActiveCallManager(),
         screenTracker: ScreenTracker = FakeScreenTracker(),
         appForegroundStateService: FakeAppForegroundStateService = FakeAppForegroundStateService(),
-        audiencePlaybackController: FakeAudiencePlaybackController = FakeAudiencePlaybackController(),
     ): CallScreenPresenter {
         val userAgentProvider = object : UserAgentProvider {
             override fun provide(): String {
@@ -361,7 +380,6 @@ class CallScreenPresenterTest {
             matrixClientsProvider = matrixClientsProvider,
             activeCallManager = activeCallManager,
             audienceBroadcastService = FakeAudienceBroadcastService(),
-            audiencePlaybackController = audiencePlaybackController,
             screenTracker = screenTracker,
             languageTagProvider = FakeLanguageTagProvider("en-US"),
             appForegroundStateService = appForegroundStateService,

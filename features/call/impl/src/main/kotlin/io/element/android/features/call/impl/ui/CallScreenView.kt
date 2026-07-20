@@ -33,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -100,15 +101,14 @@ internal fun CallScreenView(
     BackHandler {
         handleBack(fromNative = true)
     }
-    if (state.isAudience) {
-        AudiencePlaybackView(
-            playbackState = state.audiencePlaybackState,
-            isInPictureInPicture = pipState.isInPictureInPicture,
-            playbackEnabled = audiencePlaybackEnabled,
-            onClose = { state.eventSink(CallScreenEvent.Hangup) },
-            modifier = modifier,
-        )
-        return
+    LaunchedEffect(state.isAudience, audiencePlaybackEnabled, callWebView) {
+        if (state.isAudience) {
+            if (audiencePlaybackEnabled) {
+                callWebView?.onResume()
+            } else {
+                callWebView?.onPause()
+            }
+        }
     }
     if (state.webViewError != null) {
         ErrorDialog(
@@ -146,20 +146,22 @@ internal fun CallScreenView(
                         webView = webView,
                         onUrlLoaded = { url ->
                             webView.evaluateJavascript("controls.onBackButtonPressed = () => { backHandler.onBackPressed() }", null)
-                            if (webViewAudioManager?.isInCallMode?.get() == false) {
+                            if (!state.isAudience && webViewAudioManager?.isInCallMode?.get() == false) {
                                 Timber.d("URL $url is loaded, starting in-call audio mode")
                                 webViewAudioManager?.onCallStarted()
-                            } else {
+                            } else if (!state.isAudience) {
                                 Timber.d("Can't start in-call audio mode since the app is already in it.")
                             }
                         },
                         onError = { state.eventSink(CallScreenEvent.OnWebViewError(it)) },
                     )
-                    webViewAudioManager = WebViewAudioManager(
-                        webView = webView,
-                        coroutineScope = coroutineScope,
-                        onInvalidAudioDeviceAdded = { invalidAudioDeviceReason = it },
-                    )
+                    if (!state.isAudience) {
+                        webViewAudioManager = WebViewAudioManager(
+                            webView = webView,
+                            coroutineScope = coroutineScope,
+                            onInvalidAudioDeviceAdded = { invalidAudioDeviceReason = it },
+                        )
+                    }
                     state.eventSink(CallScreenEvent.SetupMessageChannels(interceptor))
                     val pipController = WebViewPipController(webView)
                     pipState.eventSink(PictureInPictureEvent.SetPipController(pipController))

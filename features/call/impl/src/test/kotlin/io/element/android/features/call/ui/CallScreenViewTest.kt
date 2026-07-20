@@ -16,15 +16,8 @@ import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.test.AndroidComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.v2.runAndroidComposeUiTest
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.element.android.features.call.impl.audience.AudienceManifest
-import io.element.android.features.call.impl.audience.AudiencePlaybackState
-import io.element.android.features.call.impl.audience.AudiencePresentation
-import io.element.android.features.call.impl.audience.AudiencePresentationKind
-import io.element.android.features.call.impl.audience.AudienceRendition
 import io.element.android.features.call.impl.pip.PictureInPictureEvent
 import io.element.android.features.call.impl.pip.PictureInPictureState
 import io.element.android.features.call.impl.pip.aPictureInPictureState
@@ -85,54 +78,15 @@ class CallScreenViewTest {
     }
 
     @Test
-    fun `native audience renders participant and screen presentations without publishing controls`() = runAndroidComposeUiTest {
-        val userRendition = AudienceRendition("https://keepsecret.io/live/user.m3u8", null, 1280, 720)
-        val screenRendition = AudienceRendition("https://keepsecret.io/live/screen.m3u8", null, 1920, 1080)
-        val manifest = AudienceManifest(
-            broadcastId = "bcast_demo",
-            meetingInstanceId = "4d1c64a7-6d0a-4fac-91f8-5bcbf2fc6a9d",
-            generation = 1,
-            revision = 1,
-            presentations = listOf(
-                AudiencePresentation(
-                    presentationId = "user:alice",
-                    kind = AudiencePresentationKind.User,
-                    matrixUserId = "@alice:keepsecret.io",
-                    matrixDeviceId = "ALICE1",
-                    displayName = "Alice",
-                    avatarUrl = null,
-                    sourceId = null,
-                    audio = userRendition,
-                    video = userRendition,
-                    activeSpeaker = true,
-                ),
-                AudiencePresentation(
-                    presentationId = "screen:alice",
-                    kind = AudiencePresentationKind.Screen,
-                    matrixUserId = "@alice:keepsecret.io",
-                    matrixDeviceId = "ALICE1",
-                    displayName = "Alice's screen",
-                    avatarUrl = null,
-                    sourceId = "screen-1",
-                    audio = null,
-                    video = screenRendition,
-                    activeSpeaker = false,
-                ),
-            ),
-        )
-
+    fun `audience mode hosts Unseal Call without native listener management controls`() = runAndroidComposeUiTest {
         setCallScreenView(
             state = aCallScreenState(
                 isAudience = true,
-                audiencePlaybackState = AudiencePlaybackState.Live(manifest),
             ),
             useInspectionMode = true,
         )
 
-        onNodeWithContentDescription("Leave listener mode").assertExists()
         onNodeWithContentDescription("Manage meeting listeners").assertDoesNotExist()
-        onNodeWithText("Alice").performScrollTo().assertExists()
-        onNodeWithText("Alice's screen").assertExists()
     }
 
     @Test

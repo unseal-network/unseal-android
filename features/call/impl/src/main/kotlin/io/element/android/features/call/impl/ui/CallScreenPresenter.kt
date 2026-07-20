@@ -27,8 +27,6 @@ import im.vector.app.features.analytics.plan.MobileScreen
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.features.call.api.AudienceBroadcastService
 import io.element.android.features.call.api.CallData
-import io.element.android.features.call.impl.audience.AudiencePlaybackController
-import io.element.android.features.call.impl.audience.AudiencePlaybackState
 import io.element.android.features.call.impl.data.WidgetMessage
 import io.element.android.features.call.impl.utils.ActiveCallManager
 import io.element.android.features.call.impl.utils.CallWidgetProvider
@@ -69,7 +67,6 @@ class CallScreenPresenter(
     private val screenTracker: ScreenTracker,
     private val activeCallManager: ActiveCallManager,
     private val audienceBroadcastService: AudienceBroadcastService,
-    private val audiencePlaybackController: AudiencePlaybackController,
     private val languageTagProvider: LanguageTagProvider,
     private val appForegroundStateService: AppForegroundStateService,
     @AppCoroutineScope
@@ -94,17 +91,12 @@ class CallScreenPresenter(
         var webViewError by remember { mutableStateOf<String?>(null) }
         val languageTag = languageTagProvider.provideLanguageTag()
         val theme = if (ElementTheme.isLightTheme) "light" else "dark"
-        val audienceClientId = rememberSaveable(callData.audienceBroadcastId) {
-            "client_${UUID.randomUUID().toString().replace("-", "")}"
-        }
-        val audiencePlaybackState by produceState<AudiencePlaybackState>(
-            initialValue = AudiencePlaybackState.Connecting,
-            callData.sessionId,
-            callData.audienceBroadcastId,
-            audienceClientId,
-        ) {
-            val broadcastId = callData.audienceBroadcastId ?: return@produceState
-            audiencePlaybackController.observe(callData.sessionId, broadcastId, audienceClientId).collect { value = it }
+        val widgetClientId = rememberSaveable(callData.audienceBroadcastId) {
+            if (callData.audienceBroadcastId == null) {
+                UUID.randomUUID().toString()
+            } else {
+                "client_${UUID.randomUUID().toString().replace("-", "")}"
+            }
         }
         val audienceHostControl by audienceBroadcastService
             .observeHostControl(callData.sessionId, callData.roomId)
@@ -121,14 +113,15 @@ class CallScreenPresenter(
                 if (callData.audienceBroadcastId == null) {
                     // Sets the call as joined
                     activeCallManager.joinedCall(callData)
-                    fetchRoomCallUrl(
-                        callData = callData,
-                        urlState = urlState,
-                        callWidgetDriver = callWidgetDriver,
-                        languageTag = languageTag,
-                        theme = theme,
-                    )
                 }
+                fetchRoomCallUrl(
+                    callData = callData,
+                    urlState = urlState,
+                    callWidgetDriver = callWidgetDriver,
+                    languageTag = languageTag,
+                    theme = theme,
+                    clientId = widgetClientId,
+                )
             }
             onDispose {
                 if (callData.audienceBroadcastId == null) {
@@ -237,13 +230,11 @@ class CallScreenPresenter(
             urlState = urlState.value,
             webViewError = webViewError,
             userAgent = userAgent,
-            isCallActive = if (callData.audienceBroadcastId != null) {
-                audiencePlaybackState !is AudiencePlaybackState.Ended && audiencePlaybackState !is AudiencePlaybackState.Failed
-            } else {
-                isWidgetLoaded
-            },
+            // Listener playback must stay active while the widget is connecting. Reporting it
+            // inactive pauses the WebView before it can send content_loaded, which deadlocks
+            // audience startup.
+            isCallActive = callData.audienceBroadcastId != null || isWidgetLoaded,
             isAudience = callData.audienceBroadcastId != null,
-            audiencePlaybackState = audiencePlaybackState,
             canManageAudience = canManageAudience,
             audienceHostControl = audienceHostControl,
             eventSink = ::handleEvent,
@@ -256,12 +247,13 @@ class CallScreenPresenter(
         callWidgetDriver: MutableState<MatrixWidgetDriver?>,
         languageTag: String?,
         theme: String?,
+        clientId: String,
     ) {
         urlState.runCatchingUpdatingState {
             val result = callWidgetProvider.getWidget(
                 sessionId = callData.sessionId,
                 roomId = callData.roomId,
-                clientId = UUID.randomUUID().toString(),
+                clientId = clientId,
                 isAudioCall = callData.isAudioCall,
                 languageTag = languageTag,
                 theme = theme,
