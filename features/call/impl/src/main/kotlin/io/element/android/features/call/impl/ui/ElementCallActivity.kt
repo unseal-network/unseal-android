@@ -187,7 +187,14 @@ class ElementCallActivity :
             return
         }
         if (isAudience) audiencePlaybackEnabled.value = true
-        requestCallAudioFocus(isAudience)
+        // Chromium requests USAGE_MEDIA focus when HLS playback begins. A
+        // second native focus owner in the same process is then reported as
+        // AUDIOFOCUS_LOSS and our listener mutes the WebView that just started.
+        // Let WebView own media focus for audience playback; participant calls
+        // keep the existing native in-call focus policy.
+        if (shouldRequestNativeCallAudioFocus(isAudience)) {
+            requestCallAudioFocus(isAudience = false)
+        }
         if (isAudience) {
             AudiencePlaybackForegroundService.start(this)
         } else {
@@ -368,3 +375,5 @@ internal fun mapWebkitPermissions(permissions: Array<String>): List<String> {
         }
     }
 }
+
+internal fun shouldRequestNativeCallAudioFocus(isAudience: Boolean): Boolean = !isAudience

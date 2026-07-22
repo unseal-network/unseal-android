@@ -17,6 +17,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -97,6 +98,7 @@ import io.element.android.features.messages.api.timeline.voicemessages.composer.
 import io.element.android.features.messages.impl.actionlist.ActionListEvent
 import io.element.android.features.messages.impl.actionlist.ActionListView
 import io.element.android.features.messages.impl.actionlist.model.TimelineItemAction
+import io.element.android.features.messages.impl.components.ShapedClickableSurface
 import io.element.android.features.messages.impl.crypto.identity.IdentityChangeStateView
 import io.element.android.features.messages.impl.link.LinkEvent
 import io.element.android.features.messages.impl.link.LinkView
@@ -186,7 +188,6 @@ fun MessagesView(
     onJoinCallClick: (isAudioCall: Boolean) -> Unit,
     onJoinAudienceClick: (broadcastId: String) -> Unit,
     onStartCallWithListeners: (AudienceAccessMode) -> Unit = {},
-    onSetAudienceRelay: (AudienceAccessMode?) -> Unit = {},
     onRoomSchedulesClick: () -> Unit,
     onRoomWebhooksClick: () -> Unit = {},
     onViewAllPinnedMessagesClick: () -> Unit,
@@ -364,7 +365,6 @@ fun MessagesView(
                                         onJoinCallClick = onJoinCallClick,
                                         onJoinAudienceClick = onJoinAudienceClick,
                                         onStartCallWithListeners = onStartCallWithListeners,
-                                        onSetAudienceRelay = onSetAudienceRelay,
                                         onRoomSchedulesClick = onRoomSchedulesClick,
                                         onRoomWebhooksClick = onRoomWebhooksClick,
                                         onThreadsListClick = onThreadsListClick,
@@ -584,7 +584,6 @@ internal fun RowScope.MessagesMenuActions(
     onJoinCallClick: (isAudioCall: Boolean) -> Unit,
     onJoinAudienceClick: (broadcastId: String) -> Unit,
     onStartCallWithListeners: (AudienceAccessMode) -> Unit = {},
-    onSetAudienceRelay: (AudienceAccessMode?) -> Unit = {},
     onRoomSchedulesClick: () -> Unit,
     onRoomWebhooksClick: () -> Unit = {},
     onThreadsListClick: () -> Unit,
@@ -596,7 +595,6 @@ internal fun RowScope.MessagesMenuActions(
         onJoinCallClick = onJoinCallClick,
         onJoinAudienceClick = onJoinAudienceClick,
         onStartCallWithListeners = onStartCallWithListeners,
-        onSetAudienceRelay = onSetAudienceRelay,
     )
     RoomToolMenu(
         roomMenu = roomMenu,
@@ -613,25 +611,16 @@ private fun RoomCallButton(
     onJoinCallClick: (isAudioCall: Boolean) -> Unit,
     onJoinAudienceClick: (broadcastId: String) -> Unit,
     onStartCallWithListeners: (AudienceAccessMode) -> Unit,
-    onSetAudienceRelay: (AudienceAccessMode?) -> Unit,
 ) {
     var showMeetingEntry by remember { mutableStateOf(false) }
-    var showMeetingJoin by remember { mutableStateOf(false) }
-    var showListenerSettings by remember { mutableStateOf(false) }
     LaunchedEffect(roomCallState) {
         when (roomCallState) {
             RoomCallState.Unavailable -> {
                 showMeetingEntry = false
-                showMeetingJoin = false
-                showListenerSettings = false
             }
-            is RoomCallState.StandBy -> {
-                showMeetingJoin = false
-                showListenerSettings = false
-            }
+            is RoomCallState.StandBy -> Unit
             is RoomCallState.OnGoing -> {
                 showMeetingEntry = false
-                if (roomCallState.audienceBroadcastId == null) showMeetingJoin = false
             }
         }
     }
@@ -660,24 +649,9 @@ private fun RoomCallButton(
                     contentDescription = stringResource(CommonStrings.a11y_start_call),
                 )
             }
-            ListenerToolbarButton(
-                onClick = { showMeetingEntry = true },
-                enabled = roomCallState.canStartCall,
-                contentDescription = stringResource(R.string.a11y_start_meeting_with_listeners),
-            )
         }
         is RoomCallState.OnGoing -> {
-            val shouldManageListeners = roomCallState.audienceHostControl.isEnabled ||
-                roomCallState.canJoinCall &&
-                (roomCallState.isUserLocallyInTheCall || roomCallState.audienceBroadcastId == null)
-            if (shouldManageListeners) {
-                ListenerToolbarButton(
-                    onClick = { showListenerSettings = true },
-                    enabled = !roomCallState.audienceHostControl.isUpdating,
-                    isActive = roomCallState.audienceHostControl.isEnabled,
-                    contentDescription = stringResource(R.string.a11y_manage_meeting_listeners),
-                )
-            } else if (!roomCallState.isUserLocallyInTheCall) {
+            if (!roomCallState.isUserLocallyInTheCall) {
                 roomCallState.audienceBroadcastId?.let { broadcastId ->
                     ListenerToolbarButton(
                         onClick = { onJoinAudienceClick(broadcastId) },
@@ -688,15 +662,8 @@ private fun RoomCallButton(
             }
             if (!roomCallState.isUserLocallyInTheCall) {
                 ToolbarCircleButton(
-                    onClick = {
-                        if (roomCallState.audienceBroadcastId == null) {
-                            onJoinCallClick(roomCallState.isAudioCall)
-                        } else {
-                            showMeetingJoin = true
-                        }
-                    },
-                    enabled = !roomCallState.isAudienceDiscoveryPending &&
-                        (roomCallState.canJoinCall || roomCallState.audienceBroadcastId != null),
+                    onClick = { onJoinCallClick(roomCallState.isAudioCall) },
+                    enabled = roomCallState.canJoinCall,
                 ) {
                     Icon(
                         modifier = Modifier.size(22.dp),
@@ -711,47 +678,17 @@ private fun RoomCallButton(
             }
         }
     }
-    if (showMeetingJoin && roomCallState is RoomCallState.OnGoing) {
-        roomCallState.audienceBroadcastId?.let { broadcastId ->
-            MeetingJoinDialog(
-                canJoinMeeting = roomCallState.canJoinCall,
-                onJoinMeeting = {
-                    showMeetingJoin = false
-                    onJoinCallClick(roomCallState.isAudioCall)
-                },
-                onListenOnly = {
-                    showMeetingJoin = false
-                    onJoinAudienceClick(broadcastId)
-                },
-                onDismiss = { showMeetingJoin = false },
-            )
-        }
-    }
     if (showMeetingEntry && roomCallState is RoomCallState.StandBy) {
         ListenerMeetingDialog(
             title = stringResource(R.string.listener_meeting_start_title),
             isUpdating = roomCallState.audienceHostControl.isUpdating,
             errorMessage = roomCallState.audienceHostControl.errorMessage,
-            showDisable = false,
             onStandard = {
                 showMeetingEntry = false
                 onJoinCallClick(false)
             },
             onEnable = { mode -> onStartCallWithListeners(mode) },
-            onDisable = {},
             onDismiss = { if (!roomCallState.audienceHostControl.isUpdating) showMeetingEntry = false },
-        )
-    }
-    if (showListenerSettings && roomCallState is RoomCallState.OnGoing) {
-        ListenerMeetingDialog(
-            title = stringResource(R.string.listener_meeting_settings_title),
-            isUpdating = roomCallState.audienceHostControl.isUpdating,
-            errorMessage = roomCallState.audienceHostControl.errorMessage,
-            showDisable = roomCallState.audienceHostControl.isEnabled,
-            onStandard = null,
-            onEnable = onSetAudienceRelay,
-            onDisable = { onSetAudienceRelay(null) },
-            onDismiss = { if (!roomCallState.audienceHostControl.isUpdating) showListenerSettings = false },
         )
     }
 }
@@ -761,12 +698,10 @@ private fun ListenerToolbarButton(
     onClick: () -> Unit,
     enabled: Boolean,
     contentDescription: String,
-    isActive: Boolean = false,
 ) {
     ToolbarCircleButton(
         onClick = onClick,
         enabled = enabled,
-        isActive = isActive,
     ) {
         Icon(
             modifier = Modifier.size(22.dp),
@@ -782,54 +717,7 @@ internal fun ListenerToolbarButtonPreview() = ElementPreview {
     ListenerToolbarButton(
         onClick = {},
         enabled = true,
-        contentDescription = stringResource(R.string.a11y_manage_meeting_listeners),
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun MeetingJoinDialog(
-    canJoinMeeting: Boolean,
-    onJoinMeeting: () -> Unit,
-    onListenOnly: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    BasicAlertDialog(onDismissRequest = onDismiss) {
-        Surface(shape = MaterialTheme.shapes.extraLarge) {
-            Column(
-                modifier = Modifier.padding(24.dp).widthIn(min = 280.dp, max = 420.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.listener_meeting_join_title),
-                    style = ElementTheme.typography.fontHeadingMdBold,
-                )
-                Text(
-                    text = stringResource(R.string.listener_meeting_join_description),
-                    color = ElementTheme.colors.textSecondary,
-                )
-                TextButton(onClick = onJoinMeeting, enabled = canJoinMeeting) {
-                    Text(stringResource(R.string.listener_meeting_join_participant))
-                }
-                TextButton(onClick = onListenOnly) {
-                    Text(stringResource(R.string.listener_meeting_join_audience))
-                }
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(CommonStrings.action_cancel))
-                }
-            }
-        }
-    }
-}
-
-@PreviewsDayNight
-@Composable
-private fun MeetingJoinDialogPreview() = ElementPreview {
-    MeetingJoinDialog(
-        canJoinMeeting = true,
-        onJoinMeeting = {},
-        onListenOnly = {},
-        onDismiss = {},
+        contentDescription = stringResource(R.string.a11y_listen_to_meeting),
     )
 }
 
@@ -839,55 +727,138 @@ private fun ListenerMeetingDialog(
     title: String,
     isUpdating: Boolean,
     errorMessage: String?,
-    showDisable: Boolean,
     onStandard: (() -> Unit)?,
     onEnable: (AudienceAccessMode) -> Unit,
-    onDisable: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     BasicAlertDialog(onDismissRequest = onDismiss) {
-        Surface(shape = MaterialTheme.shapes.extraLarge) {
+        Surface(
+            modifier = Modifier.widthIn(min = 300.dp, max = 420.dp),
+            shape = MaterialTheme.shapes.extraLarge,
+            color = ElementTheme.colors.bgSubtleSecondary,
+            border = BorderStroke(1.dp, ElementTheme.colors.borderInteractiveSecondary.copy(alpha = 0.6f)),
+            tonalElevation = 8.dp,
+            shadowElevation = 24.dp,
+        ) {
             Column(
-                modifier = Modifier.padding(24.dp).widthIn(min = 280.dp, max = 420.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(text = title, style = ElementTheme.typography.fontHeadingMdBold)
-                Text(
-                    text = stringResource(R.string.listener_meeting_access_description),
-                    color = ElementTheme.colors.textSecondary,
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = title,
+                        style = ElementTheme.typography.fontHeadingMdBold,
+                        color = ElementTheme.colors.textPrimary,
+                    )
+                    Text(
+                        text = stringResource(R.string.listener_meeting_access_description),
+                        style = ElementTheme.typography.fontBodyMdRegular,
+                        color = ElementTheme.colors.textSecondary,
+                    )
+                }
                 errorMessage?.let {
                     Text(text = it, color = ElementTheme.colors.textCriticalPrimary)
                 }
                 onStandard?.let { action ->
-                    TextButton(onClick = action, enabled = !isUpdating) {
-                        Text(stringResource(R.string.listener_meeting_standard))
-                    }
+                    ListenerMeetingOption(
+                        title = stringResource(R.string.listener_meeting_standard),
+                        description = stringResource(R.string.listener_meeting_standard_description),
+                        enabled = !isUpdating,
+                        onClick = action,
+                    )
                 }
-                TextButton(onClick = { onEnable(AudienceAccessMode.Authenticated) }, enabled = !isUpdating) {
-                    Text(stringResource(R.string.listener_meeting_authenticated))
-                }
-                TextButton(onClick = { onEnable(AudienceAccessMode.RoomMembers) }, enabled = !isUpdating) {
-                    Text(stringResource(R.string.listener_meeting_room_members))
-                }
-                if (showDisable) {
-                    TextButton(onClick = onDisable, enabled = !isUpdating) {
-                        Text(stringResource(R.string.listener_meeting_disable))
-                    }
-                }
+                ListenerMeetingOption(
+                    title = stringResource(R.string.listener_meeting_authenticated),
+                    description = stringResource(R.string.listener_meeting_authenticated_description),
+                    enabled = !isUpdating,
+                    onClick = { onEnable(AudienceAccessMode.Authenticated) },
+                )
+                ListenerMeetingOption(
+                    title = stringResource(R.string.listener_meeting_room_members),
+                    description = stringResource(R.string.listener_meeting_room_members_description),
+                    enabled = !isUpdating,
+                    onClick = { onEnable(AudienceAccessMode.RoomMembers) },
+                )
                 if (isUpdating) {
                     Text(
                         text = stringResource(R.string.listener_meeting_arming),
                         color = ElementTheme.colors.textSecondary,
                     )
                 } else {
-                    TextButton(onClick = onDismiss) {
-                        Text(stringResource(CommonStrings.action_cancel))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        TextButton(onClick = onDismiss) {
+                            Text(stringResource(CommonStrings.action_cancel))
+                        }
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun ListenerMeetingOption(
+    title: String,
+    description: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val contentColor = if (enabled) ElementTheme.colors.textPrimary else ElementTheme.colors.textDisabled
+    ShapedClickableSurface(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onClick,
+        enabled = enabled,
+        shape = MaterialTheme.shapes.large,
+        color = ElementTheme.colors.bgCanvasDefault,
+        border = BorderStroke(
+            width = 1.dp,
+            color = ElementTheme.colors.borderInteractiveSecondary.copy(alpha = 0.45f),
+        ),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Text(
+                    text = title,
+                    style = ElementTheme.typography.fontBodyLgMedium,
+                    color = contentColor,
+                )
+                Text(
+                    text = description,
+                    style = ElementTheme.typography.fontBodySmRegular,
+                    color = if (enabled) ElementTheme.colors.textSecondary else ElementTheme.colors.textDisabled,
+                )
+            }
+            Icon(
+                modifier = Modifier.size(18.dp),
+                imageVector = CompoundIcons.ChevronRight(),
+                tint = if (enabled) ElementTheme.colors.iconSecondary else ElementTheme.colors.iconDisabled,
+                contentDescription = null,
+            )
+        }
+    }
+}
+
+@PreviewsDayNight
+@Composable
+private fun ListenerMeetingStartDialogPreview() = ElementPreview {
+    ListenerMeetingDialog(
+        title = stringResource(R.string.listener_meeting_start_title),
+        isUpdating = false,
+        errorMessage = null,
+        onStandard = {},
+        onEnable = {},
+        onDismiss = {},
+    )
 }
 
 @Composable

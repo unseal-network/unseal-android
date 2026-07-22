@@ -324,20 +324,12 @@ class MessagesNode(
                     callback.navigateToRoomAudience(room.roomId, broadcastId)
                 },
                 onStartCallWithListeners = { accessMode ->
+                    // Normal Element Call entry and Relay convergence are
+                    // independent. Listener readiness must never delay or
+                    // block the host from entering the meeting.
+                    callback.navigateToRoomCall(room.roomId, false)
                     sessionCoroutineScope.launch {
                         audienceBroadcastService.enableRelay(room.sessionId, room.roomId, accessMode)
-                            .onSuccess { control ->
-                                if (control.broadcastArmed) callback.navigateToRoomCall(room.roomId, false)
-                            }
-                    }
-                },
-                onSetAudienceRelay = { accessMode ->
-                    sessionCoroutineScope.launch {
-                        if (accessMode == null) {
-                            audienceBroadcastService.disableRelay(room.sessionId, room.roomId)
-                        } else {
-                            audienceBroadcastService.enableRelay(room.sessionId, room.roomId, accessMode)
-                        }
                     }
                 },
                 onRoomSchedulesClick = {

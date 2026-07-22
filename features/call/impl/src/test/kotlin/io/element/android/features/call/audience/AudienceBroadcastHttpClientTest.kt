@@ -144,6 +144,47 @@ class AudienceBroadcastHttpClientTest {
     }
 
     @Test
+    fun `widget bridge forwards Cloudflare receiver offer answer and first-media commit signaling`() = runTest {
+        server.enqueue(MockResponse().setBody("{}"))
+        server.enqueue(MockResponse().setBody("{}"))
+        server.enqueue(MockResponse().setBody("{}"))
+        val client = createClient()
+        val sessionPath = "/meeting-broadcast/v1/broadcasts/bcast_demo/audience-sessions/aud_demo"
+
+        client.requestAudienceWidget(
+            sessionId = A_SESSION_ID,
+            broadcastId = "bcast_demo",
+            method = "POST",
+            path = "$sessionPath/webrtc/offer",
+            body = null,
+        )
+        client.requestAudienceWidget(
+            sessionId = A_SESSION_ID,
+            broadcastId = "bcast_demo",
+            method = "POST",
+            path = "$sessionPath/webrtc/answer",
+            body = buildJsonObject {
+                put("receiver_session_id", "receiver-2")
+                put("answer", buildJsonObject {
+                    put("type", "answer")
+                    put("sdp", "v=0\\r\\n")
+                })
+            },
+        )
+        client.requestAudienceWidget(
+            sessionId = A_SESSION_ID,
+            broadcastId = "bcast_demo",
+            method = "POST",
+            path = "$sessionPath/webrtc/commit",
+            body = buildJsonObject { put("receiver_session_id", "receiver-2") },
+        )
+
+        assertThat(server.takeRequest().path).isEqualTo("$sessionPath/webrtc/offer")
+        assertThat(server.takeRequest().path).isEqualTo("$sessionPath/webrtc/answer")
+        assertThat(server.takeRequest().path).isEqualTo("$sessionPath/webrtc/commit")
+    }
+
+    @Test
     fun `relay control uses Unseal API origin and canonical desired body`() = runTest {
         server.enqueue(
             MockResponse().setBody(
@@ -319,7 +360,7 @@ class AudienceBroadcastHttpClientTest {
             sessionStore = sessionStore,
             baseUrlResolver = object : ChatbotBaseUrlResolver {
                 override suspend fun resolveUnsealApiBaseUrl(serverName: String?): String = server.url("/").toString()
-                override suspend fun resolveHomeserverBaseUrl(serverName: String?): String = "https://matrix.invalid"
+                override suspend fun resolveHomeserverBaseUrl(serverName: String?): String = server.url("/").toString()
             },
             okHttpClient = { okHttpClient },
         )

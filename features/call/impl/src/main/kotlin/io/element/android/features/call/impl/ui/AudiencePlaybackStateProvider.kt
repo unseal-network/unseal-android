@@ -18,7 +18,7 @@ import io.element.android.features.call.impl.audience.AudienceRendition
 internal class AudiencePlaybackStateProvider : PreviewParameterProvider<AudiencePlaybackState> {
     private val manifest = AudienceManifest(
         broadcastId = "bcast_demo",
-        meetingInstanceId = "4d1c64a7-6d0a-4fac-91f8-5bcbf2fc6a9d",
+        meetingInstanceId = "m.call#",
         generation = 2,
         revision = 4,
         presentations = listOf(

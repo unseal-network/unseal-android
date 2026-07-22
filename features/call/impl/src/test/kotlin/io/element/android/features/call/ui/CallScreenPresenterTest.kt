@@ -43,6 +43,7 @@ import io.element.android.tests.testutils.lambda.lambdaRecorder
 import io.element.android.tests.testutils.lambda.value
 import io.element.android.tests.testutils.test
 import io.element.android.tests.testutils.testCoroutineDispatchers
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
@@ -202,6 +203,36 @@ class CallScreenPresenterTest {
             val failedState = expectMostRecentItem()
             assertThat(failedState.webViewError).isNotNull()
             assertThat(failedState.isCallActive).isFalse()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `present - audience mode does not time out before widget URL is available`() = runTest {
+        val allowWidgetResult = CompletableDeferred<Unit>()
+        val presenter = createCallScreenPresenter(
+            callData = CallData(A_SESSION_ID, A_ROOM_ID, false, audienceBroadcastId = "bcast_demo"),
+            widgetProvider = FakeCallWidgetProvider(beforeResult = { allowWidgetResult.await() }),
+            dispatchers = testCoroutineDispatchers(useUnconfinedTestDispatcher = true),
+            screenTracker = FakeScreenTracker {},
+        )
+        val messageInterceptor = FakeWidgetMessageInterceptor()
+
+        presenter.test {
+            advanceTimeBy(1.seconds)
+            val loadingState = expectMostRecentItem()
+            assertThat(loadingState.urlState).isInstanceOf(AsyncData.Loading::class.java)
+            loadingState.eventSink(CallScreenEvent.SetupMessageChannels(messageInterceptor))
+            runCurrent()
+            expectMostRecentItem()
+
+            advanceTimeBy(10.seconds)
+            runCurrent()
+
+            expectNoEvents()
+            allowWidgetResult.complete(Unit)
+            runCurrent()
+            assertThat(expectMostRecentItem().urlState).isInstanceOf(AsyncData.Success::class.java)
             cancelAndIgnoreRemainingEvents()
         }
     }

@@ -15,6 +15,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.test.AndroidComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertDoesNotExist
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -145,9 +147,19 @@ class MessagesViewTest {
         val state = aMessagesState(eventSink = EventsRecorder<MessagesEvent>(expectEvents = false))
         ensureCalledOnceWithParam(AudienceAccessMode.RoomMembers) { callback ->
             setMessagesView(state = state, onStartCallWithListeners = callback)
-            onNodeWithContentDescription(activity!!.getString(R.string.a11y_start_meeting_with_listeners)).performClick()
+            onNodeWithContentDescription(activity!!.getString(CommonStrings.a11y_start_call)).performClick()
             onNodeWithText("Allow room members only").performClick()
         }
+    }
+
+    @Test
+    fun `standby room exposes one meeting entry instead of a separate listener entry`() = runAndroidComposeUiTest {
+        val state = aMessagesState(eventSink = EventsRecorder<MessagesEvent>(expectEvents = false))
+
+        setMessagesView(state = state)
+
+        onNodeWithContentDescription(activity!!.getString(CommonStrings.a11y_start_call)).assertExists()
+        onNodeWithContentDescription(activity!!.getString(R.string.a11y_start_meeting_with_listeners)).assertDoesNotExist()
     }
 
     @Test
@@ -171,7 +183,7 @@ class MessagesViewTest {
     }
 
     @Test
-    fun `joining a broadcast offers meeting and listen only choices`() = runAndroidComposeUiTest {
+    fun `ongoing broadcast exposes an independent listen-only entry`() = runAndroidComposeUiTest {
         val state = aMessagesState(
             eventSink = EventsRecorder<MessagesEvent>(expectEvents = false),
             roomCallState = anOngoingCallState(
@@ -187,14 +199,10 @@ class MessagesViewTest {
             onJoinAudienceClick = { joinedBroadcast = it },
         )
 
-        onNodeWithContentDescription(activity!!.getString(CommonStrings.action_join)).performClick()
-
-        assertThat(joinedCall).isNull()
-        assertThat(joinedBroadcast).isNull()
-        onNodeWithText("Join as participant").assertExists()
-        onNodeWithText("Listen only").performClick()
+        onNodeWithContentDescription(activity!!.getString(R.string.a11y_listen_to_meeting)).performClick()
         assertThat(joinedBroadcast).isEqualTo("bcast_demo")
         assertThat(joinedCall).isNull()
+        onNodeWithContentDescription("Join").assertIsNotEnabled()
     }
 
     @Test
@@ -215,15 +223,14 @@ class MessagesViewTest {
             onJoinAudienceClick = { joinedBroadcast = it },
         )
 
-        onNodeWithContentDescription(activity!!.getString(CommonStrings.action_join)).performClick()
-        onNodeWithText("Join as participant").performClick()
+        onNodeWithContentDescription("Join").performClick()
 
         assertThat(joinedCall).isFalse()
         assertThat(joinedBroadcast).isNull()
     }
 
     @Test
-    fun `joining is disabled while listener discovery is pending`() = runAndroidComposeUiTest {
+    fun `ordinary meeting join stays enabled while listener discovery is pending`() = runAndroidComposeUiTest {
         val state = aMessagesState(
             eventSink = EventsRecorder<MessagesEvent>(expectEvents = false),
             roomCallState = anOngoingCallState(
@@ -231,14 +238,17 @@ class MessagesViewTest {
                 isAudienceDiscoveryPending = true,
             ),
         )
-        setMessagesView(state = state)
+        var joinedCall: Boolean? = null
+        setMessagesView(state = state, onJoinCallClick = { joinedCall = it })
 
-        onNodeWithContentDescription(activity!!.getString(CommonStrings.action_join))
-            .assertIsNotEnabled()
+        onNodeWithContentDescription("Join")
+            .assertIsEnabled()
+            .performClick()
+        assertThat(joinedCall).isFalse()
     }
 
     @Test
-    fun `ongoing standard meeting exposes listener controls in the room top bar`() = runAndroidComposeUiTest {
+    fun `ongoing meeting without discovery does not expose a listener entry`() = runAndroidComposeUiTest {
         val state = aMessagesState(
             eventSink = EventsRecorder<MessagesEvent>(expectEvents = false),
             roomCallState = anOngoingCallState(
@@ -247,15 +257,10 @@ class MessagesViewTest {
                 isUserLocallyInTheCall = false,
             ),
         )
-        ensureCalledOnceWithParam(AudienceAccessMode.RoomMembers) { callback ->
-            setMessagesView(
-                state = state,
-                onSetAudienceRelay = { mode -> callback(checkNotNull(mode)) },
-            )
-            onNodeWithContentDescription(activity!!.getString(R.string.a11y_manage_meeting_listeners))
-                .performClick()
-            onNodeWithText("Allow room members only").performClick()
-        }
+        setMessagesView(state = state)
+
+        onNodeWithContentDescription(activity!!.getString(R.string.a11y_listen_to_meeting)).assertDoesNotExist()
+        onNodeWithContentDescription("Join").assertIsEnabled()
     }
 
     @Test
@@ -852,7 +857,6 @@ private fun AndroidComposeUiTest<ComponentActivity>.setMessagesView(
     onJoinCallClick: (Boolean) -> Unit = EnsureNeverCalledWithParam(),
     onJoinAudienceClick: (String) -> Unit = EnsureNeverCalledWithParam(),
     onStartCallWithListeners: (AudienceAccessMode) -> Unit = EnsureNeverCalledWithParam(),
-    onSetAudienceRelay: (AudienceAccessMode?) -> Unit = EnsureNeverCalledWithParam(),
     onViewAllPinnedMessagesClick: () -> Unit = EnsureNeverCalled(),
     onThreadsListClicked: () -> Unit = EnsureNeverCalled(),
     onRoomSchedulesClick: () -> Unit = EnsureNeverCalled(),
@@ -872,7 +876,6 @@ private fun AndroidComposeUiTest<ComponentActivity>.setMessagesView(
                 onJoinCallClick = onJoinCallClick,
                 onJoinAudienceClick = onJoinAudienceClick,
                 onStartCallWithListeners = onStartCallWithListeners,
-                onSetAudienceRelay = onSetAudienceRelay,
                 onViewAllPinnedMessagesClick = onViewAllPinnedMessagesClick,
                 onRoomSchedulesClick = onRoomSchedulesClick,
                 knockRequestsBannerView = {},

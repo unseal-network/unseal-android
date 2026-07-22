@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ripple
@@ -108,8 +107,7 @@ internal fun MessagesViewTopBar(
             val roundedCornerShape = RoundedCornerShape(24.dp)
             Row(
                 modifier = Modifier
-                    .weight(1f, fill = false)
-                    .widthIn(max = 288.dp)
+                    .weight(1f)
                     .height(48.dp)
                     .shadow(10.dp, roundedCornerShape, clip = false, ambientColor = Color.Black.copy(alpha = 0.05f), spotColor = Color.Black.copy(alpha = 0.07f))
                     .clip(roundedCornerShape)

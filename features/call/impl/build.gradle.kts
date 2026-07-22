@@ -80,7 +80,7 @@ val verifyEmbeddedUnsealCall by tasks.registering {
             }
             digest.digest().joinToString("") { "%02x".format(it) }
         }
-        check(checksum == "e361a89e944d2ea4d4457542d357a54ae5f77415803f2611f0e8fb9799508de7") {
+        check(checksum == "59a6b75e4c1cbd867c7151c3416e2865659c5e8a112b86b2b79a7992e698398a") {
             "Embedded Unseal Call does not match the reviewed AAR checksum"
         }
         ZipFile(embeddedAar.asFile).use { archive ->
@@ -91,7 +91,7 @@ val verifyEmbeddedUnsealCall by tasks.registering {
             check("\"package_type\":\"embedded\"" in version) {
                 "Unseal Call must be built as an embedded package"
             }
-            check("\"unseal_call_sha\":\"635841bb5fe63e7f1b85398ebd124bcdee3e4c1c\"" in version) {
+            check("\"unseal_call_sha\":\"635841bb5fe63e7f1b85398ebd124bcdee3e4c1c+audience-lease-recovery-local\"" in version) {
                 "Embedded Unseal Call does not match the reviewed source revision"
             }
             val containsAudienceRoute = archive.entries().asSequence()

@@ -139,6 +139,7 @@ class DefaultCallWidgetProviderTest {
         }
         val baseUrlResolver = mockk<ChatbotBaseUrlResolver> {
             coEvery { resolveUnsealApiBaseUrl(any()) } returns "https://api.matrix.example/unseal"
+            coEvery { resolveHomeserverBaseUrl(any()) } returns "https://matrix.example/_matrix"
         }
         val provider = createProvider(
             matrixClientProvider = FakeMatrixClientProvider {
@@ -163,7 +164,7 @@ class DefaultCallWidgetProviderTest {
         assertThat(uri.encodedPath).isEqualTo("/element-call/index.html")
         assertThat(uri.fragment).isEqualTo("/audience/bcast_demo")
         assertThat(uri.queryParameter("parentUrl")).isEqualTo("https://appassets.androidplatform.net")
-        assertThat(uri.queryParameter("baseUrl")).isEqualTo("https://api.matrix.example")
+        assertThat(uri.queryParameter("baseUrl")).isEqualTo("https://matrix.example")
     }
 
     @Test
@@ -200,6 +201,7 @@ class DefaultCallWidgetProviderTest {
         activeRoomsHolder: ActiveRoomsHolder = DefaultActiveRoomsHolder(),
         baseUrlResolver: ChatbotBaseUrlResolver = mockk {
             coEvery { resolveUnsealApiBaseUrl(any()) } returns "https://keepsecret.io"
+            coEvery { resolveHomeserverBaseUrl(any()) } returns "https://keepsecret.io"
         },
     ) = DefaultCallWidgetProvider(
         matrixClientsProvider = matrixClientProvider,

@@ -50,7 +50,7 @@ class DefaultCallWidgetProvider(
         if (audienceBroadcastId != null) {
             require(audienceBroadcastId.isValidAudienceBroadcastId()) { "Invalid audience broadcast ID" }
             val mediaOrigin = baseUrlResolver
-                .resolveUnsealApiBaseUrl(matrixClient.userIdServerName())
+                .resolveHomeserverBaseUrl(matrixClient.userIdServerName())
                 .toHttpUrl()
                 .origin()
             val widgetId = "unseal-audience-$audienceBroadcastId"

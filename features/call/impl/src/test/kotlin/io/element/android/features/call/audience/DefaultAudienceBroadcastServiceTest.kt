@@ -35,6 +35,24 @@ import org.junit.Test
 
 class DefaultAudienceBroadcastServiceTest {
     @Test
+    fun `room discovery stays idle when the room has no broadcast state event`() = runTest {
+        val httpClient = mockk<AudienceBroadcastHttpClient>()
+        val room = io.element.android.libraries.matrix.test.room.FakeJoinedRoom(
+            baseRoom = io.element.android.libraries.matrix.test.room.FakeBaseRoom(
+                getStateEventJsonResult = { _, _ -> Result.success(null) },
+            ),
+        )
+        val matrixClient = FakeMatrixClient().apply { givenGetRoomResult(A_ROOM_ID, room) }
+        val service = createService(httpClient, matrixClient)
+
+        service.observeRoomDiscovery(A_SESSION_ID, A_ROOM_ID).test {
+            assertThat(awaitItem()).isNull()
+            coVerify(exactly = 0) { httpClient.getRuntimeStatus(A_SESSION_ID, any()) }
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `direct audience runtime resolution survives a transient API failure`() = runTest {
         val httpClient = mockk<AudienceBroadcastHttpClient>()
         var statusRequests = 0
@@ -110,15 +128,40 @@ class DefaultAudienceBroadcastServiceTest {
     }
 
     @Test
+    fun `temporary custom state cache miss retains a previously observed broadcast`() = runTest {
+        val httpClient = mockk<AudienceBroadcastHttpClient>()
+        every { httpClient.parseDiscovery("canonical") } returns aDiscovery()
+        coEvery { httpClient.getRuntimeStatus(A_SESSION_ID, "bcast_demo") } returns aRuntime(
+            phase = AudienceRuntimePhase.Live,
+            armed = true,
+        )
+        var stateEvent: String? = "canonical"
+        val syncUpdateFlow = MutableStateFlow(0L)
+        val room = io.element.android.libraries.matrix.test.room.FakeJoinedRoom(
+            baseRoom = io.element.android.libraries.matrix.test.room.FakeBaseRoom(
+                getStateEventJsonResult = { _, _ -> Result.success(stateEvent) },
+            ),
+            syncUpdateFlow = syncUpdateFlow,
+        )
+        val matrixClient = FakeMatrixClient().apply { givenGetRoomResult(A_ROOM_ID, room) }
+        val service = createService(httpClient, matrixClient)
+
+        service.observeRoomDiscovery(A_SESSION_ID, A_ROOM_ID).test {
+            assertThat(awaitItem()?.broadcastId).isEqualTo("bcast_demo")
+            stateEvent = null
+            syncUpdateFlow.value++
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `repeated enable keeps one meeting fence and updates access mode idempotently`() = runTest {
         val httpClient = mockk<AudienceBroadcastHttpClient>()
         val meetingIds = mutableListOf<String>()
         coEvery {
             httpClient.setRelayDesired(A_SESSION_ID, A_ROOM_ID, capture(meetingIds), AudienceRelayDesired.Joined, any())
         } answers { aRuntime(meetingInstanceId = thirdArg(), armed = false) }
-        coEvery { httpClient.getRuntimeStatus(A_SESSION_ID, "bcast_demo") } answers {
-            aRuntime(meetingInstanceId = meetingIds.last(), armed = true)
-        }
         val service = createService(httpClient, FakeMatrixClient())
 
         val first = service.enableRelay(A_SESSION_ID, A_ROOM_ID, AudienceAccessMode.Authenticated).getOrThrow()
@@ -126,44 +169,32 @@ class DefaultAudienceBroadcastServiceTest {
 
         assertThat(meetingIds).hasSize(2)
         assertThat(meetingIds.distinct()).hasSize(1)
-        assertThat(first.broadcastArmed).isTrue()
+        assertThat(first.broadcastArmed).isFalse()
         assertThat(second.accessMode).isEqualTo(AudienceAccessMode.RoomMembers)
+        coVerify(exactly = 0) { httpClient.getRuntimeStatus(A_SESSION_ID, any()) }
     }
 
     @Test
-    fun `enable retries a transient status failure and still converges to armed`() = runTest {
+    fun `relay join acknowledgement does not poll runtime before discovery`() = runTest {
         val httpClient = mockk<AudienceBroadcastHttpClient>()
-        var meetingId = MEETING_ID
         coEvery {
             httpClient.setRelayDesired(A_SESSION_ID, A_ROOM_ID, any(), AudienceRelayDesired.Joined, any())
-        } answers {
-            meetingId = thirdArg()
-            aRuntime(meetingInstanceId = meetingId, armed = false)
-        }
-        var statusRequests = 0
-        coEvery { httpClient.getRuntimeStatus(A_SESSION_ID, "bcast_demo") } answers {
-            statusRequests++
-            if (statusRequests == 1) throw AudienceHttpException(503, "temporarily unavailable")
-            aRuntime(meetingInstanceId = meetingId, armed = true)
-        }
+        } answers { aRuntime(meetingInstanceId = thirdArg(), armed = false) }
         val service = createService(httpClient, FakeMatrixClient())
 
         val result = service.enableRelay(A_SESSION_ID, A_ROOM_ID, AudienceAccessMode.Authenticated)
 
-        assertThat(result.getOrThrow().broadcastArmed).isTrue()
-        assertThat(statusRequests).isEqualTo(2)
+        assertThat(result.getOrThrow().phase).isEqualTo(AudienceRuntimePhase.Joining)
+        assertThat(result.getOrThrow().broadcastArmed).isFalse()
+        coVerify(exactly = 0) { httpClient.getRuntimeStatus(A_SESSION_ID, any()) }
     }
 
     @Test
-    fun `disable retries a transient status failure and still converges to ended`() = runTest {
+    fun `relay leave acknowledgement does not poll runtime before discovery`() = runTest {
         val httpClient = mockk<AudienceBroadcastHttpClient>()
-        var meetingId = MEETING_ID
         coEvery {
             httpClient.setRelayDesired(A_SESSION_ID, A_ROOM_ID, any(), AudienceRelayDesired.Joined, any())
-        } answers {
-            meetingId = thirdArg()
-            aRuntime(meetingInstanceId = meetingId, armed = true)
-        }
+        } answers { aRuntime(meetingInstanceId = thirdArg(), armed = false) }
         coEvery {
             httpClient.setRelayDesired(A_SESSION_ID, A_ROOM_ID, any(), AudienceRelayDesired.Left, null)
         } answers {
@@ -174,24 +205,14 @@ class DefaultAudienceBroadcastServiceTest {
                 armed = false,
             )
         }
-        var statusRequests = 0
-        coEvery { httpClient.getRuntimeStatus(A_SESSION_ID, "bcast_demo") } answers {
-            statusRequests++
-            if (statusRequests == 1) throw AudienceHttpException(0, "offline")
-            aRuntime(
-                meetingInstanceId = meetingId,
-                phase = AudienceRuntimePhase.Ended,
-                desired = AudienceRelayDesired.Left,
-                armed = false,
-            )
-        }
         val service = createService(httpClient, FakeMatrixClient())
         service.enableRelay(A_SESSION_ID, A_ROOM_ID, AudienceAccessMode.Authenticated).getOrThrow()
 
         val result = service.disableRelay(A_SESSION_ID, A_ROOM_ID)
 
-        assertThat(result.getOrThrow().phase).isEqualTo(AudienceRuntimePhase.Ended)
-        assertThat(statusRequests).isEqualTo(2)
+        assertThat(result.getOrThrow().phase).isEqualTo(AudienceRuntimePhase.Leaving)
+        assertThat(result.getOrThrow().desired).isEqualTo(AudienceRelayDesired.Left)
+        coVerify(exactly = 0) { httpClient.getRuntimeStatus(A_SESSION_ID, any()) }
     }
 
     @Test
@@ -229,7 +250,7 @@ class DefaultAudienceBroadcastServiceTest {
     }
 
     @Test
-    fun `clearing a meeting resets the published state in place and creates a new fence`() = runTest {
+    fun `clearing a meeting resets the published state and creates a fresh UUID fence`() = runTest {
         val httpClient = mockk<AudienceBroadcastHttpClient>()
         val meetingIds = mutableListOf<String>()
         coEvery {
@@ -249,13 +270,11 @@ class DefaultAudienceBroadcastServiceTest {
     }
 
     @Test
-    fun `arming rejects runtime from another meeting and restores the previous state`() = runTest {
+    fun `relay control rejects acknowledgement from another meeting and restores the previous state`() = runTest {
         val httpClient = mockk<AudienceBroadcastHttpClient>()
         coEvery {
             httpClient.setRelayDesired(A_SESSION_ID, A_ROOM_ID, any(), AudienceRelayDesired.Joined, any())
-        } answers { aRuntime(meetingInstanceId = thirdArg(), armed = false) }
-        coEvery { httpClient.getRuntimeStatus(A_SESSION_ID, "bcast_demo") } returns
-            aRuntime(meetingInstanceId = MEETING_ID, armed = true)
+        } returns aRuntime(meetingInstanceId = OTHER_MEETING_ID, armed = false)
         val service = createService(httpClient, FakeMatrixClient())
 
         val result = service.enableRelay(A_SESSION_ID, A_ROOM_ID, AudienceAccessMode.Authenticated)
@@ -317,3 +336,4 @@ private fun aRuntime(
 )
 
 private const val MEETING_ID = "4d1c64a7-6d0a-4fac-91f8-5bcbf2fc6a9d"
+private const val OTHER_MEETING_ID = "5e2d75b8-7e1b-4a57-9f47-6cc1034ec2b8"

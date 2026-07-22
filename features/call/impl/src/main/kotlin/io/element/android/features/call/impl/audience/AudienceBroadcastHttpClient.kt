@@ -583,11 +583,28 @@ private fun isAllowedAudienceRequest(
             input.keys == setOf("generation") &&
                 input["generation"]?.jsonPrimitive?.intOrNull?.let { it >= 0 } == true
         }
+        method == "POST" && match.groupValues[3] == "/webrtc/offer" -> body == null
+        method == "POST" && match.groupValues[3] == "/webrtc/answer" -> {
+            val input = body as? JsonObject ?: return false
+            val answer = input["answer"] as? JsonObject ?: return false
+            input.keys == setOf("receiver_session_id", "answer") &&
+                !input["receiver_session_id"]?.jsonPrimitive?.contentOrNull.isNullOrBlank() &&
+                answer.keys == setOf("type", "sdp") &&
+                answer["type"]?.jsonPrimitive?.contentOrNull == "answer" &&
+                !answer["sdp"]?.jsonPrimitive?.contentOrNull.isNullOrBlank()
+        }
+        method == "POST" && match.groupValues[3] == "/webrtc/commit" -> {
+            val input = body as? JsonObject ?: return false
+            input.keys == setOf("receiver_session_id") &&
+                !input["receiver_session_id"]?.jsonPrimitive?.contentOrNull.isNullOrBlank()
+        }
         else -> false
     }
 }
 
 private val DISCOVERY_FIELDS = setOf("version", "broadcast_id", "meeting_instance_id", "access_mode")
+private const val DISCOVERY_EVENT_TYPE = "org.unseal.meeting.broadcast"
+private const val DISCOVERY_STATE_KEY = "m.call"
 private val RUNTIME_STATUS_REQUIRED_FIELDS = setOf(
     "version",
     "broadcast_id",
@@ -611,7 +628,7 @@ private val AUDIENCE_CLIENT_ID_PATTERN = Regex("^client_[A-Za-z0-9_-]+$")
 private val AUDIENCE_SESSION_ID_PATTERN = Regex("^aud_[A-Za-z0-9_-]+$")
 private val MXC_URL_PATTERN = Regex("^mxc://[^/?#\\s]+/[^/?#\\s]+$")
 private val AUDIENCE_SESSION_PATH_PATTERN =
-    Regex("^/meeting-broadcast/v1/broadcasts/(bcast_[A-Za-z0-9_-]+)/audience-sessions/(aud_[A-Za-z0-9_-]+)(/heartbeat)?$")
+    Regex("^/meeting-broadcast/v1/broadcasts/(bcast_[A-Za-z0-9_-]+)/audience-sessions/(aud_[A-Za-z0-9_-]+)(/heartbeat|/webrtc/offer|/webrtc/answer|/webrtc/commit)?$")
 private const val MIN_POLL_MS = 250L
 private const val MAX_LIVE_POLL_MS = 1_000L
 private const val MAX_POLL_MS = 5_000L

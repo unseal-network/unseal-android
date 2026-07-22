@@ -17,6 +17,7 @@ class FakeCallWidgetProvider(
     private val widgetDriver: FakeMatrixWidgetDriver = FakeMatrixWidgetDriver(),
     private val url: String = "https://call.element.io",
     private val error: Throwable? = null,
+    private val beforeResult: suspend () -> Unit = {},
 ) : CallWidgetProvider {
     var getWidgetCalled = false
         private set
@@ -31,6 +32,7 @@ class FakeCallWidgetProvider(
         audienceBroadcastId: String?,
     ): Result<CallWidgetProvider.GetWidgetResult> {
         getWidgetCalled = true
+        beforeResult()
         error?.let { return Result.failure(it) }
         return Result.success(
             CallWidgetProvider.GetWidgetResult(

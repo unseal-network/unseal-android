@@ -30,7 +30,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.sync.Mutex
@@ -82,11 +81,19 @@ class DefaultAudienceBroadcastService(
         val matrixClient = matrixClientProvider.getOrRestore(sessionId).getOrThrow()
         val room = matrixClient.getJoinedRoom(roomId) ?: error("Joined room is unavailable")
         var hasSnapshot = false
-        room.syncUpdateFlow.onStart { emit(room.syncUpdateFlow.value) }.collect {
+        room.syncUpdateFlow.collect {
             room.getStateEventJson(DISCOVERY_EVENT_TYPE, DISCOVERY_STATE_KEY)
                 .onSuccess { raw ->
-                    hasSnapshot = true
-                    emit(raw?.let(httpClient::parseDiscovery))
+                    if (raw != null) {
+                        hasSnapshot = true
+                        emit(httpClient.parseDiscovery(raw))
+                    } else if (!hasSnapshot) {
+                        // Sliding sync can temporarily omit custom state after it was observed.
+                        // Only the agent-authored tombstone (an actual JSON event parsed as null)
+                        // is authoritative enough to withdraw a known listener entry.
+                        hasSnapshot = true
+                        emit(null)
+                    }
                 }
                 .onFailure {
                     // A missing event is reported as an SDK failure. Emit the initial absent state,
@@ -158,12 +165,9 @@ class DefaultAudienceBroadcastService(
                 desired = AudienceRelayDesired.Joined,
                 accessMode = accessMode,
             )) { "Relay join returned no runtime" }
-            updateHostFromRuntime(sessionId, roomId, initial, accessMode, isUpdating = true)
-            if (initial.broadcastArmed) {
-                state.value.copy(isUpdating = false)
-            } else {
-                awaitArmed(sessionId, roomId, initial.broadcastId, accessMode)
-            }
+            requireRuntimeMatches(initial, roomId, meetingInstanceId)
+            updateHostFromRuntime(sessionId, roomId, initial, accessMode)
+            state.value
         }
     }
 
@@ -196,15 +200,8 @@ class DefaultAudienceBroadcastService(
                         isUpdating = false,
                     )
                 }
-                var runtime: AudienceRuntimeStatus = requireNotNull(initial)
-                requireRuntimeMatches(runtime, roomId, meetingInstanceId)
-                updateHostFromRuntime(sessionId, roomId, runtime, state.value.accessMode, isUpdating = true)
-                while (runtime.phase != AudienceRuntimePhase.Ended) {
-                    delay(runtime.pollAfterMs)
-                    runtime = getRuntimeStatusWithRetry(sessionId, runtime.broadcastId)
-                    requireRuntimeMatches(runtime, roomId, meetingInstanceId)
-                    updateHostFromRuntime(sessionId, roomId, runtime, state.value.accessMode, isUpdating = true)
-                }
+                requireRuntimeMatches(initial, roomId, meetingInstanceId)
+                updateHostFromRuntime(sessionId, roomId, initial, state.value.accessMode)
                 state.value.copy(isUpdating = false, desired = AudienceRelayDesired.Left)
             }
         }
@@ -215,42 +212,6 @@ class DefaultAudienceBroadcastService(
         if (!force && (state.value.isUpdating || state.value.isEnabled)) return
         sharedPreferences.edit().remove(preferenceKey(key)).apply()
         state.value = AudienceHostControlState()
-    }
-
-    private suspend fun awaitArmed(
-        sessionId: SessionId,
-        roomId: RoomId,
-        broadcastId: String,
-        accessMode: AudienceAccessMode,
-    ): AudienceHostControlState {
-        while (currentCoroutineContext().isActive) {
-            val runtime = getRuntimeStatusWithRetry(sessionId, broadcastId)
-            requireRuntimeMatches(runtime, roomId, stateFor(sessionId, roomId).value.meetingInstanceId)
-            updateHostFromRuntime(sessionId, roomId, runtime, accessMode, isUpdating = !runtime.broadcastArmed)
-            if (runtime.broadcastArmed) return stateFor(sessionId, roomId).value.copy(isUpdating = false)
-            if (runtime.phase == AudienceRuntimePhase.Ended || runtime.desired == AudienceRelayDesired.Left) {
-                error("Broadcast relay ended before it was ready")
-            }
-            delay(runtime.pollAfterMs)
-        }
-        error("Broadcast relay convergence was cancelled")
-    }
-
-    private suspend fun getRuntimeStatusWithRetry(
-        sessionId: SessionId,
-        broadcastId: String,
-    ): AudienceRuntimeStatus {
-        var retryDelayMs = INITIAL_STATUS_RETRY_DELAY_MS
-        repeat(MAX_TRANSIENT_STATUS_ATTEMPTS) { attempt ->
-            try {
-                return httpClient.getRuntimeStatus(sessionId, broadcastId)
-            } catch (failure: AudienceHttpException) {
-                if (!failure.isRetryableStatusFailure() || attempt == MAX_TRANSIENT_STATUS_ATTEMPTS - 1) throw failure
-                delay(retryDelayMs)
-                retryDelayMs = (retryDelayMs * 2).coerceAtMost(MAX_STATUS_RETRY_DELAY_MS)
-            }
-        }
-        error("Runtime status retry loop completed unexpectedly")
     }
 
     private suspend fun convergeControl(
@@ -365,7 +326,6 @@ private fun AudienceHttpException.userMessage(): String? = runCatching {
 private fun AudienceHttpException.isRetryableStatusFailure(): Boolean =
     statusCode == 0 || statusCode == 429 || statusCode >= 500
 
-private const val MAX_TRANSIENT_STATUS_ATTEMPTS = 4
 private const val INITIAL_STATUS_RETRY_DELAY_MS = 500L
 private const val MAX_STATUS_RETRY_DELAY_MS = 4_000L
 

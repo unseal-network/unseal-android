@@ -15,9 +15,13 @@
     <string name="listener_meeting_settings_title">Listener access</string>
     <string name="listener_meeting_access_description">Choose who can listen. Listener media is delivered as a read-only broadcast.</string>
     <string name="listener_meeting_standard">Start standard meeting</string>
+    <string name="listener_meeting_standard_description">Start the regular encrypted meeting without a listener stream.</string>
     <string name="listener_meeting_authenticated">Allow any signed-in listener</string>
+    <string name="listener_meeting_authenticated_description">Anyone signed in to Unseal with the link can listen.</string>
     <string name="listener_meeting_room_members">Allow room members only</string>
+    <string name="listener_meeting_room_members_description">Only people who belong to this room can listen.</string>
     <string name="listener_meeting_disable">Turn off listeners</string>
+    <string name="listener_meeting_disable_description">Stop listener access without ending the meeting.</string>
     <string name="listener_meeting_arming">Preparing listener stream…</string>
     <string name="listener_meeting_join_title">Join meeting</string>
     <string name="listener_meeting_join_description">Choose whether to participate in the meeting or watch the live stream without publishing audio or video.</string>

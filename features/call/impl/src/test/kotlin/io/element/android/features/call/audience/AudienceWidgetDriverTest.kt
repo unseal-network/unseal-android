@@ -24,7 +24,7 @@ import org.junit.Test
 
 class AudienceWidgetDriverTest {
     @Test
-    fun `widget replies use the toWidget transport direction`() = runTest {
+    fun `widget replies echo the fromWidget transport direction required by matrix widget api`() = runTest {
         val driver = AudienceWidgetDriver(
             id = "audience-widget",
             sessionId = A_SESSION_ID,
@@ -48,7 +48,7 @@ class AudienceWidgetDriverTest {
         )
 
         val response = Json.parseToJsonElement(incoming.await()).jsonObject
-        assertThat(response["api"]?.jsonPrimitive?.content).isEqualTo("toWidget")
+        assertThat(response["api"]?.jsonPrimitive?.content).isEqualTo("fromWidget")
         assertThat(response["widgetId"]?.jsonPrimitive?.content).isEqualTo("audience-widget")
         assertThat(response["requestId"]?.jsonPrimitive?.content).isEqualTo("request-1")
         assertThat(
