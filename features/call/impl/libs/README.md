@@ -5,13 +5,13 @@
 deployed frontend.
 
 - Source repository: `unseal-call-audience-web`
-- Source revision: `018b8222caf8425095f36971fd0cadd018cf5e89`
-- SHA-256: `d06d369d110a733863c241f5cd512b376fa6a664fbd73ae41154dda0ce9a4ad2`
+- Source revision: `30b97b9f11cae6636e02528ee80b8870088dc4ae`
+- SHA-256: `face5f31d4de0e0e48f6b3cca6b03b4769dfb1e23949583379a44065b2b5d45d`
 
 Rebuild it from that source revision with:
 
 ```sh
-UNSEAL_CALL_SHA=018b8222caf8425095f36971fd0cadd018cf5e89 corepack yarn build:embedded:production
+UNSEAL_CALL_SHA=30b97b9f11cae6636e02528ee80b8870088dc4ae corepack yarn build:embedded:production
 mkdir -p embedded/android/lib/src/main/assets/element-call
 rsync -a --delete dist/ embedded/android/lib/src/main/assets/element-call/
 ANDROID_HOME=/path/to/android-sdk embedded/android/gradlew \

@@ -19,6 +19,7 @@ data class WidgetMessage(
     @SerialName("requestId") val requestId: String,
     @SerialName("action") val action: Action,
     @SerialName("data") val data: JsonElement? = null,
+    @SerialName("response") val response: JsonElement? = null,
 ) {
     @Serializable
     enum class Direction {
@@ -45,5 +46,16 @@ data class WidgetMessage(
 
         @SerialName("content_loaded")
         ContentLoaded,
+
+        /**
+         * These are optional Element Call host controls. The Android embed does
+         * not need to change process-wide state for either one, but it must
+         * acknowledge them so an embedded call cannot fail while joining.
+         */
+        @SerialName("set_always_on_screen")
+        SetAlwaysOnScreen,
+
+        @SerialName("io.element.device_mute")
+        DeviceMute,
     }
 }

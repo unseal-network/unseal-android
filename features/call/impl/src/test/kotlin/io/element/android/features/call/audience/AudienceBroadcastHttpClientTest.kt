@@ -148,6 +148,7 @@ class AudienceBroadcastHttpClientTest {
         server.enqueue(MockResponse().setBody("{}"))
         server.enqueue(MockResponse().setBody("{}"))
         server.enqueue(MockResponse().setBody("{}"))
+        server.enqueue(MockResponse().setBody("{}"))
         val client = createClient()
         val sessionPath = "/meeting-broadcast/v1/broadcasts/bcast_demo/audience-sessions/aud_demo"
 
@@ -178,10 +179,18 @@ class AudienceBroadcastHttpClientTest {
             path = "$sessionPath/webrtc/commit",
             body = buildJsonObject { put("receiver_session_id", "receiver-2") },
         )
+        client.requestAudienceWidget(
+            sessionId = A_SESSION_ID,
+            broadcastId = "bcast_demo",
+            method = "POST",
+            path = "$sessionPath/webrtc/renegotiate",
+            body = null,
+        )
 
         assertThat(server.takeRequest().path).isEqualTo("$sessionPath/webrtc/offer")
         assertThat(server.takeRequest().path).isEqualTo("$sessionPath/webrtc/answer")
         assertThat(server.takeRequest().path).isEqualTo("$sessionPath/webrtc/commit")
+        assertThat(server.takeRequest().path).isEqualTo("$sessionPath/webrtc/renegotiate")
     }
 
     @Test

@@ -266,6 +266,31 @@ class CallScreenPresenterTest {
     }
 
     @Test
+    fun `present - acknowledges optional embedded host controls without forwarding them to the driver`() = runTest {
+        val widgetDriver = FakeMatrixWidgetDriver()
+        val presenter = createCallScreenPresenter(
+            callData = CallData(A_SESSION_ID, A_ROOM_ID, false),
+            widgetDriver = widgetDriver,
+            screenTracker = FakeScreenTracker {},
+        )
+        val messageInterceptor = FakeWidgetMessageInterceptor()
+        presenter.test {
+            advanceTimeBy(1.seconds)
+            awaitItem().eventSink(CallScreenEvent.SetupMessageChannels(messageInterceptor))
+
+            messageInterceptor.givenInterceptedMessage(
+                """{"api":"fromWidget","widgetId":"1","requestId":"2","action":"set_always_on_screen","data":{"value":true}}""",
+            )
+            runCurrent()
+
+            assertThat(widgetDriver.sentMessages).isEmpty()
+            assertThat(messageInterceptor.sentMessages.single()).contains("\"action\":\"set_always_on_screen\"")
+            assertThat(messageInterceptor.sentMessages.single()).contains("\"response\":{\"success\":true}")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `present - hang up event closes the screen and stops the widget driver`() = runTest(UnconfinedTestDispatcher()) {
         val navigator = FakeCallScreenNavigator()
         val widgetDriver = FakeMatrixWidgetDriver()

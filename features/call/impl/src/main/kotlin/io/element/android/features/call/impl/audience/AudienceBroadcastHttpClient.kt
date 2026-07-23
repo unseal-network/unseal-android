@@ -619,6 +619,7 @@ private fun isAllowedAudienceRequest(
                 input["generation"]?.jsonPrimitive?.intOrNull?.let { it >= 0 } == true
         }
         method == "POST" && match.groupValues[3] == "/webrtc/offer" -> body == null
+        method == "POST" && match.groupValues[3] == "/webrtc/renegotiate" -> body == null
         method == "POST" && match.groupValues[3] == "/webrtc/answer" -> {
             val input = body as? JsonObject ?: return false
             val answer = input["answer"] as? JsonObject ?: return false
@@ -663,7 +664,7 @@ private val AUDIENCE_CLIENT_ID_PATTERN = Regex("^client_[A-Za-z0-9_-]+$")
 private val AUDIENCE_SESSION_ID_PATTERN = Regex("^aud_[A-Za-z0-9_-]+$")
 private val MXC_URL_PATTERN = Regex("^mxc://[^/?#\\s]+/[^/?#\\s]+$")
 private val AUDIENCE_SESSION_PATH_PATTERN =
-    Regex("^/meeting-broadcast/v1/broadcasts/(bcast_[A-Za-z0-9_-]+)/audience-sessions/(aud_[A-Za-z0-9_-]+)(/heartbeat|/webrtc/offer|/webrtc/answer|/webrtc/commit)?$")
+    Regex("^/meeting-broadcast/v1/broadcasts/(bcast_[A-Za-z0-9_-]+)/audience-sessions/(aud_[A-Za-z0-9_-]+)(/heartbeat|/webrtc/offer|/webrtc/renegotiate|/webrtc/answer|/webrtc/commit)?$")
 private const val MIN_POLL_MS = 250L
 private const val MAX_LIVE_POLL_MS = 1_000L
 private const val MAX_POLL_MS = 5_000L

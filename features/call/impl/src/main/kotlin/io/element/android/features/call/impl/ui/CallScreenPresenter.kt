@@ -51,6 +51,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import timber.log.Timber
 import java.util.UUID
 import kotlin.time.Duration.Companion.seconds
@@ -133,7 +135,11 @@ class CallScreenPresenter(
         HandleMatrixClientSyncState()
 
         callWidgetDriver.value?.let { driver ->
-            LaunchedEffect(Unit) {
+            // A listener can leave and re-enter without this Compose presenter
+            // being recreated. Key this bridge by the concrete driver so a new
+            // audience route never keeps forwarding WebView messages to the
+            // previous broadcast's driver.
+            LaunchedEffect(driver) {
                 driver.incomingMessages
                     .onEach {
                         // Relay message to the WebView
@@ -146,15 +152,30 @@ class CallScreenPresenter(
         }
 
         messageInterceptor.value?.let { interceptor ->
-            LaunchedEffect(Unit) {
+            // WebView recreation replaces its interceptor independently from
+            // the presenter. Rebind so requests for the new listener page are
+            // not consumed by a stale channel.
+            LaunchedEffect(interceptor) {
                 interceptor.interceptedMessages
                     .onEach {
                         // We are receiving messages from the WebView, consider that the application is loaded
                         ignoreWebViewError = true
-                        // Relay message to Widget Driver
-                        callWidgetDriver.value?.send(it)
-
                         val parsedMessage = parseMessage(it)
+                        if (parsedMessage.isOptionalHostControl()) {
+                            // The Matrix SDK version embedded by Android predates these optional
+                            // Element Call host controls. They do not change call media state, so
+                            // acknowledge them locally instead of forwarding an unsupported action
+                            // to the driver (which otherwise crashes Element Call's error boundary).
+                            interceptor.sendMessage(
+                                widgetMessageSerializer.serialize(
+                                    parsedMessage!!.copy(response = parsedMessage.optionalHostControlResponse()),
+                                ),
+                            )
+                        } else {
+                            // Relay all protocol actions to the Matrix widget driver.
+                            callWidgetDriver.value?.send(it)
+                        }
+
                         if (parsedMessage?.direction == WidgetMessage.Direction.FromWidget) {
                             if (parsedMessage.action == WidgetMessage.Action.Close) {
                                 close(callWidgetDriver.value, navigator)
@@ -296,6 +317,14 @@ class CallScreenPresenter(
         return widgetMessageSerializer.deserialize(message).getOrNull()
     }
 
+    private fun WidgetMessage?.isOptionalHostControl(): Boolean {
+        return this?.direction == WidgetMessage.Direction.FromWidget &&
+            action in setOf(
+                WidgetMessage.Action.SetAlwaysOnScreen,
+                WidgetMessage.Action.DeviceMute,
+            )
+    }
+
     private fun sendHangupMessage(widgetId: String, messageInterceptor: WidgetMessageInterceptor) {
         val message = WidgetMessage(
             direction = WidgetMessage.Direction.ToWidget,
@@ -311,4 +340,10 @@ class CallScreenPresenter(
         navigator.close()
         widgetDriver?.close()
     }
+}
+
+private fun WidgetMessage.optionalHostControlResponse(): JsonObject = when (action) {
+    WidgetMessage.Action.SetAlwaysOnScreen -> JsonObject(mapOf("success" to JsonPrimitive(true)))
+    WidgetMessage.Action.DeviceMute -> JsonObject(emptyMap())
+    else -> error("Unexpected non-optional widget action: $action")
 }
