@@ -187,7 +187,7 @@ class ElementCallActivity :
             return
         }
         if (isAudience) audiencePlaybackEnabled.value = true
-        // Chromium requests USAGE_MEDIA focus when HLS playback begins. A
+        // Chromium requests USAGE_MEDIA focus when audience WebRTC playback begins. A
         // second native focus owner in the same process is then reported as
         // AUDIOFOCUS_LOSS and our listener mutes the WebView that just started.
         // Let WebView own media focus for audience playback; participant calls

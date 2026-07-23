@@ -22,7 +22,6 @@ import io.element.android.libraries.sessionstorage.test.aSessionData
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -86,6 +85,20 @@ class AudienceBroadcastHttpClientTest {
     }
 
     @Test
+    fun `request fails when the current Matrix token is unavailable instead of using a stored token`() = runTest {
+        val client = createClient(
+            currentAccessToken = Result.failure(IllegalStateException("expired")),
+        )
+
+        val result = runCatching {
+            client.getRuntimeStatus(A_SESSION_ID, "bcast_demo")
+        }
+
+        assertThat(result.exceptionOrNull()?.message).isEqualTo("Matrix access token is unavailable")
+        assertThat(server.requestCount).isEqualTo(0)
+    }
+
+    @Test
     fun `room discovery parser accepts the canonical state event and tombstone`() = runTest {
         val client = createClient()
 
@@ -137,15 +150,24 @@ class AudienceBroadcastHttpClientTest {
                 body = buildJsonObject { put("audience_client_id", "other") },
             )
         }.exceptionOrNull()
+        val obsoleteRenegotiation = runCatching {
+            client.requestAudienceWidget(
+                sessionId = A_SESSION_ID,
+                broadcastId = "bcast_demo",
+                method = "POST",
+                path = "/meeting-broadcast/v1/broadcasts/bcast_demo/audience-sessions/aud_demo/webrtc/renegotiate",
+                body = null,
+            )
+        }.exceptionOrNull()
 
         assertThat(wrongMethod).isInstanceOf(IllegalArgumentException::class.java)
         assertThat(wrongClientId).isInstanceOf(IllegalArgumentException::class.java)
+        assertThat(obsoleteRenegotiation).isInstanceOf(IllegalArgumentException::class.java)
         assertThat(server.requestCount).isEqualTo(0)
     }
 
     @Test
     fun `widget bridge forwards Cloudflare receiver offer answer and first-media commit signaling`() = runTest {
-        server.enqueue(MockResponse().setBody("{}"))
         server.enqueue(MockResponse().setBody("{}"))
         server.enqueue(MockResponse().setBody("{}"))
         server.enqueue(MockResponse().setBody("{}"))
@@ -179,18 +201,10 @@ class AudienceBroadcastHttpClientTest {
             path = "$sessionPath/webrtc/commit",
             body = buildJsonObject { put("receiver_session_id", "receiver-2") },
         )
-        client.requestAudienceWidget(
-            sessionId = A_SESSION_ID,
-            broadcastId = "bcast_demo",
-            method = "POST",
-            path = "$sessionPath/webrtc/renegotiate",
-            body = null,
-        )
 
         assertThat(server.takeRequest().path).isEqualTo("$sessionPath/webrtc/offer")
         assertThat(server.takeRequest().path).isEqualTo("$sessionPath/webrtc/answer")
         assertThat(server.takeRequest().path).isEqualTo("$sessionPath/webrtc/commit")
-        assertThat(server.takeRequest().path).isEqualTo("$sessionPath/webrtc/renegotiate")
     }
 
     @Test
@@ -227,128 +241,10 @@ class AudienceBroadcastHttpClientTest {
         assertThat(request.getHeader("Authorization")).isEqualTo("Bearer runtime-token")
     }
 
-    @Test
-    fun `native audience session and manifest resolve grant scoped presentation playlists`() = runTest {
-        val manifestUrl = server.url("/live/g/grant_demo/bcast_demo/2/manifest.json")
-        server.enqueue(
-            MockResponse().setBody(
-                """
-                {
-                  "session_id": "aud_demo",
-                  "audience_client_id": "client_demo",
-                  "broadcast_id": "bcast_demo",
-                  "generation": 2,
-                  "manifest_url": "$manifestUrl",
-                  "expires_at": "2026-07-18T15:05:00Z",
-                  "heartbeat_interval_ms": 15000
-                }
-                """.trimIndent()
-            )
-        )
-        server.enqueue(
-            MockResponse().setBody(
-                """
-                {
-                  "version": 1,
-                  "broadcast_id": "bcast_demo",
-                  "meeting_instance_id": "4d1c64a7-6d0a-4fac-91f8-5bcbf2fc6a9d",
-                  "generation": 2,
-                  "revision": 4,
-                  "generated_at": "2026-07-18T14:00:00Z",
-                  "presentations": [
-                    {
-                      "presentation_id": "user:alice",
-                      "kind": "user",
-                      "matrix_user_id": "@alice:keepsecret.io",
-                      "matrix_device_id": "ALICE1",
-                      "display_name": "Alice",
-                      "avatar_url": null,
-                      "source_id": null,
-                      "audio": {"playlist_url": "media/alice/audio/master.m3u8"},
-                      "video": {"playlist_url": "media/alice/video/master.m3u8", "width": 1280, "height": 720},
-                      "active_speaker": true
-                    }
-                  ]
-                }
-                """.trimIndent()
-            )
-        )
-        val client = createClient()
-
-        val session = client.createAudienceSession(A_SESSION_ID, "bcast_demo", "client_demo")
-        val manifest = client.getAudienceManifest(session.manifestUrl)
-
-        assertThat(manifest.generation).isEqualTo(2)
-        assertThat(manifest.presentations.single().audio?.playlistUrl)
-            .isEqualTo(server.url("/live/g/grant_demo/bcast_demo/2/media/alice/audio/master.m3u8").toString())
-        assertThat(manifest.presentations.single().video?.playlistUrl)
-            .isEqualTo(server.url("/live/g/grant_demo/bcast_demo/2/media/alice/video/master.m3u8").toString())
-        assertThat(server.takeRequest().getHeader("Authorization")).isEqualTo("Bearer runtime-token")
-        assertThat(server.takeRequest().getHeader("Authorization")).isNull()
-    }
-
-    @Test
-    fun `heartbeat parses generation replacement without creating another session`() = runTest {
-        server.enqueue(
-            MockResponse().setBody(
-                """
-                {
-                  "active": true,
-                  "phase": "live",
-                  "generation": 3,
-                  "manifest_revision": 8,
-                  "expires_at": "2026-07-18T15:05:15Z",
-                  "playback": {
-                    "generation": 3,
-                    "manifest_url": "${server.url("/live/g/rotated/bcast_demo/3/manifest.json")}",
-                    "expires_at": "2026-07-18T15:05:15Z"
-                  }
-                }
-                """.trimIndent()
-            )
-        )
-        val client = createClient()
-
-        val heartbeat = client.heartbeatAudienceSession(A_SESSION_ID, "bcast_demo", "aud_demo", 2)
-
-        assertThat(heartbeat.playback?.generation).isEqualTo(3)
-        assertThat(server.takeRequest().body.readUtf8()).isEqualTo("{\"generation\":2}")
-    }
-
-    @Test
-    fun `audience requests remove application interceptors before receiving signed grant URLs`() = runTest {
-        val manifestUrl = server.url("/live/g/grant_demo/bcast_demo/2/manifest.json")
-        server.enqueue(
-            MockResponse().setBody(
-                """
-                {
-                  "session_id": "aud_demo",
-                  "audience_client_id": "client_demo",
-                  "broadcast_id": "bcast_demo",
-                  "generation": 2,
-                  "manifest_url": "$manifestUrl",
-                  "expires_at": "2026-07-18T15:05:00Z",
-                  "heartbeat_interval_ms": 15000
-                }
-                """.trimIndent()
-            )
-        )
-        val interceptedUrls = mutableListOf<String>()
-        val loggingClient = OkHttpClient.Builder()
-            .addInterceptor(Interceptor { chain ->
-                interceptedUrls += chain.request().url.toString()
-                chain.proceed(chain.request())
-            })
-            .build()
-        val client = createClient(loggingClient)
-
-        client.createAudienceSession(A_SESSION_ID, "bcast_demo", "client_demo")
-
-        assertThat(server.requestCount).isEqualTo(1)
-        assertThat(interceptedUrls).isEmpty()
-    }
-
-    private fun createClient(okHttpClient: OkHttpClient = OkHttpClient()): AudienceBroadcastHttpClient {
+    private fun createClient(
+        okHttpClient: OkHttpClient = OkHttpClient(),
+        currentAccessToken: Result<String> = Result.success("runtime-token"),
+    ): AudienceBroadcastHttpClient {
         val sessionStore = InMemorySessionStore(
             initialList = listOf(
                 aSessionData(
@@ -362,7 +258,7 @@ class AudienceBroadcastHttpClientTest {
                 Result.success(
                     FakeMatrixClient(
                         userIdServerNameLambda = { "keepsecret.io" },
-                        currentAccessTokenLambda = { Result.success("runtime-token") },
+                        currentAccessTokenLambda = { currentAccessToken },
                     )
                 )
             },

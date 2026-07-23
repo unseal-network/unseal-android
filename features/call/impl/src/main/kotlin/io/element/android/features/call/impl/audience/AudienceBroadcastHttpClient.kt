@@ -24,7 +24,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
@@ -46,8 +45,8 @@ class AudienceBroadcastHttpClient(
     private val json = Json { ignoreUnknownKeys = false }
     private val privateOkHttpClient by lazy {
         okHttpClient().newBuilder().apply {
-            // Playback grants are bearer capabilities embedded in URLs and response bodies.
-            // Keep them out of every application and network interceptor, including debug logging.
+            // Matrix bearer credentials are attached only at the final request boundary.
+            // Keep them out of application and network interceptors, including debug logging.
             interceptors().clear()
             networkInterceptors().clear()
         }.build()
@@ -158,79 +157,6 @@ class AudienceBroadcastHttpClient(
             }
     }
 
-    suspend fun createAudienceSession(
-        sessionId: SessionId,
-        broadcastId: String,
-        audienceClientId: String,
-    ): AudienceSession {
-        require(broadcastId.isValidAudienceBroadcastId()) { "Invalid broadcast ID" }
-        require(AUDIENCE_CLIENT_ID_PATTERN.matches(audienceClientId)) { "Invalid audience client ID" }
-        val response = request(
-            sessionId = sessionId,
-            method = "POST",
-            path = "/meeting-broadcast/v1/broadcasts/$broadcastId/audience-sessions",
-            body = "{\"audience_client_id\":\"$audienceClientId\"}",
-        )
-        if (!response.isSuccessful) throw AudienceHttpException(response.code, response.body)
-        return parseAudienceSession(response.body, broadcastId, audienceClientId)
-    }
-
-    suspend fun heartbeatAudienceSession(
-        sessionId: SessionId,
-        broadcastId: String,
-        audienceSessionId: String,
-        generation: Int,
-    ): AudienceHeartbeat {
-        require(AUDIENCE_SESSION_ID_PATTERN.matches(audienceSessionId)) { "Invalid audience session ID" }
-        require(generation >= 0) { "Invalid audience generation" }
-        val response = request(
-            sessionId = sessionId,
-            method = "PUT",
-            path = "/meeting-broadcast/v1/broadcasts/$broadcastId/audience-sessions/$audienceSessionId/heartbeat",
-            body = "{\"generation\":$generation}",
-        )
-        if (!response.isSuccessful) throw AudienceHttpException(response.code, response.body)
-        return parseAudienceHeartbeat(response.body)
-    }
-
-    suspend fun closeAudienceSession(
-        sessionId: SessionId,
-        broadcastId: String,
-        audienceSessionId: String,
-    ) {
-        require(AUDIENCE_SESSION_ID_PATTERN.matches(audienceSessionId)) { "Invalid audience session ID" }
-        val response = request(
-            sessionId = sessionId,
-            method = "DELETE",
-            path = "/meeting-broadcast/v1/broadcasts/$broadcastId/audience-sessions/$audienceSessionId",
-        )
-        if (!response.isSuccessful) throw AudienceHttpException(response.code, response.body)
-    }
-
-    suspend fun getAudienceManifest(manifestUrl: String): AudienceManifest {
-        val url = manifestUrl.toHttpUrl()
-        require(url.scheme == "https" || url.host in LOCAL_API_HOSTS) { "Audience manifest must use HTTPS" }
-        require(url.username.isEmpty() && url.password.isEmpty()) { "Audience manifest URL must not contain credentials" }
-        require(GRANT_MANIFEST_PATH_PATTERN.matches(url.encodedPath)) { "Invalid audience manifest URL" }
-        val response = withContext(Dispatchers.IO) {
-            try {
-                privateOkHttpClient.newCall(
-                    Request.Builder()
-                        .url(url)
-                        .header("Accept", "application/json")
-                        .get()
-                        .build()
-                ).execute().use { httpResponse ->
-                    AudienceHttpResponse(httpResponse.code, httpResponse.body.string())
-                }
-            } catch (failure: IOException) {
-                throw AudienceHttpException(0, failure.message.orEmpty(), failure)
-            }
-        }
-        if (!response.isSuccessful) throw AudienceHttpException(response.code, response.body)
-        return parseAudienceManifest(response.body, url)
-    }
-
     private suspend fun request(
         sessionId: SessionId,
         method: String,
@@ -260,11 +186,9 @@ class AudienceBroadcastHttpClient(
     }
 
     private suspend fun execute(sessionId: SessionId, builder: Request.Builder): AudienceHttpResponse {
-        val session = sessionStore.getSession(sessionId.value) ?: error("Session is unavailable")
         val matrixClient = matrixClientProvider.getOrRestore(sessionId).getOrThrow()
         val token = matrixClient.currentAccessToken().getOrNull()
             ?.takeIf(String::isNotBlank)
-            ?: session.accessToken.takeIf(String::isNotBlank)
             ?: error("Matrix access token is unavailable")
         val request = builder.header("Authorization", "Bearer $token").build()
         return withContext(Dispatchers.IO) {
@@ -382,135 +306,8 @@ class AudienceBroadcastHttpClient(
         )
     }
 
-    internal fun parseAudienceSession(raw: String, expectedBroadcastId: String, expectedClientId: String): AudienceSession {
-        val input = json.parseToJsonElement(raw) as? JsonObject ?: error("Invalid audience session")
-        if (input.keys != AUDIENCE_SESSION_FIELDS) error("Audience session has unexpected fields")
-        val sessionId = input.string("session_id")?.takeIf(AUDIENCE_SESSION_ID_PATTERN::matches)
-            ?: error("Audience session has an invalid ID")
-        val clientId = input.string("audience_client_id")?.takeIf { it == expectedClientId }
-            ?: error("Audience session client does not match")
-        val broadcastId = input.string("broadcast_id")?.takeIf { it == expectedBroadcastId }
-            ?: error("Audience session broadcast does not match")
-        return AudienceSession(
-            sessionId = sessionId,
-            audienceClientId = clientId,
-            broadcastId = broadcastId,
-            generation = input.positiveInt("generation"),
-            manifestUrl = input.string("manifest_url") ?: error("Audience session has no manifest URL"),
-            expiresAt = input.string("expires_at") ?: error("Audience session has no expiry"),
-            heartbeatIntervalMs = input["heartbeat_interval_ms"]?.jsonPrimitive?.contentOrNull?.toLongOrNull()
-                ?.coerceAtLeast(MIN_HEARTBEAT_MS) ?: error("Audience session has no heartbeat interval"),
-        )
-    }
-
-    internal fun parseAudienceHeartbeat(raw: String): AudienceHeartbeat {
-        val input = json.parseToJsonElement(raw) as? JsonObject ?: error("Invalid audience heartbeat")
-        if (input.keys != AUDIENCE_HEARTBEAT_FIELDS) error("Audience heartbeat has unexpected fields")
-        val phase = input.string("phase")?.toRuntimePhase() ?: error("Audience heartbeat has an invalid phase")
-        val playback = when (val value = input["playback"]) {
-            null, JsonNull -> null
-            is JsonObject -> {
-                if (value.keys != AUDIENCE_PLAYBACK_FIELDS) error("Audience playback has unexpected fields")
-                AudiencePlaybackGrant(
-                    generation = value.positiveInt("generation"),
-                    manifestUrl = value.string("manifest_url") ?: error("Audience playback has no manifest URL"),
-                    expiresAt = value.string("expires_at") ?: error("Audience playback has no expiry"),
-                )
-            }
-            else -> error("Audience playback is invalid")
-        }
-        return AudienceHeartbeat(
-            active = input.boolean("active") ?: error("Audience heartbeat has no active flag"),
-            phase = phase,
-            generation = input.nonNegativeInt("generation"),
-            manifestRevision = input.nonNegativeInt("manifest_revision"),
-            expiresAt = input.string("expires_at") ?: error("Audience heartbeat has no expiry"),
-            playback = playback,
-        )
-    }
-
-    internal fun parseAudienceManifest(raw: String, manifestUrl: okhttp3.HttpUrl): AudienceManifest {
-        val input = json.parseToJsonElement(raw) as? JsonObject ?: error("Invalid audience manifest")
-        if (input.keys != AUDIENCE_MANIFEST_FIELDS) error("Audience manifest has unexpected fields")
-        if (input["version"]?.jsonPrimitive?.contentOrNull != "1") error("Audience manifest has an invalid version")
-        input.string("generated_at") ?: error("Audience manifest has no generation timestamp")
-        val broadcastId = input.string("broadcast_id")?.takeIf(String::isValidAudienceBroadcastId)
-            ?: error("Audience manifest has an invalid broadcast ID")
-        val presentations = input["presentations"] as? kotlinx.serialization.json.JsonArray
-            ?: error("Audience manifest has no presentations")
-        return AudienceManifest(
-            broadcastId = broadcastId,
-            meetingInstanceId = input.string("meeting_instance_id")?.takeIf(UUID_PATTERN::matches)
-                ?: error("Audience manifest has an invalid meeting instance"),
-            generation = input.positiveInt("generation"),
-            revision = input.positiveInt("revision"),
-            presentations = presentations.map { element ->
-                val presentation = element as? JsonObject ?: error("Invalid audience presentation")
-                if (!presentation.keys.containsAll(AUDIENCE_PRESENTATION_REQUIRED_FIELDS) ||
-                    presentation.keys.any { it !in AUDIENCE_PRESENTATION_FIELDS }
-                ) {
-                    error("Audience presentation has unexpected fields")
-                }
-                val kind = when (presentation.string("kind")) {
-                    "user" -> AudiencePresentationKind.User
-                    "screen" -> AudiencePresentationKind.Screen
-                    else -> error("Audience presentation has an invalid kind")
-                }
-                AudiencePresentation(
-                    presentationId = presentation.string("presentation_id")?.takeIf(String::isNotBlank)
-                        ?: error("Audience presentation has no ID"),
-                    kind = kind,
-                    matrixUserId = presentation.string("matrix_user_id")?.takeIf(MATRIX_USER_ID_PATTERN::matches)
-                        ?: error("Audience presentation has an invalid Matrix user"),
-                    matrixDeviceId = presentation.string("matrix_device_id")?.takeIf(String::isNotBlank)
-                        ?: error("Audience presentation has no Matrix device"),
-                    displayName = presentation.string("display_name") ?: error("Audience presentation has no display name"),
-                    avatarUrl = presentation.stringOrNull("avatar_url"),
-                    sourceId = presentation.stringOrNull("source_id"),
-                    audio = parseRendition(presentation["audio"], manifestUrl),
-                    video = parseRendition(presentation["video"], manifestUrl),
-                    activeSpeaker = presentation.boolean("active_speaker") ?: false,
-                ).also { parsed ->
-                    require(parsed.audio != null || parsed.video != null) { "Audience presentation has no playable rendition" }
-                }
-            },
-        ).also { manifest ->
-            require(manifest.presentations.isNotEmpty()) { "Audience manifest has no playable presentations" }
-            require(manifest.presentations.map(AudiencePresentation::presentationId).distinct().size == manifest.presentations.size) {
-                "Audience manifest contains duplicate presentation IDs"
-            }
-        }
-    }
-
-    private fun parseRendition(value: JsonElement?, manifestUrl: okhttp3.HttpUrl): AudienceRendition? {
-        if (value == null || value is JsonNull) return null
-        val rendition = value as? JsonObject ?: error("Invalid audience rendition")
-        if (!rendition.keys.contains("playlist_url") || rendition.keys.any { it !in AUDIENCE_RENDITION_FIELDS }) {
-            error("Audience rendition has unexpected fields")
-        }
-        val relativePath = rendition.string("playlist_url")
-            ?.takeIf(RELATIVE_PLAYLIST_PATH_PATTERN::matches)
-            ?: error("Audience rendition has an invalid playlist path")
-        val resolved = manifestUrl.resolve(relativePath) ?: error("Audience rendition cannot be resolved")
-        require(resolved.scheme == manifestUrl.scheme && resolved.host == manifestUrl.host && resolved.port == manifestUrl.port) {
-            "Audience rendition escaped its grant origin"
-        }
-        return AudienceRendition(
-            playlistUrl = resolved.toString(),
-            mimeType = rendition.string("mime_type"),
-            width = rendition["width"]?.jsonPrimitive?.intOrNull?.takeIf { it > 0 },
-            height = rendition["height"]?.jsonPrimitive?.intOrNull?.takeIf { it > 0 },
-        )
-    }
-
     private fun JsonObject.string(name: String): String? = this[name]?.jsonPrimitive?.contentOrNull
-    private fun JsonObject.stringOrNull(name: String): String? = when (val value = this[name]) {
-        null, JsonNull -> null
-        else -> value.jsonPrimitive.contentOrNull
-    }
     private fun JsonObject.boolean(name: String): Boolean? = this[name]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull()
-    private fun JsonObject.positiveInt(name: String): Int = this[name]?.jsonPrimitive?.intOrNull?.takeIf { it > 0 }
-        ?: error("$name must be positive")
     private fun JsonObject.nonNegativeInt(name: String): Int = this[name]?.jsonPrimitive?.intOrNull?.takeIf { it >= 0 }
         ?: error("$name must not be negative")
 
@@ -540,61 +337,6 @@ class AudienceHttpException(
     cause: Throwable? = null,
 ) : Exception("Audience request failed ($statusCode)", cause)
 
-data class AudienceSession(
-    val sessionId: String,
-    val audienceClientId: String,
-    val broadcastId: String,
-    val generation: Int,
-    val manifestUrl: String,
-    val expiresAt: String,
-    val heartbeatIntervalMs: Long,
-)
-
-data class AudienceHeartbeat(
-    val active: Boolean,
-    val phase: AudienceRuntimePhase,
-    val generation: Int,
-    val manifestRevision: Int,
-    val expiresAt: String,
-    val playback: AudiencePlaybackGrant?,
-)
-
-data class AudiencePlaybackGrant(
-    val generation: Int,
-    val manifestUrl: String,
-    val expiresAt: String,
-)
-
-data class AudienceManifest(
-    val broadcastId: String,
-    val meetingInstanceId: String,
-    val generation: Int,
-    val revision: Int,
-    val presentations: List<AudiencePresentation>,
-)
-
-data class AudiencePresentation(
-    val presentationId: String,
-    val kind: AudiencePresentationKind,
-    val matrixUserId: String,
-    val matrixDeviceId: String,
-    val displayName: String,
-    val avatarUrl: String?,
-    val sourceId: String?,
-    val audio: AudienceRendition?,
-    val video: AudienceRendition?,
-    val activeSpeaker: Boolean,
-)
-
-enum class AudiencePresentationKind { User, Screen }
-
-data class AudienceRendition(
-    val playlistUrl: String,
-    val mimeType: String?,
-    val width: Int?,
-    val height: Int?,
-)
-
 private fun isAllowedAudienceRequest(
     method: String,
     path: String,
@@ -619,7 +361,6 @@ private fun isAllowedAudienceRequest(
                 input["generation"]?.jsonPrimitive?.intOrNull?.let { it >= 0 } == true
         }
         method == "POST" && match.groupValues[3] == "/webrtc/offer" -> body == null
-        method == "POST" && match.groupValues[3] == "/webrtc/renegotiate" -> body == null
         method == "POST" && match.groupValues[3] == "/webrtc/answer" -> {
             val input = body as? JsonObject ?: return false
             val answer = input["answer"] as? JsonObject ?: return false
@@ -664,48 +405,12 @@ private val AUDIENCE_CLIENT_ID_PATTERN = Regex("^client_[A-Za-z0-9_-]+$")
 private val AUDIENCE_SESSION_ID_PATTERN = Regex("^aud_[A-Za-z0-9_-]+$")
 private val MXC_URL_PATTERN = Regex("^mxc://[^/?#\\s]+/[^/?#\\s]+$")
 private val AUDIENCE_SESSION_PATH_PATTERN =
-    Regex("^/meeting-broadcast/v1/broadcasts/(bcast_[A-Za-z0-9_-]+)/audience-sessions/(aud_[A-Za-z0-9_-]+)(/heartbeat|/webrtc/offer|/webrtc/renegotiate|/webrtc/answer|/webrtc/commit)?$")
+    Regex("^/meeting-broadcast/v1/broadcasts/(bcast_[A-Za-z0-9_-]+)/audience-sessions/(aud_[A-Za-z0-9_-]+)(/heartbeat|/webrtc/offer|/webrtc/answer|/webrtc/commit)?$")
 private const val MIN_POLL_MS = 250L
 private const val MAX_LIVE_POLL_MS = 1_000L
 private const val MAX_POLL_MS = 5_000L
-private const val MIN_HEARTBEAT_MS = 1_000L
 private const val MIN_AVATAR_SIZE = 16
 private const val MAX_AVATAR_SIZE = 256
 private const val MAX_AVATAR_BYTES = 512 * 1024
 private val JSON_MEDIA_TYPE = "application/json".toMediaType()
 private val LOCAL_API_HOSTS = setOf("127.0.0.1", "10.0.2.2", "localhost")
-private val GRANT_MANIFEST_PATH_PATTERN = Regex("^/live/g/[^/]+/bcast_[A-Za-z0-9_-]+/[1-9][0-9]*/manifest\\.json$")
-private val RELATIVE_PLAYLIST_PATH_PATTERN = Regex("^media/[A-Za-z0-9_-]+/[A-Za-z0-9_-]+/master\\.m3u8$")
-private val MATRIX_USER_ID_PATTERN = Regex("^@.+:.+$")
-private val AUDIENCE_SESSION_FIELDS = setOf(
-    "session_id",
-    "audience_client_id",
-    "broadcast_id",
-    "generation",
-    "manifest_url",
-    "expires_at",
-    "heartbeat_interval_ms",
-)
-private val AUDIENCE_HEARTBEAT_FIELDS = setOf("active", "phase", "generation", "manifest_revision", "expires_at", "playback")
-private val AUDIENCE_PLAYBACK_FIELDS = setOf("generation", "manifest_url", "expires_at")
-private val AUDIENCE_MANIFEST_FIELDS = setOf(
-    "version",
-    "broadcast_id",
-    "meeting_instance_id",
-    "generation",
-    "revision",
-    "generated_at",
-    "presentations",
-)
-private val AUDIENCE_PRESENTATION_REQUIRED_FIELDS = setOf(
-    "presentation_id",
-    "kind",
-    "matrix_user_id",
-    "matrix_device_id",
-    "display_name",
-    "audio",
-    "video",
-)
-private val AUDIENCE_PRESENTATION_FIELDS = AUDIENCE_PRESENTATION_REQUIRED_FIELDS +
-    setOf("avatar_url", "source_id", "active_speaker")
-private val AUDIENCE_RENDITION_FIELDS = setOf("playlist_url", "mime_type", "width", "height")
