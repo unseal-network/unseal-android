@@ -28,6 +28,7 @@ import io.element.android.features.call.impl.ui.CallScreenView
 import io.element.android.features.call.impl.ui.JavascriptBackHandlerBridge
 import io.element.android.features.call.impl.ui.aCallScreenState
 import io.element.android.features.call.impl.ui.handleCallWebPermissionRequest
+import io.element.android.features.call.impl.ui.installJavascriptBackHandler
 import io.element.android.features.call.impl.ui.updateAudienceWebViewAudio
 import io.element.android.tests.testutils.EventsRecorder
 import io.element.android.tests.testutils.pressBackKey
@@ -45,6 +46,24 @@ import org.robolectric.shadows.ShadowWebView
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 class CallScreenViewTest {
+    @Test
+    fun `web view back handler waits for the call controls bootstrap`() {
+        val webView = mockk<WebView>(relaxed = true)
+
+        installJavascriptBackHandler(webView)
+
+        verify {
+            webView.evaluateJavascript(
+                match { script ->
+                    script.contains("window.controls") &&
+                        script.contains("window.setTimeout") &&
+                        !script.contains("controls.onBackButtonPressed")
+                },
+                null,
+            )
+        }
+    }
+
     @Test
     fun `audience audio focus mutes media without pausing the WebView`() {
         val webView = mockk<WebView>(relaxed = true)

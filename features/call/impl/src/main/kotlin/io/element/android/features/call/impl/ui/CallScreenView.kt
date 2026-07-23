@@ -145,7 +145,7 @@ internal fun CallScreenView(
                     val interceptor = WebViewWidgetMessageInterceptor(
                         webView = webView,
                         onUrlLoaded = { url ->
-                            webView.evaluateJavascript("controls.onBackButtonPressed = () => { backHandler.onBackPressed() }", null)
+                            installJavascriptBackHandler(webView)
                             if (state.isAudience) {
                                 updateAudienceWebViewAudio(webView, currentAudiencePlaybackEnabled)
                             } else if (webViewAudioManager?.isInCallMode?.get() == false) {
@@ -214,6 +214,33 @@ internal fun CallScreenView(
             is AsyncData.Success -> Unit
         }
     }
+}
+
+/**
+ * The WebView reports page completion before the embedded Unseal Call module
+ * has necessarily evaluated its controls bootstrap. Install the native back
+ * bridge from the page itself so it waits for that bootstrap instead of
+ * throwing and interrupting audience startup.
+ */
+internal fun installJavascriptBackHandler(webView: WebView) {
+    webView.evaluateJavascript(
+        """
+            (() => {
+                const install = () => {
+                    const callControls = window.controls;
+                    if (!callControls) {
+                        window.setTimeout(install, 25);
+                        return;
+                    }
+                    callControls.onBackButtonPressed = () => {
+                        backHandler.onBackPressed();
+                    };
+                };
+                install();
+            })();
+        """.trimIndent(),
+        null,
+    )
 }
 
 internal fun updateAudienceWebViewAudio(
