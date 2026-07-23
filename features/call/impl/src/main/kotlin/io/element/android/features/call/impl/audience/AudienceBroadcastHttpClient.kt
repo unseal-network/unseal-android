@@ -64,6 +64,41 @@ class AudienceBroadcastHttpClient(
         return parseRuntimeStatus(response.body, broadcastId)
     }
 
+    /**
+     * Reads the Relay-owned discovery event from the Matrix homeserver when the
+     * sliding-sync cache has not hydrated this custom state event yet. This is
+     * deliberately a Matrix state read, not an Audience API request: callers
+     * must still validate the document before starting any broadcast polling.
+     */
+    suspend fun getMatrixDiscoveryState(sessionId: SessionId, roomId: RoomId): String? {
+        val session = sessionStore.getSession(sessionId.value) ?: error("Session is unavailable")
+        val baseUrl = session.homeserverUrl.toHttpUrl()
+        require(baseUrl.scheme == "https" || baseUrl.host in LOCAL_API_HOSTS) { "Homeserver must use HTTPS" }
+        require(baseUrl.username.isEmpty() && baseUrl.password.isEmpty()) { "Homeserver URL must not contain credentials" }
+        val url = baseUrl.newBuilder()
+            .addPathSegment("_matrix")
+            .addPathSegment("client")
+            .addPathSegment("v3")
+            .addPathSegment("rooms")
+            .addPathSegment(roomId.value)
+            .addPathSegment("state")
+            .addPathSegment(DISCOVERY_EVENT_TYPE)
+            .addPathSegment(DISCOVERY_STATE_KEY)
+            .build()
+        val response = execute(
+            sessionId,
+            Request.Builder()
+                .url(url)
+                .header("Accept", "application/json")
+                .get(),
+        )
+        return when (response.code) {
+            200 -> response.body
+            404 -> null
+            else -> throw AudienceHttpException(response.code, response.body)
+        }
+    }
+
     suspend fun setRelayDesired(
         sessionId: SessionId,
         roomId: RoomId,

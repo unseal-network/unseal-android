@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.isActive
@@ -80,26 +81,59 @@ class DefaultAudienceBroadcastService(
     ): Flow<AudienceBroadcastDiscovery?> = flow {
         val matrixClient = matrixClientProvider.getOrRestore(sessionId).getOrThrow()
         val room = matrixClient.getJoinedRoom(roomId) ?: error("Joined room is unavailable")
-        var hasSnapshot = false
-        room.syncUpdateFlow.collect {
+        // The Matrix SDK may return a successful null before its custom-state cache has
+        // hydrated. A non-null raw event is the only positive local observation: it is
+        // either a discovery document or the Relay's `{}` tombstone. Until then, keep
+        // retrying the local state read without ever starting Audience API polling.
+        var hasObservedStateEvent = false
+        while (currentCoroutineContext().isActive) {
+            // Capture the version before reading state. This makes an update that races with
+            // the read observable on the next iteration instead of losing the discovery event.
+            val observedSyncVersion = room.syncUpdateFlow.value
+            var retryCacheRead = false
             room.getStateEventJson(DISCOVERY_EVENT_TYPE, DISCOVERY_STATE_KEY)
                 .onSuccess { raw ->
                     if (raw != null) {
-                        hasSnapshot = true
+                        // A concrete JSON state event is authoritative, including the agent's
+                        // `{}` tombstone. Cache misses, by contrast, arrive as failures and
+                        // must not permanently hide an already-published Relay discovery event.
+                        hasObservedStateEvent = true
                         emit(httpClient.parseDiscovery(raw))
-                    } else if (!hasSnapshot) {
-                        // Sliding sync can temporarily omit custom state after it was observed.
-                        // Only the agent-authored tombstone (an actual JSON event parsed as null)
-                        // is authoritative enough to withdraw a known listener entry.
-                        hasSnapshot = true
+                    } else if (!hasObservedStateEvent) {
+                        // A successful null is indistinguishable from a cold custom-state cache.
+                        // Publish the no-broadcast UI state but retry this Matrix-only read; a
+                        // later positive event is still required before Audience API access.
                         emit(null)
+                        retryCacheRead = true
                     }
                 }
                 .onFailure {
-                    // A missing event is reported as an SDK failure. Emit the initial absent state,
-                    // but retain an already observed event across transient SDK/cache failures.
-                    if (!hasSnapshot) emit(null)
+                    // Do not call the Audience API without discovery. On cold room entry the
+                    // Matrix SDK may not have hydrated custom state yet, so retry just the local
+                    // state read; after a successful snapshot, retain it through transient misses.
+                    if (!hasObservedStateEvent) {
+                        emit(null)
+                        retryCacheRead = true
+                    }
                 }
+
+            if (retryCacheRead) {
+                // A subscribed room can still omit custom state from its local sliding-sync
+                // cache. Fetch the exact same Matrix state event with the current user's
+                // refreshed credential. This is not an Audience API call and does not relax
+                // the discovery gate: only a valid document below can start runtime polling.
+                val remoteState = runCatching {
+                    httpClient.getMatrixDiscoveryState(sessionId, roomId)
+                }.getOrNull()
+                if (remoteState != null) {
+                    hasObservedStateEvent = true
+                    emit(httpClient.parseDiscovery(remoteState))
+                } else {
+                    delay(DISCOVERY_CACHE_RETRY_MS)
+                }
+            } else {
+                room.syncUpdateFlow.first { it != observedSyncVersion }
+            }
         }
     }.distinctUntilChanged().transformLatest { discovery ->
         if (discovery == null) {
@@ -331,4 +365,5 @@ private const val MAX_STATUS_RETRY_DELAY_MS = 4_000L
 
 private const val DISCOVERY_EVENT_TYPE = "org.unseal.meeting.broadcast"
 private const val DISCOVERY_STATE_KEY = "m.call"
+private const val DISCOVERY_CACHE_RETRY_MS = 1_000L
 private const val DISCOVERY_RETRY_MS = 5_000L

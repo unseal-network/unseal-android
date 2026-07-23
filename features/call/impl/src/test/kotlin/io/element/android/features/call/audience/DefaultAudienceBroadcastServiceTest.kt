@@ -29,14 +29,81 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
 class DefaultAudienceBroadcastServiceTest {
     @Test
+    fun `room discovery retries a cold Matrix state cache before polling the audience runtime`() = runTest {
+        val httpClient = mockk<AudienceBroadcastHttpClient>()
+        every { httpClient.parseDiscovery("canonical") } returns aDiscovery()
+        coEvery { httpClient.getMatrixDiscoveryState(A_SESSION_ID, A_ROOM_ID) } returns null
+        coEvery { httpClient.getRuntimeStatus(A_SESSION_ID, "bcast_demo") } returns aRuntime(
+            phase = AudienceRuntimePhase.Live,
+            armed = true,
+        )
+        var stateReads = 0
+        val room = io.element.android.libraries.matrix.test.room.FakeJoinedRoom(
+            baseRoom = io.element.android.libraries.matrix.test.room.FakeBaseRoom(
+                getStateEventJsonResult = { _, _ ->
+                    stateReads++
+                    if (stateReads == 1) Result.failure(IllegalStateException("state cache is cold"))
+                    else Result.success("canonical")
+                },
+            ),
+        )
+        val matrixClient = FakeMatrixClient().apply { givenGetRoomResult(A_ROOM_ID, room) }
+        val service = createService(httpClient, matrixClient)
+
+        service.observeRoomDiscovery(A_SESSION_ID, A_ROOM_ID).test {
+            assertThat(awaitItem()).isNull()
+            coVerify(exactly = 0) { httpClient.getRuntimeStatus(A_SESSION_ID, any()) }
+
+            advanceTimeBy(1_000)
+            assertThat(awaitItem()?.broadcastId).isEqualTo("bcast_demo")
+            coVerify(exactly = 1) { httpClient.getRuntimeStatus(A_SESSION_ID, "bcast_demo") }
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `room discovery retries a successful null from a cold custom state cache`() = runTest {
+        val httpClient = mockk<AudienceBroadcastHttpClient>()
+        every { httpClient.parseDiscovery("canonical") } returns aDiscovery()
+        coEvery { httpClient.getMatrixDiscoveryState(A_SESSION_ID, A_ROOM_ID) } returns null
+        coEvery { httpClient.getRuntimeStatus(A_SESSION_ID, "bcast_demo") } returns aRuntime(
+            phase = AudienceRuntimePhase.Live,
+            armed = true,
+        )
+        var stateReads = 0
+        val room = io.element.android.libraries.matrix.test.room.FakeJoinedRoom(
+            baseRoom = io.element.android.libraries.matrix.test.room.FakeBaseRoom(
+                getStateEventJsonResult = { _, _ ->
+                    stateReads++
+                    Result.success(if (stateReads == 1) null else "canonical")
+                },
+            ),
+        )
+        val matrixClient = FakeMatrixClient().apply { givenGetRoomResult(A_ROOM_ID, room) }
+        val service = createService(httpClient, matrixClient)
+
+        service.observeRoomDiscovery(A_SESSION_ID, A_ROOM_ID).test {
+            assertThat(awaitItem()).isNull()
+            coVerify(exactly = 0) { httpClient.getRuntimeStatus(A_SESSION_ID, any()) }
+
+            advanceTimeBy(1_000)
+            assertThat(awaitItem()?.broadcastId).isEqualTo("bcast_demo")
+            coVerify(exactly = 1) { httpClient.getRuntimeStatus(A_SESSION_ID, "bcast_demo") }
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `room discovery stays idle when the room has no broadcast state event`() = runTest {
         val httpClient = mockk<AudienceBroadcastHttpClient>()
+        coEvery { httpClient.getMatrixDiscoveryState(A_SESSION_ID, A_ROOM_ID) } returns null
         val room = io.element.android.libraries.matrix.test.room.FakeJoinedRoom(
             baseRoom = io.element.android.libraries.matrix.test.room.FakeBaseRoom(
                 getStateEventJsonResult = { _, _ -> Result.success(null) },
@@ -48,6 +115,32 @@ class DefaultAudienceBroadcastServiceTest {
         service.observeRoomDiscovery(A_SESSION_ID, A_ROOM_ID).test {
             assertThat(awaitItem()).isNull()
             coVerify(exactly = 0) { httpClient.getRuntimeStatus(A_SESSION_ID, any()) }
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `room discovery fetches the Matrix state event before starting audience polling`() = runTest {
+        val httpClient = mockk<AudienceBroadcastHttpClient>()
+        every { httpClient.parseDiscovery("canonical") } returns aDiscovery()
+        coEvery { httpClient.getMatrixDiscoveryState(A_SESSION_ID, A_ROOM_ID) } returns "canonical"
+        coEvery { httpClient.getRuntimeStatus(A_SESSION_ID, "bcast_demo") } returns aRuntime(
+            phase = AudienceRuntimePhase.Live,
+            armed = true,
+        )
+        val room = io.element.android.libraries.matrix.test.room.FakeJoinedRoom(
+            baseRoom = io.element.android.libraries.matrix.test.room.FakeBaseRoom(
+                getStateEventJsonResult = { _, _ -> Result.success(null) },
+            ),
+        )
+        val matrixClient = FakeMatrixClient().apply { givenGetRoomResult(A_ROOM_ID, room) }
+        val service = createService(httpClient, matrixClient)
+
+        service.observeRoomDiscovery(A_SESSION_ID, A_ROOM_ID).test {
+            assertThat(awaitItem()).isNull()
+            assertThat(awaitItem()?.broadcastId).isEqualTo("bcast_demo")
+            coVerify(exactly = 1) { httpClient.getMatrixDiscoveryState(A_SESSION_ID, A_ROOM_ID) }
+            coVerify(exactly = 1) { httpClient.getRuntimeStatus(A_SESSION_ID, "bcast_demo") }
             cancelAndIgnoreRemainingEvents()
         }
     }
