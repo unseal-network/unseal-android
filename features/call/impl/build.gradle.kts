@@ -80,7 +80,7 @@ val verifyEmbeddedUnsealCall by tasks.registering {
             }
             digest.digest().joinToString("") { "%02x".format(it) }
         }
-        check(checksum == "b6f332f42c7a98a831fe67ecbcd98a62ecfaebf1e7b2bf0a3b220735cb28486a") {
+        check(checksum == "d560f8910d221a46b760d3d5e5ba941b23a6530aece09d14183a126ed4082c09") {
             "Embedded Unseal Call does not match the reviewed AAR checksum"
         }
         ZipFile(embeddedAar.asFile).use { archive ->

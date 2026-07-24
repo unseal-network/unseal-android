@@ -5,8 +5,9 @@
 deployed frontend.
 
 - Source repository: `unseal-call-audience-web`
+- Source release: `v0.17.17`
 - Source revision: `f29e0a5fa202bfcaad61ad26c1bf5088abefacc8`
-- SHA-256: `b6f332f42c7a98a831fe67ecbcd98a62ecfaebf1e7b2bf0a3b220735cb28486a`
+- SHA-256: `d560f8910d221a46b760d3d5e5ba941b23a6530aece09d14183a126ed4082c09`
 
 Rebuild it from that source revision with:
 
