@@ -101,9 +101,13 @@ class AudienceWidgetDriver(
                     put("ok", true)
                     put(
                         "response",
-                        response.body.takeIf(String::isNotBlank)
-                            ?.let { runCatching { json.parseToJsonElement(it) }.getOrNull() }
-                            ?: JsonNull,
+                        if (isAudienceEventRequest(method, path)) {
+                            JsonPrimitive(response.body)
+                        } else {
+                            response.body.takeIf(String::isNotBlank)
+                                ?.let { runCatching { json.parseToJsonElement(it) }.getOrNull() }
+                                ?: JsonNull
+                        },
                     )
                 }
             }
@@ -179,6 +183,9 @@ class AudienceWidgetDriver(
     override fun close() = Unit
 
     private fun JsonObject.string(name: String): String? = this[name]?.jsonPrimitive?.contentOrNull
+
+    private fun isAudienceEventRequest(method: String, path: String): Boolean =
+        method == "GET" && path.substringBefore('?').endsWith("/events")
 }
 
 private const val AUDIENCE_REQUEST_ACTION = "io.element.unseal.meeting_broadcast_request"

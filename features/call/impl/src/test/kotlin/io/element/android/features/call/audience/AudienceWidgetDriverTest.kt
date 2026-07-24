@@ -9,6 +9,7 @@ package io.element.android.features.call.audience
 
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.call.impl.audience.AudienceBroadcastHttpClient
+import io.element.android.features.call.impl.audience.AudienceHttpResponse
 import io.element.android.features.call.impl.audience.AudienceWidgetDriver
 import io.element.android.libraries.matrix.test.A_SESSION_ID
 import io.mockk.coEvery
@@ -57,6 +58,56 @@ class AudienceWidgetDriverTest {
                 ?.get("supported_versions")
                 .toString()
         ).contains("org.matrix.msc4039")
+    }
+
+    @Test
+    fun `widget preserves rolling audience events as raw SSE text`() = runTest {
+        val sessionPath = "/meeting-broadcast/v1/broadcasts/bcast_demo/audience-sessions/aud_demo"
+        val sse = "event: audience\ndata: {\"type\":\"heartbeat\"}\n\n"
+        val httpClient = mockk<AudienceBroadcastHttpClient> {
+            coEvery {
+                requestAudienceWidget(
+                    sessionId = A_SESSION_ID,
+                    broadcastId = "bcast_demo",
+                    method = "GET",
+                    path = "$sessionPath/events?generation=1&after_revision=2",
+                    body = null,
+                )
+            } returns AudienceHttpResponse(200, sse)
+        }
+        val driver = AudienceWidgetDriver(
+            id = "audience-widget",
+            sessionId = A_SESSION_ID,
+            broadcastId = "bcast_demo",
+            httpClient = httpClient,
+        )
+        val incoming = async(start = CoroutineStart.UNDISPATCHED) {
+            driver.incomingMessages.first()
+        }
+
+        driver.send(
+            """
+            {
+              "api": "fromWidget",
+              "widgetId": "audience-widget",
+              "requestId": "request-sse",
+              "action": "io.element.unseal.meeting_broadcast_request",
+              "data": {
+                "method": "GET",
+                "path": "$sessionPath/events?generation=1&after_revision=2"
+              }
+            }
+            """.trimIndent()
+        )
+
+        val response = Json.parseToJsonElement(incoming.await()).jsonObject
+        assertThat(
+            response["response"]
+                ?.jsonObject
+                ?.get("response")
+                ?.jsonPrimitive
+                ?.content
+        ).isEqualTo(sse)
     }
 
     @Test

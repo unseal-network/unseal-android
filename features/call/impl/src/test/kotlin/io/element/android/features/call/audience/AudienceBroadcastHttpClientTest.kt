@@ -132,13 +132,13 @@ class AudienceBroadcastHttpClientTest {
         val heartbeatPath =
             "/meeting-broadcast/v1/broadcasts/bcast_demo/audience-sessions/aud_demo/heartbeat"
 
-        val wrongMethod = runCatching {
+        val obsoleteHeartbeat = runCatching {
             client.requestAudienceWidget(
                 sessionId = A_SESSION_ID,
                 broadcastId = "bcast_demo",
-                method = "DELETE",
+                method = "PUT",
                 path = heartbeatPath,
-                body = null,
+                body = buildJsonObject { put("generation", 1) },
             )
         }.exceptionOrNull()
         val wrongClientId = runCatching {
@@ -150,35 +150,51 @@ class AudienceBroadcastHttpClientTest {
                 body = buildJsonObject { put("audience_client_id", "other") },
             )
         }.exceptionOrNull()
-        val obsoleteRenegotiation = runCatching {
+        val invalidEventQuery = runCatching {
             client.requestAudienceWidget(
                 sessionId = A_SESSION_ID,
                 broadcastId = "bcast_demo",
-                method = "POST",
-                path = "/meeting-broadcast/v1/broadcasts/bcast_demo/audience-sessions/aud_demo/webrtc/renegotiate",
+                method = "GET",
+                path = "/meeting-broadcast/v1/broadcasts/bcast_demo/audience-sessions/aud_demo/events?after_revision=1&generation=1",
                 body = null,
             )
         }.exceptionOrNull()
 
-        assertThat(wrongMethod).isInstanceOf(IllegalArgumentException::class.java)
+        assertThat(obsoleteHeartbeat).isInstanceOf(IllegalArgumentException::class.java)
         assertThat(wrongClientId).isInstanceOf(IllegalArgumentException::class.java)
-        assertThat(obsoleteRenegotiation).isInstanceOf(IllegalArgumentException::class.java)
+        assertThat(invalidEventQuery).isInstanceOf(IllegalArgumentException::class.java)
         assertThat(server.requestCount).isEqualTo(0)
     }
 
     @Test
-    fun `widget bridge forwards Cloudflare receiver offer answer and first-media commit signaling`() = runTest {
+    fun `widget bridge forwards rolling events and Cloudflare receiver signaling`() = runTest {
+        server.enqueue(MockResponse().setBody("event: audience\\ndata: {\"type\":\"heartbeat\"}\\n\\n"))
+        server.enqueue(MockResponse().setBody("{}"))
         server.enqueue(MockResponse().setBody("{}"))
         server.enqueue(MockResponse().setBody("{}"))
         server.enqueue(MockResponse().setBody("{}"))
         val client = createClient()
         val sessionPath = "/meeting-broadcast/v1/broadcasts/bcast_demo/audience-sessions/aud_demo"
 
+        val eventResponse = client.requestAudienceWidget(
+            sessionId = A_SESSION_ID,
+            broadcastId = "bcast_demo",
+            method = "GET",
+            path = "$sessionPath/events?generation=1&after_revision=2",
+            body = null,
+        )
         client.requestAudienceWidget(
             sessionId = A_SESSION_ID,
             broadcastId = "bcast_demo",
             method = "POST",
             path = "$sessionPath/webrtc/offer",
+            body = null,
+        )
+        client.requestAudienceWidget(
+            sessionId = A_SESSION_ID,
+            broadcastId = "bcast_demo",
+            method = "POST",
+            path = "$sessionPath/webrtc/renegotiate",
             body = null,
         )
         client.requestAudienceWidget(
@@ -202,7 +218,12 @@ class AudienceBroadcastHttpClientTest {
             body = buildJsonObject { put("receiver_session_id", "receiver-2") },
         )
 
+        assertThat(eventResponse.body).contains("event: audience")
+        val eventRequest = server.takeRequest()
+        assertThat(eventRequest.path).isEqualTo("$sessionPath/events?generation=1&after_revision=2")
+        assertThat(eventRequest.getHeader("Accept")).isEqualTo("text/event-stream")
         assertThat(server.takeRequest().path).isEqualTo("$sessionPath/webrtc/offer")
+        assertThat(server.takeRequest().path).isEqualTo("$sessionPath/webrtc/renegotiate")
         assertThat(server.takeRequest().path).isEqualTo("$sessionPath/webrtc/answer")
         assertThat(server.takeRequest().path).isEqualTo("$sessionPath/webrtc/commit")
     }

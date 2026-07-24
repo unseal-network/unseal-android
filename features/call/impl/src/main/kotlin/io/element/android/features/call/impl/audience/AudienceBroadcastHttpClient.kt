@@ -34,6 +34,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
+import java.net.URI
 
 @Inject
 class AudienceBroadcastHttpClient(
@@ -167,9 +168,19 @@ class AudienceBroadcastHttpClient(
         val baseUrl = baseUrlResolver.resolveUnsealApiBaseUrl(matrixClient.userIdServerName()).toHttpUrl()
         require(baseUrl.scheme == "https" || baseUrl.host in LOCAL_API_HOSTS) { "Unseal API must use HTTPS" }
         require(baseUrl.username.isEmpty() && baseUrl.password.isEmpty()) { "Unseal API URL must not contain credentials" }
-        val pathBits = path.removePrefix("/").split("/").filter(String::isNotEmpty)
+        val target = URI(path)
+        require(target.scheme == null && target.rawAuthority == null && target.rawFragment == null) { "Invalid audience API target" }
+        val pathBits = target.path.removePrefix("/").split("/").filter(String::isNotEmpty)
         val url = baseUrl.newBuilder().apply {
             pathBits.forEach(::addPathSegment)
+            target.rawQuery
+                ?.split("&")
+                ?.map { parameter ->
+                    val parts = parameter.split("=", limit = 2)
+                    require(parts.size == 2) { "Invalid audience API query" }
+                    parts[0] to parts[1]
+                }
+                ?.forEach { (name, value) -> addQueryParameter(name, value) }
         }.build()
         val requestBody = when {
             body != null -> body.toRequestBody(JSON_MEDIA_TYPE)
@@ -180,7 +191,11 @@ class AudienceBroadcastHttpClient(
             sessionId,
             Request.Builder()
                 .url(url)
-                .header("Accept", "application/json")
+                .header("Accept", if (isAudienceEventRequest(method, path, broadcastIdFromPath(path))) {
+                    "text/event-stream"
+                } else {
+                    "application/json"
+                })
                 .method(method, requestBody),
         )
     }
@@ -350,17 +365,17 @@ private fun isAllowedAudienceRequest(
         return input.keys == setOf("audience_client_id") &&
             input["audience_client_id"]?.jsonPrimitive?.contentOrNull?.matches(AUDIENCE_CLIENT_ID_PATTERN) == true
     }
+    if (method == "GET") {
+        val eventMatch = AUDIENCE_EVENT_PATH_PATTERN.matchEntire(path) ?: return false
+        return eventMatch.groupValues[1] == broadcastId
+    }
 
     val match = AUDIENCE_SESSION_PATH_PATTERN.matchEntire(path) ?: return false
     if (match.groupValues[1] != broadcastId) return false
     return when {
         method == "DELETE" && match.groupValues[3].isEmpty() -> body == null
-        method == "PUT" && match.groupValues[3] == "/heartbeat" -> {
-            val input = body as? JsonObject ?: return false
-            input.keys == setOf("generation") &&
-                input["generation"]?.jsonPrimitive?.intOrNull?.let { it >= 0 } == true
-        }
         method == "POST" && match.groupValues[3] == "/webrtc/offer" -> body == null
+        method == "POST" && match.groupValues[3] == "/webrtc/renegotiate" -> body == null
         method == "POST" && match.groupValues[3] == "/webrtc/answer" -> {
             val input = body as? JsonObject ?: return false
             val answer = input["answer"] as? JsonObject ?: return false
@@ -378,6 +393,14 @@ private fun isAllowedAudienceRequest(
         else -> false
     }
 }
+
+private fun isAudienceEventRequest(method: String, path: String, broadcastId: String?): Boolean =
+    method == "GET" &&
+        broadcastId != null &&
+        AUDIENCE_EVENT_PATH_PATTERN.matchEntire(path)?.groupValues?.get(1) == broadcastId
+
+private fun broadcastIdFromPath(path: String): String? =
+    AUDIENCE_BROADCAST_PATH_PATTERN.find(path)?.groupValues?.get(1)
 
 private val DISCOVERY_FIELDS = setOf("version", "broadcast_id", "meeting_instance_id", "access_mode")
 private const val DISCOVERY_EVENT_TYPE = "org.unseal.meeting.broadcast"
@@ -405,7 +428,11 @@ private val AUDIENCE_CLIENT_ID_PATTERN = Regex("^client_[A-Za-z0-9_-]+$")
 private val AUDIENCE_SESSION_ID_PATTERN = Regex("^aud_[A-Za-z0-9_-]+$")
 private val MXC_URL_PATTERN = Regex("^mxc://[^/?#\\s]+/[^/?#\\s]+$")
 private val AUDIENCE_SESSION_PATH_PATTERN =
-    Regex("^/meeting-broadcast/v1/broadcasts/(bcast_[A-Za-z0-9_-]+)/audience-sessions/(aud_[A-Za-z0-9_-]+)(/heartbeat|/webrtc/offer|/webrtc/answer|/webrtc/commit)?$")
+    Regex("^/meeting-broadcast/v1/broadcasts/(bcast_[A-Za-z0-9_-]+)/audience-sessions/(aud_[A-Za-z0-9_-]+)(/webrtc/offer|/webrtc/renegotiate|/webrtc/answer|/webrtc/commit)?$")
+private val AUDIENCE_EVENT_PATH_PATTERN =
+    Regex("^/meeting-broadcast/v1/broadcasts/(bcast_[A-Za-z0-9_-]+)/audience-sessions/(aud_[A-Za-z0-9_-]+)/events\\?generation=(0|[1-9][0-9]*)&after_revision=(0|[1-9][0-9]*)$")
+private val AUDIENCE_BROADCAST_PATH_PATTERN =
+    Regex("^/meeting-broadcast/v1/broadcasts/(bcast_[A-Za-z0-9_-]+)(?:/|$)")
 private const val MIN_POLL_MS = 250L
 private const val MAX_LIVE_POLL_MS = 1_000L
 private const val MAX_POLL_MS = 5_000L
