@@ -191,7 +191,7 @@ class AudienceBroadcastHttpClient(
             sessionId,
             Request.Builder()
                 .url(url)
-                .header("Accept", if (isAudienceEventRequest(method, path, broadcastIdFromPath(path))) {
+                .header("Accept", if (AudienceBroadcastRequestContract.parseEventRequest(method, path) != null) {
                     "text/event-stream"
                 } else {
                     "application/json"
@@ -366,8 +366,7 @@ private fun isAllowedAudienceRequest(
             input["audience_client_id"]?.jsonPrimitive?.contentOrNull?.matches(AUDIENCE_CLIENT_ID_PATTERN) == true
     }
     if (method == "GET") {
-        val eventMatch = AUDIENCE_EVENT_PATH_PATTERN.matchEntire(path) ?: return false
-        return eventMatch.groupValues[1] == broadcastId
+        return AudienceBroadcastRequestContract.parseEventRequest(method, path)?.broadcastId == broadcastId
     }
 
     val match = AUDIENCE_SESSION_PATH_PATTERN.matchEntire(path) ?: return false
@@ -387,20 +386,28 @@ private fun isAllowedAudienceRequest(
         }
         method == "POST" && match.groupValues[3] == "/webrtc/commit" -> {
             val input = body as? JsonObject ?: return false
-            input.keys == setOf("receiver_session_id") &&
-                !input["receiver_session_id"]?.jsonPrimitive?.contentOrNull.isNullOrBlank()
+            input.keys in setOf(
+                setOf("receiver_session_id"),
+                setOf("receiver_session_id", "ice_connection_state"),
+            ) &&
+                !input["receiver_session_id"]?.jsonPrimitive?.contentOrNull.isNullOrBlank() &&
+                input["ice_connection_state"]
+                    ?.jsonPrimitive
+                    ?.contentOrNull
+                    ?.let { it in ICE_CONNECTION_STATES }
+                ?: true
+        }
+        method == "POST" && match.groupValues[3] == "/webrtc/ice-state" -> {
+            val input = body as? JsonObject ?: return false
+            input.keys == setOf("receiver_session_id", "ice_connection_state") &&
+                !input["receiver_session_id"]?.jsonPrimitive?.contentOrNull.isNullOrBlank() &&
+                input["ice_connection_state"]
+                    ?.jsonPrimitive
+                    ?.contentOrNull in ICE_CONNECTION_STATES
         }
         else -> false
     }
 }
-
-private fun isAudienceEventRequest(method: String, path: String, broadcastId: String?): Boolean =
-    method == "GET" &&
-        broadcastId != null &&
-        AUDIENCE_EVENT_PATH_PATTERN.matchEntire(path)?.groupValues?.get(1) == broadcastId
-
-private fun broadcastIdFromPath(path: String): String? =
-    AUDIENCE_BROADCAST_PATH_PATTERN.find(path)?.groupValues?.get(1)
 
 private val DISCOVERY_FIELDS = setOf("version", "broadcast_id", "meeting_instance_id", "access_mode")
 private const val DISCOVERY_EVENT_TYPE = "org.unseal.meeting.broadcast"
@@ -428,11 +435,20 @@ private val AUDIENCE_CLIENT_ID_PATTERN = Regex("^client_[A-Za-z0-9_-]+$")
 private val AUDIENCE_SESSION_ID_PATTERN = Regex("^aud_[A-Za-z0-9_-]+$")
 private val MXC_URL_PATTERN = Regex("^mxc://[^/?#\\s]+/[^/?#\\s]+$")
 private val AUDIENCE_SESSION_PATH_PATTERN =
-    Regex("^/meeting-broadcast/v1/broadcasts/(bcast_[A-Za-z0-9_-]+)/audience-sessions/(aud_[A-Za-z0-9_-]+)(/webrtc/offer|/webrtc/renegotiate|/webrtc/answer|/webrtc/commit)?$")
-private val AUDIENCE_EVENT_PATH_PATTERN =
-    Regex("^/meeting-broadcast/v1/broadcasts/(bcast_[A-Za-z0-9_-]+)/audience-sessions/(aud_[A-Za-z0-9_-]+)/events\\?generation=(0|[1-9][0-9]*)&after_revision=(0|[1-9][0-9]*)$")
-private val AUDIENCE_BROADCAST_PATH_PATTERN =
-    Regex("^/meeting-broadcast/v1/broadcasts/(bcast_[A-Za-z0-9_-]+)(?:/|$)")
+    Regex(
+        "^/meeting-broadcast/v1/broadcasts/(bcast_[A-Za-z0-9_-]+)/" +
+            "audience-sessions/(aud_[A-Za-z0-9_-]+)" +
+            "(/webrtc/offer|/webrtc/renegotiate|/webrtc/answer|/webrtc/commit|/webrtc/ice-state)?$",
+    )
+private val ICE_CONNECTION_STATES = setOf(
+    "new",
+    "checking",
+    "connected",
+    "completed",
+    "disconnected",
+    "failed",
+    "closed",
+)
 private const val MIN_POLL_MS = 250L
 private const val MAX_LIVE_POLL_MS = 1_000L
 private const val MAX_POLL_MS = 5_000L
