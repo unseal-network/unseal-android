@@ -38,6 +38,43 @@ plugins {
     // alias(libs.plugins.gms.google.services)
 }
 
+private data class ReleaseBuildVersion(
+    val code: Int,
+    val name: String,
+)
+
+/**
+ * Signed Play builds are released from a Git tag. Keep the artifact metadata
+ * coupled to that tag instead of relying on the checked-in development value
+ * in [Versions], otherwise two different tags can produce the same Play
+ * versionCode.
+ */
+private fun releaseBuildVersion(releaseTag: String?): ReleaseBuildVersion {
+    if (releaseTag == null) {
+        return ReleaseBuildVersion(
+            code = Versions.VERSION_CODE,
+            name = Versions.VERSION_NAME,
+        )
+    }
+
+    val match = Regex("^v(\\d{2})\\.(\\d{2})\\.(\\d{1,2})$").matchEntire(releaseTag)
+        ?: error("unsealReleaseTag must use the vYY.MM.N format, got: $releaseTag")
+    val year = match.groupValues[1].toInt()
+    val month = match.groupValues[2].toInt()
+    val release = match.groupValues[3].toInt()
+    require(month in 1..12) { "unsealReleaseTag month must be in 01..12, got: $releaseTag" }
+    require(release in 0..99) { "unsealReleaseTag release number must be in 0..99, got: $releaseTag" }
+
+    return ReleaseBuildVersion(
+        code = (2000 + year) * 10_000 + month * 100 + release,
+        name = "$year.${month.toString().padStart(2, '0')}.$release",
+    )
+}
+
+private val releaseBuildVersion = releaseBuildVersion(
+    providers.gradleProperty("unsealReleaseTag").orNull,
+)
+
 android {
     namespace = "network.unseal.android"
     val uploadKeystorePath = providers.environmentVariable("ANDROID_UPLOAD_KEYSTORE_PATH")
@@ -56,8 +93,8 @@ android {
     defaultConfig {
         applicationId = BuildTimeConfig.APPLICATION_ID
         targetSdk = Versions.TARGET_SDK
-        versionCode = Versions.VERSION_CODE
-        versionName = Versions.VERSION_NAME
+        versionCode = releaseBuildVersion.code
+        versionName = releaseBuildVersion.name
 
         // Keep abiFilter for the universalApk
         ndk {
