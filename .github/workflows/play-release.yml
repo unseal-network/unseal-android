@@ -162,7 +162,7 @@ jobs:
               app-gplay-armeabi-v7a-release.apk) target_name="android-armeabi-v7a.apk" ;;
               app-gplay-x86_64-release.apk) target_name="android-x86_64.apk" ;;
               app-gplay-x86-release.apk) target_name="android-x86.apk" ;;
-              app-gplay-universal-release.apk) target_name="android-universal-fallback.apk" ;;
+              app-gplay-universal-release.apk) target_name="android-universal.apk" ;;
               *)
                 echo "::error::Unexpected release APK: ${source_name}"
                 exit 1
@@ -187,9 +187,9 @@ jobs:
           - \`unseal-android-${version}-android-armeabi-v7a.apk\`: for older 32-bit ARM Android devices.
           - \`unseal-android-${version}-android-x86_64.apk\`: for x86_64 emulators and devices.
           - \`unseal-android-${version}-android-x86.apk\`: for legacy x86 emulators and devices.
-          - \`unseal-android-${version}-android-universal-fallback.apk\`: contains every ABI and is much larger; use only when the device architecture is unknown.
+          - \`unseal-android-${version}-android-universal.apk\`: contains every ABI and is the default direct-download package.
 
-          Prefer the ABI-specific APKs for direct downloads. Do not publish the universal APK as the primary download.
+          Prefer the ABI-specific APKs when the device architecture is known; the universal APK remains the default direct-download package.
           EOF
 
           (cd release && sha256sum * > SHA256SUMS.txt)
@@ -215,7 +215,7 @@ jobs:
 
           Upload the AAB file to Google Play Console when creating the Play release.
           ABI-specific APK files are attached for full-feature direct installation outside Google Play.
-          Use arm64-v8a for most Android phones; use the universal fallback only when the device architecture is unknown.
+          Use arm64-v8a for most Android phones, or use the universal APK as the default direct-download package.
           EOF
 
           args=()
