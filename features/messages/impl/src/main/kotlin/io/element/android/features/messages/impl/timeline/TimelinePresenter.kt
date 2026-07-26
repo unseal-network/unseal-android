@@ -28,6 +28,7 @@ import io.element.android.features.messages.impl.MessagesNavigator
 import io.element.android.features.messages.impl.UserEventPermissions
 import io.element.android.features.messages.impl.crypto.sendfailure.resolve.ResolveVerifiedUserSendFailureEvent
 import io.element.android.features.messages.impl.crypto.sendfailure.resolve.ResolveVerifiedUserSendFailureState
+import io.element.android.features.messages.impl.roomkey.RoomKeyRecoveryStatus
 import io.element.android.features.messages.impl.timeline.components.MessageShieldData
 import io.element.android.features.messages.impl.timeline.factories.TimelineItemsFactory
 import io.element.android.features.messages.impl.timeline.factories.TimelineItemsFactoryConfig
@@ -49,15 +50,19 @@ import io.element.android.libraries.featureflag.api.FeatureFlags
 import io.element.android.libraries.matrix.api.core.EventId
 import io.element.android.libraries.matrix.api.core.UniqueId
 import io.element.android.libraries.matrix.api.core.asEventId
+import io.element.android.libraries.matrix.api.encryption.BackupState
 import io.element.android.libraries.matrix.api.encryption.EncryptionService
 import io.element.android.libraries.matrix.api.room.JoinedRoom
+import io.element.android.libraries.matrix.api.room.RoomMembersState
 import io.element.android.libraries.matrix.api.room.activeRoomMembers
 import io.element.android.libraries.matrix.api.room.powerlevels.permissionsAsState
 import io.element.android.libraries.matrix.api.room.roomMembers
 import io.element.android.libraries.matrix.api.timeline.ReceiptType
 import io.element.android.libraries.matrix.api.timeline.Timeline
+import io.element.android.libraries.matrix.api.timeline.MatrixTimelineItem
 import io.element.android.libraries.matrix.api.timeline.item.event.TimelineItemEventOrigin
 import io.element.android.libraries.matrix.api.verification.SessionVerificationService
+import io.element.android.libraries.matrix.api.verification.SessionVerifiedStatus
 import io.element.android.libraries.preferences.api.store.SessionPreferencesStore
 import io.element.android.services.analytics.api.AnalyticsLongRunningTransaction.DisplayFirstTimelineItems
 import io.element.android.services.analytics.api.AnalyticsLongRunningTransaction.NotificationToMessage
@@ -70,9 +75,11 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -273,6 +280,11 @@ class TimelinePresenter(
                 }
                 .launchIn(this)
 
+            // Room state can arrive in bursts (for example while a call and its relay update
+            // their state events). Building an entire visible timeline for every intermediate
+            // snapshot is both redundant and unbounded work: the factory only needs the newest
+            // consistent snapshot. Conflate *before* the expensive recovery/factory work so a
+            // busy sync cannot starve the call activity or accumulate a multi-gigabyte queue.
             combine(
                 timelineController.timelineItems(),
                 room.membersStateFlow,
@@ -280,25 +292,37 @@ class TimelinePresenter(
                 encryptionService.backupStateStateFlow,
                 roomKeyRecoveryTimelineRunner.statuses,
             ) { items, membersState, sessionVerifiedStatus, backupState, roomKeyRecoveryStatuses ->
-                val parent = analyticsService.getLongRunningTransaction(DisplayFirstTimelineItems)
-                val transaction = parent?.startChild("timelineItemsFactory.replaceWith", "Processing timeline items")
-                transaction?.putExtraData(AnalyticsUserData.TIMELINE_ITEM_COUNT, items.count().toString())
-                val activeRoomMembers = membersState.activeRoomMembers()
-                roomKeyRecoveryTimelineRunner.recoverVisibleItems(
-                    roomId = room.roomId,
-                    timelineItems = items,
-                    roomMembers = activeRoomMembers,
+                TimelineRefresh(
+                    items = items,
+                    membersState = membersState,
                     sessionVerifiedStatus = sessionVerifiedStatus,
                     backupState = backupState,
-                )
-                timelineItemsFactory.replaceWith(
-                    timelineItems = items,
-                    roomMembers = membersState.roomMembers().orEmpty(),
                     roomKeyRecoveryStatuses = roomKeyRecoveryStatuses,
                 )
-                transaction?.finish()
-                items
             }
+                .conflate()
+                .map { refresh ->
+                    val items = refresh.items
+                    val membersState = refresh.membersState
+                    val parent = analyticsService.getLongRunningTransaction(DisplayFirstTimelineItems)
+                    val transaction = parent?.startChild("timelineItemsFactory.replaceWith", "Processing timeline items")
+                    transaction?.putExtraData(AnalyticsUserData.TIMELINE_ITEM_COUNT, items.count().toString())
+                    val activeRoomMembers = membersState.activeRoomMembers()
+                    roomKeyRecoveryTimelineRunner.recoverVisibleItems(
+                        roomId = room.roomId,
+                        timelineItems = items,
+                        roomMembers = activeRoomMembers,
+                        sessionVerifiedStatus = refresh.sessionVerifiedStatus,
+                        backupState = refresh.backupState,
+                    )
+                    timelineItemsFactory.replaceWith(
+                        timelineItems = items,
+                        roomMembers = membersState.roomMembers().orEmpty(),
+                        roomKeyRecoveryStatuses = refresh.roomKeyRecoveryStatuses,
+                    )
+                    transaction?.finish()
+                    items
+                }
                 .onEach(redactedVoiceMessageManager::onEachMatrixTimelineItem)
                 .flowOn(dispatchers.computation)
                 .launchIn(this)
@@ -479,6 +503,14 @@ class TimelinePresenter(
         return null
     }
 }
+
+private data class TimelineRefresh(
+    val items: List<MatrixTimelineItem>,
+    val membersState: RoomMembersState,
+    val sessionVerifiedStatus: SessionVerifiedStatus,
+    val backupState: BackupState,
+    val roomKeyRecoveryStatuses: Map<String, RoomKeyRecoveryStatus>,
+)
 
 private fun FocusRequestState.onFocusEventRender(): FocusRequestState {
     return when (this) {

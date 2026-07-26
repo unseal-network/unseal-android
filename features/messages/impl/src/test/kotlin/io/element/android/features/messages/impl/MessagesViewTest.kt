@@ -15,7 +15,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.test.AndroidComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.assertDoesNotExist
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.longClick
@@ -159,7 +159,7 @@ class MessagesViewTest {
         setMessagesView(state = state)
 
         onNodeWithContentDescription(activity!!.getString(CommonStrings.a11y_start_call)).assertExists()
-        onNodeWithContentDescription(activity!!.getString(R.string.a11y_start_meeting_with_listeners)).assertDoesNotExist()
+        onNodeWithContentDescription("Start meeting with listeners").assertDoesNotExist()
     }
 
     @Test
@@ -180,6 +180,36 @@ class MessagesViewTest {
             onNodeWithContentDescription(activity!!.getString(R.string.a11y_listen_to_meeting))
                 .performClick()
         }
+    }
+
+    @Test
+    fun `ongoing listener broadcast exposes a card that opens audience mode`() = runAndroidComposeUiTest {
+        val state = aMessagesState(
+            eventSink = EventsRecorder<MessagesEvent>(expectEvents = false),
+            roomCallState = anOngoingCallState(
+                canJoinCall = true,
+                audienceBroadcastId = "bcast_demo",
+                isUserLocallyInTheCall = false,
+            ),
+        )
+
+        ensureCalledOnceWithParam("bcast_demo") { callback ->
+            setMessagesView(state = state, onJoinAudienceClick = callback)
+
+            onNodeWithTag("audience_broadcast_card").assertExists().performClick()
+        }
+    }
+
+    @Test
+    fun `listener card is hidden when Relay discovery is absent`() = runAndroidComposeUiTest {
+        val state = aMessagesState(
+            eventSink = EventsRecorder<MessagesEvent>(expectEvents = false),
+            roomCallState = anOngoingCallState(audienceBroadcastId = null),
+        )
+
+        setMessagesView(state = state)
+
+        onAllNodesWithTag("audience_broadcast_card").assertCountEquals(0)
     }
 
     @Test

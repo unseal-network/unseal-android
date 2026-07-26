@@ -48,49 +48,44 @@ class RoomCallStatePresenter(
         val audienceHostControl by audienceBroadcastService
             .observeHostControl(room.sessionId, room.roomId)
             .collectAsState()
-        var previouslyHadRoomCall by remember(room.roomId) { mutableStateOf(roomInfo.hasRoomCall) }
-        LaunchedEffect(roomInfo.hasRoomCall) {
-            if (!roomInfo.hasRoomCall) {
-                audienceBroadcastService.clearMeetingFence(
-                    room.sessionId,
-                    room.roomId,
-                    force = previouslyHadRoomCall,
-                )
-            }
-            previouslyHadRoomCall = roomInfo.hasRoomCall
-        }
         val audienceDiscoveryState by produceState(
             initialValue = AudienceDiscoveryState(
-                roomHasCall = roomInfo.hasRoomCall,
                 discovery = null,
+                // A room with no MatrixRTC call must not gain an intermediate
+                // state just because the discovery observer reports that no
+                // broadcast exists. A non-null discovery remains sufficient to
+                // surface the listener entry when MatrixRTC is behind.
                 isResolved = !roomInfo.hasRoomCall,
             ),
+            // Recreate the collection when MatrixRTC changes state so a
+            // completed call cannot retain a stale discovery value. We still
+            // observe in both branches; this is only lifecycle hygiene.
             key1 = roomInfo.hasRoomCall,
             key2 = room.roomId,
         ) {
-            if (!roomInfo.hasRoomCall) {
-                value = AudienceDiscoveryState(
-                    roomHasCall = false,
-                    discovery = null,
-                    isResolved = true,
-                )
-            } else {
-                value = AudienceDiscoveryState(
-                    roomHasCall = true,
-                    discovery = null,
-                    isResolved = false,
-                )
-                audienceBroadcastService
-                    .observeRoomDiscovery(room.sessionId, room.roomId)
-                    .catch { emit(null) }
-                    .collect { discovery ->
+            audienceBroadcastService
+                .observeRoomDiscovery(room.sessionId, room.roomId)
+                .catch { emit(null) }
+                .collect { discovery ->
+                    if (discovery != null || roomInfo.hasRoomCall) {
                         value = AudienceDiscoveryState(
-                            roomHasCall = true,
                             discovery = discovery,
                             isResolved = true,
                         )
                     }
+                }
+        }
+        val hasJoinableMeeting = roomInfo.hasRoomCall || audienceDiscoveryState.discovery != null
+        var previouslyHadJoinableMeeting by remember(room.roomId) { mutableStateOf(hasJoinableMeeting) }
+        LaunchedEffect(hasJoinableMeeting) {
+            if (!hasJoinableMeeting) {
+                audienceBroadcastService.clearMeetingFence(
+                    room.sessionId,
+                    room.roomId,
+                    force = previouslyHadJoinableMeeting,
+                )
             }
+            previouslyHadJoinableMeeting = hasJoinableMeeting
         }
         val canJoinCall by room.permissionsAsState(false) { perms -> perms.canCall() }
         val isUserInTheCall by remember {
@@ -104,37 +99,32 @@ class RoomCallStatePresenter(
                 (currentCall as? CurrentCall.RoomCall)?.roomId == room.roomId
             }
         }
-        val callState by remember {
-            derivedStateOf {
-                when {
-                    isAvailable.not() -> RoomCallState.Unavailable
-                    roomInfo.hasRoomCall -> RoomCallState.OnGoing(
-                        canJoinCall = canJoinCall,
-                        isUserInTheCall = isUserInTheCall,
-                        isUserLocallyInTheCall = isUserLocallyInTheCall,
-                        isAudioCall = roomInfo.activeCallIntentConsensus.isAudio(),
-                        audienceBroadcastId = audienceDiscoveryState
-                            .takeIf { it.roomHasCall == roomInfo.hasRoomCall && it.isResolved }
-                            ?.discovery
-                            ?.broadcastId,
-                        isAudienceDiscoveryPending = roomInfo.hasRoomCall &&
-                            (audienceDiscoveryState.roomHasCall != roomInfo.hasRoomCall || !audienceDiscoveryState.isResolved),
-                        audienceHostControl = audienceHostControl,
-                    )
-                    else -> RoomCallState.StandBy(
-                        canStartCall = canJoinCall,
-                        isDM = roomInfo.isDm,
-                        audienceHostControl = audienceHostControl,
-                    )
-                }
-            }
+        // `hasJoinableMeeting` is a value derived during this composition. Do
+        // not capture its first value in a remembered derivedStateOf: doing so
+        // leaves a room in StandBy forever when the relay discovery arrives.
+        val callState = when {
+            isAvailable.not() -> RoomCallState.Unavailable
+            hasJoinableMeeting -> RoomCallState.OnGoing(
+                canJoinCall = canJoinCall,
+                isUserInTheCall = isUserInTheCall,
+                isUserLocallyInTheCall = isUserLocallyInTheCall,
+                isAudioCall = roomInfo.activeCallIntentConsensus.isAudio(),
+                audienceBroadcastId = audienceDiscoveryState.discovery?.broadcastId,
+                isAudienceDiscoveryPending = roomInfo.hasRoomCall &&
+                    !audienceDiscoveryState.isResolved,
+                audienceHostControl = audienceHostControl,
+            )
+            else -> RoomCallState.StandBy(
+                canStartCall = canJoinCall,
+                isDM = roomInfo.isDm,
+                audienceHostControl = audienceHostControl,
+            )
         }
         return callState
     }
 }
 
 private data class AudienceDiscoveryState(
-    val roomHasCall: Boolean,
     val discovery: AudienceBroadcastDiscovery?,
     val isResolved: Boolean,
 )

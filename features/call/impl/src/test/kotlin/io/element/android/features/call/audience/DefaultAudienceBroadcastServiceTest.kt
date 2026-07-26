@@ -36,6 +36,26 @@ import org.junit.Test
 
 class DefaultAudienceBroadcastServiceTest {
     @Test
+    fun `room discovery falls back to authoritative Matrix state when the local joined room is unavailable`() = runTest {
+        val httpClient = mockk<AudienceBroadcastHttpClient>()
+        every { httpClient.parseDiscovery("canonical") } returns aDiscovery()
+        coEvery { httpClient.getMatrixDiscoveryState(A_SESSION_ID, A_ROOM_ID) } returns "canonical"
+        coEvery { httpClient.getRuntimeStatus(A_SESSION_ID, "bcast_demo") } returns aRuntime(
+            phase = AudienceRuntimePhase.Live,
+            armed = true,
+        )
+        val service = createService(httpClient, FakeMatrixClient())
+
+        service.observeRoomDiscovery(A_SESSION_ID, A_ROOM_ID).test {
+            assertThat(awaitItem()).isNull()
+            assertThat(awaitItem()?.broadcastId).isEqualTo("bcast_demo")
+            coVerify(exactly = 1) { httpClient.getMatrixDiscoveryState(A_SESSION_ID, A_ROOM_ID) }
+            coVerify(exactly = 1) { httpClient.getRuntimeStatus(A_SESSION_ID, "bcast_demo") }
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `room discovery retries a cold Matrix state cache before polling the audience runtime`() = runTest {
         val httpClient = mockk<AudienceBroadcastHttpClient>()
         every { httpClient.parseDiscovery("canonical") } returns aDiscovery()

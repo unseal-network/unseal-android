@@ -107,7 +107,11 @@ internal fun MessagesViewTopBar(
             val roundedCornerShape = RoundedCornerShape(24.dp)
             Row(
                 modifier = Modifier
-                    .weight(1f)
+                    // Fill only as much width as the room name needs. The
+                    // allocation still caps a long name before the action
+                    // buttons, but short names no longer leave a fixed-width
+                    // title pill in the top bar.
+                    .weight(1f, fill = false)
                     .height(48.dp)
                     .shadow(10.dp, roundedCornerShape, clip = false, ambientColor = Color.Black.copy(alpha = 0.05f), spotColor = Color.Black.copy(alpha = 0.07f))
                     .clip(roundedCornerShape)

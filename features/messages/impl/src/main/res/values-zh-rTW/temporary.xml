@@ -1,5 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="a11y_listen_to_meeting">收聽會議</string>
+    <string name="a11y_manage_meeting_listeners">管理會議聽眾</string>
+    <string name="a11y_start_meeting_with_listeners">開始允許聽眾的會議</string>
+    <string name="listener_meeting_start_title">開始會議</string>
+    <string name="listener_meeting_settings_title">聽眾存取權</string>
+    <string name="listener_meeting_access_description">選擇誰可收聽。聽眾媒體會以唯讀直播方式傳送。</string>
+    <string name="listener_meeting_standard">開始一般會議</string>
+    <string name="listener_meeting_standard_description">開始一般加密會議，不提供聽眾直播。</string>
+    <string name="listener_meeting_authenticated">允許所有已登入聽眾</string>
+    <string name="listener_meeting_authenticated_description">任何已登入 Unseal 且擁有連結的使用者都可收聽。</string>
+    <string name="listener_meeting_room_members">僅允許聊天室成員</string>
+    <string name="listener_meeting_room_members_description">只有此聊天室成員可以收聽。</string>
+    <string name="listener_meeting_disable">關閉聽眾</string>
+    <string name="listener_meeting_disable_description">停止聽眾存取，但不結束會議。</string>
+    <string name="listener_meeting_arming">正在準備聽眾直播…</string>
+    <string name="listener_meeting_join_title">加入會議</string>
+    <string name="listener_meeting_join_description">選擇作為參與者加入會議，或只收聽直播而不發布音訊或視訊。</string>
+    <string name="listener_meeting_join_participant">作為參與者加入</string>
+    <string name="listener_meeting_join_audience">僅收聽</string>
+    <string name="listener_meeting_live_title">會議直播中</string>
+    <string name="listener_meeting_live_description">不必加入會議即可收聽</string>
     <string name="screen_room_attachment_source_skill">技能</string>
     <string name="screen_room_agent_skill_picker_title">Agent 技能</string>
     <string name="screen_room_agent_skill_picker_summary">%1$d 個目標 · %2$d 個可用</string>

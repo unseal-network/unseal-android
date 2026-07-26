@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -327,6 +328,42 @@ class RoomCallStatePresenterTest {
     }
 
     @Test
+    fun `present - discovery exposes listener entry when Matrix SDK has not recognised the call`() = runTest {
+        val room = FakeJoinedRoom(
+            baseRoom = FakeBaseRoom(
+                roomPermissions = roomPermissions(true),
+                initialRoomInfo = aRoomInfo(hasRoomCall = false),
+            )
+        )
+        val discovery = AudienceBroadcastDiscovery(
+            broadcastId = "bcast_demo",
+            meetingInstanceId = "4d1c64a7-6d0a-4fac-91f8-5bcbf2fc6a9d",
+            accessMode = AudienceAccessMode.Authenticated,
+            phase = AudienceRuntimePhase.Live,
+        )
+        val presenter = createRoomCallStatePresenter(
+            joinedRoom = room,
+            audienceBroadcastService = FakeAudienceBroadcastService(
+                discovery = { _, _ -> flowOf(discovery) },
+            ),
+        )
+
+        presenter.test {
+            skipItems(1)
+            advanceUntilIdle()
+            assertThat(expectMostRecentItem()).isEqualTo(
+                RoomCallState.OnGoing(
+                    canJoinCall = true,
+                    isAudioCall = false,
+                    isUserInTheCall = false,
+                    isUserLocallyInTheCall = false,
+                    audienceBroadcastId = "bcast_demo",
+                )
+            )
+        }
+    }
+
+    @Test
     fun `present - active call blocks joining until audience discovery completes`() = runTest {
         val room = FakeJoinedRoom(
             baseRoom = FakeBaseRoom(
@@ -453,7 +490,7 @@ class RoomCallStatePresenterTest {
                     activeRoomCallParticipants = emptyList(),
                 )
             )
-            assertThat(awaitItem()).isEqualTo(
+            assertThat(expectMostRecentItem()).isEqualTo(
                 RoomCallState.StandBy(
                     canStartCall = true,
                     isDM = false

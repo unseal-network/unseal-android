@@ -80,19 +80,30 @@ class DefaultAudienceBroadcastService(
         roomId: RoomId,
     ): Flow<AudienceBroadcastDiscovery?> = flow {
         val matrixClient = matrixClientProvider.getOrRestore(sessionId).getOrThrow()
-        val room = matrixClient.getJoinedRoom(roomId) ?: error("Joined room is unavailable")
+        // A room can be present in the timeline before the Rust SDK has materialised the
+        // corresponding JoinedRoom object. The Matrix state endpoint remains authoritative in
+        // that window, so a missing local room must not turn into a terminal flow failure.
+        // In particular, callers intentionally swallow observation failures to keep the room
+        // UI usable; throwing here would otherwise hide a live relay indefinitely.
+        var room = matrixClient.getJoinedRoom(roomId)
         // The Matrix SDK may return a successful null before its custom-state cache has
         // hydrated. A non-null raw event is the only positive local observation: it is
         // either a discovery document or the Relay's `{}` tombstone. Until then, keep
         // retrying the local state read without ever starting Audience API polling.
         var hasObservedStateEvent = false
         while (currentCoroutineContext().isActive) {
+            // Re-acquire after a cold start so the remote state fallback is temporary rather
+            // than turning a local cache miss into a permanent one-request-per-second path.
+            room = room ?: matrixClient.getJoinedRoom(roomId)
             // Capture the version before reading state. This makes an update that races with
             // the read observable on the next iteration instead of losing the discovery event.
-            val observedSyncVersion = room.syncUpdateFlow.value
-            var retryCacheRead = false
-            room.getStateEventJson(DISCOVERY_EVENT_TYPE, DISCOVERY_STATE_KEY)
-                .onSuccess { raw ->
+            val observedSyncVersion = room?.syncUpdateFlow?.value
+            var retryCacheRead = room == null
+            if (room == null && !hasObservedStateEvent) {
+                emit(null)
+            }
+            room?.getStateEventJson(DISCOVERY_EVENT_TYPE, DISCOVERY_STATE_KEY)
+                ?.onSuccess { raw ->
                     if (raw != null) {
                         // A concrete JSON state event is authoritative, including the agent's
                         // `{}` tombstone. Cache misses, by contrast, arrive as failures and
@@ -107,7 +118,7 @@ class DefaultAudienceBroadcastService(
                         retryCacheRead = true
                     }
                 }
-                .onFailure {
+                ?.onFailure {
                     // Do not call the Audience API without discovery. On cold room entry the
                     // Matrix SDK may not have hydrated custom state yet, so retry just the local
                     // state read; after a successful snapshot, retain it through transient misses.
@@ -131,7 +142,7 @@ class DefaultAudienceBroadcastService(
                 } else {
                     delay(DISCOVERY_CACHE_RETRY_MS)
                 }
-            } else {
+            } else if (room != null) {
                 room.syncUpdateFlow.first { it != observedSyncVersion }
             }
         }

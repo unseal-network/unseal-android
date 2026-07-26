@@ -77,6 +77,7 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.onClick
@@ -213,6 +214,10 @@ fun MessagesView(
     val density = LocalDensity.current
     var composerHeightDp by remember { mutableStateOf(80.dp) }
     var topBarHeightDp by remember { mutableStateOf(DefaultTimelineTopChromeInset) }
+    val audienceBroadcastId = (state.roomCallState as? RoomCallState.OnGoing)
+        ?.takeUnless { it.isUserLocallyInTheCall }
+        ?.audienceBroadcastId
+    val audienceCardInset = if (audienceBroadcastId != null) 88.dp else 0.dp
 
     // This is needed because the composer is inside an AndroidView that can't be affected by the FocusManager in Compose
     val localView = LocalView.current
@@ -328,7 +333,7 @@ fun MessagesView(
                             // input pill) where the gradient below fades it out.
                             composerBottomInset = composerBottomInset,
                             bottomContentPadding = (composerHeightDp - composerBottomInset).coerceAtLeast(0.dp),
-                            topChromeInset = topBarHeightDp,
+                            topChromeInset = topBarHeightDp + audienceCardInset,
                         )
 
                         // Gradient-transparent backdrop: the last message fades from fully visible to the
@@ -378,6 +383,15 @@ fun MessagesView(
                                         },
                                     )
                                 }
+                            )
+                        }
+
+                        audienceBroadcastId?.let { broadcastId ->
+                            AudienceBroadcastCard(
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .padding(top = topBarHeightDp + 8.dp, start = 16.dp, end = 16.dp),
+                                onClick = { onJoinAudienceClick(broadcastId) },
                             )
                         }
 
@@ -708,6 +722,69 @@ private fun ListenerToolbarButton(
             imageVector = CompoundIcons.HeadphonesSolid(),
             contentDescription = contentDescription,
         )
+    }
+}
+
+/**
+ * A room-scoped listener entry that appears only while the Relay-owned Matrix
+ * discovery event is present. Clearing that event removes the card on the next
+ * room-state update, just like a closed poll disappears from the room UI.
+ */
+@Composable
+private fun AudienceBroadcastCard(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("audience_broadcast_card"),
+        shape = MaterialTheme.shapes.large,
+        color = ElementTheme.colors.bgSubtleSecondary,
+        border = BorderStroke(1.dp, ElementTheme.colors.borderInteractiveSecondary.copy(alpha = 0.7f)),
+        tonalElevation = 2.dp,
+        shadowElevation = 4.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Surface(
+                modifier = Modifier.size(40.dp),
+                shape = CircleShape,
+                color = ElementTheme.colors.bgActionPrimaryRest,
+                contentColor = ElementTheme.colors.iconOnSolidPrimary,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        modifier = Modifier.size(22.dp),
+                        imageVector = CompoundIcons.HeadphonesSolid(),
+                        contentDescription = null,
+                    )
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.listener_meeting_live_title),
+                    style = ElementTheme.typography.fontBodyLgMedium,
+                    color = ElementTheme.colors.textPrimary,
+                )
+                Text(
+                    text = stringResource(R.string.listener_meeting_live_description),
+                    style = ElementTheme.typography.fontBodySmRegular,
+                    color = ElementTheme.colors.textSecondary,
+                )
+            }
+            Text(
+                text = stringResource(R.string.listener_meeting_join_audience),
+                style = ElementTheme.typography.fontBodySmMedium,
+                color = ElementTheme.colors.textActionAccent,
+            )
+        }
     }
 }
 
