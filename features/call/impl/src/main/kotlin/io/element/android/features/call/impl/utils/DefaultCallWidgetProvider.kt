@@ -26,7 +26,7 @@ import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 
 private const val EMBEDDED_CALL_WIDGET_BASE_URL = "https://appassets.androidplatform.net/element-call/index.html"
-private const val EMBEDDED_CALL_WIDGET_ORIGIN = "https://appassets.androidplatform.net"
+private const val EMBEDDED_CALL_WIDGET_PARENT_URL = "https://appassets.androidplatform.net"
 
 @ContributesBinding(AppScope::class)
 class DefaultCallWidgetProvider(
@@ -54,10 +54,17 @@ class DefaultCallWidgetProvider(
                 .toHttpUrl()
                 .origin()
             val widgetId = "unseal-audience-$audienceBroadcastId"
+            // Audience playback is not a MatrixRTC participant. Its only
+            // authenticated transport is AudienceWidgetDriver, which proxies
+            // requests through the Android host with the current Matrix token.
+            // Keep this URL self-contained: the normal meeting URL generator
+            // is allowed to rewrite/drop query parameters that the audience
+            // bundle needs before it can start the Widget API.
             val audienceUrl = EMBEDDED_CALL_WIDGET_BASE_URL.toHttpUrl().newBuilder()
                 .addQueryParameter("widgetId", widgetId)
-                .addQueryParameter("parentUrl", EMBEDDED_CALL_WIDGET_ORIGIN)
+                .addQueryParameter("parentUrl", EMBEDDED_CALL_WIDGET_PARENT_URL)
                 .addQueryParameter("baseUrl", mediaOrigin)
+                .addQueryParameter("audienceBroadcastId", audienceBroadcastId)
                 .fragment("/audience/$audienceBroadcastId")
                 .build()
                 .toString()
@@ -71,14 +78,13 @@ class DefaultCallWidgetProvider(
                 url = audienceUrl,
             )
         }
-        val customBaseUrl = appPreferencesStore.getCustomElementCallBaseUrlFlow().firstOrNull()
-        val baseUrl = customBaseUrl ?: EMBEDDED_CALL_WIDGET_BASE_URL
         val room = activeRoomsHolder.getActiveRoomMatching(sessionId, roomId)
             ?: matrixClient.getJoinedRoom(roomId)
             ?: error("Room not found")
-
         val roomInfo = room.info()
         val isEncrypted = roomInfo.isEncrypted ?: room.getUpdatedIsEncrypted().getOrThrow()
+        val customBaseUrl = appPreferencesStore.getCustomElementCallBaseUrlFlow().firstOrNull()
+        val baseUrl = customBaseUrl ?: EMBEDDED_CALL_WIDGET_BASE_URL
         val widgetSettings = callWidgetSettingsProvider.provide(
             baseUrl = baseUrl,
             encrypted = isEncrypted,

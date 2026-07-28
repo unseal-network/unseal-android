@@ -21,6 +21,7 @@
     <string name="listener_meeting_join_audience">仅收听</string>
     <string name="listener_meeting_live_title">会议直播中</string>
     <string name="listener_meeting_live_description">无需加入会议即可收听</string>
+    <string name="listener_meeting_listener_count">%1$d 位听众</string>
     <string name="screen_room_attachment_source_skill">技能</string>
     <string name="screen_room_agent_skill_picker_title">Agent 技能</string>
     <string name="screen_room_agent_skill_picker_summary">%1$d 个目标 · %2$d 个可用</string>

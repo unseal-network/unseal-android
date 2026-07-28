@@ -119,32 +119,11 @@ class CallScreenViewTest {
     }
 
     @Test
-    fun `listener management is hidden without meeting control permission`() = runAndroidComposeUiTest {
+    fun `host call has no listener management control after entry`() = runAndroidComposeUiTest {
         setCallScreenView(
-            state = aCallScreenState(canManageAudience = false),
+            state = aCallScreenState(),
             useInspectionMode = true,
         )
-        onNodeWithContentDescription("Manage meeting listeners").assertDoesNotExist()
-    }
-
-    @Test
-    fun `listener management is visible with meeting control permission`() = runAndroidComposeUiTest {
-        setCallScreenView(
-            state = aCallScreenState(canManageAudience = true),
-            useInspectionMode = true,
-        )
-        onNodeWithContentDescription("Manage meeting listeners").assertExists()
-    }
-
-    @Test
-    fun `audience mode hosts Unseal Call without native listener management controls`() = runAndroidComposeUiTest {
-        setCallScreenView(
-            state = aCallScreenState(
-                isAudience = true,
-            ),
-            useInspectionMode = true,
-        )
-
         onNodeWithContentDescription("Manage meeting listeners").assertDoesNotExist()
     }
 

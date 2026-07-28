@@ -9,7 +9,6 @@
 package io.element.android.features.call.impl.ui
 
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
-import io.element.android.features.call.api.AudienceHostControlState
 import io.element.android.libraries.architecture.AsyncData
 
 open class CallScreenStateProvider : PreviewParameterProvider<CallScreenState> {
@@ -29,8 +28,6 @@ internal fun aCallScreenState(
     userAgent: String = "",
     isCallActive: Boolean = true,
     isAudience: Boolean = false,
-    canManageAudience: Boolean = true,
-    audienceHostControl: AudienceHostControlState = AudienceHostControlState(),
     eventSink: (CallScreenEvent) -> Unit = {},
 ): CallScreenState {
     return CallScreenState(
@@ -39,8 +36,6 @@ internal fun aCallScreenState(
         userAgent = userAgent,
         isCallActive = isCallActive,
         isAudience = isAudience,
-        canManageAudience = canManageAudience,
-        audienceHostControl = audienceHostControl,
         eventSink = eventSink,
     )
 }

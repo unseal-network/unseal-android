@@ -48,7 +48,7 @@ class DefaultAudienceBroadcastServiceTest {
 
         service.observeRoomDiscovery(A_SESSION_ID, A_ROOM_ID).test {
             assertThat(awaitItem()).isNull()
-            assertThat(awaitItem()?.broadcastId).isEqualTo("bcast_demo")
+            assertThat(awaitItem()).isEqualTo(aDiscovery().copy(listenerCount = 3))
             coVerify(exactly = 1) { httpClient.getMatrixDiscoveryState(A_SESSION_ID, A_ROOM_ID) }
             coVerify(exactly = 1) { httpClient.getRuntimeStatus(A_SESSION_ID, "bcast_demo") }
             cancelAndIgnoreRemainingEvents()
@@ -436,6 +436,7 @@ private fun aRuntime(
     phase: AudienceRuntimePhase = AudienceRuntimePhase.Joining,
     desired: AudienceRelayDesired = AudienceRelayDesired.Joined,
     armed: Boolean,
+    listenerCount: Int = 3,
 ) = AudienceRuntimeStatus(
     broadcastId = "bcast_demo",
     roomId = A_ROOM_ID,
@@ -446,6 +447,7 @@ private fun aRuntime(
     broadcastArmed = armed,
     playable = phase == AudienceRuntimePhase.Live,
     pollAfterMs = 250,
+    listenerCount = listenerCount,
 )
 
 private const val MEETING_ID = "4d1c64a7-6d0a-4fac-91f8-5bcbf2fc6a9d"

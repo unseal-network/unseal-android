@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
@@ -51,7 +50,6 @@ import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
-import io.element.android.features.call.api.AudienceAccessMode
 import io.element.android.features.call.impl.R
 import io.element.android.features.call.impl.pip.PictureInPictureEvent
 import io.element.android.features.call.impl.pip.PictureInPictureState
@@ -129,7 +127,6 @@ internal fun CallScreenView(
             }
         }
 
-        var showListenerSettings by remember { mutableStateOf(false) }
         Box(modifier = modifier.consumeWindowInsets(WindowInsets.systemBars).fillMaxSize()) {
             CallWebView(
                 modifier = Modifier.fillMaxSize(),
@@ -172,32 +169,6 @@ internal fun CallScreenView(
                     callWebView = null
                     webViewAudioManager?.onCallStopped()
                 }
-            )
-            if (!state.isAudience && state.canManageAudience && state.urlState is AsyncData.Success) {
-                FloatingActionButton(
-                    onClick = { showListenerSettings = true },
-                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
-                    containerColor = if (state.audienceHostControl.isEnabled) {
-                        ElementTheme.colors.bgActionPrimaryRest
-                    } else {
-                        ElementTheme.colors.bgCanvasDefault
-                    },
-                ) {
-                    Icon(
-                        imageVector = CompoundIcons.HeadphonesSolid(),
-                        contentDescription = stringResource(R.string.call_manage_listeners),
-                        modifier = Modifier.size(24.dp),
-                    )
-                }
-            }
-        }
-        if (showListenerSettings) {
-            CallListenerSettingsDialog(
-                isUpdating = state.audienceHostControl.isUpdating,
-                isEnabled = state.audienceHostControl.isEnabled,
-                errorMessage = state.audienceHostControl.errorMessage,
-                onSetAccessMode = { state.eventSink(CallScreenEvent.SetAudienceRelay(it)) },
-                onDismiss = { if (!state.audienceHostControl.isUpdating) showListenerSettings = false },
             )
         }
         when (state.urlState) {
@@ -298,47 +269,6 @@ internal fun handleCallWebPermissionRequest(
         val callback: RequestPermissionCallback = { request.grant(it) }
         val androidPermissions = mapWebkitPermissions(request.resources)
         requestPermissions(androidPermissions.toTypedArray(), callback)
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun CallListenerSettingsDialog(
-    isUpdating: Boolean,
-    isEnabled: Boolean,
-    errorMessage: String?,
-    onSetAccessMode: (AudienceAccessMode?) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    BasicAlertDialog(onDismissRequest = onDismiss) {
-        Surface(shape = MaterialTheme.shapes.extraLarge) {
-            Column(
-                modifier = Modifier.padding(24.dp).widthIn(min = 280.dp, max = 420.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(stringResource(R.string.call_listener_access_title), style = ElementTheme.typography.fontHeadingMdBold)
-                Text(stringResource(R.string.call_listener_access_description), color = ElementTheme.colors.textSecondary)
-                errorMessage?.let { Text(it, color = ElementTheme.colors.textCriticalPrimary) }
-                TextButton(
-                    enabled = !isUpdating,
-                    onClick = { onSetAccessMode(AudienceAccessMode.Authenticated) },
-                ) { Text(stringResource(R.string.call_listener_authenticated)) }
-                TextButton(
-                    enabled = !isUpdating,
-                    onClick = { onSetAccessMode(AudienceAccessMode.RoomMembers) },
-                ) { Text(stringResource(R.string.call_listener_room_members)) }
-                if (isEnabled) {
-                    TextButton(enabled = !isUpdating, onClick = { onSetAccessMode(null) }) {
-                        Text(stringResource(R.string.call_listener_disable))
-                    }
-                }
-                if (isUpdating) {
-                    Text(stringResource(R.string.call_listener_updating), color = ElementTheme.colors.textSecondary)
-                } else {
-                    TextButton(onClick = onDismiss) { Text(stringResource(CommonStrings.action_cancel)) }
-                }
-            }
-        }
     }
 }
 

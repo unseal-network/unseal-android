@@ -14,12 +14,13 @@ import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import im.vector.app.features.analytics.plan.MobileScreen
 import io.element.android.features.call.api.CallData
+import io.element.android.features.call.impl.audience.AudienceBroadcastHttpClient
+import io.element.android.features.call.impl.audience.AudienceHttpResponse
 import io.element.android.features.call.impl.notifications.CallNotificationData
 import io.element.android.features.call.impl.ui.CallScreenEvent
 import io.element.android.features.call.impl.ui.CallScreenNavigator
 import io.element.android.features.call.impl.ui.CallScreenPresenter
 import io.element.android.features.call.impl.utils.WidgetMessageSerializer
-import io.element.android.features.call.test.FakeAudienceBroadcastService
 import io.element.android.features.call.utils.FakeActiveCallManager
 import io.element.android.features.call.utils.FakeCallWidgetProvider
 import io.element.android.features.call.utils.FakeWidgetMessageInterceptor
@@ -55,6 +56,8 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
+import io.mockk.coEvery
+import io.mockk.mockk
 import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -163,6 +166,50 @@ class CallScreenPresenterTest {
         hangUpCallLambda.assertions().isNeverCalled()
         assertThat(navigator.closeCalled).isTrue()
         assertThat(widgetDriver.closeCalledCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `present - normal meeting proxies listener count request through native host`() = runTest {
+        val httpClient = mockk<AudienceBroadcastHttpClient>()
+        coEvery {
+            httpClient.requestAudienceWidget(
+                A_SESSION_ID,
+                "bcast_demo",
+                "GET",
+                "/meeting-broadcast/v1/broadcasts/bcast_demo",
+                null,
+            )
+        } returns AudienceHttpResponse(
+            code = 200,
+            body =
+                """{"version":1,"broadcast_id":"bcast_demo","room_id":"!room:example.org","meeting_instance_id":"meeting","phase":"live","desired":"joined","agent_in_meeting":true,"broadcast_armed":true,"playable":true,"generation":1,"manifest_revision":0,"participant_count":1,"listener_count":3,"presentations":{"total":1,"healthy":1},"poll_after_ms":1000,"error":null}""",
+        )
+        val presenter = createCallScreenPresenter(
+            callData = CallData(A_SESSION_ID, A_ROOM_ID, false),
+            audienceBroadcastHttpClient = httpClient,
+            screenTracker = FakeScreenTracker {},
+        )
+        val interceptor = FakeWidgetMessageInterceptor()
+
+        presenter.test {
+            advanceTimeBy(1.seconds)
+            expectMostRecentItem().eventSink(CallScreenEvent.SetupMessageChannels(interceptor))
+            interceptor.givenInterceptedMessage(
+                """
+                    {
+                        "api":"fromWidget",
+                        "widgetId":"normal-call-widget",
+                        "requestId":"request-1",
+                        "action":"io.element.unseal.meeting_broadcast_request",
+                        "data":{"method":"GET","path":"/meeting-broadcast/v1/broadcasts/bcast_demo"}
+                    }
+                """.trimIndent(),
+            )
+            runCurrent()
+            assertThat(interceptor.sentMessages.single()).contains("\"action\":\"io.element.unseal.meeting_broadcast_request\"")
+            assertThat(interceptor.sentMessages.single()).contains("\"listener_count\":3")
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test
@@ -481,6 +528,7 @@ class CallScreenPresenterTest {
         activeCallManager: FakeActiveCallManager = FakeActiveCallManager(),
         screenTracker: ScreenTracker = FakeScreenTracker(),
         appForegroundStateService: FakeAppForegroundStateService = FakeAppForegroundStateService(),
+        audienceBroadcastHttpClient: AudienceBroadcastHttpClient = mockk(relaxed = true),
     ): CallScreenPresenter {
         val userAgentProvider = object : UserAgentProvider {
             override fun provide(): String {
@@ -497,12 +545,12 @@ class CallScreenPresenterTest {
             dispatchers = dispatchers,
             matrixClientsProvider = matrixClientsProvider,
             activeCallManager = activeCallManager,
-            audienceBroadcastService = FakeAudienceBroadcastService(),
             screenTracker = screenTracker,
             languageTagProvider = FakeLanguageTagProvider("en-US"),
             appForegroundStateService = appForegroundStateService,
             appCoroutineScope = backgroundScope,
             widgetMessageSerializer = WidgetMessageSerializer(DefaultJsonProvider()),
+            audienceBroadcastHttpClient = audienceBroadcastHttpClient,
         )
     }
 }

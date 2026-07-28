@@ -57,5 +57,14 @@ data class WidgetMessage(
 
         @SerialName("io.element.device_mute")
         DeviceMute,
+
+        /**
+         * Authenticated relay status requests made by Unseal Call while a
+         * regular MatrixRTC participant is in the meeting.  This must be
+         * handled by the native host: the embedded widget never receives the
+         * Matrix access token directly.
+         */
+        @SerialName("io.element.unseal.meeting_broadcast_request")
+        AudienceBroadcastRequest,
     }
 }

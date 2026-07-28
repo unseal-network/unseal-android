@@ -13,6 +13,7 @@ import io.element.android.features.call.impl.audience.AudienceBroadcastHttpClien
 import io.element.android.features.call.impl.utils.DefaultCallWidgetProvider
 import io.element.android.libraries.chatbot.api.ChatbotBaseUrlResolver
 import io.element.android.libraries.matrix.api.MatrixClientProvider
+import io.element.android.libraries.matrix.api.widget.MatrixWidgetSettings
 import io.element.android.libraries.matrix.api.widget.CallWidgetSettingsProvider
 import io.element.android.libraries.matrix.test.A_ROOM_ID
 import io.element.android.libraries.matrix.test.A_SESSION_ID
@@ -133,19 +134,24 @@ class DefaultCallWidgetProviderTest {
     }
 
     @Test
-    fun `getWidget - audience mode ignores remote call preferences and opens the embedded read only route`() = runTest {
-        val preferencesStore = InMemoryAppPreferencesStore().apply {
-            setCustomElementCallBaseUrl("https://call.keepsecret.io/")
-        }
+    fun `getWidget - audience mode uses the embedded authenticated host route`() = runTest {
         val baseUrlResolver = mockk<ChatbotBaseUrlResolver> {
             coEvery { resolveUnsealApiBaseUrl(any()) } returns "https://api.matrix.example/unseal"
             coEvery { resolveHomeserverBaseUrl(any()) } returns "https://matrix.example/_matrix"
         }
         val provider = createProvider(
             matrixClientProvider = FakeMatrixClientProvider {
-                Result.success(FakeMatrixClient(userIdServerNameLambda = { "matrix.example" }))
+                Result.success(FakeMatrixClient(userIdServerNameLambda = { "matrix.example" }).apply {
+                    givenGetRoomResult(
+                        A_ROOM_ID,
+                        FakeJoinedRoom(
+                            generateWidgetWebViewUrlResult = { _, _, _, _ ->
+                                Result.failure(IllegalStateException("Audience must not use the normal call URL generator"))
+                            },
+                        ),
+                    )
+                })
             },
-            appPreferencesStore = preferencesStore,
             baseUrlResolver = baseUrlResolver,
         )
 
@@ -162,16 +168,28 @@ class DefaultCallWidgetProviderTest {
 
         assertThat(uri.host).isEqualTo("appassets.androidplatform.net")
         assertThat(uri.encodedPath).isEqualTo("/element-call/index.html")
-        assertThat(uri.fragment).isEqualTo("/audience/bcast_demo")
+        assertThat(uri.queryParameter("widgetId")).isEqualTo("unseal-audience-bcast_demo")
         assertThat(uri.queryParameter("parentUrl")).isEqualTo("https://appassets.androidplatform.net")
+        assertThat(uri.queryParameter("audienceBroadcastId")).isEqualTo("bcast_demo")
         assertThat(uri.queryParameter("baseUrl")).isEqualTo("https://matrix.example")
+        assertThat(uri.fragment).isEqualTo("/audience/bcast_demo")
     }
 
     @Test
     fun `getWidget - audience mode is packaged in the app`() = runTest {
+        val room = FakeJoinedRoom(
+            generateWidgetWebViewUrlResult = { settings, _, _, _ ->
+                Result.success("https://appassets.androidplatform.net/element-call/index.html?widgetId=${settings.id}")
+            },
+        )
         val provider = createProvider(
             matrixClientProvider = FakeMatrixClientProvider {
-                Result.success(FakeMatrixClient(userIdServerNameLambda = { "keepsecret.io" }))
+                Result.success(FakeMatrixClient(userIdServerNameLambda = { "keepsecret.io" }).apply {
+                    givenGetRoomResult(A_ROOM_ID, room)
+                })
+            },
+            callWidgetSettingsProvider = FakeCallWidgetSettingsProvider { _, widgetId, _, _, _, _ ->
+                MatrixWidgetSettings(widgetId, true, "unused")
             },
         )
 
@@ -189,9 +207,11 @@ class DefaultCallWidgetProviderTest {
         assertThat(uri.scheme).isEqualTo("https")
         assertThat(uri.host).isEqualTo("appassets.androidplatform.net")
         assertThat(uri.encodedPath).isEqualTo("/element-call/index.html")
-        assertThat(uri.fragment).isEqualTo("/audience/bcast_demo")
+        assertThat(uri.queryParameter("widgetId")).isEqualTo("unseal-audience-bcast_demo")
         assertThat(uri.queryParameter("parentUrl")).isEqualTo("https://appassets.androidplatform.net")
+        assertThat(uri.queryParameter("audienceBroadcastId")).isEqualTo("bcast_demo")
         assertThat(uri.queryParameter("baseUrl")).isEqualTo("https://keepsecret.io")
+        assertThat(uri.fragment).isEqualTo("/audience/bcast_demo")
     }
 
     private fun createProvider(

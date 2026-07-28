@@ -665,7 +665,11 @@ private fun RoomCallButton(
             }
         }
         is RoomCallState.OnGoing -> {
-            if (!roomCallState.isUserLocallyInTheCall) {
+            if (roomCallState.isUserLocallyInTheCall) {
+                roomCallState.audienceBroadcastId?.let {
+                    ListenerCountToolbarLabel(count = roomCallState.audienceListenerCount)
+                }
+            } else {
                 roomCallState.audienceBroadcastId?.let { broadcastId ->
                     ListenerToolbarButton(
                         onClick = { onJoinAudienceClick(broadcastId) },
@@ -705,6 +709,18 @@ private fun RoomCallButton(
             onDismiss = { if (!roomCallState.audienceHostControl.isUpdating) showMeetingEntry = false },
         )
     }
+}
+
+/** The in-meeting header is status-only: headphones remain the listener entry outside a meeting. */
+@Composable
+private fun ListenerCountToolbarLabel(count: Int) {
+    Text(
+        modifier = Modifier.padding(horizontal = 8.dp),
+        text = stringResource(R.string.listener_meeting_listener_count, count.coerceAtLeast(0)),
+        style = ElementTheme.typography.fontBodySmMedium,
+        color = ElementTheme.colors.textSecondary,
+        maxLines = 1,
+    )
 }
 
 @Composable

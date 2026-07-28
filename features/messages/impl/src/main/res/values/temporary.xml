@@ -29,6 +29,7 @@
     <string name="listener_meeting_join_audience">Listen only</string>
     <string name="listener_meeting_live_title">Live meeting</string>
     <string name="listener_meeting_live_description">Listen without joining the meeting</string>
+    <string name="listener_meeting_listener_count">%1$d listeners</string>
     <!-- Game picker entry in the attachment source picker menu -->
     <string name="screen_room_attachment_source_game">Game</string>
     <!-- iOS parity entries in the attachment source picker menu. Disabled until the Android bottom layer exists. -->

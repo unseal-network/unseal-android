@@ -25,7 +25,7 @@ import org.junit.Test
 
 class AudienceWidgetDriverTest {
     @Test
-    fun `widget replies echo the fromWidget transport direction required by matrix widget api`() = runTest {
+    fun `widget replies preserve the fromWidget transport direction required by matrix widget api`() = runTest {
         val driver = AudienceWidgetDriver(
             id = "audience-widget",
             sessionId = A_SESSION_ID,

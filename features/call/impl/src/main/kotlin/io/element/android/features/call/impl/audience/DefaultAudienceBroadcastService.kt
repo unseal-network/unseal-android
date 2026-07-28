@@ -169,7 +169,10 @@ class DefaultAudienceBroadcastService(
                     return@transformLatest
                 }
                 runtime != null -> {
-                    retained = activeDiscovery.copy(phase = runtime.phase)
+                    retained = activeDiscovery.copy(
+                        phase = runtime.phase,
+                        listenerCount = runtime.listenerCount,
+                    )
                     updateHostFromRuntime(sessionId, roomId, runtime, activeDiscovery.accessMode)
                     emit(retained)
                     delay(runtime.pollAfterMs)

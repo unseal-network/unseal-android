@@ -21,7 +21,6 @@ import androidx.core.net.toUri
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
-import io.element.android.features.call.impl.BuildConfig
 import kotlinx.coroutines.flow.MutableSharedFlow
 import timber.log.Timber
 
@@ -41,6 +40,19 @@ class WebViewWidgetMessageInterceptor(
     override val interceptedMessages = MutableSharedFlow<String>(extraBufferCapacity = 10)
 
     init {
+        // Audience Call is loaded from the local appassets origin. Its first widget
+        // API requests can be emitted before onPageStarted's asynchronous script
+        // evaluation completes, so install the bridge at document start as well.
+        // A wildcard rule is not matched by every Android WebView implementation;
+        // use the actual appassets origin instead.
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            WebViewCompat.addDocumentStartJavaScript(
+                webView,
+                WIDGET_MESSAGE_BRIDGE_SCRIPT,
+                setOf(APP_ASSETS_ORIGIN),
+            )
+        }
+
         val assetLoader = WebViewAssetLoader.Builder()
             .addPathHandler("/", WebViewAssetLoader.AssetsPathHandler(webView.context))
             .build()
@@ -70,26 +82,12 @@ class WebViewWidgetMessageInterceptor(
                     null
                 )
 
-                // We inject this JS code when the page starts loading to attach a message listener to the window.
-                // This listener will receive both messages:
-                // - EC widget API -> Element X (message.data.api == "fromWidget")
-                // - Element X -> EC widget API (message.data.api == "toWidget"), we should ignore these
-                view.evaluateJavascript(
-                    """
-                        window.addEventListener('message', function(event) {
-                            let message = {data: event.data, origin: event.origin}
-                            if (message.data.response && message.data.api == "toWidget"
-                                || !message.data.response && message.data.api == "fromWidget") {
-                                let json = JSON.stringify(event.data) 
-                                ${"console.log('message sent: ' + json);".takeIf { BuildConfig.DEBUG }}
-                                $LISTENER_NAME.postMessage(json);
-                            } else {
-                                ${"console.log('message received (ignored): ' + JSON.stringify(event.data));".takeIf { BuildConfig.DEBUG }}
-                            }
-                        });
-                    """.trimIndent(),
-                    null
-                )
+                // Keep the bridge on the page-start path used by ordinary Element
+                // Call widgets. Some WebViews advertise document-start script
+                // support but silently do not install it for appassets URLs. If we
+                // skip this injection, the widget can send requests but receives no
+                // host response and remains indefinitely on its loading screen.
+                view.evaluateJavascript(WIDGET_MESSAGE_BRIDGE_SCRIPT, null)
             }
 
             override fun onPageFinished(view: WebView, url: String) {
@@ -171,11 +169,32 @@ class WebViewWidgetMessageInterceptor(
     }
 
     override fun sendMessage(message: String) {
+        Timber.d("Sending widget response to WebView")
         webView.evaluateJavascript("postMessage($message, '*')", null)
     }
 
     private fun onMessageReceived(json: String?) {
         // Here is where we would handle the messages from the WebView, passing them to the Rust SDK
-        json?.let { interceptedMessages.tryEmit(it) }
+        json?.let {
+            Timber.d("Received widget request from WebView")
+            interceptedMessages.tryEmit(it)
+        }
     }
 }
+
+private val WIDGET_MESSAGE_BRIDGE_SCRIPT =
+    """
+        if (!globalThis.__elementAndroidWidgetBridgeInstalled) {
+            globalThis.__elementAndroidWidgetBridgeInstalled = true;
+            window.addEventListener('message', function(event) {
+                let message = {data: event.data, origin: event.origin};
+                if (message.data && ((message.data.response && message.data.api == "toWidget")
+                    || (!message.data.response && message.data.api == "fromWidget"))) {
+                    let json = JSON.stringify(event.data);
+                    elementX.postMessage(json);
+                }
+            });
+        }
+    """.trimIndent()
+
+private const val APP_ASSETS_ORIGIN = "https://appassets.androidplatform.net"

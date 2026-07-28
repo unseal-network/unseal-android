@@ -110,6 +110,7 @@ class RoomCallStatePresenter(
                 isUserLocallyInTheCall = isUserLocallyInTheCall,
                 isAudioCall = roomInfo.activeCallIntentConsensus.isAudio(),
                 audienceBroadcastId = audienceDiscoveryState.discovery?.broadcastId,
+                audienceListenerCount = audienceDiscoveryState.discovery?.listenerCount ?: 0,
                 isAudienceDiscoveryPending = roomInfo.hasRoomCall &&
                     !audienceDiscoveryState.isResolved,
                 audienceHostControl = audienceHostControl,

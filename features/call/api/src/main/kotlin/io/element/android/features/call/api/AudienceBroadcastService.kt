@@ -47,6 +47,8 @@ data class AudienceBroadcastDiscovery(
     val meetingInstanceId: String,
     val accessMode: AudienceAccessMode,
     val phase: AudienceRuntimePhase,
+    /** Refreshed from the runtime status endpoint after Matrix discovery succeeds. */
+    val listenerCount: Int = 0,
 )
 
 data class AudienceRuntimeStatus(

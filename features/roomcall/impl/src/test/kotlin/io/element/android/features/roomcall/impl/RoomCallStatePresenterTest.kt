@@ -305,6 +305,7 @@ class RoomCallStatePresenterTest {
             meetingInstanceId = "4d1c64a7-6d0a-4fac-91f8-5bcbf2fc6a9d",
             accessMode = AudienceAccessMode.Authenticated,
             phase = AudienceRuntimePhase.Live,
+            listenerCount = 7,
         )
         val presenter = createRoomCallStatePresenter(
             joinedRoom = room,
@@ -322,6 +323,7 @@ class RoomCallStatePresenterTest {
                     isUserInTheCall = false,
                     isUserLocallyInTheCall = false,
                     audienceBroadcastId = "bcast_demo",
+                    audienceListenerCount = 7,
                 )
             )
         }

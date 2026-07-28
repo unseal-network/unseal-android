@@ -107,11 +107,11 @@ internal fun MessagesViewTopBar(
             val roundedCornerShape = RoundedCornerShape(24.dp)
             Row(
                 modifier = Modifier
-                    // Fill only as much width as the room name needs. The
-                    // allocation still caps a long name before the action
-                    // buttons, but short names no longer leave a fixed-width
-                    // title pill in the top bar.
-                    .weight(1f, fill = false)
+                    // Reserve the trailing edge for the meeting and overflow
+                    // actions. The title is always laid out from the left and
+                    // a long room name is ellipsized before it can move those
+                    // controls away from the top-right corner.
+                    .weight(1f)
                     .height(48.dp)
                     .shadow(10.dp, roundedCornerShape, clip = false, ambientColor = Color.Black.copy(alpha = 0.05f), spotColor = Color.Black.copy(alpha = 0.07f))
                     .clip(roundedCornerShape)
@@ -124,7 +124,7 @@ internal fun MessagesViewTopBar(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                val titleModifier = Modifier.weight(1f, fill = false)
+                val titleModifier = Modifier.weight(1f)
                 RoomAvatarAndNameRow(
                     roomName = roomName,
                     roomAvatar = roomAvatar,
@@ -257,7 +257,7 @@ private fun RoomAvatarAndNameRow(
         Text(
             modifier = Modifier
                 .padding(start = 8.dp)
-                .weight(1f, fill = false),
+                .weight(1f),
             text = roomName ?: stringResource(CommonStrings.common_no_room_name),
             style = ElementTheme.typography.fontBodyLgMedium,
             fontStyle = FontStyle.Italic.takeIf { roomName == null },

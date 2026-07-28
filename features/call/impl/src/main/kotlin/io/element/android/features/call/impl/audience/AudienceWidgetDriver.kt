@@ -59,10 +59,10 @@ class AudienceWidgetDriver(
         }
         mutableIncomingMessages.emit(
             buildJsonObject {
-                // matrix-widget-api matches responses against the request transport
-                // direction. Widget-originated requests and their responses both use
-                // `fromWidget`; using `toWidget` makes the SDK silently discard the
-                // response and eventually time out during content_loaded.
+                // The audience widget's PostmessageTransport sends requests with
+                // `fromWidget` and only accepts responses using that same
+                // direction. `toWidget` is used for host-originated requests, not
+                // replies, and makes the widget silently ignore this response.
                 put("api", "fromWidget")
                 put("widgetId", id)
                 put("requestId", requestId)
