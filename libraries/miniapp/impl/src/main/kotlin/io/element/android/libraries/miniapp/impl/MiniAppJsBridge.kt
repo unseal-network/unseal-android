@@ -21,7 +21,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import timber.log.Timber
 import java.io.File
@@ -200,23 +203,52 @@ internal class MiniAppJsBridge(
                 ?: json.optString("id").takeIf { it.isNotBlank() }
         }.getOrNull()
             ?: run { Timber.w("MiniApp: createSuccess aborted — doc_id/id missing/blank in params=%s", params); return }
+
+        // 1. Persist locally so liveOptions() and enrichOptionsWithDocId() can read it immediately.
         context.getSharedPreferences("miniapp_doc_ids", Context.MODE_PRIVATE)
             .edit()
             .putString("${config.appId}_$streamId", docId)
             .apply()
         Timber.d("MiniApp: docId saved appId=%d streamId=%s", config.appId, streamId)
+
+        // 2. Patch the live JS page so the current session picks up doc_id without reload.
         val escaped = docId.replace("\\", "\\\\").replace("\"", "\\\"")
-        // Patch the live page so the current JS session can read doc_id immediately:
-        // - window.___options.doc_id: startup-script global read directly by some mini-apps
-        // - window._co._app.options.doc_id: games-SDK co singleton (window._co is the global ref)
-        // - window.___co_reset: signals the webapp co.ts singleton to invalidate its _app cache
-        //   so the next co.app access re-fetches via liveOptions() and picks up the new doc_id
         val js = """(function(){""" +
             """try{if(window.___options)window.___options.doc_id="$escaped";}catch(e){}""" +
             """try{var c=window._co;if(c&&c._app&&c._app.options)c._app.options.doc_id="$escaped";}catch(e){}""" +
             """try{window.___co_reset=true;}catch(e){}""" +
             """})()"""
         webViewRef()?.post { webViewRef()?.evaluateJavascript(js, null) }
+
+        // 3. Fire-and-forget: persist to server so other devices / fresh installs can recover.
+        val homeserver = config.homeserver?.takeIf { it.isNotBlank() } ?: return
+        scope.launch(Dispatchers.IO) {
+            bindDocToServer(streamId = streamId, docId = docId, homeserver = homeserver)
+        }
+    }
+
+    /**
+     * POST pkg.doc.bind to persist the docId on the server.
+     * Called from a background coroutine — must not touch the main thread.
+     */
+    private fun bindDocToServer(streamId: String, docId: String, homeserver: String) {
+        val homeserverHost = homeserver.removePrefix("https://").removePrefix("http://").trimEnd('/')
+        val body = JSONObject().apply {
+            put("method", "pkg.doc.bind")
+            put("ukey", streamId)
+            put("doc_id", docId)
+            put("homeserver", homeserver)
+        }.toString().toRequestBody("application/json".toMediaType())
+        val request = Request.Builder()
+            .url("$homeserver/app-mgr/package/json")
+            .header("APP-U", "s=$homeserverHost")
+            .post(body)
+            .build()
+        runCatching {
+            okHttpClient.newCall(request).execute().use { response ->
+                Timber.d("MiniApp: pkg.doc.bind code=%d appId=%d", response.code, config.appId)
+            }
+        }.onFailure { Timber.e(it, "MiniApp: pkg.doc.bind failed appId=%d", config.appId) }
     }
 
     /** Signal file-creation progress. */

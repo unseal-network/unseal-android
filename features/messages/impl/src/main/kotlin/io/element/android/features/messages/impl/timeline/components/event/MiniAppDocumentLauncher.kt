@@ -19,7 +19,12 @@ import io.element.android.libraries.gameapi.impl.DefaultGameApiService
 import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.miniapp.api.MiniAppConfig
 import io.element.android.libraries.miniapp.api.MiniAppToken
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONArray
+import org.json.JSONObject
 import timber.log.Timber
 
 /** Numeric app IDs that match iOS constants (pptEditorId=5, docxEditorId=1, etc.). */
@@ -62,10 +67,8 @@ class DefaultMiniAppDocumentLauncher(
             .getOrNull()
             ?.let { MiniAppToken(accessToken = it) }
 
-        val enrichedOptions = enrichOptionsWithDocId(appId, options)
-
         if (appId <= 0L) {
-            return MiniAppConfig(appId = appId, url = "", options = enrichedOptions, token = token)
+            return MiniAppConfig(appId = appId, url = "", options = options, token = token)
         }
 
         val homeserverUrl = runCatching {
@@ -74,8 +77,11 @@ class DefaultMiniAppDocumentLauncher(
 
         if (homeserverUrl.isNullOrBlank()) {
             Timber.w("DocLauncher: homeserver unavailable, falling back for appId=%d", appId)
-            return MiniAppConfig(appId = appId, url = "", options = enrichedOptions, token = token)
+            return MiniAppConfig(appId = appId, url = "", options = options, token = token)
         }
+
+        // enrichOptionsWithDocId needs homeserverUrl for server fallback, so called after resolution.
+        val enrichedOptions = enrichOptionsWithDocId(appId, options, homeserverUrl)
 
         val service = DefaultGameApiService(
             homeserverUrl = homeserverUrl,
@@ -115,20 +121,73 @@ class DefaultMiniAppDocumentLauncher(
     }
 
     /**
-     * If [options] contains a `stream_id` and no `doc_id`, reads a previously-saved docId from
-     * SharedPreferences and injects it. Mirrors the logic in [MiniAppNode.buildDocOptions].
+     * Injects a saved `doc_id` into [options] for a given [streamId].
+     *
+     * Resolution order:
+     * 1. If options already contains `doc_id` — return as-is (caller already has it).
+     * 2. Local SharedPreferences hit — return immediately (fast path).
+     * 3. Server query (`pkg.doc.query`) — save to SP then return enriched options.
+     * 4. Server miss / failure — return original options (mini-app will prompt user to create).
      */
-    private fun enrichOptionsWithDocId(appId: Long, options: Map<String, Any>): Map<String, Any> {
+    private suspend fun enrichOptionsWithDocId(
+        appId: Long,
+        options: Map<String, Any>,
+        homeserverUrl: String,
+    ): Map<String, Any> {
         if (options.containsKey("doc_id")) return options
         val streamId = options["stream_id"]?.toString()?.takeIf { it.isNotBlank() } ?: return options
-        val storedDocId = context
-            .getSharedPreferences("miniapp_doc_ids", android.content.Context.MODE_PRIVATE)
-            .getString("${appId}_$streamId", null)
-            ?.takeIf { it.isNotBlank() }
-            ?: return options
-        Timber.d("DocLauncher: injecting stored docId appId=%d streamId=%s", appId, streamId)
-        return options + ("doc_id" to storedDocId)
+        val spKey = "${appId}_$streamId"
+        val prefs = context.getSharedPreferences("miniapp_doc_ids", Context.MODE_PRIVATE)
+
+        val localDocId = prefs.getString(spKey, null)?.takeIf { it.isNotBlank() }
+        if (localDocId != null) {
+            Timber.d("DocLauncher: injecting local docId appId=%d streamId=%s", appId, streamId)
+            return options + ("doc_id" to localDocId)
+        }
+
+        // Local miss — fall back to server.
+        Timber.d("DocLauncher: SP miss for appId=%d streamId=%s, querying server", appId, streamId)
+        val serverDocId = queryDocFromServer(streamId, homeserverUrl)
+        if (serverDocId != null) {
+            prefs.edit().putString(spKey, serverDocId).apply()
+            Timber.d("DocLauncher: server docId cached appId=%d streamId=%s", appId, streamId)
+            return options + ("doc_id" to serverDocId)
+        }
+
+        return options
     }
+
+    /**
+     * GET pkg.doc.query to look up the docId bound to [streamId] on the server.
+     * Returns the first `doc_id` from the response array, or null on any failure/empty result.
+     */
+    private suspend fun queryDocFromServer(streamId: String, homeserverUrl: String): String? =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val homeserverHost = homeserverUrl
+                    .removePrefix("https://")
+                    .removePrefix("http://")
+                    .trimEnd('/')
+                val encodedUkey = java.net.URLEncoder.encode(streamId, "UTF-8")
+                val request = Request.Builder()
+                    .url("$homeserverUrl/app-mgr/package/json?method=pkg.doc.query&ukey=$encodedUkey")
+                    .header("APP-U", "s=$homeserverHost")
+                    .get()
+                    .build()
+                val responseBody = okHttp().newCall(request).execute().use { it.body?.string().orEmpty() }
+                val root = JSONObject(responseBody)
+                if (root.optInt("code") != 0) {
+                    Timber.w("DocLauncher: pkg.doc.query code=%d", root.optInt("code"))
+                    return@runCatching null
+                }
+                val data = root.optJSONArray("data") ?: JSONArray()
+                if (data.length() == 0) return@runCatching null
+                data.getJSONObject(0).optString("doc_id").takeIf { it.isNotBlank() }
+            }.getOrElse { error ->
+                Timber.e(error, "DocLauncher: pkg.doc.query failed streamId=%s", streamId)
+                null
+            }
+        }
 }
 
 private fun AppBundleInfo.toBundleDataMap(): Map<String, Any> = buildMap {
