@@ -51,16 +51,35 @@ object FileEditorConfig {
 }
 
 /**
- * Maps a MIME type to the corresponding [MiniAppIds] app ID, or null for unsupported types.
+ * Maps a file to the corresponding [MiniAppIds] app ID, or null for unsupported types.
  *
- * iOS equivalent: `TimelineViewModel.editorType(for:)`.
+ * iOS equivalent: `TimelineViewModel.editorType(for:)` which uses UTType conformance
+ * (content-type + extension). Android lacks UTType, so we mirror that priority:
+ * filename extension is checked first (unambiguous), then MIME type as fallback.
+ *
+ * This prevents a MIME-type mislabel (e.g. a .pdf file whose Matrix event accidentally
+ * carries a Word MIME type) from routing the file to the wrong editor.
  */
-fun mimeTypeToMiniAppId(mimeType: String): Long? = when {
-    "wordprocessingml.document" in mimeType || mimeType == "application/msword"              -> MiniAppIds.DOCX
-    "spreadsheetml.sheet" in mimeType || "ms-excel" in mimeType                             -> MiniAppIds.EXCEL
-    "presentationml.presentation" in mimeType || "ms-powerpoint" in mimeType                -> MiniAppIds.PPT
-    mimeType == "application/pdf"                                                            -> MiniAppIds.PDF
-    else                                                                                     -> null
+fun mimeTypeToMiniAppId(mimeType: String, filename: String = ""): Long? {
+    // 1. Extension — authoritative for clearly-typed files, mirrors iOS UTType detection.
+    val ext = filename.substringAfterLast('.', "").lowercase()
+    val byExt: Long? = when (ext) {
+        "docx", "doc"   -> MiniAppIds.DOCX
+        "xlsx", "xls"   -> MiniAppIds.EXCEL
+        "pptx", "ppt"   -> MiniAppIds.PPT
+        "pdf"           -> MiniAppIds.PDF
+        else            -> null
+    }
+    if (byExt != null) return byExt
+
+    // 2. MIME type fallback (for files without a recognised extension).
+    return when {
+        "wordprocessingml.document" in mimeType || mimeType == "application/msword"   -> MiniAppIds.DOCX
+        "spreadsheetml.sheet" in mimeType || "ms-excel" in mimeType                  -> MiniAppIds.EXCEL
+        "presentationml.presentation" in mimeType || "ms-powerpoint" in mimeType     -> MiniAppIds.PPT
+        mimeType == "application/pdf" || mimeType == "application/x-pdf"             -> MiniAppIds.PDF
+        else                                                                          -> null
+    }
 }
 
 /**

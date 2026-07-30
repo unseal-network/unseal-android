@@ -275,7 +275,7 @@ class MessagesFlowNode(
                     override fun handleEventClick(timelineMode: Timeline.Mode, event: TimelineItem.Event, canUseOverlay: Boolean): Boolean {
                         if (FileEditorConfig.ENABLED && event.content is TimelineItemFileContent) {
                             val content = event.content
-                            val appId = mimeTypeToMiniAppId(content.mimeType)
+                            val appId = mimeTypeToMiniAppId(content.mimeType, content.filename)
                             val eventId = event.eventId
                             if (appId != null && eventId != null) {
                                 fileEditorOverlayState.open(
