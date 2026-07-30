@@ -17,6 +17,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -39,6 +40,10 @@ import io.element.android.features.messages.impl.messagecomposer.MessageComposer
 import io.element.android.features.messages.impl.timeline.TimelineController
 import io.element.android.features.messages.impl.timeline.TimelineEvent
 import io.element.android.features.messages.impl.timeline.TimelinePresenter
+import io.element.android.features.messages.impl.timeline.components.event.DocumentViewerOverlay
+import io.element.android.features.messages.impl.timeline.components.event.LocalPptFullscreenState
+import io.element.android.features.messages.impl.timeline.components.event.MiniAppIds
+import io.element.android.features.messages.impl.timeline.components.event.PptFullscreenState
 import io.element.android.features.messages.impl.timeline.di.LocalTimelineItemPresenterFactories
 import io.element.android.features.messages.impl.timeline.di.TimelineItemPresenterFactories
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
@@ -274,8 +279,10 @@ class MessagesNode(
         val activity = requireNotNull(LocalActivity.current)
         val isDark = ElementTheme.isLightTheme.not()
         val canUseOverlay = !isTalkbackActive() && !hasExternalKeyboard()
+        val pptFullscreenState = remember { PptFullscreenState() }
         CompositionLocalProvider(
             LocalTimelineItemPresenterFactories provides timelineItemPresenterFactories,
+            LocalPptFullscreenState provides pptFullscreenState,
         ) {
             val state = presenter.present()
 
@@ -374,6 +381,21 @@ class MessagesNode(
                     state.timelineState.eventSink(TimelineEvent.FocusOnEvent(focusedEventId!!))
                     focusedEventId = null
                 }
+            }
+
+            pptFullscreenState.request?.let { req ->
+                val sid = req.streamId?.takeIf { it.isNotBlank() }
+                    ?: req.taskId?.takeIf { it.isNotBlank() }
+                DocumentViewerOverlay(
+                    appId = MiniAppIds.PPT,
+                    options = buildMap {
+                        put("htmls", req.slides)
+                        put("initialIndex", req.initialIndex)
+                        sid?.let { put("stream_id", it) }
+                    },
+                    launcher = req.launcher,
+                    onDismiss = { pptFullscreenState.close() },
+                )
             }
         }
     }

@@ -1683,7 +1683,7 @@ private fun PptSlidesView(slides: List<String>, totalSlides: Int, isGenerating: 
     var currentIndex by rememberSaveable { mutableStateOf(0) }
     val safeIndex = if (slides.isEmpty()) 0 else currentIndex.coerceIn(0, slides.size - 1)
 
-    var showFullscreen by remember { mutableStateOf(false) }
+    val pptFullscreenState = LocalPptFullscreenState.current
 
     Column(
         modifier = Modifier
@@ -1721,8 +1721,19 @@ private fun PptSlidesView(slides: List<String>, totalSlides: Int, isGenerating: 
                     color = textSecondary,
                 )
                 if (slides.isNotEmpty() && !isGenerating) {
+                    val launcher = LocalDocumentLauncher.current
                     IconButton(
-                        onClick = { showFullscreen = true },
+                        onClick = {
+                            if (launcher != null) {
+                                pptFullscreenState.open(
+                                    slides = slides,
+                                    initialIndex = safeIndex,
+                                    streamId = streamId,
+                                    taskId = taskId,
+                                    launcher = launcher,
+                                )
+                            }
+                        },
                         modifier = Modifier.size(32.dp),
                     ) {
                         Icon(
@@ -1774,35 +1785,6 @@ private fun PptSlidesView(slides: List<String>, totalSlides: Int, isGenerating: 
         }
     }
 
-    // Fullscreen overlay — triggered by the expand button above.
-    if (showFullscreen && slides.isNotEmpty()) {
-        when (PPT_FULLSCREEN_MODE) {
-            PptFullscreenMode.CAROUSEL -> PptCarouselFullscreen(
-                slides = slides,
-                initialIndex = safeIndex,
-                onDismiss = { showFullscreen = false },
-            )
-            PptFullscreenMode.MINIAPP -> {
-                val launcher = LocalDocumentLauncher.current
-                if (launcher != null) {
-                    DocumentViewerOverlay(
-                        appId = MiniAppIds.PPT,
-                        options = buildMap {
-                            put("htmls", slides)
-                            put("initialIndex", safeIndex)
-                            // Prefer the AI stream ID; fall back to the PPT task ID so
-                            // createSuccess can always persist doc_id with a stable key.
-                            val sid = streamId?.takeIf { it.isNotBlank() }
-                                ?: taskId?.takeIf { it.isNotBlank() }
-                            sid?.let { put("stream_id", it) }
-                        },
-                        launcher = launcher,
-                        onDismiss = { showFullscreen = false },
-                    )
-                }
-            }
-        }
-    }
 }
 
 @Composable

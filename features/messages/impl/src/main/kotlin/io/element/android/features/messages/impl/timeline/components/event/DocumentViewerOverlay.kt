@@ -7,7 +7,6 @@
 
 package io.element.android.features.messages.impl.timeline.components.event
 
-import android.app.Activity
 import android.view.Gravity
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -75,55 +74,37 @@ fun DocumentViewerOverlay(
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             dismissOnClickOutside = false,
+            dismissOnBackPress = false,
         ),
     ) {
         val view = LocalView.current
-        // Configure the Dialog's window before the first frame so it truly covers the
-        // entire display. WindowInsetsController.hide() is async (takes effect next vsync),
-        // so we must also set FLAG_LAYOUT_NO_LIMITS which synchronously extends the window
-        // behind every system bar regardless of whether those bars are hidden yet.
+        // Operate ONLY on the Dialog's own window — never touch the Activity window.
+        // Hiding system bars on the Activity window causes a focus change that makes
+        // Android call onDismissRequest, closing the overlay immediately.
         DisposableEffect(Unit) {
-            val dialogWindow = (view.parent as? DialogWindowProvider)?.window
-            val activityWindow = (view.context as? Activity)?.window
+            val dialogWindow = (view.parent as? DialogWindowProvider)?.window ?: return@DisposableEffect onDispose {}
 
-            dialogWindow?.let { w ->
-                // Set position before layout so the window starts at screen (0,0).
-                // Compose Dialog defaults to Gravity.CENTER within the Activity content area;
-                // override to TOP|START + y=0 so it covers the status bar and toolbar.
-                w.attributes = w.attributes.also { lp ->
-                    lp.width = ViewGroup.LayoutParams.MATCH_PARENT
-                    lp.height = ViewGroup.LayoutParams.MATCH_PARENT
-                    lp.gravity = Gravity.TOP or Gravity.START
-                    lp.x = 0
-                    lp.y = 0
-                }
-                w.addFlags(
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-                )
-                WindowCompat.setDecorFitsSystemWindows(w, false)
-                WindowCompat.getInsetsController(w, w.decorView).apply {
-                    hide(WindowInsetsCompat.Type.systemBars())
-                    systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                }
+            dialogWindow.attributes = dialogWindow.attributes.also { lp ->
+                lp.width = ViewGroup.LayoutParams.MATCH_PARENT
+                lp.height = ViewGroup.LayoutParams.MATCH_PARENT
+                lp.gravity = Gravity.TOP or Gravity.START
+                lp.x = 0
+                lp.y = 0
             }
-            activityWindow?.let { w ->
-                WindowCompat.getInsetsController(w, w.decorView).apply {
-                    hide(WindowInsetsCompat.Type.systemBars())
-                    systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                }
+            dialogWindow.addFlags(
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+            )
+            WindowCompat.setDecorFitsSystemWindows(dialogWindow, false)
+            WindowCompat.getInsetsController(dialogWindow, dialogWindow.decorView).apply {
+                hide(WindowInsetsCompat.Type.systemBars())
+                systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
 
             onDispose {
-                dialogWindow?.let { w ->
-                    w.clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
-                    WindowCompat.getInsetsController(w, w.decorView)
-                        .show(WindowInsetsCompat.Type.systemBars())
-                }
-                activityWindow?.let { w ->
-                    WindowCompat.getInsetsController(w, w.decorView)
-                        .show(WindowInsetsCompat.Type.systemBars())
-                }
+                dialogWindow.clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
+                WindowCompat.getInsetsController(dialogWindow, dialogWindow.decorView)
+                    .show(WindowInsetsCompat.Type.systemBars())
             }
         }
 
