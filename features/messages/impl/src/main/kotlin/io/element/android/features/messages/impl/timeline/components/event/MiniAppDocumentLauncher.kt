@@ -8,6 +8,7 @@
 package io.element.android.features.messages.impl.timeline.components.event
 
 import android.content.Context
+import android.util.Base64
 import androidx.compose.runtime.compositionLocalOf
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
@@ -17,6 +18,7 @@ import io.element.android.libraries.di.annotations.ApplicationContext
 import io.element.android.libraries.gameapi.api.AppBundleInfo
 import io.element.android.libraries.gameapi.impl.DefaultGameApiService
 import io.element.android.libraries.matrix.api.MatrixClient
+import io.element.android.libraries.matrix.api.media.MediaSource
 import io.element.android.libraries.miniapp.api.MiniAppConfig
 import io.element.android.libraries.miniapp.api.MiniAppToken
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +35,32 @@ object MiniAppIds {
     const val EXCEL = 4L
     const val PPT   = 5L
     const val PDF   = 6L
+}
+
+/**
+ * Global switch for opening file messages (docx / xlsx / pdf) in the MiniApp WebView
+ * instead of the system "Open With" fallback.
+ *
+ * Mirrors iOS `AppSettings.useEditorForFiles` (default: true).
+ */
+object FileEditorConfig {
+    const val ENABLED = true
+
+    /** Options map key carrying the [MediaSource] for in-flight file download inside [buildConfig]. */
+    const val OPTIONS_MEDIA_SOURCE_KEY = "_media_source"
+}
+
+/**
+ * Maps a MIME type to the corresponding [MiniAppIds] app ID, or null for unsupported types.
+ *
+ * iOS equivalent: `TimelineViewModel.editorType(for:)`.
+ */
+fun mimeTypeToMiniAppId(mimeType: String): Long? = when {
+    "wordprocessingml.document" in mimeType || mimeType == "application/msword"              -> MiniAppIds.DOCX
+    "spreadsheetml.sheet" in mimeType || "ms-excel" in mimeType                             -> MiniAppIds.EXCEL
+    "presentationml.presentation" in mimeType || "ms-powerpoint" in mimeType                -> MiniAppIds.PPT
+    mimeType == "application/pdf"                                                            -> MiniAppIds.PDF
+    else                                                                                     -> null
 }
 
 /**
@@ -80,8 +108,24 @@ class DefaultMiniAppDocumentLauncher(
             return MiniAppConfig(appId = appId, url = "", options = options, token = token)
         }
 
+        // Inject homeserver into options so the mini-app JS can read it from both
+        // window.___homeserver (set by the startup script) and window.___options.homeserver
+        // (as a fallback for apps that read credentials from the options map).
+        val optionsWithHomeserver = if (options.containsKey("homeserver")) options
+        else options + ("homeserver" to homeserverUrl)
+
         // enrichOptionsWithDocId needs homeserverUrl for server fallback, so called after resolution.
-        val enrichedOptions = enrichOptionsWithDocId(appId, options, homeserverUrl)
+        var enrichedOptions = enrichOptionsWithDocId(appId, optionsWithHomeserver, homeserverUrl)
+
+        // File editor path: if no doc_id was resolved and a MediaSource is in options,
+        // download the file and pass it as base64 so the web editor can create a new doc.
+        // This mirrors iOS FileEditorView where fileData is passed via UploadOptions when docId is empty.
+        val mediaSource = options[FileEditorConfig.OPTIONS_MEDIA_SOURCE_KEY] as? MediaSource
+        if (!enrichedOptions.containsKey("doc_id") && mediaSource != null) {
+            enrichedOptions = enrichedOptions + downloadAsBase64(mediaSource, enrichedOptions)
+        }
+        // Always strip the internal key — MediaSource is not JSON-serializable and must not reach the WebView.
+        enrichedOptions = enrichedOptions - FileEditorConfig.OPTIONS_MEDIA_SOURCE_KEY
 
         val service = DefaultGameApiService(
             homeserverUrl = homeserverUrl,
@@ -118,6 +162,35 @@ class DefaultMiniAppDocumentLauncher(
                 Timber.e(error, "DocLauncher: fetchAppBundle failed appId=%d", appId)
                 MiniAppConfig(appId = appId, url = "", options = enrichedOptions, token = token)
             }
+    }
+
+    /**
+     * Downloads [source] via the Matrix media loader and returns additional options entries:
+     * - `file`: base64-encoded file bytes (iOS equivalent: `UploadOptions.file` base64 string)
+     * - `file_size`: byte length
+     *
+     * Returns an empty map on failure so the caller continues without crashing.
+     */
+    private suspend fun downloadAsBase64(
+        source: MediaSource,
+        currentOptions: Map<String, Any>,
+    ): Map<String, Any> = withContext(Dispatchers.IO) {
+        val filename = currentOptions["file_name"]?.toString()
+        val mimeType = currentOptions["mine_type"]?.toString()
+        runCatching {
+            val bytes = matrixClient.matrixMediaLoader
+                .downloadMediaFile(source = source, mimeType = mimeType, filename = filename)
+                .getOrThrow()
+                .use { mediaFile ->
+                    java.io.File(mediaFile.path()).readBytes()
+                }
+            val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+            Timber.d("DocLauncher: file downloaded %d bytes, base64 len=%d", bytes.size, base64.length)
+            mapOf("file" to base64, "file_size" to bytes.size.toLong())
+        }.getOrElse { error ->
+            Timber.e(error, "DocLauncher: file download failed")
+            emptyMap()
+        }
     }
 
     /**

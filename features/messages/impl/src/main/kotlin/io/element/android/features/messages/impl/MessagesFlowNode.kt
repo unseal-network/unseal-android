@@ -53,6 +53,10 @@ import io.element.android.features.messages.impl.timeline.debug.EventDebugInfoNo
 import io.element.android.features.messages.impl.timeline.model.TimelineItem
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemAudioContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemEventContentWithAttachment
+import io.element.android.features.messages.impl.timeline.components.event.FileEditorConfig
+import io.element.android.features.messages.impl.timeline.components.event.FileEditorOverlayState
+import io.element.android.features.messages.impl.timeline.components.event.MiniAppDocumentLauncher
+import io.element.android.features.messages.impl.timeline.components.event.mimeTypeToMiniAppId
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemFileContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemImageContent
 import io.element.android.features.messages.impl.timeline.model.event.TimelineItemLocationContent
@@ -142,6 +146,7 @@ class MessagesFlowNode(
     private val dateFormatter: DateFormatter,
     private val coroutineDispatchers: CoroutineDispatchers,
     private val hasVulkanSupport: DeviceHasVulkanSupport,
+    private val miniAppDocumentLauncher: MiniAppDocumentLauncher,
 ) : BaseFlowNode<MessagesFlowNode.NavTarget>(
     backstack = BackStack(
         initialElement = plugins.filterIsInstance<MessagesEntryPoint.Params>().first().initialTarget.toNavTarget(),
@@ -223,6 +228,7 @@ class MessagesFlowNode(
     private val params = plugins.filterIsInstance<MessagesEntryPoint.Params>().first()
     private val callback: MessagesEntryPoint.Callback = callback()
     private val localRoomConfigChangeRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val fileEditorOverlayState = FileEditorOverlayState()
 
     private var displayVulkanNotSupportedError by mutableStateOf(false)
 
@@ -267,6 +273,22 @@ class MessagesFlowNode(
                     }
 
                     override fun handleEventClick(timelineMode: Timeline.Mode, event: TimelineItem.Event, canUseOverlay: Boolean): Boolean {
+                        if (FileEditorConfig.ENABLED && event.content is TimelineItemFileContent) {
+                            val content = event.content
+                            val appId = mimeTypeToMiniAppId(content.mimeType)
+                            val eventId = event.eventId
+                            if (appId != null && eventId != null) {
+                                fileEditorOverlayState.open(
+                                    appId = appId,
+                                    eventId = eventId.value,
+                                    filename = content.filename,
+                                    mimeType = content.mimeType,
+                                    mediaSource = content.mediaSource,
+                                    launcher = miniAppDocumentLauncher,
+                                )
+                                return true
+                            }
+                        }
                         return processEventClick(
                             timelineMode = timelineMode,
                             event = event,
@@ -392,6 +414,7 @@ class MessagesFlowNode(
                 val inputs = MessagesNode.Inputs(
                     focusedEventId = navTarget.focusedEventId,
                     roomConfigChangeRequests = merge(params.roomConfigChangeRequests, localRoomConfigChangeRequests),
+                    fileEditorOverlayState = fileEditorOverlayState,
                 )
                 createNode<MessagesNode>(buildContext, listOf(callback, inputs))
             }

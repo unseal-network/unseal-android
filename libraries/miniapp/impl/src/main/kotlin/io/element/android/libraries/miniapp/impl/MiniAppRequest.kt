@@ -60,6 +60,15 @@ internal object MiniAppRequest {
 
         Timber.d("MiniApp: HTTP %s %s handleId=%s", method, logUrl, fromJs.handleId)
 
+        // Validate URL before building — Request.Builder().url() throws IllegalArgumentException
+        // for invalid or missing schemes (e.g. "undefined/..."), which would escape the try block
+        // below and crash the calling coroutine.
+        if (url.toHttpUrlOrNull() == null) {
+            Timber.w("MiniApp: request rejected — invalid url handleId=%s", fromJs.handleId)
+            sendError(webView, fromJs.handleId, 400, "invalid url: $logUrl")
+            return
+        }
+
         val requestBuilder = Request.Builder().url(url)
 
         // Set all headers from JS params — use explicit iterator to guarantee smart-cast on headersObj.

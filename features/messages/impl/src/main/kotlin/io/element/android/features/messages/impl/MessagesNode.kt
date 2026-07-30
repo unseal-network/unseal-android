@@ -41,6 +41,8 @@ import io.element.android.features.messages.impl.timeline.TimelineController
 import io.element.android.features.messages.impl.timeline.TimelineEvent
 import io.element.android.features.messages.impl.timeline.TimelinePresenter
 import io.element.android.features.messages.impl.timeline.components.event.DocumentViewerOverlay
+import io.element.android.features.messages.impl.timeline.components.event.FileEditorConfig
+import io.element.android.features.messages.impl.timeline.components.event.FileEditorOverlayState
 import io.element.android.features.messages.impl.timeline.components.event.LocalPptFullscreenState
 import io.element.android.features.messages.impl.timeline.components.event.MiniAppIds
 import io.element.android.features.messages.impl.timeline.components.event.PptFullscreenState
@@ -109,6 +111,7 @@ class MessagesNode(
     data class Inputs(
         val focusedEventId: EventId?,
         val roomConfigChangeRequests: Flow<Unit>,
+        val fileEditorOverlayState: FileEditorOverlayState,
     ) : NodeInputs
 
     private val inputs = inputs<Inputs>()
@@ -395,6 +398,20 @@ class MessagesNode(
                     },
                     launcher = req.launcher,
                     onDismiss = { pptFullscreenState.close() },
+                )
+            }
+
+            inputs.fileEditorOverlayState.request?.let { req ->
+                DocumentViewerOverlay(
+                    appId = req.appId,
+                    options = buildMap {
+                        put("stream_id", req.eventId)
+                        put("file_name", req.filename)
+                        put("mine_type", req.mimeType)
+                        put(FileEditorConfig.OPTIONS_MEDIA_SOURCE_KEY, req.mediaSource)
+                    },
+                    launcher = req.launcher,
+                    onDismiss = { inputs.fileEditorOverlayState.close() },
                 )
             }
         }
