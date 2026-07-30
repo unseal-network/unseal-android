@@ -285,6 +285,7 @@ class MessagesFlowNode(
                                     mimeType = content.mimeType,
                                     mediaSource = content.mediaSource,
                                     launcher = miniAppDocumentLauncher,
+                                    homeserverUrl = miniAppDocumentLauncher.baseHomeserverUrl(),
                                 )
                                 return true
                             }

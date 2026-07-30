@@ -92,6 +92,15 @@ interface MiniAppDocumentLauncher {
     suspend fun buildConfig(appId: Long, options: Map<String, Any> = emptyMap()): MiniAppConfig
     /** Returns the OkHttpClient needed by [MiniAppView] for bundle download. */
     fun okHttpClient(): OkHttpClient
+    /**
+     * Returns the base homeserver URL derived directly from the authenticated Matrix client's
+     * user ID server name (e.g. `https://matrix.example.com`).
+     *
+     * This mirrors iOS `userSession.clientProxy.homeserver` — a synchronous, already-known value
+     * that does not require a `.well-known` network call. Pass this to the initial options map at
+     * the call site so the mini-app JS has a homeserver available even before [buildConfig] runs.
+     */
+    fun baseHomeserverUrl(): String
 }
 
 /** CompositionLocal carrying the launcher down the Compose tree. Null when not wired. */
@@ -108,6 +117,8 @@ class DefaultMiniAppDocumentLauncher(
 
     override fun okHttpClient(): OkHttpClient = okHttp()
 
+    override fun baseHomeserverUrl(): String = "https://${matrixClient.userIdServerName()}"
+
     override suspend fun buildConfig(appId: Long, options: Map<String, Any>): MiniAppConfig {
         val token = matrixClient.currentAccessToken()
             .onFailure { Timber.e(it, "DocLauncher: token fetch failed") }
@@ -118,18 +129,23 @@ class DefaultMiniAppDocumentLauncher(
             return MiniAppConfig(appId = appId, url = "", options = options, token = token)
         }
 
-        val homeserverUrl = runCatching {
+        // Resolve homeserver via .well-known for the most accurate value. Fall back to the value
+        // already in options (pre-filled by the call site from baseHomeserverUrl()) so that a
+        // .well-known failure no longer blocks the editor from opening.
+        val wellKnownUrl = runCatching {
             baseUrlResolver.resolveHomeserverBaseUrl(matrixClient.userIdServerName())
-        }.getOrNull()
+        }.getOrNull()?.takeIf { it.isNotBlank() }
+
+        val homeserverUrl = wellKnownUrl
+            ?: options["homeserver"]?.toString()?.takeIf { it.isNotBlank() }
 
         if (homeserverUrl.isNullOrBlank()) {
             Timber.w("DocLauncher: homeserver unavailable, falling back for appId=%d", appId)
             return MiniAppConfig(appId = appId, url = "", options = options, token = token)
         }
 
-        // Inject homeserver into options so the mini-app JS can read it from both
-        // window.___homeserver (set by the startup script) and window.___options.homeserver
-        // (as a fallback for apps that read credentials from the options map).
+        // Inject homeserver into options so the mini-app JS can read window.___options.homeserver.
+        // Call site may have pre-filled this via baseHomeserverUrl(); don't overwrite if already set.
         val optionsWithHomeserver = if (options.containsKey("homeserver")) options
         else options + ("homeserver" to homeserverUrl)
 
@@ -185,7 +201,7 @@ class DefaultMiniAppDocumentLauncher(
 
     /**
      * Downloads [source] via the Matrix media loader and returns additional options entries:
-     * - `file`: base64-encoded file bytes (iOS equivalent: `UploadOptions.file` base64 string)
+     * - `file_base64`: base64-encoded file bytes (matches iOS `options["file_base64"]` in EditorControllerWrapper)
      * - `file_size`: byte length
      *
      * Returns an empty map on failure so the caller continues without crashing.
@@ -205,7 +221,7 @@ class DefaultMiniAppDocumentLauncher(
                 }
             val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
             Timber.d("DocLauncher: file downloaded %d bytes, base64 len=%d", bytes.size, base64.length)
-            mapOf("file" to base64, "file_size" to bytes.size.toLong())
+            mapOf("file_base64" to base64, "file_size" to bytes.size.toLong())
         }.getOrElse { error ->
             Timber.e(error, "DocLauncher: file download failed")
             emptyMap()

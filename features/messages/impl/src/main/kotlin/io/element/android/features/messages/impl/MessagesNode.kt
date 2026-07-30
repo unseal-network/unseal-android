@@ -408,6 +408,7 @@ class MessagesNode(
                         put("stream_id", req.eventId)
                         put("file_name", req.filename)
                         put("mine_type", req.mimeType)
+                        put("homeserver", req.homeserverUrl)
                         put(FileEditorConfig.OPTIONS_MEDIA_SOURCE_KEY, req.mediaSource)
                     },
                     launcher = req.launcher,

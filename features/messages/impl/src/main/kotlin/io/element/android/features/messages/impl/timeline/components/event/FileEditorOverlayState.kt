@@ -25,6 +25,8 @@ data class FileEditorRequest(
     val mimeType: String,
     val mediaSource: MediaSource,
     val launcher: MiniAppDocumentLauncher,
+    /** Pre-resolved homeserver URL from the call site, mirrors iOS `clientProxy.homeserver`. */
+    val homeserverUrl: String,
 )
 
 /**
@@ -45,6 +47,7 @@ class FileEditorOverlayState {
         mimeType: String,
         mediaSource: MediaSource,
         launcher: MiniAppDocumentLauncher,
+        homeserverUrl: String,
     ) {
         request = FileEditorRequest(
             appId = appId,
@@ -53,6 +56,7 @@ class FileEditorOverlayState {
             mimeType = mimeType,
             mediaSource = mediaSource,
             launcher = launcher,
+            homeserverUrl = homeserverUrl,
         )
     }
 
