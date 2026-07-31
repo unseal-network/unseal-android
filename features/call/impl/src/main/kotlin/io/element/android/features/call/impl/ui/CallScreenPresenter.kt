@@ -99,7 +99,7 @@ class CallScreenPresenter(
             if (callData.audienceBroadcastId == null) {
                 UUID.randomUUID().toString()
             } else {
-                "client_${UUID.randomUUID().toString().replace("-", "")}" 
+                "client_${UUID.randomUUID().toString().replace("-", "")}"
             }
         }
         DisposableEffect(Unit) {
