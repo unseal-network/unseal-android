@@ -368,7 +368,6 @@ fun MessagesView(
                                         roomMenu = state.roomMenu,
                                         roomCallState = state.roomCallState,
                                         onJoinCallClick = onJoinCallClick,
-                                        onJoinAudienceClick = onJoinAudienceClick,
                                         onStartCallWithListeners = onStartCallWithListeners,
                                         onRoomSchedulesClick = onRoomSchedulesClick,
                                         onRoomWebhooksClick = onRoomWebhooksClick,
@@ -596,7 +595,6 @@ internal fun RowScope.MessagesMenuActions(
     roomMenu: RoomMenuRenderModel,
     roomCallState: RoomCallState,
     onJoinCallClick: (isAudioCall: Boolean) -> Unit,
-    onJoinAudienceClick: (broadcastId: String) -> Unit,
     onStartCallWithListeners: (AudienceAccessMode) -> Unit = {},
     onRoomSchedulesClick: () -> Unit,
     onRoomWebhooksClick: () -> Unit = {},
@@ -607,7 +605,6 @@ internal fun RowScope.MessagesMenuActions(
     RoomCallButton(
         roomCallState = roomCallState,
         onJoinCallClick = onJoinCallClick,
-        onJoinAudienceClick = onJoinAudienceClick,
         onStartCallWithListeners = onStartCallWithListeners,
     )
     RoomToolMenu(
@@ -623,7 +620,6 @@ internal fun RowScope.MessagesMenuActions(
 private fun RoomCallButton(
     roomCallState: RoomCallState,
     onJoinCallClick: (isAudioCall: Boolean) -> Unit,
-    onJoinAudienceClick: (broadcastId: String) -> Unit,
     onStartCallWithListeners: (AudienceAccessMode) -> Unit,
 ) {
     var showMeetingEntry by remember { mutableStateOf(false) }
@@ -641,18 +637,6 @@ private fun RoomCallButton(
     when (roomCallState) {
         RoomCallState.Unavailable -> Unit
         is RoomCallState.StandBy -> {
-            if (roomCallState.isDM) {
-                ToolbarCircleButton(
-                    onClick = { onJoinCallClick(true) },
-                    enabled = roomCallState.canStartCall,
-                ) {
-                    Icon(
-                        modifier = Modifier.size(22.dp),
-                        imageVector = CompoundIcons.VoiceCallSolid(),
-                        contentDescription = stringResource(CommonStrings.a11y_start_voice_call),
-                    )
-                }
-            }
             ToolbarCircleButton(
                 onClick = { showMeetingEntry = true },
                 enabled = roomCallState.canStartCall,
@@ -668,14 +652,6 @@ private fun RoomCallButton(
             if (roomCallState.isUserLocallyInTheCall) {
                 roomCallState.audienceBroadcastId?.let {
                     ListenerCountToolbarLabel(count = roomCallState.audienceListenerCount)
-                }
-            } else {
-                roomCallState.audienceBroadcastId?.let { broadcastId ->
-                    ListenerToolbarButton(
-                        onClick = { onJoinAudienceClick(broadcastId) },
-                        enabled = !roomCallState.isAudienceDiscoveryPending,
-                        contentDescription = stringResource(R.string.a11y_listen_to_meeting),
-                    )
                 }
             }
             if (!roomCallState.isUserLocallyInTheCall) {
@@ -711,7 +687,7 @@ private fun RoomCallButton(
     }
 }
 
-/** The in-meeting header is status-only: headphones remain the listener entry outside a meeting. */
+/** The in-meeting header is status-only; the room card is the sole listener entry. */
 @Composable
 private fun ListenerCountToolbarLabel(count: Int) {
     Text(
@@ -721,24 +697,6 @@ private fun ListenerCountToolbarLabel(count: Int) {
         color = ElementTheme.colors.textSecondary,
         maxLines = 1,
     )
-}
-
-@Composable
-private fun ListenerToolbarButton(
-    onClick: () -> Unit,
-    enabled: Boolean,
-    contentDescription: String,
-) {
-    ToolbarCircleButton(
-        onClick = onClick,
-        enabled = enabled,
-    ) {
-        Icon(
-            modifier = Modifier.size(22.dp),
-            imageVector = CompoundIcons.HeadphonesSolid(),
-            contentDescription = contentDescription,
-        )
-    }
 }
 
 /**
@@ -802,16 +760,6 @@ private fun AudienceBroadcastCard(
             )
         }
     }
-}
-
-@PreviewsDayNight
-@Composable
-internal fun ListenerToolbarButtonPreview() = ElementPreview {
-    ListenerToolbarButton(
-        onClick = {},
-        enabled = true,
-        contentDescription = stringResource(R.string.a11y_listen_to_meeting),
-    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
