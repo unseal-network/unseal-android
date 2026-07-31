@@ -99,11 +99,14 @@ class CallScreenPresenter(
             if (callData.audienceBroadcastId == null) {
                 UUID.randomUUID().toString()
             } else {
-                "client_${UUID.randomUUID().toString().replace("-", "")}"
+                "client_${UUID.randomUUID().toString().replace("-", "")}" 
             }
         }
         DisposableEffect(Unit) {
             coroutineScope.launch {
+                callData.audienceBroadcastId?.let { broadcastId ->
+                    Timber.i("Audience listener screen started: broadcastId=%s", broadcastId)
+                }
                 if (callData.audienceBroadcastId == null) {
                     // Sets the call as joined
                     activeCallManager.joinedCall(callData)
@@ -153,7 +156,17 @@ class CallScreenPresenter(
                         // We are receiving messages from the WebView, consider that the application is loaded
                         ignoreWebViewError = true
                         val parsedMessage = parseMessage(it)
-                        if (parsedMessage.isAudienceBroadcastRequest()) {
+                        // A listener is not a MatrixRTC participant. Its embedded page sends the
+                        // standard close message when the user hangs up, but forwarding that
+                        // message to the room widget can wait on the Matrix transport before the
+                        // Activity is finished. Close the listener UI first; its driver teardown
+                        // remains best-effort in [close].
+                        if (callData.audienceBroadcastId != null &&
+                            parsedMessage?.direction == WidgetMessage.Direction.FromWidget &&
+                            parsedMessage.action == WidgetMessage.Action.Close
+                        ) {
+                            close(callWidgetDriver.value, navigator)
+                        } else if (parsedMessage.isAudienceBroadcastRequest()) {
                             // A normal MatrixRTC widget has no direct access to the
                             // Matrix bearer token. Route this narrow, allow-listed
                             // request through the Android host so its standard call
@@ -180,7 +193,9 @@ class CallScreenPresenter(
 
                         if (parsedMessage?.direction == WidgetMessage.Direction.FromWidget) {
                             if (parsedMessage.action == WidgetMessage.Action.Close) {
-                                close(callWidgetDriver.value, navigator)
+                                if (callData.audienceBroadcastId == null) {
+                                    close(callWidgetDriver.value, navigator)
+                                }
                             } else if (parsedMessage.action == WidgetMessage.Action.ContentLoaded) {
                                 isWidgetLoaded = true
                             }
@@ -189,10 +204,13 @@ class CallScreenPresenter(
                     .launchIn(this)
             }
 
-            if (urlState.value is AsyncData.Success) {
+            if (callData.audienceBroadcastId == null && urlState.value is AsyncData.Success) {
                 LaunchedEffect(interceptor, urlState.value) {
-                    // Only start the WebView timeout once a URL is available. Cold starts can
-                    // spend longer than this fetching the audience widget and its playback grant.
+                    // The MatrixRTC widget must explicitly confirm it has loaded before the
+                    // room call can safely be considered active. Audience playback has its own
+                    // connection and media states in the embedded app; it can legitimately take
+                    // longer than this while negotiating a receiver and must not be destroyed
+                    // after media has already become visible.
                     delay(10.seconds)
 
                     if (!isWidgetLoaded) {
@@ -208,6 +226,13 @@ class CallScreenPresenter(
         fun handleEvent(event: CallScreenEvent) {
             when (event) {
                 is CallScreenEvent.Hangup -> {
+                    // Audience playback never joins the MatrixRTC membership. It must not wait
+                    // for the embedded call page to acknowledge a MatrixRTC hangup: there is no
+                    // membership to leave, and waiting here leaves the listener looking stuck.
+                    if (callData.audienceBroadcastId != null) {
+                        close(callWidgetDriver.value, navigator)
+                        return
+                    }
                     val widgetId = callWidgetDriver.value?.id
                     val interceptor = messageInterceptor.value
                     if (widgetId != null && interceptor != null && isWidgetLoaded) {
@@ -334,12 +359,22 @@ class CallScreenPresenter(
             )
 
         return try {
+            // Do not log the URL, request body, or Matrix bearer token.  The method, route
+            // class and final status are sufficient to distinguish an authorization denial
+            // from a host bridge or relay-lifecycle failure on a physical device.
+            Timber.i("Audience widget proxy request: method=%s, path=%s", method, path.substringBefore('?'))
             val response = audienceBroadcastHttpClient.requestAudienceWidget(
                 sessionId = callData.sessionId,
                 broadcastId = broadcastId,
                 method = method,
                 path = path,
                 body = data["body"]?.takeUnless { it is JsonNull },
+            )
+            Timber.i(
+                "Audience widget proxy response: method=%s, path=%s, status=%d",
+                method,
+                path.substringBefore('?'),
+                response.code,
             )
             if (!response.isSuccessful) {
                 val error = audienceJson.parseToJsonElement(response.body) as? JsonObject
@@ -372,6 +407,13 @@ class CallScreenPresenter(
             }
         } catch (failure: Throwable) {
             if (failure is kotlinx.coroutines.CancellationException) throw failure
+            Timber.w(
+                failure,
+                "Audience widget proxy failed: method=%s, path=%s, status=%d",
+                method,
+                path.substringBefore('?'),
+                (failure as? AudienceHttpException)?.statusCode ?: 0,
+            )
             message.copy(
                 response = audienceFailureResponse(
                     status = (failure as? AudienceHttpException)?.statusCode ?: 0,
@@ -394,9 +436,16 @@ class CallScreenPresenter(
         messageInterceptor.sendMessage(widgetMessageSerializer.serialize(message))
     }
 
-    private fun CoroutineScope.close(widgetDriver: MatrixWidgetDriver?, navigator: CallScreenNavigator) = launch(dispatchers.io) {
+    private fun close(widgetDriver: MatrixWidgetDriver?, navigator: CallScreenNavigator) {
+        // `navigator.close()` finishes ElementCallActivity. Activity navigation is a UI
+        // operation and must run on the presenter/main dispatcher. Dispatching it to IO
+        // made the host close race the WebView teardown and could visibly delay hangup.
         navigator.close()
-        widgetDriver?.close()
+        // Driver teardown does not mutate the Activity and can outlive the call screen.
+        // Keep it off the main thread without delaying the visible exit.
+        appCoroutineScope.launch(dispatchers.io) {
+            widgetDriver?.close()
+        }
     }
 }
 

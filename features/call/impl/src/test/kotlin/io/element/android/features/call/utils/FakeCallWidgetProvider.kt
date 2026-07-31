@@ -11,10 +11,11 @@ package io.element.android.features.call.utils
 import io.element.android.features.call.impl.utils.CallWidgetProvider
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.core.SessionId
+import io.element.android.libraries.matrix.api.widget.MatrixWidgetDriver
 import io.element.android.libraries.matrix.test.widget.FakeMatrixWidgetDriver
 
 class FakeCallWidgetProvider(
-    private val widgetDriver: FakeMatrixWidgetDriver = FakeMatrixWidgetDriver(),
+    private val widgetDriver: MatrixWidgetDriver = FakeMatrixWidgetDriver(),
     private val url: String = "https://call.element.io",
     private val error: Throwable? = null,
     private val beforeResult: suspend () -> Unit = {},

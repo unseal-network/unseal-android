@@ -28,6 +28,7 @@ import io.element.android.libraries.androidutils.json.DefaultJsonProvider
 import io.element.android.libraries.architecture.AsyncData
 import io.element.android.libraries.core.coroutine.CoroutineDispatchers
 import io.element.android.libraries.matrix.api.sync.SyncState
+import io.element.android.libraries.matrix.api.widget.MatrixWidgetDriver
 import io.element.android.libraries.matrix.test.A_ROOM_ID
 import io.element.android.libraries.matrix.test.A_SESSION_ID
 import io.element.android.libraries.matrix.test.FakeMatrixClient
@@ -48,6 +49,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -99,7 +101,7 @@ class CallScreenPresenterTest {
     }
 
     @Test
-    fun `present - audience mode loads the Unseal Call widget without joining ActiveCallManager`() = runTest {
+    fun `present - audience hang up closes immediately without waiting for widget acknowledgement`() = runTest {
         val joinedCallLambda = lambdaRecorder<CallData, Unit> {}
         val hangUpCallLambda = lambdaRecorder<CallData, CallNotificationData?, Unit> { _, _ -> }
         val widgetDriver = FakeMatrixWidgetDriver()
@@ -145,19 +147,8 @@ class CallScreenPresenterTest {
 
             loadedState.eventSink(CallScreenEvent.Hangup)
             runCurrent()
-            assertThat(messageInterceptor.sentMessages.last()).contains("\"action\":\"im.vector.hangup\"")
-            assertThat(navigator.closeCalled).isFalse()
-            messageInterceptor.givenInterceptedMessage(
-                """
-                    {
-                        "action":"io.element.close",
-                        "api":"fromWidget",
-                        "widgetId":"unseal-audience-bcast_demo",
-                        "requestId":"2"
-                    }
-                """.trimIndent()
-            )
-            runCurrent()
+            assertThat(messageInterceptor.sentMessages.joinToString()).doesNotContain("\"action\":\"im.vector.hangup\"")
+            assertThat(navigator.closeCalled).isTrue()
             cancelAndIgnoreRemainingEvents()
         }
         runCurrent()
@@ -166,6 +157,35 @@ class CallScreenPresenterTest {
         hangUpCallLambda.assertions().isNeverCalled()
         assertThat(navigator.closeCalled).isTrue()
         assertThat(widgetDriver.closeCalledCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `present - audience close message closes immediately without waiting for the Matrix widget driver`() = runTest {
+        val sendGate = CompletableDeferred<Unit>()
+        val widgetDriver = BlockingMatrixWidgetDriver(sendGate)
+        val navigator = FakeCallScreenNavigator()
+        val presenter = createCallScreenPresenter(
+            callData = CallData(A_SESSION_ID, A_ROOM_ID, false, audienceBroadcastId = "bcast_demo"),
+            widgetProvider = FakeCallWidgetProvider(widgetDriver),
+            navigator = navigator,
+            screenTracker = FakeScreenTracker {},
+        )
+        val interceptor = FakeWidgetMessageInterceptor()
+
+        presenter.test {
+            advanceTimeBy(1.seconds)
+            expectMostRecentItem().eventSink(CallScreenEvent.SetupMessageChannels(interceptor))
+
+            interceptor.givenInterceptedMessage(
+                """{"action":"io.element.close","api":"fromWidget","widgetId":"audience","requestId":"close-1"}""",
+            )
+            runCurrent()
+
+            assertThat(navigator.closeCalled).isTrue()
+            assertThat(widgetDriver.sentMessages).isEmpty()
+            cancelAndIgnoreRemainingEvents()
+        }
+        sendGate.complete(Unit)
     }
 
     @Test
@@ -230,7 +250,7 @@ class CallScreenPresenterTest {
     }
 
     @Test
-    fun `present - audience mode becomes inactive when content loading times out`() = runTest {
+    fun `present - audience playback remains available beyond the normal widget load timeout`() = runTest {
         val presenter = createCallScreenPresenter(
             callData = CallData(A_SESSION_ID, A_ROOM_ID, false, audienceBroadcastId = "bcast_demo"),
             dispatchers = testCoroutineDispatchers(useUnconfinedTestDispatcher = true),
@@ -247,9 +267,9 @@ class CallScreenPresenterTest {
             advanceTimeBy(10.seconds)
             runCurrent()
 
-            val failedState = expectMostRecentItem()
-            assertThat(failedState.webViewError).isNotNull()
-            assertThat(failedState.isCallActive).isFalse()
+            val activeState = expectMostRecentItem()
+            assertThat(activeState.webViewError).isNull()
+            assertThat(activeState.isCallActive).isTrue()
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -553,4 +573,21 @@ class CallScreenPresenterTest {
             audienceBroadcastHttpClient = audienceBroadcastHttpClient,
         )
     }
+}
+
+private class BlockingMatrixWidgetDriver(
+    private val sendGate: CompletableDeferred<Unit>,
+) : MatrixWidgetDriver {
+    override val id: String = "blocking-widget"
+    override val incomingMessages = MutableSharedFlow<String>()
+    val sentMessages = mutableListOf<String>()
+
+    override suspend fun run() = Unit
+
+    override suspend fun send(message: String) {
+        sentMessages += message
+        sendGate.await()
+    }
+
+    override fun close() = Unit
 }

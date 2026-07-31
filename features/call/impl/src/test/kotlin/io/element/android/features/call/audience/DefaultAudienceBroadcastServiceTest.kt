@@ -27,6 +27,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
@@ -48,9 +49,36 @@ class DefaultAudienceBroadcastServiceTest {
 
         service.observeRoomDiscovery(A_SESSION_ID, A_ROOM_ID).test {
             assertThat(awaitItem()).isNull()
+            assertThat(awaitItem()).isEqualTo(aDiscovery())
             assertThat(awaitItem()).isEqualTo(aDiscovery().copy(listenerCount = 3))
             coVerify(exactly = 1) { httpClient.getMatrixDiscoveryState(A_SESSION_ID, A_ROOM_ID) }
             coVerify(exactly = 1) { httpClient.getRuntimeStatus(A_SESSION_ID, "bcast_demo") }
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `room discovery is emitted before a slow runtime poll completes`() = runTest {
+        val httpClient = mockk<AudienceBroadcastHttpClient>()
+        every { httpClient.parseDiscovery("canonical") } returns aDiscovery()
+        coEvery { httpClient.getRuntimeStatus(A_SESSION_ID, "bcast_demo") } coAnswers {
+            delay(30_000)
+            aRuntime(phase = AudienceRuntimePhase.Live, armed = true)
+        }
+        val room = io.element.android.libraries.matrix.test.room.FakeJoinedRoom(
+            baseRoom = io.element.android.libraries.matrix.test.room.FakeBaseRoom(
+                getStateEventJsonResult = { _, _ -> Result.success("canonical") },
+            ),
+        )
+        val matrixClient = FakeMatrixClient().apply { givenGetRoomResult(A_ROOM_ID, room) }
+        val service = createService(httpClient, matrixClient)
+
+        service.observeRoomDiscovery(A_SESSION_ID, A_ROOM_ID).test {
+            assertThat(awaitItem()).isEqualTo(aDiscovery())
+            coVerify(exactly = 1) { httpClient.getRuntimeStatus(A_SESSION_ID, "bcast_demo") }
+
+            advanceTimeBy(30_000)
+            assertThat(awaitItem()).isEqualTo(aDiscovery().copy(listenerCount = 3))
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -183,7 +211,7 @@ class DefaultAudienceBroadcastServiceTest {
     }
 
     @Test
-    fun `terminal runtime stops status polling until the room state changes`() = runTest {
+    fun `terminal runtime updates the entry but only Matrix state removes it`() = runTest {
         val httpClient = mockk<AudienceBroadcastHttpClient>()
         every { httpClient.parseDiscovery(any()) } returns aDiscovery()
         coEvery { httpClient.getRuntimeStatus(A_SESSION_ID, "bcast_demo") } returns aRuntime(
@@ -201,8 +229,10 @@ class DefaultAudienceBroadcastServiceTest {
         val service = createService(httpClient, matrixClient)
 
         service.observeRoomDiscovery(A_SESSION_ID, A_ROOM_ID).test {
-            assertThat(awaitItem()).isNull()
-            expectNoEvents()
+            assertThat(awaitItem()).isEqualTo(aDiscovery())
+            assertThat(awaitItem()).isEqualTo(
+                aDiscovery().copy(phase = AudienceRuntimePhase.Ended, listenerCount = 3)
+            )
             cancelAndIgnoreRemainingEvents()
         }
 

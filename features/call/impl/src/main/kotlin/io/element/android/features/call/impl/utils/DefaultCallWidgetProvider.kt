@@ -11,9 +11,6 @@ package io.element.android.features.call.impl.utils
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import io.element.android.features.call.api.isValidAudienceBroadcastId
-import io.element.android.features.call.impl.audience.AudienceBroadcastHttpClient
-import io.element.android.features.call.impl.audience.AudienceWidgetDriver
-import io.element.android.libraries.chatbot.api.ChatbotBaseUrlResolver
 import io.element.android.libraries.core.extensions.runCatchingExceptions
 import io.element.android.libraries.matrix.api.MatrixClientProvider
 import io.element.android.libraries.matrix.api.core.RoomId
@@ -22,11 +19,10 @@ import io.element.android.libraries.matrix.api.widget.CallWidgetSettingsProvider
 import io.element.android.libraries.preferences.api.store.AppPreferencesStore
 import io.element.android.services.appnavstate.api.ActiveRoomsHolder
 import kotlinx.coroutines.flow.firstOrNull
-import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import timber.log.Timber
 
 private const val EMBEDDED_CALL_WIDGET_BASE_URL = "https://appassets.androidplatform.net/element-call/index.html"
-private const val EMBEDDED_CALL_WIDGET_PARENT_URL = "https://appassets.androidplatform.net"
 
 @ContributesBinding(AppScope::class)
 class DefaultCallWidgetProvider(
@@ -34,8 +30,6 @@ class DefaultCallWidgetProvider(
     private val appPreferencesStore: AppPreferencesStore,
     private val callWidgetSettingsProvider: CallWidgetSettingsProvider,
     private val activeRoomsHolder: ActiveRoomsHolder,
-    private val audienceBroadcastHttpClient: AudienceBroadcastHttpClient,
-    private val baseUrlResolver: ChatbotBaseUrlResolver,
 ) : CallWidgetProvider {
     override suspend fun getWidget(
         sessionId: SessionId,
@@ -47,36 +41,8 @@ class DefaultCallWidgetProvider(
         audienceBroadcastId: String?,
     ): Result<CallWidgetProvider.GetWidgetResult> = runCatchingExceptions {
         val matrixClient = matrixClientsProvider.getOrRestore(sessionId).getOrThrow()
-        if (audienceBroadcastId != null) {
-            require(audienceBroadcastId.isValidAudienceBroadcastId()) { "Invalid audience broadcast ID" }
-            val mediaOrigin = baseUrlResolver
-                .resolveHomeserverBaseUrl(matrixClient.userIdServerName())
-                .toHttpUrl()
-                .origin()
-            val widgetId = "unseal-audience-$audienceBroadcastId"
-            // Audience playback is not a MatrixRTC participant. Its only
-            // authenticated transport is AudienceWidgetDriver, which proxies
-            // requests through the Android host with the current Matrix token.
-            // Keep this URL self-contained: the normal meeting URL generator
-            // is allowed to rewrite/drop query parameters that the audience
-            // bundle needs before it can start the Widget API.
-            val audienceUrl = EMBEDDED_CALL_WIDGET_BASE_URL.toHttpUrl().newBuilder()
-                .addQueryParameter("widgetId", widgetId)
-                .addQueryParameter("parentUrl", EMBEDDED_CALL_WIDGET_PARENT_URL)
-                .addQueryParameter("baseUrl", mediaOrigin)
-                .addQueryParameter("audienceBroadcastId", audienceBroadcastId)
-                .fragment("/audience/$audienceBroadcastId")
-                .build()
-                .toString()
-            return@runCatchingExceptions CallWidgetProvider.GetWidgetResult(
-                driver = AudienceWidgetDriver(
-                    id = widgetId,
-                    sessionId = sessionId,
-                    broadcastId = audienceBroadcastId,
-                    httpClient = audienceBroadcastHttpClient,
-                ),
-                url = audienceUrl,
-            )
+        audienceBroadcastId?.let {
+            require(it.isValidAudienceBroadcastId()) { "Invalid audience broadcast ID" }
         }
         val room = activeRoomsHolder.getActiveRoomMatching(sessionId, roomId)
             ?: matrixClient.getJoinedRoom(roomId)
@@ -98,20 +64,49 @@ class DefaultCallWidgetProvider(
             languageTag = languageTag,
             theme = theme,
         ).getOrThrow()
+        // Listener mode must retain the complete room-widget contract: room,
+        // user, device, Widget API capability negotiation and host lifecycle
+        // are identical to a normal Element Call. The broadcast id is an input
+        // selection only; the web client swaps LiveKit for Cloudflare after the
+        // normal room bootstrap has completed.
+        val audienceCallUrl = audienceBroadcastId?.let { broadcastId ->
+            val url = callUrl.toHttpUrl()
+            // The embedded room-widget host uses its fragment for its signed
+            // widget contract. Some Android WebView normalisation paths rebuild
+            // that URL and drop an outer query, so carry the immutable input
+            // selector in both places. The regular query remains primary for
+            // web hosts; the fragment makes the same route survive Android.
+            val fragment = url.fragment
+            val audienceFragment = when {
+                fragment.isNullOrEmpty() -> "?audienceBroadcastId=$broadcastId"
+                fragment.contains("?") -> "$fragment&audienceBroadcastId=$broadcastId"
+                else -> "$fragment?audienceBroadcastId=$broadcastId"
+            }
+            url.newBuilder()
+                .addQueryParameter("audienceBroadcastId", broadcastId)
+                .fragment(audienceFragment)
+                .build()
+                .toString()
+        } ?: callUrl
+        if (audienceBroadcastId != null) {
+            // Do not log the signed widget URL. This one bit proves that the
+            // Android listener route survived URL generation and is enough to
+            // distinguish a stale APK from a routing regression in logcat.
+            Timber.i(
+                "Audience listener widget URL ready: broadcastId=%s, hasAudienceRoute=%s",
+                audienceBroadcastId,
+                audienceCallUrl.toHttpUrl().let { url ->
+                    url.queryParameter("audienceBroadcastId") == audienceBroadcastId &&
+                        url.fragment?.contains("audienceBroadcastId=$audienceBroadcastId") == true
+                },
+            )
+        }
 
         val driver = room.getWidgetDriver(widgetSettings).getOrThrow()
 
         CallWidgetProvider.GetWidgetResult(
             driver = driver,
-            url = callUrl,
+            url = audienceCallUrl,
         )
     }
 }
-
-private fun HttpUrl.origin(): String = newBuilder()
-    .encodedPath("/")
-    .query(null)
-    .fragment(null)
-    .build()
-    .toString()
-    .removeSuffix("/")

@@ -51,28 +51,19 @@ class RoomCallStatePresenter(
         val audienceDiscoveryState by produceState(
             initialValue = AudienceDiscoveryState(
                 discovery = null,
-                // A room with no MatrixRTC call must not gain an intermediate
-                // state just because the discovery observer reports that no
-                // broadcast exists. A non-null discovery remains sufficient to
-                // surface the listener entry when MatrixRTC is behind.
-                isResolved = !roomInfo.hasRoomCall,
             ),
-            // Recreate the collection when MatrixRTC changes state so a
-            // completed call cannot retain a stale discovery value. We still
-            // observe in both branches; this is only lifecycle hygiene.
-            key1 = roomInfo.hasRoomCall,
+            // Relay discovery is an agent-owned Matrix state event. It must not
+            // be cancelled and restarted when the separate MatrixRTC meeting
+            // state changes: doing so discards an in-flight custom-state read
+            // exactly while a meeting is starting, delaying the listener entry.
+            key1 = room.sessionId,
             key2 = room.roomId,
         ) {
             audienceBroadcastService
                 .observeRoomDiscovery(room.sessionId, room.roomId)
                 .catch { emit(null) }
                 .collect { discovery ->
-                    if (discovery != null || roomInfo.hasRoomCall) {
-                        value = AudienceDiscoveryState(
-                            discovery = discovery,
-                            isResolved = true,
-                        )
-                    }
+                    value = AudienceDiscoveryState(discovery = discovery)
                 }
         }
         val hasJoinableMeeting = roomInfo.hasRoomCall || audienceDiscoveryState.discovery != null
@@ -111,8 +102,10 @@ class RoomCallStatePresenter(
                 isAudioCall = roomInfo.activeCallIntentConsensus.isAudio(),
                 audienceBroadcastId = audienceDiscoveryState.discovery?.broadcastId,
                 audienceListenerCount = audienceDiscoveryState.discovery?.listenerCount ?: 0,
-                isAudienceDiscoveryPending = roomInfo.hasRoomCall &&
-                    !audienceDiscoveryState.isResolved,
+                // A normal meeting is always joinable. Listener discovery is
+                // additive and may arrive later; it must never gate the normal
+                // Element Call entrance.
+                isAudienceDiscoveryPending = false,
                 audienceHostControl = audienceHostControl,
             )
             else -> RoomCallState.StandBy(
@@ -127,7 +120,6 @@ class RoomCallStatePresenter(
 
 private data class AudienceDiscoveryState(
     val discovery: AudienceBroadcastDiscovery?,
-    val isResolved: Boolean,
 )
 
 fun CallIntentConsensus.isAudio(): Boolean {

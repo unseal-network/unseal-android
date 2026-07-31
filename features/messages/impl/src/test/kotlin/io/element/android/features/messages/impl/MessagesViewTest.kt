@@ -163,7 +163,7 @@ class MessagesViewTest {
     }
 
     @Test
-    fun `ongoing listener broadcast exposes listen only in the room top bar`() = runAndroidComposeUiTest {
+    fun `ongoing listener broadcast exposes the room card and no toolbar listener control`() = runAndroidComposeUiTest {
         val state = aMessagesState(
             eventSink = EventsRecorder<MessagesEvent>(expectEvents = false),
             roomCallState = anOngoingCallState(
@@ -178,7 +178,8 @@ class MessagesViewTest {
                 onJoinAudienceClick = callback,
             )
             onNodeWithContentDescription(activity!!.getString(R.string.a11y_listen_to_meeting))
-                .performClick()
+                .assertDoesNotExist()
+            onNodeWithTag("audience_broadcast_card").performClick()
         }
     }
 
@@ -213,7 +214,7 @@ class MessagesViewTest {
     }
 
     @Test
-    fun `ongoing broadcast exposes an independent listen-only entry`() = runAndroidComposeUiTest {
+    fun `ongoing broadcast keeps the card as the sole listener entry`() = runAndroidComposeUiTest {
         val state = aMessagesState(
             eventSink = EventsRecorder<MessagesEvent>(expectEvents = false),
             roomCallState = anOngoingCallState(
@@ -229,7 +230,8 @@ class MessagesViewTest {
             onJoinAudienceClick = { joinedBroadcast = it },
         )
 
-        onNodeWithContentDescription(activity!!.getString(R.string.a11y_listen_to_meeting)).performClick()
+        onNodeWithContentDescription(activity!!.getString(R.string.a11y_listen_to_meeting)).assertDoesNotExist()
+        onNodeWithTag("audience_broadcast_card").performClick()
         assertThat(joinedBroadcast).isEqualTo("bcast_demo")
         assertThat(joinedCall).isNull()
         onNodeWithContentDescription("Join").assertIsNotEnabled()

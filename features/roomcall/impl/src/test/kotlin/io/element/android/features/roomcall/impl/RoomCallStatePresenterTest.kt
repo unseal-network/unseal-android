@@ -366,7 +366,7 @@ class RoomCallStatePresenterTest {
     }
 
     @Test
-    fun `present - active call blocks joining until audience discovery completes`() = runTest {
+    fun `present - active call keeps normal meeting entry enabled while listener discovery is pending`() = runTest {
         val room = FakeJoinedRoom(
             baseRoom = FakeBaseRoom(
                 roomPermissions = roomPermissions(true),
@@ -389,19 +389,11 @@ class RoomCallStatePresenterTest {
                     isAudioCall = false,
                     isUserInTheCall = false,
                     isUserLocallyInTheCall = false,
-                    isAudienceDiscoveryPending = true,
                 )
             )
 
             discoveryFlow.emit(null)
-            assertThat(awaitItem()).isEqualTo(
-                RoomCallState.OnGoing(
-                    canJoinCall = true,
-                    isAudioCall = false,
-                    isUserInTheCall = false,
-                    isUserLocallyInTheCall = false,
-                )
-            )
+            expectNoEvents()
         }
     }
 

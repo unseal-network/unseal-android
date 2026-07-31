@@ -154,19 +154,23 @@ class DefaultAudienceBroadcastService(
         }
         val activeDiscovery = requireNotNull(discovery)
         updateHostFromDiscovery(sessionId, roomId, activeDiscovery)
+        // Matrix state is the discovery authority. Surface its listener entry immediately;
+        // runtime polling is deliberately only a best-effort enrichment for phase and count.
+        // In particular, a slow or unavailable runtime endpoint must never make an already
+        // published broadcast disappear from the room UI.
+        emit(activeDiscovery)
         var retained = activeDiscovery
         while (currentCoroutineContext().isActive) {
             val runtime = getRuntimeStatus(sessionId, activeDiscovery.broadcastId).getOrNull()
             when {
                 runtime != null &&
                     (runtime.roomId != roomId || runtime.meetingInstanceId != activeDiscovery.meetingInstanceId) -> {
-                    emit(null)
-                    return@transformLatest
-                }
-                runtime?.phase == AudienceRuntimePhase.Ended -> {
-                    updateHostFromRuntime(sessionId, roomId, runtime, activeDiscovery.accessMode)
-                    emit(null)
-                    return@transformLatest
+                    // A stale runtime result cannot revoke a Matrix discovery document. Keep
+                    // the entry visible and retry; the Relay's Matrix tombstone is the only
+                    // authoritative removal signal.
+                    retained = retained.copy(phase = AudienceRuntimePhase.Recovering)
+                    emit(retained)
+                    delay(DISCOVERY_RETRY_MS)
                 }
                 runtime != null -> {
                     retained = activeDiscovery.copy(
