@@ -218,10 +218,7 @@ fun MiniAppView(
     }
 
     // ── Layout ────────────────────────────────────────────────────────────────
-    // Black background fills any empty space below the game HTML content so the
-    // viewport remainder doesn't flash white on devices where the game page
-    // doesn't stretch to 100vh.
-    Box(modifier = modifier.background(androidx.compose.ui.graphics.Color.Black)) {
+    Box(modifier = modifier.background(androidx.compose.ui.graphics.Color.White)) {
 
         // WebView — always present in the composition so it is created early.
         // In bundle mode it stays invisible under the overlay until Ready.
@@ -351,10 +348,11 @@ private fun createWebView(
         webViewClient = client
         webChromeClient = MiniAppChromeClient(bridge)
 
-        // Black background: prevents the white flash in the empty area below the
-        // game HTML content on screens where the page doesn't fill 100% of the
-        // viewport height (e.g. the game's error / loading screen).
-        setBackgroundColor(android.graphics.Color.BLACK)
+        // White background: document/PDF mini-apps render canvas elements that fail to
+        // composite correctly over a black WebView background on Android (the GPU compositing
+        // layer shows black instead of the drawn canvas content). White is safe for all
+        // mini-app types; any remaining gaps will be covered by the app's own HTML backgrounds.
+        setBackgroundColor(android.graphics.Color.WHITE)
     }
 
     // Inject startup globals (platform, token, user, homeserver, shim) before ANY
