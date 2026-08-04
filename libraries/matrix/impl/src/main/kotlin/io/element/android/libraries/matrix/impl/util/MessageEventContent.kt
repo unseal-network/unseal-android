@@ -11,7 +11,9 @@ package io.element.android.libraries.matrix.impl.util
 import io.element.android.libraries.matrix.api.room.IntentionalMention
 import io.element.android.libraries.matrix.api.timeline.MsgType
 import io.element.android.libraries.matrix.impl.room.map
+import org.matrix.rustcomponents.sdk.FormattedBody
 import org.matrix.rustcomponents.sdk.MessageContent
+import org.matrix.rustcomponents.sdk.MessageFormat
 import org.matrix.rustcomponents.sdk.MessageType
 import org.matrix.rustcomponents.sdk.RoomMessageEventContentWithoutRelation
 import org.matrix.rustcomponents.sdk.TextMessageContent
@@ -32,13 +34,17 @@ object MessageEventContent {
         msgType: MsgType = MsgType.MSG_TYPE_TEXT,
         asPlainText: Boolean = false,
     ): RoomMessageEventContentWithoutRelation {
+        val fallbackHtmlBody = htmlBody
+            ?: body.takeIf { intentionalMentions.requiresHtmlFallback(body) }?.toHtmlBody()
         return when {
             asPlainText -> contentWithoutRelationFromMessage(
                 MessageContent(
                     msgType = MessageType.Text(
                         TextMessageContent(
                             body = body,
-                            formatted = null,
+                            formatted = fallbackHtmlBody?.let {
+                                FormattedBody(body = it, format = MessageFormat.Html)
+                            },
                         )
                     ),
                     body = body,
@@ -46,10 +52,10 @@ object MessageEventContent {
                     mentions = null,
                 )
             )
-            htmlBody != null -> if (msgType == MsgType.MSG_TYPE_EMOTE) {
-                messageEventContentFromHtmlAsEmote(body, htmlBody)
+            fallbackHtmlBody != null -> if (msgType == MsgType.MSG_TYPE_EMOTE) {
+                messageEventContentFromHtmlAsEmote(body, fallbackHtmlBody)
             } else {
-                messageEventContentFromHtml(body, htmlBody)
+                messageEventContentFromHtml(body, fallbackHtmlBody)
             }
             else -> if (msgType == MsgType.MSG_TYPE_EMOTE) {
                 messageEventContentFromMarkdownAsEmote(body)
@@ -59,4 +65,17 @@ object MessageEventContent {
         }
             .withMentions(intentionalMentions.map())
     }
+}
+
+private fun String.toHtmlBody(): String {
+    return replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("\"", "&quot;")
+        .replace("'", "&#39;")
+        .replace("\n", "<br />")
+}
+
+private fun List<IntentionalMention>.requiresHtmlFallback(body: String): Boolean {
+    return any { it is IntentionalMention.Room } || (isNotEmpty() && !body.contains("]("))
 }

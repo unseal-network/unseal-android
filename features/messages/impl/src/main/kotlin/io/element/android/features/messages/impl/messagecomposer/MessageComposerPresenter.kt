@@ -954,10 +954,8 @@ class MessageComposerPresenter(
             put("msgtype", "m.text")
             put("body", body)
             targetDeviceId?.takeIf { it.isNotBlank() }?.let { put("device_id", it) }
-            if (!htmlBody.isNullOrBlank()) {
-                put("format", "org.matrix.custom.html")
-                put("formatted_body", htmlBody)
-            }
+            put("format", "org.matrix.custom.html")
+            put("formatted_body", htmlBody?.takeIf { it.isNotBlank() } ?: body.toHtmlBody())
             if (selectedSkills.isNotEmpty()) {
                 put("skills", JSONArray().apply {
                     selectedSkills.forEach { selected ->
@@ -992,6 +990,15 @@ class MessageComposerPresenter(
                 )
             }
         }.toString()
+    }
+
+    private fun String.toHtmlBody(): String {
+        return replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
+            .replace("'", "&#39;")
+            .replace("\n", "<br />")
     }
 
     private fun ComposerAgentSkillCandidate.toSelectedSkill(): ComposerSelectedAgentSkill {
