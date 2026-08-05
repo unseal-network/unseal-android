@@ -165,7 +165,7 @@ fun PreferencesRootView(
                     )
                     SettingsCard {
                         NavRow(
-                            title = "直播流量",
+                            title = stringResource(id = R.string.screen_preferences_broadcast_usage),
                             icon = CompoundIcons.VideoCall(),
                             onClick = onOpenBroadcastUsage,
                         )

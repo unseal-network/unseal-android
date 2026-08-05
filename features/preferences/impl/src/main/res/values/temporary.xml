@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (c) 2026 Unseal
+  ~
+  ~ SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
+  -->
+
+<!-- Strings that are pending import to Localazy. Do NOT edit localazy.xml. -->
+<resources>
+    <string name="screen_preferences_broadcast_usage">Live broadcast usage</string>
+</resources>
