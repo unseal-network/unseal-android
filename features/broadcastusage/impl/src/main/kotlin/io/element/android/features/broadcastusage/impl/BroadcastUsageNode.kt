@@ -1,0 +1,44 @@
+/*
+ * Copyright (c) 2026 Unseal
+ *
+ * SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
+ */
+
+package io.element.android.features.broadcastusage.impl
+
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.lifecycle.Lifecycle
+import com.bumble.appyx.core.modality.BuildContext
+import com.bumble.appyx.core.node.Node
+import com.bumble.appyx.core.plugin.Plugin
+import com.bumble.appyx.core.plugin.plugins
+import dev.zacsweers.metro.Assisted
+import dev.zacsweers.metro.AssistedInject
+import io.element.android.annotations.ContributesNode
+import io.element.android.features.broadcastusage.api.BroadcastUsageEntryPoint
+import io.element.android.libraries.designsystem.utils.OnLifecycleEvent
+import io.element.android.libraries.di.SessionScope
+
+@ContributesNode(SessionScope::class)
+@AssistedInject
+class BroadcastUsageNode(
+    @Assisted buildContext: BuildContext,
+    @Assisted plugins: List<Plugin>,
+    private val presenter: BroadcastUsagePresenter,
+) : Node(buildContext, plugins = plugins) {
+    private val callback = plugins<BroadcastUsageEntryPoint.Callback>().first()
+
+    @Composable
+    override fun View(modifier: Modifier) {
+        val state = presenter.present()
+        OnLifecycleEvent { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START, Lifecycle.Event.ON_RESUME -> state.eventSink(BroadcastUsageEvent.Foreground)
+                Lifecycle.Event.ON_STOP -> state.eventSink(BroadcastUsageEvent.Background)
+                else -> Unit
+            }
+        }
+        BroadcastUsageView(state = state, onDone = callback::onDone, modifier = modifier)
+    }
+}

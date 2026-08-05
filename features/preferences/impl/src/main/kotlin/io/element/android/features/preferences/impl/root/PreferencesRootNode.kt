@@ -67,6 +67,7 @@ class PreferencesRootNode(
         fun openCreditsTopUp()
         fun navigateToCreditsBilling()
         fun navigateToCreditsUsage()
+        fun navigateToBroadcastUsage()
     }
 
     private val callback: Callback = callback()
@@ -123,6 +124,7 @@ class PreferencesRootNode(
             onOpenCreditsTopUp = callback::openCreditsTopUp,
             onOpenCreditsBilling = callback::navigateToCreditsBilling,
             onOpenCreditsUsage = callback::navigateToCreditsUsage,
+            onOpenBroadcastUsage = callback::navigateToBroadcastUsage,
             onSignOutClick = {
                 if (state.directLogoutState.canDoDirectSignOut) {
                     state.directLogoutState.eventSink(DirectLogoutEvents.Logout(ignoreSdkError = false))

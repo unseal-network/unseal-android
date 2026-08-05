@@ -78,6 +78,7 @@ dependencies {
     implementation(projects.features.analytics.api)
     implementation(projects.features.enterprise.api)
     implementation(projects.features.credits.api)
+    implementation(projects.features.broadcastusage.api)
     implementation(projects.features.licenses.api)
     implementation(projects.features.logout.api)
     implementation(projects.features.deactivation.api)

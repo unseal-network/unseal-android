@@ -22,6 +22,7 @@ import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
 import io.element.android.annotations.ContributesNode
 import io.element.android.features.credits.api.CreditsEntryPoint
+import io.element.android.features.broadcastusage.api.BroadcastUsageEntryPoint
 import io.element.android.features.deactivation.api.AccountDeactivationEntryPoint
 import io.element.android.features.licenses.api.OpenSourceLicensesEntryPoint
 import io.element.android.features.lockscreen.api.LockScreenEntryPoint
@@ -78,6 +79,7 @@ class PreferencesFlowNode(
     private val agentManagementEntryPoint: AgentManagementEntryPoint,
     private val skillsEntryPoint: SkillsEntryPoint,
     private val creditsEntryPoint: CreditsEntryPoint,
+    private val broadcastUsageEntryPoint: BroadcastUsageEntryPoint,
 ) : BaseFlowNode<PreferencesFlowNode.NavTarget>(
     backstack = BackStack(
         initialElement = plugins.filterIsInstance<PreferencesEntryPoint.Params>().first().initialElement.toNavTarget(),
@@ -163,6 +165,9 @@ class PreferencesFlowNode(
             val initialTab: CreditsEntryPoint.CreditsTab,
             val openTopUpInitially: Boolean = false,
         ) : NavTarget
+
+        @Parcelize
+        data object BroadcastUsage : NavTarget
     }
 
     private val callback: PreferencesEntryPoint.Callback = callback()
@@ -263,6 +268,10 @@ class PreferencesFlowNode(
 
                     override fun navigateToCreditsUsage() {
                         backstack.push(NavTarget.Credits(CreditsEntryPoint.CreditsTab.DailyUsage))
+                    }
+
+                    override fun navigateToBroadcastUsage() {
+                        backstack.push(NavTarget.BroadcastUsage)
                     }
 
                     override fun openCreditsTopUp() {
@@ -588,6 +597,17 @@ class PreferencesFlowNode(
 
                         override fun onTopUpRequested(balance: CreditBalance?) {
                             creditBalanceReloadRequests.tryEmit(Unit)
+                        }
+                    },
+                )
+            }
+            NavTarget.BroadcastUsage -> {
+                broadcastUsageEntryPoint.createNode(
+                    parentNode = this,
+                    buildContext = buildContext,
+                    callback = object : BroadcastUsageEntryPoint.Callback {
+                        override fun onDone() {
+                            if (backstack.canPop()) backstack.pop() else navigateUp()
                         }
                     },
                 )

@@ -103,6 +103,7 @@ fun PreferencesRootView(
     onOpenCreditsTopUp: () -> Unit,
     onOpenCreditsBilling: () -> Unit,
     onOpenCreditsUsage: () -> Unit,
+    onOpenBroadcastUsage: () -> Unit = {},
     onSignOutClick: () -> Unit,
     onDeactivateClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -162,6 +163,13 @@ fun PreferencesRootView(
                         onOpenCreditsBilling = onOpenCreditsBilling,
                         onOpenCreditsUsage = onOpenCreditsUsage,
                     )
+                    SettingsCard {
+                        NavRow(
+                            title = "直播流量",
+                            icon = CompoundIcons.VideoCall(),
+                            onClick = onOpenBroadcastUsage,
+                        )
+                    }
                 }
                 SettingsCard {
                     AiAssistantRows(
