@@ -22,6 +22,7 @@ sealed interface BroadcastUsageEvent {
 data class BroadcastUsageState(
     val tab: BroadcastUsageTab = BroadcastUsageTab.Overview,
     val dashboard: BroadcastUsageDashboard? = null,
+    val selectedBroadcastId: String? = null,
     val selectedSession: BroadcastUsageSession? = null,
     val runtime: BroadcastRuntimeStatus? = null,
     val activity: List<BroadcastTrafficActivity> = emptyList(),
@@ -29,7 +30,10 @@ data class BroadcastUsageState(
     val grants: BroadcastGrantList? = null,
     val loading: Boolean = false,
     val loadingMore: Boolean = false,
-    val error: String? = null,
+    val dashboardError: String? = null,
+    val sessionError: String? = null,
+    val activityError: String? = null,
+    val grantsError: String? = null,
     val runtimeError: String? = null,
     val eventSink: (BroadcastUsageEvent) -> Unit = {},
 )

@@ -26,7 +26,10 @@ class BroadcastUsagePresenterTest {
     fun `foreground loads dashboard once and stable id opens detail`() = runTest {
         val service = mockk<BroadcastUsageService>()
         coEvery { service.dashboard(any(), any()) } returns DASHBOARD
-        coEvery { service.session("bcast_one") } returns SESSION
+        coEvery { service.session("bcast_one") } returnsMany listOf(
+            SESSION,
+            SESSION.copy(confirmedBytes = BigInteger.TWO),
+        )
         val presenter = BroadcastUsagePresenter(service, FakeMatrixClient())
 
         presenter.test {
@@ -37,10 +40,49 @@ class BroadcastUsagePresenterTest {
 
             loaded.eventSink(BroadcastUsageEvent.OpenSession("bcast_one"))
             val detail = awaitStateWhere { it.selectedSession?.stopReason == "host_ended" }
+            assertThat(detail.selectedBroadcastId).isEqualTo("bcast_one")
             assertThat(detail.selectedSession?.roomId).isEqualTo("!room:unseal.test")
             coVerify(exactly = 1) { service.session("bcast_one") }
+
+            detail.eventSink(BroadcastUsageEvent.Refresh)
+            val refreshed = awaitStateWhere { it.selectedSession?.confirmedBytes == BigInteger.TWO }
+            assertThat(refreshed.sessionError).isNull()
+            coVerify(exactly = 2) { service.session("bcast_one") }
+            coVerify(exactly = 1) { service.dashboard(any(), any()) }
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun `activity failure remains visible when grants succeeds`() = runTest {
+        val service = mockk<BroadcastUsageService>()
+        coEvery { service.dashboard(any(), any()) } returns DASHBOARD
+        coEvery { service.activity(any(), any()) } throws IllegalStateException("activity failed")
+        coEvery { service.grants() } returns GRANTS
+        val presenter = BroadcastUsagePresenter(service, FakeMatrixClient())
+
+        presenter.test {
+            awaitItem().eventSink(BroadcastUsageEvent.Foreground)
+            val loaded = awaitStateWhere { it.dashboard != null }
+            loaded.eventSink(BroadcastUsageEvent.SelectTab(BroadcastUsageTab.Activity))
+            val activityFailed = awaitStateWhere { it.activityError == "activity failed" }
+            activityFailed.eventSink(BroadcastUsageEvent.SelectTab(BroadcastUsageTab.Grants))
+            val grantsLoaded = awaitStateWhere { it.grants != null }
+
+            assertThat(grantsLoaded.activityError).isEqualTo("activity failed")
+            assertThat(grantsLoaded.grantsError).isNull()
+            assertThat(grantsLoaded.dashboardError).isNull()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `traffic formatting appends exact bytes and preserves signs`() {
+        val bytes = BigInteger("9223372036854775808")
+
+        assertThat(formatTraffic(bytes)).isEqualTo("9.2 EB · 9223372036854775808 B")
+        assertThat(formatTraffic(bytes, signed = true)).isEqualTo("+9.2 EB · +9223372036854775808 B")
+        assertThat(formatTraffic(bytes.negate(), signed = true)).isEqualTo("-9.2 EB · -9223372036854775808 B")
     }
 
     private suspend fun TurbineTestContext<BroadcastUsageState>.awaitStateWhere(
@@ -64,6 +106,10 @@ class BroadcastUsagePresenterTest {
         val DASHBOARD = BroadcastUsageDashboard(
             availableTrafficBytes = BigInteger.TEN, pendingAllocationBytes = BigInteger.ZERO, unallocatedTrafficBytes = BigInteger.ZERO,
             calculatedAt = "2026-08-05T10:00:00Z", sessionCount = 1, sessions = listOf(SESSION.copy(stopReason = null)), nextCursor = null,
+        )
+        val GRANTS = BroadcastGrantList(
+            availableTrafficBytes = BigInteger.TEN,
+            items = emptyList(),
         )
     }
 }

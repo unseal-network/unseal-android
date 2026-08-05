@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import dev.zacsweers.metro.Inject
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.matrix.api.MatrixClient
@@ -30,7 +31,8 @@ class BroadcastUsagePresenter(
         val scope = rememberCoroutineScope()
         var tab by remember { mutableStateOf(BroadcastUsageTab.Overview) }
         var dashboard by remember { mutableStateOf<BroadcastUsageDashboard?>(null) }
-        var selected by remember { mutableStateOf<BroadcastUsageSession?>(null) }
+        var selectedBroadcastId by rememberSaveable { mutableStateOf<String?>(null) }
+        var selectedSession by remember { mutableStateOf<BroadcastUsageSession?>(null) }
         var runtime by remember { mutableStateOf<BroadcastRuntimeStatus?>(null) }
         var activity by remember { mutableStateOf(emptyList<BroadcastTrafficActivity>()) }
         var activityNextCursor by remember { mutableStateOf<String?>(null) }
@@ -38,7 +40,10 @@ class BroadcastUsagePresenter(
         var loading by remember { mutableStateOf(false) }
         var loadingMore by remember { mutableStateOf(false) }
         var foreground by remember { mutableStateOf(false) }
-        var error by remember { mutableStateOf<String?>(null) }
+        var dashboardError by remember { mutableStateOf<String?>(null) }
+        var sessionError by remember { mutableStateOf<String?>(null) }
+        var activityError by remember { mutableStateOf<String?>(null) }
+        var grantsError by remember { mutableStateOf<String?>(null) }
         var runtimeError by remember { mutableStateOf<String?>(null) }
 
         fun message(failure: Throwable): String = when ((failure as? BroadcastUsageHttpException)?.statusCode) {
@@ -60,9 +65,19 @@ class BroadcastUsagePresenter(
                     dashboard = if (cursor == null || dashboard == null) result else result.copy(
                         sessions = (dashboard!!.sessions + result.sessions).distinctBy { it.sessionId }
                     )
-                    error = null
+                    dashboardError = null
                 }
-                .onFailure { error = message(it) }
+                .onFailure { dashboardError = message(it) }
+        }
+
+        suspend fun loadSession(broadcastId: String) {
+            runCatching { service.session(broadcastId) }
+                .map { it.withLocalRoomName() }
+                .onSuccess {
+                    selectedSession = it
+                    sessionError = null
+                }
+                .onFailure { sessionError = message(it) }
         }
 
         suspend fun loadActivity(cursor: String? = null) {
@@ -71,21 +86,31 @@ class BroadcastUsagePresenter(
                     activity = ((if (cursor == null) page.items else activity + page.items).associateBy { it.id }).values
                         .sortedByDescending { it.occurredAt }
                     activityNextCursor = page.nextCursor
-                    error = null
+                    activityError = null
                 }
-                .onFailure { error = message(it) }
+                .onFailure { activityError = message(it) }
         }
 
         suspend fun loadGrants() {
-            runCatching { service.grants() }.onSuccess { grants = it; error = null }.onFailure { error = message(it) }
+            runCatching { service.grants() }
+                .onSuccess {
+                    grants = it
+                    grantsError = null
+                }
+                .onFailure { grantsError = message(it) }
         }
 
         fun refresh() = scope.launch {
             loading = true
-            when (tab) {
-                BroadcastUsageTab.Overview -> loadDashboard()
-                BroadcastUsageTab.Activity -> loadActivity()
-                BroadcastUsageTab.Grants -> loadGrants()
+            val detailId = selectedBroadcastId
+            if (detailId != null) {
+                loadSession(detailId)
+            } else {
+                when (tab) {
+                    BroadcastUsageTab.Overview -> loadDashboard()
+                    BroadcastUsageTab.Activity -> loadActivity()
+                    BroadcastUsageTab.Grants -> loadGrants()
+                }
             }
             loading = false
         }
@@ -98,22 +123,19 @@ class BroadcastUsagePresenter(
             } while (foreground)
         }
 
-        LaunchedEffect(foreground, selected?.broadcastId) {
-            val broadcastId = selected?.broadcastId ?: return@LaunchedEffect
+        LaunchedEffect(foreground, selectedBroadcastId) {
+            val broadcastId = selectedBroadcastId ?: return@LaunchedEffect
             if (!foreground) return@LaunchedEffect
             do {
-                runCatching { service.session(broadcastId) }
-                    .map { it.withLocalRoomName() }
-                    .onSuccess { selected = it; error = null }
-                    .onFailure { error = message(it) }
-                if (selected?.isTerminal == true) break
+                loadSession(broadcastId)
+                if (selectedSession?.isTerminal == true) break
                 delay(60_000)
-            } while (foreground && selected?.broadcastId == broadcastId)
+            } while (foreground && selectedBroadcastId == broadcastId)
         }
 
-        LaunchedEffect(foreground, selected?.broadcastId, selected?.showsRuntime) {
-            val broadcastId = selected?.broadcastId ?: return@LaunchedEffect
-            if (!foreground || selected?.showsRuntime != true) {
+        LaunchedEffect(foreground, selectedBroadcastId, selectedSession?.showsRuntime) {
+            val broadcastId = selectedBroadcastId ?: return@LaunchedEffect
+            if (!foreground || selectedSession?.showsRuntime != true) {
                 runtime = null
                 runtimeError = null
                 return@LaunchedEffect
@@ -124,7 +146,7 @@ class BroadcastUsagePresenter(
                     .onFailure { runtimeError = message(it) }
                     .getOrNull()?.pollAfterMs ?: 5_000
                 delay(wait)
-            } while (foreground && selected?.broadcastId == broadcastId && selected?.showsRuntime == true)
+            } while (foreground && selectedBroadcastId == broadcastId && selectedSession?.showsRuntime == true)
         }
 
         fun handle(event: BroadcastUsageEvent) {
@@ -139,10 +161,16 @@ class BroadcastUsagePresenter(
                     if (event.tab == BroadcastUsageTab.Activity && activity.isEmpty()) scope.launch { loading = true; loadActivity(); loading = false }
                     if (event.tab == BroadcastUsageTab.Grants && grants == null) scope.launch { loading = true; loadGrants(); loading = false }
                 }
-                is BroadcastUsageEvent.OpenSession -> selected = dashboard?.sessions?.firstOrNull { it.broadcastId == event.broadcastId }
+                is BroadcastUsageEvent.OpenSession -> {
+                    selectedBroadcastId = event.broadcastId
+                    selectedSession = dashboard?.sessions?.firstOrNull { it.broadcastId == event.broadcastId }
+                    sessionError = null
+                }
                 BroadcastUsageEvent.CloseSession -> {
-                    selected = null
+                    selectedBroadcastId = null
+                    selectedSession = null
                     runtime = null
+                    sessionError = null
                     runtimeError = null
                 }
                 BroadcastUsageEvent.LoadMoreSessions -> dashboard?.nextCursor?.let { cursor ->
@@ -155,9 +183,11 @@ class BroadcastUsagePresenter(
         }
 
         return BroadcastUsageState(
-            tab = tab, dashboard = dashboard, selectedSession = selected, runtime = runtime, activity = activity,
+            tab = tab, dashboard = dashboard, selectedBroadcastId = selectedBroadcastId, selectedSession = selectedSession,
+            runtime = runtime, activity = activity,
             activityNextCursor = activityNextCursor, grants = grants, loading = loading, loadingMore = loadingMore,
-            error = error, runtimeError = runtimeError, eventSink = ::handle,
+            dashboardError = dashboardError, sessionError = sessionError, activityError = activityError,
+            grantsError = grantsError, runtimeError = runtimeError, eventSink = ::handle,
         )
     }
 }

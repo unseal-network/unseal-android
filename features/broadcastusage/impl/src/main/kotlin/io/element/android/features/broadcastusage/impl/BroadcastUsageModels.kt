@@ -91,8 +91,8 @@ data class BroadcastRuntimeStatus(
     val pollAfterMs: Long,
 )
 
-internal fun formatTraffic(bytes: BigInteger): String {
-    val units = listOf("B", "KB", "MB", "GB", "TB", "PB")
+internal fun formatTraffic(bytes: BigInteger, signed: Boolean = false): String {
+    val units = listOf("B", "KB", "MB", "GB", "TB", "PB", "EB")
     var divisor = BigInteger.ONE
     var unit = 0
     val thousand = BigInteger.valueOf(1_000)
@@ -100,10 +100,15 @@ internal fun formatTraffic(bytes: BigInteger): String {
         divisor *= thousand
         unit++
     }
-    if (unit == 0) return "$bytes B"
-    val sign = if (bytes.signum() < 0) "-" else ""
+    val sign = when {
+        bytes.signum() < 0 -> "-"
+        signed && bytes.signum() > 0 -> "+"
+        else -> ""
+    }
     val absolute = bytes.abs()
+    if (unit == 0) return "$sign$absolute B"
     val whole = absolute / divisor
     val decimal = (absolute % divisor) * BigInteger.TEN / divisor
-    return if (decimal == BigInteger.ZERO) "$sign$whole ${units[unit]}" else "$sign$whole.$decimal ${units[unit]}"
+    val readable = if (decimal == BigInteger.ZERO) "$sign$whole ${units[unit]}" else "$sign$whole.$decimal ${units[unit]}"
+    return "$readable · $sign$absolute B"
 }

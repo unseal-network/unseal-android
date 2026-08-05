@@ -45,13 +45,14 @@ import androidx.compose.ui.res.stringResource
 @Composable
 internal fun BroadcastUsageView(state: BroadcastUsageState, onDone: () -> Unit, modifier: Modifier = Modifier) {
     val detail = state.selectedSession
+    val detailId = state.selectedBroadcastId
     Scaffold(
         modifier = modifier,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(if (detail == null) "直播流量" else "场次详情", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(if (detailId == null) "直播流量" else "场次详情", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
-                    IconButton(onClick = if (detail == null) onDone else ({ state.eventSink(BroadcastUsageEvent.CloseSession) })) {
+                    IconButton(onClick = if (detailId == null) onDone else ({ state.eventSink(BroadcastUsageEvent.CloseSession) })) {
                         Icon(CompoundIcons.ChevronLeft(), contentDescription = stringResource(CommonStrings.action_done))
                     }
                 },
@@ -67,13 +68,22 @@ internal fun BroadcastUsageView(state: BroadcastUsageState, onDone: () -> Unit, 
             modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            if (state.loading && state.dashboard == null && detail == null) {
+            if (state.loading && ((detailId == null && state.dashboard == null) || (detailId != null && detail == null))) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
             }
-            state.error?.let { ErrorCard(it) { state.eventSink(BroadcastUsageEvent.Refresh) } }
-            if (detail != null) {
-                DetailContent(detail, state.runtime, state.runtimeError)
+            if (detailId != null) {
+                state.sessionError?.let { ErrorCard(it) { state.eventSink(BroadcastUsageEvent.Refresh) } }
+                if (detail != null) {
+                    DetailContent(detail, state.runtime, state.runtimeError)
+                } else if (state.sessionError == null) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                }
             } else {
+                when (state.tab) {
+                    BroadcastUsageTab.Overview -> state.dashboardError
+                    BroadcastUsageTab.Activity -> state.activityError
+                    BroadcastUsageTab.Grants -> state.grantsError
+                }?.let { ErrorCard(it) { state.eventSink(BroadcastUsageEvent.Refresh) } }
                 Tabs(state.tab) { state.eventSink(BroadcastUsageEvent.SelectTab(it)) }
                 when (state.tab) {
                     BroadcastUsageTab.Overview -> OverviewContent(state)
@@ -189,7 +199,7 @@ private fun ColumnScope.ActivityContent(state: BroadcastUsageState) {
                     item.broadcastId?.let { Text("直播 $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
                 Text(
-                    text = (if (item.amountBytes.signum() > 0) "+" else "") + formatTraffic(item.amountBytes),
+                    text = formatTraffic(item.amountBytes, signed = true),
                     color = if (item.amountBytes.signum() >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                     fontWeight = FontWeight.SemiBold,
                 )
