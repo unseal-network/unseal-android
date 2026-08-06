@@ -8,6 +8,8 @@
 <!-- Strings that are pending import to Localazy. Do NOT edit localazy.xml. -->
 <resources>
     <string name="screen_broadcast_usage_title">Live broadcast usage</string>
+    <string name="screen_broadcast_usage_loading">Loading live broadcast usage…</string>
+    <string name="screen_broadcast_usage_load_failed">Unable to load</string>
     <string name="screen_broadcast_usage_session_details_title">Session details</string>
     <string name="screen_broadcast_usage_sessions_tab">Sessions</string>
     <string name="screen_broadcast_usage_activity_tab">Activity</string>

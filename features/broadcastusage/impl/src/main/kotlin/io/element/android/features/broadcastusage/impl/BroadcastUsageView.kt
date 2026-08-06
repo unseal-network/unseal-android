@@ -9,12 +9,14 @@
 package io.element.android.features.broadcastusage.impl
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -35,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
@@ -46,6 +49,13 @@ import io.element.android.libraries.ui.strings.CommonStrings
 internal fun BroadcastUsageView(state: BroadcastUsageState, onDone: () -> Unit, modifier: Modifier = Modifier) {
     val detail = state.selectedSession
     val detailId = state.selectedBroadcastId
+    val initialError = when {
+        detailId != null && detail == null -> state.sessionError
+        detailId == null && state.dashboard == null -> state.dashboardError
+        else -> null
+    }
+    val showInitialLoading = initialError == null &&
+        ((detailId == null && state.dashboard == null) || (detailId != null && detail == null))
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -72,33 +82,81 @@ internal fun BroadcastUsageView(state: BroadcastUsageState, onDone: () -> Unit, 
             )
         },
     ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            if (state.loading && ((detailId == null && state.dashboard == null) || (detailId != null && detail == null))) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-            }
-            if (detailId != null) {
-                state.sessionError?.let { ErrorCard(it) { state.eventSink(BroadcastUsageEvent.Refresh) } }
-                if (detail != null) {
-                    DetailContent(detail, state.runtime, state.runtimeError)
-                } else if (state.sessionError == null) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-                }
-            } else {
-                when (state.tab) {
-                    BroadcastUsageTab.Overview -> state.dashboardError
-                    BroadcastUsageTab.Activity -> state.activityError
-                    BroadcastUsageTab.Grants -> state.grantsError
-                }?.let { ErrorCard(it) { state.eventSink(BroadcastUsageEvent.Refresh) } }
-                Tabs(state.tab) { state.eventSink(BroadcastUsageEvent.SelectTab(it)) }
-                when (state.tab) {
-                    BroadcastUsageTab.Overview -> OverviewContent(state)
-                    BroadcastUsageTab.Activity -> ActivityContent(state)
-                    BroadcastUsageTab.Grants -> GrantsContent(state)
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            when {
+                showInitialLoading -> FullScreenLoading()
+                initialError != null -> FullScreenError(initialError) { state.eventSink(BroadcastUsageEvent.Refresh) }
+                else -> Column(
+                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    if (detailId != null) {
+                        if (detail != null) DetailContent(detail, state.runtime, state.runtimeError)
+                    } else {
+                        when (state.tab) {
+                            BroadcastUsageTab.Overview -> state.dashboardError
+                            BroadcastUsageTab.Activity -> state.activityError
+                            BroadcastUsageTab.Grants -> state.grantsError
+                        }?.let { ErrorCard(it) { state.eventSink(BroadcastUsageEvent.Refresh) } }
+                        Tabs(state.tab) { state.eventSink(BroadcastUsageEvent.SelectTab(it)) }
+                        when (state.tab) {
+                            BroadcastUsageTab.Overview -> OverviewContent(state)
+                            BroadcastUsageTab.Activity -> ActivityContent(state)
+                            BroadcastUsageTab.Grants -> GrantsContent(state)
+                        }
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun FullScreenLoading() {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        CircularProgressIndicator()
+        Text(
+            text = stringResource(R.string.screen_broadcast_usage_loading),
+            modifier = Modifier.padding(top = 16.dp),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
+private fun FullScreenError(message: String, retry: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            imageVector = CompoundIcons.Offline(),
+            contentDescription = null,
+            modifier = Modifier.size(48.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = stringResource(R.string.screen_broadcast_usage_load_failed),
+            modifier = Modifier.padding(top = 20.dp),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = message,
+            modifier = Modifier.padding(top = 8.dp),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        Button(onClick = retry, modifier = Modifier.padding(top = 24.dp)) {
+            Text(stringResource(CommonStrings.action_retry))
         }
     }
 }

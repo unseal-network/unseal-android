@@ -46,11 +46,16 @@ class BroadcastUsagePresenter(
         var grantsError by remember { mutableStateOf<String?>(null) }
         var runtimeError by remember { mutableStateOf<String?>(null) }
 
-        fun message(failure: Throwable): String = when ((failure as? BroadcastUsageHttpException)?.statusCode) {
-            0 -> "无法连接网络，请检查连接后重试"
-            401 -> "登录已过期，请重新登录"
-            404 -> "找不到这条直播场次"
-            else -> failure.message ?: "暂时无法读取直播流量"
+        fun message(failure: Throwable): String {
+            val statusCode = (failure as? BroadcastUsageHttpException)?.statusCode
+            return when {
+                statusCode == 0 -> "无法连接网络，请检查连接后重试"
+                statusCode == 400 -> "请求直播流量失败，请更新应用后重试"
+                statusCode == 401 -> "登录已过期，请重新登录"
+                statusCode == 404 -> "找不到这条直播场次"
+                statusCode != null && statusCode in 500..599 -> "服务暂时不可用，请稍后重试"
+                else -> "暂时无法读取直播流量"
+            }
         }
 
         suspend fun BroadcastUsageSession.withLocalRoomName(): BroadcastUsageSession {
