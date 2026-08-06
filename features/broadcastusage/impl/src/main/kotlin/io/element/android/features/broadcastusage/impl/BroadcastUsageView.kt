@@ -51,10 +51,14 @@ import io.element.android.libraries.ui.strings.CommonStrings
 internal fun BroadcastUsageView(state: BroadcastUsageState, onDone: () -> Unit, modifier: Modifier = Modifier) {
     val detail = state.selectedHistory
     val detailId = state.selectedBroadcastId
-    val initialError = when {
-        detailId != null -> state.historyError
-        detailId == null && state.dashboard == null && state.history.isEmpty() -> state.dashboardError ?: state.historyError
-        else -> null
+    val initialError = if (state.loading) {
+        null
+    } else {
+        when {
+            detailId != null -> state.historyError
+            detailId == null && state.dashboard == null && state.history.isEmpty() -> state.dashboardError ?: state.historyError
+            else -> null
+        }
     }
     val showInitialLoading = initialError == null &&
         ((detailId == null && state.dashboard == null && state.history.isEmpty()) || (detailId != null && detail == null))

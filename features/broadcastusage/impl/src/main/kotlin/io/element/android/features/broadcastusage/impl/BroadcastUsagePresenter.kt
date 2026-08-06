@@ -19,6 +19,7 @@ import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.services.toolbox.api.strings.StringProvider
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -53,6 +54,7 @@ class BroadcastUsagePresenter(
         var runtimeError by remember { mutableStateOf<String?>(null) }
 
         fun message(failure: Throwable): String {
+            if (failure is CancellationException) throw failure
             val statusCode = (failure as? BroadcastUsageHttpException)?.statusCode
             return when {
                 statusCode == 0 -> stringProvider.getString(R.string.error_broadcast_usage_network)
@@ -65,7 +67,10 @@ class BroadcastUsagePresenter(
         }
 
         suspend fun localRoomName(roomId: String): String? =
-            runCatching { matrixClient.getRoom(RoomId(roomId))?.info()?.name }.getOrNull()?.takeIf(String::isNotBlank)
+            runCatching { matrixClient.getRoom(RoomId(roomId))?.info()?.name }
+                .onFailure { if (it is CancellationException) throw it }
+                .getOrNull()
+                ?.takeIf(String::isNotBlank)
 
         suspend fun BroadcastUsageSession.withLocalRoomName(): BroadcastUsageSession =
             copy(displayName = localRoomName(roomId))
@@ -155,27 +160,35 @@ class BroadcastUsagePresenter(
 
         fun refresh() = scope.launch {
             loading = true
-            val detailId = selectedBroadcastId
-            if (detailId != null) {
-                if (selectedHistory != null) loadHistoryDetail(detailId) else loadSession(detailId)
-            } else {
-                when (tab) {
-                    BroadcastUsageTab.Overview -> {
-                        loadDashboard()
-                        loadHistory()
+            try {
+                val detailId = selectedBroadcastId
+                if (detailId != null) {
+                    if (selectedHistory != null) loadHistoryDetail(detailId) else loadSession(detailId)
+                } else {
+                    when (tab) {
+                        BroadcastUsageTab.Overview -> {
+                            loadDashboard()
+                            loadHistory()
+                        }
+                        BroadcastUsageTab.Activity -> loadActivity()
+                        BroadcastUsageTab.Grants -> loadGrants()
                     }
-                    BroadcastUsageTab.Activity -> loadActivity()
-                    BroadcastUsageTab.Grants -> loadGrants()
                 }
+            } finally {
+                loading = false
             }
-            loading = false
         }
 
         LaunchedEffect(foreground) {
             if (!foreground) return@LaunchedEffect
             do {
-                loadDashboard()
-                loadHistory()
+                loading = true
+                try {
+                    loadDashboard()
+                    loadHistory()
+                } finally {
+                    loading = false
+                }
                 delay(60_000)
             } while (foreground)
         }

@@ -15,6 +15,7 @@ import io.element.android.services.toolbox.test.strings.FakeStringProvider
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -121,6 +122,30 @@ class BroadcastUsagePresenterTest {
 
             failed.eventSink(BroadcastUsageEvent.Refresh)
             coVerify(atLeast = 2) { service.historyDetail("bcast_history") }
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `overview does not publish terminal failure before history finishes`() = runTest {
+        val service = mockk<BroadcastUsageService>()
+        coEvery { service.dashboard(any(), any()) } throws IllegalStateException("dashboard failed")
+        coEvery { service.history(any(), any()) } coAnswers {
+            delay(100)
+            BroadcastHistoryPage(listOf(HISTORY), null)
+        }
+        val presenter = BroadcastUsagePresenter(service, FakeMatrixClient(), FakeStringProvider(defaultResult = LOCALIZED_ERROR))
+
+        presenter.test {
+            val observed = mutableListOf<BroadcastUsageState>()
+            awaitItem().eventSink(BroadcastUsageEvent.Foreground)
+            val loaded = awaitStateWhere {
+                observed += it
+                it.history.isNotEmpty() && !it.loading
+            }
+
+            assertThat(observed.none { it.dashboardError != null && it.history.isEmpty() && !it.loading }).isTrue()
+            assertThat(loaded.loading).isFalse()
             cancelAndIgnoreRemainingEvents()
         }
     }
