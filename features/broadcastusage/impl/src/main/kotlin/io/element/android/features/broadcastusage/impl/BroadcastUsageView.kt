@@ -26,7 +26,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -40,8 +39,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
 import io.element.android.compound.tokens.generated.CompoundIcons
+import io.element.android.compound.theme.ElementTheme
 import io.element.android.libraries.designsystem.preview.ElementPreview
 import io.element.android.libraries.designsystem.preview.PreviewsDayNight
 import io.element.android.libraries.ui.strings.CommonStrings
@@ -51,12 +52,12 @@ internal fun BroadcastUsageView(state: BroadcastUsageState, onDone: () -> Unit, 
     val detail = state.selectedHistory
     val detailId = state.selectedBroadcastId
     val initialError = when {
-        detailId != null && detail == null -> state.historyError
-        detailId == null && state.dashboard == null -> state.dashboardError
+        detailId != null -> state.historyError
+        detailId == null && state.dashboard == null && state.history.isEmpty() -> state.dashboardError ?: state.historyError
         else -> null
     }
     val showInitialLoading = initialError == null &&
-        ((detailId == null && state.dashboard == null) || (detailId != null && detail == null))
+        ((detailId == null && state.dashboard == null && state.history.isEmpty()) || (detailId != null && detail == null))
     val scrollState = rememberScrollState()
     LaunchedEffect(state.tab, detailId, scrollState.value, scrollState.maxValue, state.historyNextCursor, state.loadingMore) {
         if (
@@ -138,8 +139,8 @@ private fun FullScreenLoading() {
         Text(
             text = stringResource(R.string.screen_broadcast_usage_loading),
             modifier = Modifier.padding(top = 16.dp),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = ElementTheme.typography.fontBodyLgRegular,
+            color = ElementTheme.colors.textSecondary,
             textAlign = TextAlign.Center,
         )
     }
@@ -156,19 +157,19 @@ private fun FullScreenError(message: String, retry: () -> Unit) {
             imageVector = CompoundIcons.Offline(),
             contentDescription = null,
             modifier = Modifier.size(48.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = ElementTheme.colors.textSecondary,
         )
         Text(
             text = stringResource(R.string.screen_broadcast_usage_load_failed),
             modifier = Modifier.padding(top = 20.dp),
-            style = MaterialTheme.typography.headlineSmall,
+            style = ElementTheme.typography.fontHeadingMdBold,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
             text = message,
             modifier = Modifier.padding(top = 8.dp),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = ElementTheme.typography.fontBodyLgRegular,
+            color = ElementTheme.colors.textSecondary,
             textAlign = TextAlign.Center,
         )
         Button(onClick = retry, modifier = Modifier.padding(top = 24.dp)) {
@@ -179,8 +180,8 @@ private fun FullScreenError(message: String, retry: () -> Unit) {
 
 @Composable
 private fun ColumnScope.OverviewContent(state: BroadcastUsageState) {
-    val dashboard = state.dashboard ?: return
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    val dashboard = state.dashboard
+    if (dashboard != null) Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         MetricCard(stringResource(R.string.screen_broadcast_usage_grant_traffic), formatTrafficCompact(dashboard.funding.grantBytes), Modifier.weight(1f))
         MetricCard(stringResource(R.string.screen_broadcast_usage_balance), formatUsdMicros(dashboard.funding.balanceMicros), Modifier.weight(1f))
     }
@@ -192,19 +193,20 @@ private fun ColumnScope.OverviewContent(state: BroadcastUsageState) {
             Text(stringResource(R.string.screen_broadcast_usage_grants_title))
         }
     }
-    val activeSessions = dashboard.sessions.filter { it.showsRuntime }
+    val activeSessions = dashboard?.sessions?.filter { it.showsRuntime }.orEmpty()
     if (activeSessions.isNotEmpty()) Card {
-        Text(stringResource(R.string.screen_broadcast_usage_active_sessions), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.screen_broadcast_usage_active_sessions), style = ElementTheme.typography.fontBodyLgMedium, fontWeight = FontWeight.SemiBold)
         activeSessions.forEach { session ->
             Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                Text(session.displayName ?: session.openedAt.displayTime(), fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(session.openedAt.displayTime(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val startTime = session.startedAt ?: session.openedAt
+                Text(session.displayName ?: startTime.displayTime(), fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(startTime.displayTime(), style = ElementTheme.typography.fontBodySmRegular, color = ElementTheme.colors.textSecondary)
             }
         }
     }
     Card {
-        Text(stringResource(R.string.screen_broadcast_usage_previous_sessions), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        if (state.history.isEmpty() && !state.loading) Text(stringResource(R.string.screen_broadcast_usage_empty_sessions), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.screen_broadcast_usage_previous_sessions), style = ElementTheme.typography.fontBodyLgMedium, fontWeight = FontWeight.SemiBold)
+        if (state.history.isEmpty() && !state.loading) Text(stringResource(R.string.screen_broadcast_usage_empty_sessions), color = ElementTheme.colors.textSecondary)
         state.history.forEachIndexed { index, item ->
             if (index > 0) HorizontalDivider()
             HistoryRow(item) { state.eventSink(BroadcastUsageEvent.OpenHistory(item.broadcastId)) }
@@ -215,10 +217,10 @@ private fun ColumnScope.OverviewContent(state: BroadcastUsageState) {
 
 @Composable
 private fun MetricCard(title: String, value: String, modifier: Modifier = Modifier) {
-    Surface(modifier = modifier, color = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(12.dp)) {
+    Surface(modifier = modifier, color = ElementTheme.colors.bgSubtleSecondary, shape = RoundedCornerShape(12.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(title, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(title, style = ElementTheme.typography.fontBodySmRegular, color = ElementTheme.colors.textSecondary)
+            Text(value, style = ElementTheme.typography.fontHeadingMdBold, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -230,7 +232,7 @@ private fun HistoryRow(item: BroadcastHistoryItem, onClick: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(item.displayName ?: item.openedAt.displayTime(), maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
-                    Text("${item.openedAt.displayTime()} – ${item.closedAt.displayTime()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${item.openedAt.displayTime()} – ${item.closedAt.displayTime()}", style = ElementTheme.typography.fontBodySmRegular, color = ElementTheme.colors.textSecondary)
                 }
                 Icon(CompoundIcons.ChevronRight(), contentDescription = null)
             }
@@ -246,37 +248,34 @@ private fun HistoryRow(item: BroadcastHistoryItem, onClick: () -> Unit) {
 @Composable
 private fun HistoryMetric(label: String, value: String) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+        Text(label, style = ElementTheme.typography.fontBodyXsRegular, color = ElementTheme.colors.textSecondary)
+        Text(value, style = ElementTheme.typography.fontBodyMdRegular, fontWeight = FontWeight.SemiBold)
     }
 }
 
 @Composable
 private fun HistoryDetailContent(item: BroadcastHistoryItem) {
     Card {
-        Text(item.displayName ?: item.openedAt.displayTime(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        if (item.displayName != null) Text(item.roomId, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(item.displayName ?: item.openedAt.displayTime(), style = ElementTheme.typography.fontBodyLgMedium, fontWeight = FontWeight.SemiBold)
+        if (item.displayName != null) Text(item.roomId, style = ElementTheme.typography.fontBodySmRegular, color = ElementTheme.colors.textSecondary)
         KeyValue(stringResource(R.string.screen_broadcast_usage_start_time), item.openedAt.displayTime())
         KeyValue(stringResource(R.string.screen_broadcast_usage_end_time), item.closedAt.displayTime())
     }
     Card {
-        Text(stringResource(R.string.screen_broadcast_usage_traffic), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.screen_broadcast_usage_traffic), style = ElementTheme.typography.fontBodyLgMedium, fontWeight = FontWeight.SemiBold)
         KeyValue(stringResource(R.string.screen_broadcast_usage_confirmed_traffic), formatTraffic(item.traffic.confirmedBytes))
         KeyValue(stringResource(R.string.screen_broadcast_usage_grant_covered_traffic), formatTraffic(item.traffic.grantCoveredBytes))
         KeyValue(stringResource(R.string.screen_broadcast_usage_balance_covered_traffic), formatTraffic(item.traffic.balanceCoveredBytes))
-        if (item.traffic.pendingAllocationBytes.signum() > 0) {
-            KeyValue(stringResource(R.string.screen_broadcast_usage_pending_allocation), formatTraffic(item.traffic.pendingAllocationBytes))
-        }
     }
     if (item.audience.viewerSessionCount != null || item.audience.uniqueViewerCount != null || item.audience.peakConcurrentViewers != null) Card {
-        Text(stringResource(R.string.screen_broadcast_usage_audience), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.screen_broadcast_usage_audience), style = ElementTheme.typography.fontBodyLgMedium, fontWeight = FontWeight.SemiBold)
         item.audience.viewerSessionCount?.let { KeyValue(stringResource(R.string.screen_broadcast_usage_viewer_sessions), it.toString()) }
         item.audience.uniqueViewerCount?.let { KeyValue(stringResource(R.string.screen_broadcast_usage_unique_viewers), it.toString()) }
         item.audience.peakConcurrentViewers?.let { KeyValue(stringResource(R.string.screen_broadcast_usage_peak_concurrent_viewers), it.toString()) }
     }
     item.billing.costMicros?.let { cost ->
         Card {
-            Text(stringResource(R.string.screen_broadcast_usage_billing), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.screen_broadcast_usage_billing), style = ElementTheme.typography.fontBodyLgMedium, fontWeight = FontWeight.SemiBold)
             KeyValue(stringResource(R.string.screen_broadcast_usage_cost), formatUsdMicros(cost))
             item.billing.chargedAt?.let { KeyValue(stringResource(R.string.screen_broadcast_usage_charged_at), it.displayTime()) }
         }
@@ -286,20 +285,20 @@ private fun HistoryDetailContent(item: BroadcastHistoryItem) {
 @Composable
 private fun ColumnScope.ActivityContent(state: BroadcastUsageState) {
     Card {
-        Text(stringResource(R.string.screen_broadcast_usage_activity_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        if (state.activity.isEmpty() && !state.loading) Text(stringResource(R.string.screen_broadcast_usage_empty_activity), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.screen_broadcast_usage_activity_title), style = ElementTheme.typography.fontBodyLgMedium, fontWeight = FontWeight.SemiBold)
+        if (state.activity.isEmpty() && !state.loading) Text(stringResource(R.string.screen_broadcast_usage_empty_activity), color = ElementTheme.colors.textSecondary)
         state.activity.forEachIndexed { index, item ->
             if (index > 0) HorizontalDivider()
             Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.weight(1f)) {
-                    Text(item.reasonCode, fontWeight = FontWeight.Medium)
-                    Text(item.note ?: item.occurredAt.displayTime(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(item.sourceReference, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    item.broadcastId?.let { Text(stringResource(R.string.screen_broadcast_usage_broadcast_reference, it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    Text(item.type.localizedReason(), fontWeight = FontWeight.Medium)
+                    Text(item.note ?: item.occurredAt.displayTime(), style = ElementTheme.typography.fontBodySmRegular, color = ElementTheme.colors.textSecondary)
+                    Text(item.sourceReference, style = ElementTheme.typography.fontBodySmRegular, color = ElementTheme.colors.textSecondary)
+                    item.broadcastId?.let { Text(stringResource(R.string.screen_broadcast_usage_broadcast_reference, it), style = ElementTheme.typography.fontBodySmRegular, color = ElementTheme.colors.textSecondary) }
                 }
                 Text(
                     text = formatTraffic(item.amountBytes, signed = true),
-                    color = if (item.amountBytes.signum() >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                    color = if (item.amountBytes.signum() >= 0) ElementTheme.colors.textActionPrimary else ElementTheme.colors.textCriticalPrimary,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -315,17 +314,17 @@ private fun ColumnScope.GrantsContent(state: BroadcastUsageState) {
     val grants = state.grants
     if (grants != null) MetricCard(stringResource(R.string.screen_broadcast_usage_current_available_total), formatTraffic(grants.availableTrafficBytes), Modifier.fillMaxWidth())
     Card {
-        Text(stringResource(R.string.screen_broadcast_usage_grants_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        if (grants?.items.isNullOrEmpty() && !state.loading) Text(stringResource(R.string.screen_broadcast_usage_empty_grants), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.screen_broadcast_usage_grants_title), style = ElementTheme.typography.fontBodyLgMedium, fontWeight = FontWeight.SemiBold)
+        if (grants?.items.isNullOrEmpty() && !state.loading) Text(stringResource(R.string.screen_broadcast_usage_empty_grants), color = ElementTheme.colors.textSecondary)
         grants?.items?.forEachIndexed { index, grant ->
             if (index > 0) HorizontalDivider()
             Column(Modifier.padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(grant.reasonCode, fontWeight = FontWeight.Medium)
+                    Text(grant.reasonCode.localizedReason(), fontWeight = FontWeight.Medium)
                     Text(formatTraffic(grant.remainingBytes), fontWeight = FontWeight.SemiBold)
                 }
-                Text(stringResource(R.string.screen_broadcast_usage_grant_period, grant.status.localizedLabel(), grant.validFrom.displayTime(), grant.expiresAt.displayTime()), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(stringResource(R.string.screen_broadcast_usage_grant_usage, formatTraffic(grant.originalBytes), formatTraffic(grant.consumedBytes)), style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.screen_broadcast_usage_grant_period, grant.status.localizedLabel(), grant.validFrom.displayTime(), grant.expiresAt.displayTime()), style = ElementTheme.typography.fontBodySmRegular, color = ElementTheme.colors.textSecondary)
+                Text(stringResource(R.string.screen_broadcast_usage_grant_usage, formatTraffic(grant.originalBytes), formatTraffic(grant.consumedBytes)), style = ElementTheme.typography.fontBodySmRegular)
             }
         }
     }
@@ -333,7 +332,7 @@ private fun ColumnScope.GrantsContent(state: BroadcastUsageState) {
 
 @Composable
 private fun Card(content: @Composable ColumnScope.() -> Unit) {
-    Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(12.dp)) {
+    Surface(modifier = Modifier.fillMaxWidth(), color = ElementTheme.colors.bgSubtleSecondary, shape = RoundedCornerShape(12.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
     }
 }
@@ -341,22 +340,26 @@ private fun Card(content: @Composable ColumnScope.() -> Unit) {
 @Composable
 private fun KeyValue(key: String, value: String) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(key, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(key, color = ElementTheme.colors.textSecondary)
         Text(value, fontWeight = FontWeight.Medium)
     }
 }
 
 @Composable
 private fun ErrorCard(message: String, retry: () -> Unit) {
-    Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(12.dp)) {
+    Surface(color = ElementTheme.colors.bgCriticalSubtle, shape = RoundedCornerShape(12.dp)) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(message, Modifier.weight(1f), color = MaterialTheme.colorScheme.onErrorContainer)
+            Text(message, Modifier.weight(1f), color = ElementTheme.colors.textCriticalPrimary)
             Button(onClick = retry) { Text(stringResource(CommonStrings.action_retry)) }
         }
     }
 }
 
-private fun String.displayTime(): String = replace('T', ' ').substringBefore('.')
+private fun String.displayTime(): String = runCatching {
+    java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+        .withZone(java.time.ZoneId.systemDefault())
+        .format(java.time.Instant.parse(this))
+}.getOrElse { this }
 
 private fun BroadcastUsageSession.durationLabel(): String? {
     val start = startedAt ?: openedAt
@@ -388,23 +391,17 @@ private fun String.localizedLabel(): String = when (this) {
     else -> this
 }
 
+@Composable
+private fun String.localizedReason(): String = when (this) {
+    "grant_issued" -> stringResource(R.string.screen_broadcast_usage_reason_grant_issued)
+    "grant_adjusted" -> stringResource(R.string.screen_broadcast_usage_reason_grant_adjusted)
+    "grant_expired" -> stringResource(R.string.screen_broadcast_usage_reason_grant_expired)
+    "broadcast_usage" -> stringResource(R.string.screen_broadcast_usage_reason_broadcast_usage)
+    else -> this
+}
+
 @PreviewsDayNight
 @Composable
-internal fun BroadcastUsageViewPreview() = ElementPreview {
-    val zero = java.math.BigInteger.ZERO
-    BroadcastUsageView(
-        BroadcastUsageState(
-            dashboard = BroadcastUsageDashboard(
-                availableTrafficBytes = java.math.BigInteger.TEN,
-                funding = BroadcastUsageFunding(java.math.BigInteger.TEN, zero, zero, zero, zero, zero, zero, zero, zero),
-                pendingAllocationBytes = zero,
-                unallocatedTrafficBytes = zero,
-                calculatedAt = "",
-                sessionCount = 0,
-                sessions = emptyList(),
-                nextCursor = null,
-            ),
-        ),
-        {},
-    )
+internal fun BroadcastUsageViewPreview(@PreviewParameter(BroadcastUsageStateProvider::class) state: BroadcastUsageState) = ElementPreview {
+    BroadcastUsageView(state, {})
 }

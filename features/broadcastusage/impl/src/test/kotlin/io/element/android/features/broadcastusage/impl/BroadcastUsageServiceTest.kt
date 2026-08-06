@@ -58,13 +58,31 @@ class BroadcastUsageServiceTest {
     fun `history preserves nullable audience and billing values`() = runTest {
         server.enqueue(MockResponse().setBody(HISTORY))
 
-        val result = createService().history(limit = 20)
+        val result = createService().history(limit = 20, cursor = "opaque/value")
 
         val item = result.items.single()
         assertThat(item.traffic.confirmedBytes).isEqualTo(BigInteger("9007199254740993"))
         assertThat(item.audience.viewerSessionCount).isEqualTo(BigInteger.TEN)
         assertThat(item.billing.costMicros).isEqualTo(BigInteger.ONE)
-        assertThat(server.takeRequest().path).isEqualTo("/api/broadcast-usage/history?limit=20")
+        val request = server.takeRequest()
+        assertThat(request.path).isEqualTo("/api/broadcast-usage/history?limit=20&cursor=opaque%2Fvalue")
+        assertThat(request.getHeader("Authorization")).isEqualTo("Bearer runtime-token")
+    }
+
+    @Test
+    fun `history detail preserves absent audience and billing values`() = runTest {
+        server.enqueue(MockResponse().setBody(HISTORY_NULLABLE))
+
+        val result = createService().historyDetail("bcast_demo")
+
+        assertThat(result.audience.uniqueViewerCount).isNull()
+        assertThat(result.audience.viewerSessionCount).isNull()
+        assertThat(result.audience.peakConcurrentViewers).isNull()
+        assertThat(result.billing.costMicros).isNull()
+        assertThat(result.billing.chargedAt).isNull()
+        val request = server.takeRequest()
+        assertThat(request.path).isEqualTo("/api/broadcast-usage/history/bcast_demo")
+        assertThat(request.getHeader("Authorization")).isEqualTo("Bearer runtime-token")
     }
 
     private fun createService(): BroadcastUsageService = BroadcastUsageService(
@@ -106,6 +124,13 @@ class BroadcastUsageServiceTest {
               "traffic":{"status":"finalized","confirmedBytes":"9007199254740993","grantCoveredBytes":"9007199254740000","balanceCoveredBytes":"993","pendingAllocationBytes":"0"},
               "audience":{"status":"finalized","uniqueViewerCount":"8","viewerSessionCount":"10","peakConcurrentViewers":"4","finalizedAt":"2026-08-05T10:01:00.000Z"},
               "billing":{"status":"settled","costMicros":"1","pricePerBytePicos":"70","chargedAt":"2026-08-05T10:02:00.000Z"}}],"nextCursor":null}
+        """.trimIndent()
+        val HISTORY_NULLABLE = """
+            {"sessionId":"11111111-1111-4111-8111-111111111111","broadcastId":"bcast_demo","roomId":"!room:unseal.test",
+              "openedAt":"2026-08-05T09:00:00.000Z","closedAt":"2026-08-05T10:00:00.000Z","finalizedAt":null,
+              "traffic":{"status":"finalized","confirmedBytes":"10","grantCoveredBytes":"10","balanceCoveredBytes":"0","pendingAllocationBytes":"0"},
+              "audience":{"status":"unavailable","uniqueViewerCount":null,"viewerSessionCount":null,"peakConcurrentViewers":null,"finalizedAt":null},
+              "billing":{"status":"covered_by_grant","costMicros":null,"pricePerBytePicos":"70","chargedAt":null}}
         """.trimIndent()
     }
 }

@@ -64,18 +64,29 @@ class BroadcastUsagePresenter(
             }
         }
 
-        suspend fun BroadcastUsageSession.withLocalRoomName(): BroadcastUsageSession {
-            val name = runCatching { matrixClient.getRoom(RoomId(roomId))?.info()?.name }.getOrNull()?.takeIf(String::isNotBlank)
-            return copy(displayName = name)
-        }
+        suspend fun localRoomName(roomId: String): String? =
+            runCatching { matrixClient.getRoom(RoomId(roomId))?.info()?.name }.getOrNull()?.takeIf(String::isNotBlank)
 
-        suspend fun BroadcastHistoryItem.withLocalRoomName(): BroadcastHistoryItem {
-            val name = runCatching { matrixClient.getRoom(RoomId(roomId))?.info()?.name }.getOrNull()?.takeIf(String::isNotBlank)
-            return copy(displayName = name)
-        }
+        suspend fun BroadcastUsageSession.withLocalRoomName(): BroadcastUsageSession =
+            copy(displayName = localRoomName(roomId))
+
+        suspend fun BroadcastHistoryItem.withLocalRoomName(): BroadcastHistoryItem =
+            copy(displayName = localRoomName(roomId))
 
         suspend fun loadDashboard(cursor: String? = null) {
-            runCatching { service.dashboard(cursor = cursor) }
+            runCatching {
+                var result = service.dashboard(cursor = cursor)
+                if (cursor == null) {
+                    val seenCursors = mutableSetOf<String>()
+                    while (true) {
+                        val nextCursor = result.nextCursor ?: break
+                        if (!seenCursors.add(nextCursor)) break
+                        val page = service.dashboard(cursor = nextCursor)
+                        result = page.copy(sessions = (result.sessions + page.sessions).distinctBy { it.sessionId })
+                    }
+                }
+                result
+            }
                 .map { result -> result.copy(sessions = result.sessions.map { it.withLocalRoomName() }) }
                 .onSuccess { result ->
                     dashboard = if (cursor == null || dashboard == null) result else result.copy(
@@ -97,11 +108,16 @@ class BroadcastUsagePresenter(
         }
 
         suspend fun loadHistory(cursor: String? = null) {
+            val previous = history
             runCatching { service.history(cursor = cursor) }
                 .map { page -> page.copy(items = page.items.map { it.withLocalRoomName() }) }
                 .onSuccess { page ->
-                    history = if (cursor == null) page.items else (history + page.items).distinctBy { it.sessionId }
-                    historyNextCursor = page.nextCursor
+                    history = when {
+                        cursor != null -> (previous + page.items).distinctBy { it.sessionId }
+                        previous.isNotEmpty() -> page.items + previous.filter { old -> page.items.none { it.sessionId == old.sessionId } }
+                        else -> page.items
+                    }
+                    if (cursor != null || previous.isEmpty()) historyNextCursor = page.nextCursor
                     historyError = null
                 }
                 .onFailure { historyError = message(it) }

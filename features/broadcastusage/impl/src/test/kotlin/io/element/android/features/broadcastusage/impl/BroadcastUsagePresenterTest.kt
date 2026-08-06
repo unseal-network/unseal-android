@@ -80,6 +80,52 @@ class BroadcastUsagePresenterTest {
     }
 
     @Test
+    fun `history paginates without duplicates and opens refreshed detail`() = runTest {
+        val service = mockk<BroadcastUsageService>()
+        coEvery { service.dashboard(any(), any()) } returns DASHBOARD
+        coEvery { service.history(any(), null) } returns BroadcastHistoryPage(listOf(HISTORY), "next")
+        coEvery { service.history(any(), "next") } returns BroadcastHistoryPage(listOf(HISTORY, HISTORY.copy(sessionId = "session-two", broadcastId = "bcast_two")), null)
+        coEvery { service.historyDetail("bcast_history") } returns HISTORY.copy(
+            billing = HISTORY.billing.copy(costMicros = BigInteger.TWO),
+        )
+        val presenter = BroadcastUsagePresenter(service, FakeMatrixClient(), FakeStringProvider())
+
+        presenter.test {
+            awaitItem().eventSink(BroadcastUsageEvent.Foreground)
+            val firstPage = awaitStateWhere { it.history.size == 1 && it.historyNextCursor == "next" }
+            firstPage.eventSink(BroadcastUsageEvent.LoadMoreHistory)
+            val secondPage = awaitStateWhere { it.history.size == 2 && it.historyNextCursor == null }
+            secondPage.eventSink(BroadcastUsageEvent.OpenHistory("bcast_history"))
+            val detail = awaitStateWhere { it.selectedHistory?.billing?.costMicros == BigInteger.TWO }
+
+            assertThat(detail.selectedBroadcastId).isEqualTo("bcast_history")
+            coVerify(exactly = 1) { service.history(any(), "next") }
+            coVerify(exactly = 1) { service.historyDetail("bcast_history") }
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `history detail failure remains retryable`() = runTest {
+        val service = mockk<BroadcastUsageService>()
+        coEvery { service.dashboard(any(), any()) } returns DASHBOARD
+        coEvery { service.history(any(), any()) } returns BroadcastHistoryPage(listOf(HISTORY), null)
+        coEvery { service.historyDetail("bcast_history") } throws IllegalStateException("detail failed")
+        val presenter = BroadcastUsagePresenter(service, FakeMatrixClient(), FakeStringProvider(defaultResult = LOCALIZED_ERROR))
+
+        presenter.test {
+            awaitItem().eventSink(BroadcastUsageEvent.Foreground)
+            val loaded = awaitStateWhere { it.history.isNotEmpty() }
+            loaded.eventSink(BroadcastUsageEvent.OpenHistory("bcast_history"))
+            val failed = awaitStateWhere { it.selectedBroadcastId == "bcast_history" && it.historyError == LOCALIZED_ERROR }
+
+            failed.eventSink(BroadcastUsageEvent.Refresh)
+            coVerify(atLeast = 2) { service.historyDetail("bcast_history") }
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `traffic formatting appends exact bytes and preserves signs`() {
         val bytes = BigInteger("9223372036854775808")
 
@@ -119,6 +165,17 @@ class BroadcastUsagePresenterTest {
         val GRANTS = BroadcastGrantList(
             availableTrafficBytes = BigInteger.TEN,
             items = emptyList(),
+        )
+        val HISTORY = BroadcastHistoryItem(
+            sessionId = "session-history",
+            broadcastId = "bcast_history",
+            roomId = "!room:unseal.test",
+            openedAt = "2026-08-05T09:00:00Z",
+            closedAt = "2026-08-05T10:00:00Z",
+            finalizedAt = "2026-08-05T10:01:00Z",
+            traffic = BroadcastHistoryTraffic(BigInteger.TEN, BigInteger.ONE, BigInteger.valueOf(9), BigInteger.ZERO),
+            audience = BroadcastHistoryAudience(BigInteger.ONE, BigInteger.TWO, BigInteger.ONE, "2026-08-05T10:01:00Z"),
+            billing = BroadcastHistoryBilling(BigInteger.ONE, BigInteger.valueOf(70), "2026-08-05T10:02:00Z"),
         )
     }
 }

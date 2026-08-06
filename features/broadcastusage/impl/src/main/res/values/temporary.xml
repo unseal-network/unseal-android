@@ -45,7 +45,7 @@
     <string name="screen_broadcast_usage_empty_activity">No traffic changes yet.</string>
     <string name="screen_broadcast_usage_broadcast_reference">Broadcast %1$s</string>
     <string name="screen_broadcast_usage_current_available_total">Current available total</string>
-    <string name="screen_broadcast_usage_grants_title">Available traffic records</string>
+    <string name="screen_broadcast_usage_grants_title">Traffic records</string>
     <string name="screen_broadcast_usage_empty_grants">No available traffic records.</string>
     <string name="screen_broadcast_usage_grant_period">%1$s · %2$s to %3$s</string>
     <string name="screen_broadcast_usage_grant_usage">Original %1$s · Used %2$s</string>
@@ -72,6 +72,10 @@
     <string name="screen_broadcast_usage_peak_concurrent_viewers">Peak concurrent viewers</string>
     <string name="screen_broadcast_usage_billing">Billing</string>
     <string name="screen_broadcast_usage_charged_at">Charged at</string>
+    <string name="screen_broadcast_usage_reason_grant_issued">Traffic granted</string>
+    <string name="screen_broadcast_usage_reason_grant_adjusted">Traffic adjusted</string>
+    <string name="screen_broadcast_usage_reason_grant_expired">Traffic expired</string>
+    <string name="screen_broadcast_usage_reason_broadcast_usage">Live broadcast usage</string>
     <string name="error_broadcast_usage_network">Unable to connect to the server. Check your network and try again.</string>
     <string name="error_broadcast_usage_unauthorized">Your session has expired. Sign in again.</string>
     <string name="error_broadcast_usage_bad_request">Unable to request live broadcast usage. Update the app and try again.</string>
