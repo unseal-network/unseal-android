@@ -31,7 +31,7 @@
     <string name="screen_broadcast_usage_participants">参与者</string>
     <string name="screen_broadcast_usage_presentation_health">画面状态</string>
     <string name="screen_broadcast_usage_playback_status">播放状态</string>
-    <string name="screen_broadcast_usage_playable">可播放</string>
+    <string name="screen_broadcast_usage_playable">播放正常</string>
     <string name="screen_broadcast_usage_recovering">恢复中</string>
     <string name="screen_broadcast_usage_loading_live_status">正在加载直播状态…</string>
     <string name="screen_broadcast_usage_activity_title">流量流水</string>
@@ -52,4 +52,10 @@
     <string name="screen_broadcast_usage_grant_state_exhausted">已用完</string>
     <string name="screen_broadcast_usage_grant_state_expired">已过期</string>
     <string name="screen_broadcast_usage_grant_state_revoked">已撤销</string>
+    <string name="screen_broadcast_usage_error_network">无法连接服务器，请检查网络后重试。</string>
+    <string name="screen_broadcast_usage_error_unauthorized">登录已失效，请重新登录。</string>
+    <string name="screen_broadcast_usage_error_bad_request">请求直播流量失败，请更新应用后重试。</string>
+    <string name="screen_broadcast_usage_error_not_found">找不到这条直播记录。</string>
+    <string name="screen_broadcast_usage_error_service_unavailable">服务暂时不可用，请稍后重试。</string>
+    <string name="screen_broadcast_usage_error_generic">无法加载直播流量，请重试。</string>
 </resources>

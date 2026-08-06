@@ -20,7 +20,7 @@
     <string name="screen_broadcast_usage_sessions_summary">Live: %1$d · Syncing: %2$d · Previous: %3$d</string>
     <string name="screen_broadcast_usage_sync_delay">Traffic data may be delayed by 2–3 minutes.</string>
     <string name="screen_broadcast_usage_empty_sessions">No live broadcast sessions yet.</string>
-    <string name="screen_broadcast_usage_active_sessions">Active</string>
+    <string name="screen_broadcast_usage_active_sessions">Live</string>
     <string name="screen_broadcast_usage_syncing_sessions">Syncing traffic</string>
     <string name="screen_broadcast_usage_previous_sessions">Previous sessions</string>
     <string name="screen_broadcast_usage_load_more">Load more</string>
@@ -38,7 +38,7 @@
     <string name="screen_broadcast_usage_participants">Participants</string>
     <string name="screen_broadcast_usage_presentation_health">Presentation health</string>
     <string name="screen_broadcast_usage_playback_status">Playback status</string>
-    <string name="screen_broadcast_usage_playable">Playable</string>
+    <string name="screen_broadcast_usage_playable">Playing normally</string>
     <string name="screen_broadcast_usage_recovering">Recovering</string>
     <string name="screen_broadcast_usage_loading_live_status">Loading live status…</string>
     <string name="screen_broadcast_usage_activity_title">Traffic activity</string>
@@ -59,4 +59,10 @@
     <string name="screen_broadcast_usage_grant_state_exhausted">Used up</string>
     <string name="screen_broadcast_usage_grant_state_expired">Expired</string>
     <string name="screen_broadcast_usage_grant_state_revoked">Revoked</string>
+    <string name="screen_broadcast_usage_error_network">Unable to connect to the server. Check your network and try again.</string>
+    <string name="screen_broadcast_usage_error_unauthorized">Your session has expired. Sign in again.</string>
+    <string name="screen_broadcast_usage_error_bad_request">Unable to request live broadcast usage. Update the app and try again.</string>
+    <string name="screen_broadcast_usage_error_not_found">This live broadcast record could not be found.</string>
+    <string name="screen_broadcast_usage_error_service_unavailable">The service is temporarily unavailable. Try again later.</string>
+    <string name="screen_broadcast_usage_error_generic">Unable to load live broadcast usage. Try again.</string>
 </resources>

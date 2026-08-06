@@ -20,6 +20,7 @@ dependencies {
     implementation(projects.libraries.di)
     implementation(projects.libraries.matrix.api)
     implementation(projects.libraries.uiStrings)
+    implementation(projects.services.toolbox.api)
     implementation(libs.coroutines.core)
     implementation(platform(libs.network.okhttp.bom))
     implementation(libs.network.okhttp)
@@ -28,5 +29,6 @@ dependencies {
     testCommonDependencies(libs, true)
     testImplementation(projects.libraries.matrix.test)
     testImplementation(projects.libraries.chatbot.test)
+    testImplementation(projects.services.toolbox.test)
     testImplementation(libs.network.mockwebserver)
 }

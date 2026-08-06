@@ -11,6 +11,7 @@ import com.google.common.truth.Truth.assertThat
 import io.element.android.tests.testutils.WarmUpRule
 import io.element.android.tests.testutils.test
 import io.element.android.libraries.matrix.test.FakeMatrixClient
+import io.element.android.services.toolbox.test.strings.FakeStringProvider
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -30,7 +31,7 @@ class BroadcastUsagePresenterTest {
             SESSION,
             SESSION.copy(confirmedBytes = BigInteger.TWO),
         )
-        val presenter = BroadcastUsagePresenter(service, FakeMatrixClient())
+        val presenter = BroadcastUsagePresenter(service, FakeMatrixClient(), FakeStringProvider())
 
         presenter.test {
             awaitItem().eventSink(BroadcastUsageEvent.Foreground)
@@ -59,17 +60,17 @@ class BroadcastUsagePresenterTest {
         coEvery { service.dashboard(any(), any()) } returns DASHBOARD
         coEvery { service.activity(any(), any()) } throws IllegalStateException("activity failed")
         coEvery { service.grants() } returns GRANTS
-        val presenter = BroadcastUsagePresenter(service, FakeMatrixClient())
+        val presenter = BroadcastUsagePresenter(service, FakeMatrixClient(), FakeStringProvider(defaultResult = LOCALIZED_ERROR))
 
         presenter.test {
             awaitItem().eventSink(BroadcastUsageEvent.Foreground)
             val loaded = awaitStateWhere { it.dashboard != null }
             loaded.eventSink(BroadcastUsageEvent.SelectTab(BroadcastUsageTab.Activity))
-            val activityFailed = awaitStateWhere { it.activityError == "暂时无法读取直播流量" }
+            val activityFailed = awaitStateWhere { it.activityError == LOCALIZED_ERROR }
             activityFailed.eventSink(BroadcastUsageEvent.SelectTab(BroadcastUsageTab.Grants))
             val grantsLoaded = awaitStateWhere { it.grants != null }
 
-            assertThat(grantsLoaded.activityError).isEqualTo("暂时无法读取直播流量")
+            assertThat(grantsLoaded.activityError).isEqualTo(LOCALIZED_ERROR)
             assertThat(grantsLoaded.grantsError).isNull()
             assertThat(grantsLoaded.dashboardError).isNull()
             cancelAndIgnoreRemainingEvents()
@@ -96,6 +97,7 @@ class BroadcastUsagePresenterTest {
     }
 
     private companion object {
+        const val LOCALIZED_ERROR = "Localized broadcast usage error"
         val SESSION = BroadcastUsageSession(
             sessionId = "11111111-1111-4111-8111-111111111111", broadcastId = "bcast_one", roomId = "!room:unseal.test",
             meetingInstanceId = "22222222-2222-4222-8222-222222222222", state = BroadcastUsageSessionState.Finalized,

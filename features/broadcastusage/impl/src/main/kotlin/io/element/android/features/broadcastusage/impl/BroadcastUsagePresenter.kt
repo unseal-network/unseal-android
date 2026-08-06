@@ -18,6 +18,7 @@ import dev.zacsweers.metro.Inject
 import io.element.android.libraries.architecture.Presenter
 import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.core.RoomId
+import io.element.android.services.toolbox.api.strings.StringProvider
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -25,6 +26,7 @@ import kotlinx.coroutines.launch
 class BroadcastUsagePresenter(
     private val service: BroadcastUsageService,
     private val matrixClient: MatrixClient,
+    private val stringProvider: StringProvider,
 ) : Presenter<BroadcastUsageState> {
     @Composable
     override fun present(): BroadcastUsageState {
@@ -49,12 +51,12 @@ class BroadcastUsagePresenter(
         fun message(failure: Throwable): String {
             val statusCode = (failure as? BroadcastUsageHttpException)?.statusCode
             return when {
-                statusCode == 0 -> "无法连接网络，请检查连接后重试"
-                statusCode == 400 -> "请求直播流量失败，请更新应用后重试"
-                statusCode == 401 -> "登录已过期，请重新登录"
-                statusCode == 404 -> "找不到这条直播场次"
-                statusCode != null && statusCode in 500..599 -> "服务暂时不可用，请稍后重试"
-                else -> "暂时无法读取直播流量"
+                statusCode == 0 -> stringProvider.getString(R.string.screen_broadcast_usage_error_network)
+                statusCode == 400 -> stringProvider.getString(R.string.screen_broadcast_usage_error_bad_request)
+                statusCode == 401 -> stringProvider.getString(R.string.screen_broadcast_usage_error_unauthorized)
+                statusCode == 404 -> stringProvider.getString(R.string.screen_broadcast_usage_error_not_found)
+                statusCode != null && statusCode in 500..599 -> stringProvider.getString(R.string.screen_broadcast_usage_error_service_unavailable)
+                else -> stringProvider.getString(R.string.screen_broadcast_usage_error_generic)
             }
         }
 
