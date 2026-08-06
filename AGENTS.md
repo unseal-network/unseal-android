@@ -193,6 +193,20 @@ We wrap the `matrix-rust-sdk` to isolate the UI from the underlying SDK.
 - Type Mapping: Map Rust SDK types to Kotlin data classes in the `api` module to avoid leaking `MatrixRustSDK` into the UI.
 - Always follow Kotlin naming conventions (e.g., `userId` instead of `userID`).
 
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs are tracked as local Markdown under `.scratch/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The repository uses the canonical five-role label vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+The repository uses a single domain context. See `docs/agents/domain.md`.
+
 ## Agent Stream SDK Dependency
 
 AI SDK stream parsing and `parts` state updates are shared through the Rust stream SDK:

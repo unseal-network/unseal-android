@@ -27,6 +27,7 @@ class BroadcastUsagePresenterTest {
     fun `foreground loads dashboard once and stable id opens detail`() = runTest {
         val service = mockk<BroadcastUsageService>()
         coEvery { service.dashboard(any(), any()) } returns DASHBOARD
+        coEvery { service.history(any(), any()) } returns BroadcastHistoryPage(emptyList(), null)
         coEvery { service.session("bcast_one") } returnsMany listOf(
             SESSION,
             SESSION.copy(confirmedBytes = BigInteger.TWO),
@@ -58,6 +59,7 @@ class BroadcastUsagePresenterTest {
     fun `activity failure remains visible when grants succeeds`() = runTest {
         val service = mockk<BroadcastUsageService>()
         coEvery { service.dashboard(any(), any()) } returns DASHBOARD
+        coEvery { service.history(any(), any()) } returns BroadcastHistoryPage(emptyList(), null)
         coEvery { service.activity(any(), any()) } throws IllegalStateException("activity failed")
         coEvery { service.grants() } returns GRANTS
         val presenter = BroadcastUsagePresenter(service, FakeMatrixClient(), FakeStringProvider(defaultResult = LOCALIZED_ERROR))
@@ -85,6 +87,8 @@ class BroadcastUsagePresenterTest {
         assertThat(formatTraffic(bytes, signed = true)).isEqualTo("+9.2 EB · +9223372036854775808 B")
         assertThat(formatTraffic(bytes.negate(), signed = true)).isEqualTo("-9.2 EB · -9223372036854775808 B")
         assertThat(formatTrafficCompact(bytes)).isEqualTo("9.2 EB")
+        assertThat(formatUsdMicros(BigInteger.ONE)).isEqualTo("\$0.000001")
+        assertThat(formatUsdMicros(BigInteger("70000"))).isEqualTo("\$0.07")
     }
 
     private suspend fun TurbineTestContext<BroadcastUsageState>.awaitStateWhere(
@@ -107,7 +111,9 @@ class BroadcastUsagePresenterTest {
             stopReason = "host_ended",
         )
         val DASHBOARD = BroadcastUsageDashboard(
-            availableTrafficBytes = BigInteger.TEN, pendingAllocationBytes = BigInteger.ZERO, unallocatedTrafficBytes = BigInteger.ZERO,
+            availableTrafficBytes = BigInteger.TEN,
+            funding = BroadcastUsageFunding(BigInteger.TEN, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO),
+            pendingAllocationBytes = BigInteger.ZERO, unallocatedTrafficBytes = BigInteger.ZERO,
             calculatedAt = "2026-08-05T10:00:00Z", sessionCount = 1, sessions = listOf(SESSION.copy(stopReason = null)), nextCursor = null,
         )
         val GRANTS = BroadcastGrantList(

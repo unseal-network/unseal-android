@@ -54,6 +54,19 @@ class BroadcastUsageServiceTest {
         assertThat(request.getHeader("Authorization")).isEqualTo("Bearer runtime-token")
     }
 
+    @Test
+    fun `history preserves nullable audience and billing values`() = runTest {
+        server.enqueue(MockResponse().setBody(HISTORY))
+
+        val result = createService().history(limit = 20)
+
+        val item = result.items.single()
+        assertThat(item.traffic.confirmedBytes).isEqualTo(BigInteger("9007199254740993"))
+        assertThat(item.audience.viewerSessionCount).isEqualTo(BigInteger.TEN)
+        assertThat(item.billing.costMicros).isEqualTo(BigInteger.ONE)
+        assertThat(server.takeRequest().path).isEqualTo("/api/broadcast-usage/history?limit=20")
+    }
+
     private fun createService(): BroadcastUsageService = BroadcastUsageService(
         matrixClient = FakeMatrixClient(
             userIdServerNameLambda = { "unseal.test" },
@@ -70,6 +83,9 @@ class BroadcastUsageServiceTest {
         val DASHBOARD = """
             {
               "userId":"@alice:unseal.test","availableTrafficBytes":"18446744073709551616000","pendingAllocationBytes":"0",
+              "funding":{"grantBytes":"18446744073709551616000","balanceMicros":"1000000","effectiveBalanceMicros":"1000000",
+                "pendingBroadcastMicros":"0","pendingOtherUsageMicros":"0","balanceEquivalentBytes":"14285714285",
+                "balanceBackedTrafficEnabled":false,"pricePerBytePicos":"70","pricePerGbMicros":"70000","bytesPerGb":"1000000000"},
               "unallocatedTrafficBytes":"12","calculatedAt":"2026-08-05T10:00:00.000Z","sessionCount":1,
               "sessions":{"items":[{"sessionId":"11111111-1111-4111-8111-111111111111","broadcastId":"bcast_demo",
                 "roomId":"!room:unseal.test","meetingInstanceId":"22222222-2222-4222-8222-222222222222","state":"live",
@@ -83,6 +99,13 @@ class BroadcastUsageServiceTest {
              "phase":"recovering","desired":"joined","agent_in_meeting":true,"broadcast_armed":true,"playable":false,
              "generation":1,"manifest_revision":2,"participant_count":3,"listener_count":7,
              "presentations":{"total":2,"healthy":1},"poll_after_ms":50,"access_mode":"authenticated"}
+        """.trimIndent()
+        val HISTORY = """
+            {"items":[{"sessionId":"11111111-1111-4111-8111-111111111111","broadcastId":"bcast_demo","roomId":"!room:unseal.test",
+              "openedAt":"2026-08-05T09:00:00.000Z","closedAt":"2026-08-05T10:00:00.000Z","finalizedAt":"2026-08-05T10:01:00.000Z",
+              "traffic":{"status":"finalized","confirmedBytes":"9007199254740993","grantCoveredBytes":"9007199254740000","balanceCoveredBytes":"993","pendingAllocationBytes":"0"},
+              "audience":{"status":"finalized","uniqueViewerCount":"8","viewerSessionCount":"10","peakConcurrentViewers":"4","finalizedAt":"2026-08-05T10:01:00.000Z"},
+              "billing":{"status":"settled","costMicros":"1","pricePerBytePicos":"70","chargedAt":"2026-08-05T10:02:00.000Z"}}],"nextCursor":null}
         """.trimIndent()
     }
 }

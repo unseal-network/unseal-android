@@ -45,6 +45,12 @@ class BroadcastUsageService(
     suspend fun session(broadcastId: String): BroadcastUsageSession =
         parseSession(objectValue(get("/api/broadcast-usage/sessions/$broadcastId")))
 
+    suspend fun history(limit: Int = 20, cursor: String? = null): BroadcastHistoryPage =
+        parseHistory(get("/api/broadcast-usage/history", mapOf("limit" to limit.toString(), "cursor" to cursor)))
+
+    suspend fun historyDetail(broadcastId: String): BroadcastHistoryItem =
+        parseHistoryItem(objectValue(get("/api/broadcast-usage/history/$broadcastId")))
+
     suspend fun activity(limit: Int = 20, cursor: String? = null): BroadcastActivityPage =
         parseActivity(get("/api/broadcast-usage/activity", mapOf("limit" to limit.toString(), "cursor" to cursor)))
 
@@ -82,12 +88,64 @@ class BroadcastUsageService(
         val sessions = root.obj("sessions")
         return BroadcastUsageDashboard(
             availableTrafficBytes = root.big("availableTrafficBytes"),
+            funding = root.obj("funding").let { funding ->
+                BroadcastUsageFunding(
+                    grantBytes = funding.big("grantBytes"),
+                    balanceMicros = funding.big("balanceMicros"),
+                    effectiveBalanceMicros = funding.big("effectiveBalanceMicros"),
+                    pendingBroadcastMicros = funding.big("pendingBroadcastMicros"),
+                    pendingOtherUsageMicros = funding.big("pendingOtherUsageMicros"),
+                    balanceEquivalentBytes = funding.big("balanceEquivalentBytes"),
+                    pricePerBytePicos = funding.big("pricePerBytePicos"),
+                    pricePerGbMicros = funding.big("pricePerGbMicros"),
+                    bytesPerGb = funding.big("bytesPerGb"),
+                )
+            },
             pendingAllocationBytes = root.big("pendingAllocationBytes"),
             unallocatedTrafficBytes = root.big("unallocatedTrafficBytes"),
             calculatedAt = root.string("calculatedAt"),
             sessionCount = root.int("sessionCount"),
             sessions = sessions.array("items").map { parseSession(it as JsonObject) },
             nextCursor = sessions.nullableString("nextCursor"),
+        )
+    }
+
+    internal fun parseHistory(raw: String): BroadcastHistoryPage {
+        val root = objectValue(raw)
+        return BroadcastHistoryPage(
+            items = root.array("items").map { parseHistoryItem(it as JsonObject) },
+            nextCursor = root.nullableString("nextCursor"),
+        )
+    }
+
+    private fun parseHistoryItem(item: JsonObject): BroadcastHistoryItem {
+        val traffic = item.obj("traffic")
+        val audience = item.obj("audience")
+        val billing = item.obj("billing")
+        return BroadcastHistoryItem(
+            sessionId = item.string("sessionId"),
+            broadcastId = item.string("broadcastId"),
+            roomId = item.string("roomId"),
+            openedAt = item.string("openedAt"),
+            closedAt = item.string("closedAt"),
+            finalizedAt = item.nullableString("finalizedAt"),
+            traffic = BroadcastHistoryTraffic(
+                confirmedBytes = traffic.big("confirmedBytes"),
+                grantCoveredBytes = traffic.big("grantCoveredBytes"),
+                balanceCoveredBytes = traffic.big("balanceCoveredBytes"),
+                pendingAllocationBytes = traffic.big("pendingAllocationBytes"),
+            ),
+            audience = BroadcastHistoryAudience(
+                uniqueViewerCount = audience.nullableBig("uniqueViewerCount"),
+                viewerSessionCount = audience.nullableBig("viewerSessionCount"),
+                peakConcurrentViewers = audience.nullableBig("peakConcurrentViewers"),
+                finalizedAt = audience.nullableString("finalizedAt"),
+            ),
+            billing = BroadcastHistoryBilling(
+                costMicros = billing.nullableBig("costMicros"),
+                pricePerBytePicos = billing.big("pricePerBytePicos"),
+                chargedAt = billing.nullableString("chargedAt"),
+            ),
         )
     }
 
@@ -152,6 +210,10 @@ class BroadcastUsageService(
     private fun JsonObject.stringOrNumber(name: String) = this[name]?.jsonPrimitive?.contentOrNull ?: error("$name must be present")
     private fun JsonObject.nullableString(name: String): String? = this[name]?.let { if (it.toString() == "null") null else it.jsonPrimitive.contentOrNull }
     private fun JsonObject.big(name: String) = string(name).let { value -> require(INTEGER.matches(value)) { "$name must be an integer" }; BigInteger(value) }
+    private fun JsonObject.nullableBig(name: String): BigInteger? = nullableString(name)?.let { value ->
+        require(INTEGER.matches(value)) { "$name must be an integer" }
+        BigInteger(value)
+    }
     private fun JsonObject.int(name: String) = this[name]?.jsonPrimitive?.intOrNull ?: error("$name must be an integer")
     private fun JsonObject.bool(name: String) = this[name]?.jsonPrimitive?.booleanOrNull ?: error("$name must be a boolean")
     private fun String.toSessionState() = when (this) {

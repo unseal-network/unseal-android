@@ -32,6 +32,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -47,30 +48,46 @@ import io.element.android.libraries.ui.strings.CommonStrings
 
 @Composable
 internal fun BroadcastUsageView(state: BroadcastUsageState, onDone: () -> Unit, modifier: Modifier = Modifier) {
-    val detail = state.selectedSession
+    val detail = state.selectedHistory
     val detailId = state.selectedBroadcastId
     val initialError = when {
-        detailId != null && detail == null -> state.sessionError
+        detailId != null && detail == null -> state.historyError
         detailId == null && state.dashboard == null -> state.dashboardError
         else -> null
     }
     val showInitialLoading = initialError == null &&
         ((detailId == null && state.dashboard == null) || (detailId != null && detail == null))
+    val scrollState = rememberScrollState()
+    LaunchedEffect(state.tab, detailId, scrollState.value, scrollState.maxValue, state.historyNextCursor, state.loadingMore) {
+        if (
+            state.tab == BroadcastUsageTab.Overview && detailId == null &&
+            scrollState.value >= scrollState.maxValue - 240 && state.historyNextCursor != null && !state.loadingMore
+        ) {
+            state.eventSink(BroadcastUsageEvent.LoadMoreHistory)
+        }
+    }
     Scaffold(
         modifier = modifier,
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        text = stringResource(
-                            if (detailId == null) R.string.screen_broadcast_usage_title else R.string.screen_broadcast_usage_session_details_title,
-                        ),
+                        text = stringResource(when {
+                            detailId != null -> R.string.screen_broadcast_usage_session_details_title
+                            state.tab == BroadcastUsageTab.Activity -> R.string.screen_broadcast_usage_activity_title
+                            state.tab == BroadcastUsageTab.Grants -> R.string.screen_broadcast_usage_grants_title
+                            else -> R.string.screen_broadcast_usage_title
+                        }),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = if (detailId == null) onDone else ({ state.eventSink(BroadcastUsageEvent.CloseSession) })) {
+                    IconButton(onClick = when {
+                        detailId != null -> ({ state.eventSink(BroadcastUsageEvent.CloseSession) })
+                        state.tab != BroadcastUsageTab.Overview -> ({ state.eventSink(BroadcastUsageEvent.SelectTab(BroadcastUsageTab.Overview)) })
+                        else -> onDone
+                    }) {
                         Icon(CompoundIcons.ChevronLeft(), contentDescription = stringResource(CommonStrings.action_done))
                     }
                 },
@@ -87,18 +104,17 @@ internal fun BroadcastUsageView(state: BroadcastUsageState, onDone: () -> Unit, 
                 showInitialLoading -> FullScreenLoading()
                 initialError != null -> FullScreenError(initialError) { state.eventSink(BroadcastUsageEvent.Refresh) }
                 else -> Column(
-                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+                    modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     if (detailId != null) {
-                        if (detail != null) DetailContent(detail, state.runtime, state.runtimeError)
+                        if (detail != null) HistoryDetailContent(detail)
                     } else {
                         when (state.tab) {
-                            BroadcastUsageTab.Overview -> state.dashboardError
+                            BroadcastUsageTab.Overview -> state.dashboardError ?: state.historyError
                             BroadcastUsageTab.Activity -> state.activityError
                             BroadcastUsageTab.Grants -> state.grantsError
                         }?.let { ErrorCard(it) { state.eventSink(BroadcastUsageEvent.Refresh) } }
-                        Tabs(state.tab) { state.eventSink(BroadcastUsageEvent.SelectTab(it)) }
                         when (state.tab) {
                             BroadcastUsageTab.Overview -> OverviewContent(state)
                             BroadcastUsageTab.Activity -> ActivityContent(state)
@@ -162,54 +178,38 @@ private fun FullScreenError(message: String, retry: () -> Unit) {
 }
 
 @Composable
-private fun Tabs(selected: BroadcastUsageTab, select: (BroadcastUsageTab) -> Unit) {
-    val tabs = listOf(
-        BroadcastUsageTab.Overview to stringResource(R.string.screen_broadcast_usage_sessions_tab),
-        BroadcastUsageTab.Activity to stringResource(R.string.screen_broadcast_usage_activity_tab),
-        BroadcastUsageTab.Grants to stringResource(R.string.screen_broadcast_usage_grants_tab),
-    )
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-        tabs.forEach { (tab, label) ->
-            TextButton(onClick = { select(tab) }) {
-                Text(label, fontWeight = if (tab == selected) FontWeight.Bold else FontWeight.Normal)
-            }
-        }
-    }
-}
-
-@Composable
 private fun ColumnScope.OverviewContent(state: BroadcastUsageState) {
     val dashboard = state.dashboard ?: return
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        MetricCard(stringResource(R.string.screen_broadcast_usage_available_traffic), formatTrafficCompact(dashboard.availableTrafficBytes), Modifier.weight(1f))
-        MetricCard(stringResource(R.string.screen_broadcast_usage_unallocated_traffic), formatTrafficCompact(dashboard.unallocatedTrafficBytes), Modifier.weight(1f))
+        MetricCard(stringResource(R.string.screen_broadcast_usage_grant_traffic), formatTrafficCompact(dashboard.funding.grantBytes), Modifier.weight(1f))
+        MetricCard(stringResource(R.string.screen_broadcast_usage_balance), formatUsdMicros(dashboard.funding.balanceMicros), Modifier.weight(1f))
+    }
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        TextButton(onClick = { state.eventSink(BroadcastUsageEvent.SelectTab(BroadcastUsageTab.Activity)) }, modifier = Modifier.weight(1f)) {
+            Text(stringResource(R.string.screen_broadcast_usage_activity_title))
+        }
+        TextButton(onClick = { state.eventSink(BroadcastUsageEvent.SelectTab(BroadcastUsageTab.Grants)) }, modifier = Modifier.weight(1f)) {
+            Text(stringResource(R.string.screen_broadcast_usage_grants_title))
+        }
+    }
+    val activeSessions = dashboard.sessions.filter { it.showsRuntime }
+    if (activeSessions.isNotEmpty()) Card {
+        Text(stringResource(R.string.screen_broadcast_usage_active_sessions), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        activeSessions.forEach { session ->
+            Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                Text(session.displayName ?: session.openedAt.displayTime(), fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(session.openedAt.displayTime(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
     }
     Card {
-        Text(stringResource(R.string.screen_broadcast_usage_sessions_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        val active = dashboard.sessions.count { it.showsRuntime }
-        val syncing = dashboard.sessions.count { it.state == BroadcastUsageSessionState.ClosedSyncing }
-        Text(
-            stringResource(R.string.screen_broadcast_usage_sessions_summary, active, syncing, dashboard.sessionCount - active - syncing),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Text(
-            stringResource(R.string.screen_broadcast_usage_sync_delay),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (dashboard.sessions.isEmpty()) Text(stringResource(R.string.screen_broadcast_usage_empty_sessions), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        val activeSessions = dashboard.sessions.filter { it.showsRuntime }
-        val syncingSessions = dashboard.sessions.filter { it.state == BroadcastUsageSessionState.ClosedSyncing }
-        val history = dashboard.sessions.filter { it.isTerminal }
-        if (activeSessions.isNotEmpty()) Text(stringResource(R.string.screen_broadcast_usage_active_sessions), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-        activeSessions.forEach { session -> SessionRow(session) { state.eventSink(BroadcastUsageEvent.OpenSession(session.broadcastId)) } }
-        if (syncingSessions.isNotEmpty()) Text(stringResource(R.string.screen_broadcast_usage_syncing_sessions), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        syncingSessions.forEach { session -> SessionRow(session) { state.eventSink(BroadcastUsageEvent.OpenSession(session.broadcastId)) } }
-        if (history.isNotEmpty()) Text(stringResource(R.string.screen_broadcast_usage_previous_sessions), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        history.forEach { session -> SessionRow(session) { state.eventSink(BroadcastUsageEvent.OpenSession(session.broadcastId)) } }
-        if (dashboard.nextCursor != null) TextButton(onClick = { state.eventSink(BroadcastUsageEvent.LoadMoreSessions) }) {
-            Text(stringResource(R.string.screen_broadcast_usage_load_more))
+        Text(stringResource(R.string.screen_broadcast_usage_previous_sessions), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        if (state.history.isEmpty() && !state.loading) Text(stringResource(R.string.screen_broadcast_usage_empty_sessions), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        state.history.forEachIndexed { index, item ->
+            if (index > 0) HorizontalDivider()
+            HistoryRow(item) { state.eventSink(BroadcastUsageEvent.OpenHistory(item.broadcastId)) }
         }
+        if (state.loadingMore) CircularProgressIndicator(modifier = Modifier.size(24.dp).align(Alignment.CenterHorizontally))
     }
 }
 
@@ -224,44 +224,63 @@ private fun MetricCard(title: String, value: String, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun SessionRow(session: BroadcastUsageSession, onClick: () -> Unit) {
+private fun HistoryRow(item: BroadcastHistoryItem, onClick: () -> Unit) {
     Surface(onClick = onClick, color = Color.Transparent) {
-        Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(session.displayName ?: session.roomId, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
-                Text("${session.state.localizedLabel()} · ${session.openedAt.displayTime()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(item.displayName ?: item.openedAt.displayTime(), maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+                    Text("${item.openedAt.displayTime()} – ${item.closedAt.displayTime()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Icon(CompoundIcons.ChevronRight(), contentDescription = null)
             }
-            Text(formatTrafficCompact(session.confirmedBytes), fontWeight = FontWeight.SemiBold, maxLines = 1)
-            Icon(CompoundIcons.ChevronRight(), contentDescription = null)
+            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                HistoryMetric(stringResource(R.string.screen_broadcast_usage_traffic), formatTrafficCompact(item.traffic.confirmedBytes))
+                item.audience.viewerSessionCount?.let { HistoryMetric(stringResource(R.string.screen_broadcast_usage_viewer_sessions), it.toString()) }
+                item.billing.costMicros?.let { HistoryMetric(stringResource(R.string.screen_broadcast_usage_cost), formatUsdMicros(it)) }
+            }
         }
     }
 }
 
 @Composable
-private fun DetailContent(session: BroadcastUsageSession, runtime: BroadcastRuntimeStatus?, runtimeError: String?) {
+private fun HistoryMetric(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun HistoryDetailContent(item: BroadcastHistoryItem) {
     Card {
-        Text(session.displayName ?: session.roomId, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        if (session.displayName != null) Text(session.roomId, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        KeyValue(stringResource(R.string.screen_broadcast_usage_status), session.state.localizedLabel())
-        KeyValue(stringResource(R.string.screen_broadcast_usage_confirmed_traffic), formatTraffic(session.confirmedBytes))
-        KeyValue(stringResource(R.string.screen_broadcast_usage_start_time), (session.startedAt ?: session.openedAt).displayTime())
-        session.closedAt?.let { KeyValue(stringResource(R.string.screen_broadcast_usage_end_time), it.displayTime()) }
-        session.durationLabel()?.let { KeyValue(stringResource(R.string.screen_broadcast_usage_duration), it) }
-        session.syncedThrough?.let { KeyValue(stringResource(R.string.screen_broadcast_usage_synced_through), it.displayTime()) }
-        session.stopReason?.let { KeyValue(stringResource(R.string.screen_broadcast_usage_end_reason), it) }
-        if (!session.isTerminal) Text(stringResource(R.string.screen_broadcast_usage_cloudflare_sync_delay), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(item.displayName ?: item.openedAt.displayTime(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        if (item.displayName != null) Text(item.roomId, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        KeyValue(stringResource(R.string.screen_broadcast_usage_start_time), item.openedAt.displayTime())
+        KeyValue(stringResource(R.string.screen_broadcast_usage_end_time), item.closedAt.displayTime())
     }
-    if (session.showsRuntime) Card {
-        Text(stringResource(R.string.screen_broadcast_usage_live_status), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        if (runtime != null) {
-            KeyValue(stringResource(R.string.screen_broadcast_usage_phase), runtime.phase)
-            KeyValue(stringResource(R.string.screen_broadcast_usage_listeners), runtime.listenerCount.toString())
-            KeyValue(stringResource(R.string.screen_broadcast_usage_participants), runtime.participantCount.toString())
-            KeyValue(stringResource(R.string.screen_broadcast_usage_presentation_health), "${runtime.presentationHealthy}/${runtime.presentationTotal}")
-            KeyValue(stringResource(R.string.screen_broadcast_usage_playback_status), stringResource(if (runtime.playable) R.string.screen_broadcast_usage_playable else R.string.screen_broadcast_usage_recovering))
-        } else Text(runtimeError ?: stringResource(R.string.screen_broadcast_usage_loading_live_status), color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Card {
+        Text(stringResource(R.string.screen_broadcast_usage_traffic), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        KeyValue(stringResource(R.string.screen_broadcast_usage_confirmed_traffic), formatTraffic(item.traffic.confirmedBytes))
+        KeyValue(stringResource(R.string.screen_broadcast_usage_grant_covered_traffic), formatTraffic(item.traffic.grantCoveredBytes))
+        KeyValue(stringResource(R.string.screen_broadcast_usage_balance_covered_traffic), formatTraffic(item.traffic.balanceCoveredBytes))
+        if (item.traffic.pendingAllocationBytes.signum() > 0) {
+            KeyValue(stringResource(R.string.screen_broadcast_usage_pending_allocation), formatTraffic(item.traffic.pendingAllocationBytes))
+        }
     }
-    if (session.unallocatedBytes.signum() > 0) Card { KeyValue(stringResource(R.string.screen_broadcast_usage_unallocated_traffic), formatTraffic(session.unallocatedBytes)) }
+    if (item.audience.viewerSessionCount != null || item.audience.uniqueViewerCount != null || item.audience.peakConcurrentViewers != null) Card {
+        Text(stringResource(R.string.screen_broadcast_usage_audience), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        item.audience.viewerSessionCount?.let { KeyValue(stringResource(R.string.screen_broadcast_usage_viewer_sessions), it.toString()) }
+        item.audience.uniqueViewerCount?.let { KeyValue(stringResource(R.string.screen_broadcast_usage_unique_viewers), it.toString()) }
+        item.audience.peakConcurrentViewers?.let { KeyValue(stringResource(R.string.screen_broadcast_usage_peak_concurrent_viewers), it.toString()) }
+    }
+    item.billing.costMicros?.let { cost ->
+        Card {
+            Text(stringResource(R.string.screen_broadcast_usage_billing), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            KeyValue(stringResource(R.string.screen_broadcast_usage_cost), formatUsdMicros(cost))
+            item.billing.chargedAt?.let { KeyValue(stringResource(R.string.screen_broadcast_usage_charged_at), it.displayTime()) }
+        }
+    }
 }
 
 @Composable
@@ -372,5 +391,20 @@ private fun String.localizedLabel(): String = when (this) {
 @PreviewsDayNight
 @Composable
 internal fun BroadcastUsageViewPreview() = ElementPreview {
-    BroadcastUsageView(BroadcastUsageState(dashboard = BroadcastUsageDashboard(java.math.BigInteger.TEN, java.math.BigInteger.ZERO, java.math.BigInteger.ZERO, "", 0, emptyList(), null)), {})
+    val zero = java.math.BigInteger.ZERO
+    BroadcastUsageView(
+        BroadcastUsageState(
+            dashboard = BroadcastUsageDashboard(
+                availableTrafficBytes = java.math.BigInteger.TEN,
+                funding = BroadcastUsageFunding(java.math.BigInteger.TEN, zero, zero, zero, zero, zero, zero, zero, zero),
+                pendingAllocationBytes = zero,
+                unallocatedTrafficBytes = zero,
+                calculatedAt = "",
+                sessionCount = 0,
+                sessions = emptyList(),
+                nextCursor = null,
+            ),
+        ),
+        {},
+    )
 }

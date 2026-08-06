@@ -35,7 +35,10 @@ class BroadcastUsagePresenter(
         var dashboard by remember { mutableStateOf<BroadcastUsageDashboard?>(null) }
         var selectedBroadcastId by rememberSaveable { mutableStateOf<String?>(null) }
         var selectedSession by remember { mutableStateOf<BroadcastUsageSession?>(null) }
+        var selectedHistory by remember { mutableStateOf<BroadcastHistoryItem?>(null) }
         var runtime by remember { mutableStateOf<BroadcastRuntimeStatus?>(null) }
+        var history by remember { mutableStateOf(emptyList<BroadcastHistoryItem>()) }
+        var historyNextCursor by remember { mutableStateOf<String?>(null) }
         var activity by remember { mutableStateOf(emptyList<BroadcastTrafficActivity>()) }
         var activityNextCursor by remember { mutableStateOf<String?>(null) }
         var grants by remember { mutableStateOf<BroadcastGrantList?>(null) }
@@ -44,6 +47,7 @@ class BroadcastUsagePresenter(
         var foreground by remember { mutableStateOf(false) }
         var dashboardError by remember { mutableStateOf<String?>(null) }
         var sessionError by remember { mutableStateOf<String?>(null) }
+        var historyError by remember { mutableStateOf<String?>(null) }
         var activityError by remember { mutableStateOf<String?>(null) }
         var grantsError by remember { mutableStateOf<String?>(null) }
         var runtimeError by remember { mutableStateOf<String?>(null) }
@@ -61,6 +65,11 @@ class BroadcastUsagePresenter(
         }
 
         suspend fun BroadcastUsageSession.withLocalRoomName(): BroadcastUsageSession {
+            val name = runCatching { matrixClient.getRoom(RoomId(roomId))?.info()?.name }.getOrNull()?.takeIf(String::isNotBlank)
+            return copy(displayName = name)
+        }
+
+        suspend fun BroadcastHistoryItem.withLocalRoomName(): BroadcastHistoryItem {
             val name = runCatching { matrixClient.getRoom(RoomId(roomId))?.info()?.name }.getOrNull()?.takeIf(String::isNotBlank)
             return copy(displayName = name)
         }
@@ -87,6 +96,27 @@ class BroadcastUsagePresenter(
                 .onFailure { sessionError = message(it) }
         }
 
+        suspend fun loadHistory(cursor: String? = null) {
+            runCatching { service.history(cursor = cursor) }
+                .map { page -> page.copy(items = page.items.map { it.withLocalRoomName() }) }
+                .onSuccess { page ->
+                    history = if (cursor == null) page.items else (history + page.items).distinctBy { it.sessionId }
+                    historyNextCursor = page.nextCursor
+                    historyError = null
+                }
+                .onFailure { historyError = message(it) }
+        }
+
+        suspend fun loadHistoryDetail(broadcastId: String) {
+            runCatching { service.historyDetail(broadcastId) }
+                .map { it.withLocalRoomName() }
+                .onSuccess {
+                    selectedHistory = it
+                    historyError = null
+                }
+                .onFailure { historyError = message(it) }
+        }
+
         suspend fun loadActivity(cursor: String? = null) {
             runCatching { service.activity(cursor = cursor) }
                 .onSuccess { page ->
@@ -111,10 +141,13 @@ class BroadcastUsagePresenter(
             loading = true
             val detailId = selectedBroadcastId
             if (detailId != null) {
-                loadSession(detailId)
+                if (selectedHistory != null) loadHistoryDetail(detailId) else loadSession(detailId)
             } else {
                 when (tab) {
-                    BroadcastUsageTab.Overview -> loadDashboard()
+                    BroadcastUsageTab.Overview -> {
+                        loadDashboard()
+                        loadHistory()
+                    }
                     BroadcastUsageTab.Activity -> loadActivity()
                     BroadcastUsageTab.Grants -> loadGrants()
                 }
@@ -126,12 +159,14 @@ class BroadcastUsagePresenter(
             if (!foreground) return@LaunchedEffect
             do {
                 loadDashboard()
+                loadHistory()
                 delay(60_000)
             } while (foreground)
         }
 
         LaunchedEffect(foreground, selectedBroadcastId) {
             val broadcastId = selectedBroadcastId ?: return@LaunchedEffect
+            if (selectedHistory != null) return@LaunchedEffect
             if (!foreground) return@LaunchedEffect
             do {
                 loadSession(broadcastId)
@@ -173,15 +208,25 @@ class BroadcastUsagePresenter(
                     selectedSession = dashboard?.sessions?.firstOrNull { it.broadcastId == event.broadcastId }
                     sessionError = null
                 }
+                is BroadcastUsageEvent.OpenHistory -> {
+                    selectedBroadcastId = event.broadcastId
+                    selectedHistory = history.firstOrNull { it.broadcastId == event.broadcastId }
+                    historyError = null
+                    scope.launch { loadHistoryDetail(event.broadcastId) }
+                }
                 BroadcastUsageEvent.CloseSession -> {
                     selectedBroadcastId = null
                     selectedSession = null
+                    selectedHistory = null
                     runtime = null
                     sessionError = null
                     runtimeError = null
                 }
                 BroadcastUsageEvent.LoadMoreSessions -> dashboard?.nextCursor?.let { cursor ->
                     scope.launch { loadingMore = true; loadDashboard(cursor); loadingMore = false }
+                }
+                BroadcastUsageEvent.LoadMoreHistory -> historyNextCursor?.let { cursor ->
+                    scope.launch { loadingMore = true; loadHistory(cursor); loadingMore = false }
                 }
                 BroadcastUsageEvent.LoadMoreActivity -> activityNextCursor?.let { cursor ->
                     scope.launch { loadingMore = true; loadActivity(cursor); loadingMore = false }
@@ -191,9 +236,9 @@ class BroadcastUsagePresenter(
 
         return BroadcastUsageState(
             tab = tab, dashboard = dashboard, selectedBroadcastId = selectedBroadcastId, selectedSession = selectedSession,
-            runtime = runtime, activity = activity,
+            selectedHistory = selectedHistory, runtime = runtime, activity = activity, history = history, historyNextCursor = historyNextCursor,
             activityNextCursor = activityNextCursor, grants = grants, loading = loading, loadingMore = loadingMore,
-            dashboardError = dashboardError, sessionError = sessionError, activityError = activityError,
+            dashboardError = dashboardError, sessionError = sessionError, historyError = historyError, activityError = activityError,
             grantsError = grantsError, runtimeError = runtimeError, eventSink = ::handle,
         )
     }

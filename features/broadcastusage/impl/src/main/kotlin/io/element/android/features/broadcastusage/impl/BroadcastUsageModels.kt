@@ -40,6 +40,7 @@ data class BroadcastUsageSession(
 
 data class BroadcastUsageDashboard(
     val availableTrafficBytes: BigInteger,
+    val funding: BroadcastUsageFunding,
     val pendingAllocationBytes: BigInteger,
     val unallocatedTrafficBytes: BigInteger,
     val calculatedAt: String,
@@ -47,6 +48,53 @@ data class BroadcastUsageDashboard(
     val sessions: List<BroadcastUsageSession>,
     val nextCursor: String?,
 )
+
+data class BroadcastUsageFunding(
+    val grantBytes: BigInteger,
+    val balanceMicros: BigInteger,
+    val effectiveBalanceMicros: BigInteger,
+    val pendingBroadcastMicros: BigInteger,
+    val pendingOtherUsageMicros: BigInteger,
+    val balanceEquivalentBytes: BigInteger,
+    val pricePerBytePicos: BigInteger,
+    val pricePerGbMicros: BigInteger,
+    val bytesPerGb: BigInteger,
+)
+
+data class BroadcastHistoryTraffic(
+    val confirmedBytes: BigInteger,
+    val grantCoveredBytes: BigInteger,
+    val balanceCoveredBytes: BigInteger,
+    val pendingAllocationBytes: BigInteger,
+)
+
+data class BroadcastHistoryAudience(
+    val uniqueViewerCount: BigInteger?,
+    val viewerSessionCount: BigInteger?,
+    val peakConcurrentViewers: BigInteger?,
+    val finalizedAt: String?,
+)
+
+data class BroadcastHistoryBilling(
+    val costMicros: BigInteger?,
+    val pricePerBytePicos: BigInteger,
+    val chargedAt: String?,
+)
+
+data class BroadcastHistoryItem(
+    val sessionId: String,
+    val broadcastId: String,
+    val roomId: String,
+    val openedAt: String,
+    val closedAt: String,
+    val finalizedAt: String?,
+    val traffic: BroadcastHistoryTraffic,
+    val audience: BroadcastHistoryAudience,
+    val billing: BroadcastHistoryBilling,
+    val displayName: String? = null,
+)
+
+data class BroadcastHistoryPage(val items: List<BroadcastHistoryItem>, val nextCursor: String?)
 
 data class BroadcastTrafficActivity(
     val id: String,
@@ -115,3 +163,11 @@ internal fun formatTraffic(bytes: BigInteger, signed: Boolean = false): String {
 
 internal fun formatTrafficCompact(bytes: BigInteger, signed: Boolean = false): String =
     formatTraffic(bytes, signed).substringBefore(" · ")
+
+internal fun formatUsdMicros(micros: BigInteger): String {
+    val sign = if (micros.signum() < 0) "-" else ""
+    val absolute = micros.abs()
+    val whole = absolute / BigInteger.valueOf(1_000_000)
+    val fraction = (absolute % BigInteger.valueOf(1_000_000)).toString().padStart(6, '0').trimEnd('0').padEnd(2, '0')
+    return "${sign}\$${whole}.$fraction"
+}

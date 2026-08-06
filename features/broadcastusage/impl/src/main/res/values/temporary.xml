@@ -7,7 +7,7 @@
 
 <!-- Strings that are pending import to Localazy. Do NOT edit localazy.xml. -->
 <resources>
-    <string name="screen_broadcast_usage_title">Live broadcast usage</string>
+    <string name="screen_broadcast_usage_title">Broadcast data</string>
     <string name="screen_broadcast_usage_loading">Loading live broadcast usage…</string>
     <string name="screen_broadcast_usage_load_failed">Unable to load</string>
     <string name="screen_broadcast_usage_session_details_title">Session details</string>
@@ -59,6 +59,19 @@
     <string name="screen_broadcast_usage_grant_state_exhausted">Used up</string>
     <string name="screen_broadcast_usage_grant_state_expired">Expired</string>
     <string name="screen_broadcast_usage_grant_state_revoked">Revoked</string>
+    <string name="screen_broadcast_usage_grant_traffic">Grant traffic</string>
+    <string name="screen_broadcast_usage_balance">Balance</string>
+    <string name="screen_broadcast_usage_traffic">Traffic</string>
+    <string name="screen_broadcast_usage_viewer_sessions">Views</string>
+    <string name="screen_broadcast_usage_cost">Cost</string>
+    <string name="screen_broadcast_usage_grant_covered_traffic">Covered by grants</string>
+    <string name="screen_broadcast_usage_balance_covered_traffic">Covered by Balance</string>
+    <string name="screen_broadcast_usage_pending_allocation">Pending allocation</string>
+    <string name="screen_broadcast_usage_audience">Audience</string>
+    <string name="screen_broadcast_usage_unique_viewers">Unique viewers</string>
+    <string name="screen_broadcast_usage_peak_concurrent_viewers">Peak concurrent viewers</string>
+    <string name="screen_broadcast_usage_billing">Billing</string>
+    <string name="screen_broadcast_usage_charged_at">Charged at</string>
     <string name="error_broadcast_usage_network">Unable to connect to the server. Check your network and try again.</string>
     <string name="error_broadcast_usage_unauthorized">Your session has expired. Sign in again.</string>
     <string name="error_broadcast_usage_bad_request">Unable to request live broadcast usage. Update the app and try again.</string>
