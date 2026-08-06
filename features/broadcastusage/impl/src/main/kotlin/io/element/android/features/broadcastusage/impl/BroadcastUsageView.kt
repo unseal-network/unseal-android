@@ -181,8 +181,8 @@ private fun Tabs(selected: BroadcastUsageTab, select: (BroadcastUsageTab) -> Uni
 private fun ColumnScope.OverviewContent(state: BroadcastUsageState) {
     val dashboard = state.dashboard ?: return
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        MetricCard(stringResource(R.string.screen_broadcast_usage_available_traffic), formatTraffic(dashboard.availableTrafficBytes), Modifier.weight(1f))
-        MetricCard(stringResource(R.string.screen_broadcast_usage_unallocated_traffic), formatTraffic(dashboard.unallocatedTrafficBytes), Modifier.weight(1f))
+        MetricCard(stringResource(R.string.screen_broadcast_usage_available_traffic), formatTrafficCompact(dashboard.availableTrafficBytes), Modifier.weight(1f))
+        MetricCard(stringResource(R.string.screen_broadcast_usage_unallocated_traffic), formatTrafficCompact(dashboard.unallocatedTrafficBytes), Modifier.weight(1f))
     }
     Card {
         Text(stringResource(R.string.screen_broadcast_usage_sessions_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -231,7 +231,7 @@ private fun SessionRow(session: BroadcastUsageSession, onClick: () -> Unit) {
                 Text(session.displayName ?: session.roomId, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
                 Text("${session.state.localizedLabel()} · ${session.openedAt.displayTime()}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Text(formatTraffic(session.confirmedBytes), fontWeight = FontWeight.SemiBold)
+            Text(formatTrafficCompact(session.confirmedBytes), fontWeight = FontWeight.SemiBold, maxLines = 1)
             Icon(CompoundIcons.ChevronRight(), contentDescription = null)
         }
     }

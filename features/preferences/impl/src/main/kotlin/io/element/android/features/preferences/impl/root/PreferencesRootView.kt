@@ -163,13 +163,6 @@ fun PreferencesRootView(
                         onOpenCreditsBilling = onOpenCreditsBilling,
                         onOpenCreditsUsage = onOpenCreditsUsage,
                     )
-                    SettingsCard {
-                        NavRow(
-                            title = stringResource(id = R.string.screen_preferences_broadcast_usage),
-                            icon = CompoundIcons.VideoCall(),
-                            onClick = onOpenBroadcastUsage,
-                        )
-                    }
                 }
                 SettingsCard {
                     AiAssistantRows(
@@ -191,6 +184,7 @@ fun PreferencesRootView(
             SettingsCard {
                 ManageAppSection(
                     state = state,
+                    onOpenBroadcastUsage = onOpenBroadcastUsage,
                     onOpenNotificationSettings = onOpenNotificationSettings,
                     onOpenLockScreenSettings = onOpenLockScreenSettings,
                     onSecureBackupClick = onSecureBackupClick,
@@ -281,10 +275,17 @@ private fun ColumnScope.MultiAccountSection(
 @Composable
 private fun ColumnScope.ManageAppSection(
     state: PreferencesRootState,
+    onOpenBroadcastUsage: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
     onOpenLockScreenSettings: () -> Unit,
     onSecureBackupClick: () -> Unit,
 ) {
+    NavRow(
+        title = stringResource(id = R.string.screen_preferences_broadcast_usage),
+        icon = CompoundIcons.VideoCall(),
+        onClick = onOpenBroadcastUsage,
+    )
+    RowSeparator()
     NavRow(
         title = stringResource(id = R.string.screen_notification_settings_title),
         icon = CompoundIcons.Notifications(),

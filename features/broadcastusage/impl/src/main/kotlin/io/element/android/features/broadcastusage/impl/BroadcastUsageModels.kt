@@ -112,3 +112,6 @@ internal fun formatTraffic(bytes: BigInteger, signed: Boolean = false): String {
     val readable = if (decimal == BigInteger.ZERO) "$sign$whole ${units[unit]}" else "$sign$whole.$decimal ${units[unit]}"
     return "$readable · $sign$absolute B"
 }
+
+internal fun formatTrafficCompact(bytes: BigInteger, signed: Boolean = false): String =
+    formatTraffic(bytes, signed).substringBefore(" · ")

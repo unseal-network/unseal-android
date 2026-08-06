@@ -65,11 +65,11 @@ class BroadcastUsagePresenterTest {
             awaitItem().eventSink(BroadcastUsageEvent.Foreground)
             val loaded = awaitStateWhere { it.dashboard != null }
             loaded.eventSink(BroadcastUsageEvent.SelectTab(BroadcastUsageTab.Activity))
-            val activityFailed = awaitStateWhere { it.activityError == "activity failed" }
+            val activityFailed = awaitStateWhere { it.activityError == "暂时无法读取直播流量" }
             activityFailed.eventSink(BroadcastUsageEvent.SelectTab(BroadcastUsageTab.Grants))
             val grantsLoaded = awaitStateWhere { it.grants != null }
 
-            assertThat(grantsLoaded.activityError).isEqualTo("activity failed")
+            assertThat(grantsLoaded.activityError).isEqualTo("暂时无法读取直播流量")
             assertThat(grantsLoaded.grantsError).isNull()
             assertThat(grantsLoaded.dashboardError).isNull()
             cancelAndIgnoreRemainingEvents()
@@ -83,6 +83,7 @@ class BroadcastUsagePresenterTest {
         assertThat(formatTraffic(bytes)).isEqualTo("9.2 EB · 9223372036854775808 B")
         assertThat(formatTraffic(bytes, signed = true)).isEqualTo("+9.2 EB · +9223372036854775808 B")
         assertThat(formatTraffic(bytes.negate(), signed = true)).isEqualTo("-9.2 EB · -9223372036854775808 B")
+        assertThat(formatTrafficCompact(bytes)).isEqualTo("9.2 EB")
     }
 
     private suspend fun TurbineTestContext<BroadcastUsageState>.awaitStateWhere(

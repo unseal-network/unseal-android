@@ -13,6 +13,7 @@ import dev.zacsweers.metro.binding
 import io.element.android.libraries.chatbot.api.ChatbotBaseUrlResolver
 import io.element.android.libraries.chatbot.api.ChatbotConfig
 import io.element.android.libraries.chatbot.impl.model.InternalUnsealWellKnown
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
@@ -63,12 +64,21 @@ class DefaultChatbotBaseUrlResolver(
     /** Fetch + decode the `.well-known/matrix/client` once per server name (cached, mutex-guarded). */
     private suspend fun wellKnown(serverName: String): InternalUnsealWellKnown? {
         if (cachedWellKnown.containsKey(serverName)) return cachedWellKnown[serverName]
-        val decoded = runCatching {
-            val payload = wellKnownFetcher.fetch(serverName) ?: return@runCatching null
+        val decoded = try {
+            val payload = wellKnownFetcher.fetch(serverName)
+            if (payload == null) {
+                cachedWellKnown[serverName] = null
+                return null
+            }
             ChatbotJson.decode<InternalUnsealWellKnown>(payload)
-        }.onFailure {
-            Timber.e(it, "Failed to fetch Unseal well-known for $serverName")
-        }.getOrNull()
+        } catch (failure: CancellationException) {
+            // A caller leaving composition is expected during navigation. Do not turn that
+            // cancellation into a cached lookup failure for the next screen.
+            throw failure
+        } catch (failure: Exception) {
+            Timber.e(failure, "Failed to fetch Unseal well-known for $serverName")
+            null
+        }
         cachedWellKnown[serverName] = decoded
         return decoded
     }

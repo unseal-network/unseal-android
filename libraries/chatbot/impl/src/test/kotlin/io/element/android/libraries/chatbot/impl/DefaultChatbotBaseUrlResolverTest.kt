@@ -9,6 +9,7 @@ package io.element.android.libraries.chatbot.impl
 
 import com.google.common.truth.Truth.assertThat
 import io.element.android.libraries.chatbot.api.ChatbotConfig
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -50,6 +51,29 @@ class DefaultChatbotBaseUrlResolverTest {
 
         assertThat(missingResolver.resolveUnsealApiBaseUrl("matrix.example")).isEqualTo("https://matrix.example")
         assertThat(invalidResolver.resolveUnsealApiBaseUrl("matrix.example")).isEqualTo("https://matrix.example")
+    }
+
+    @Test
+    fun `resolveUnsealApiBaseUrl - does not cache a cancelled well-known lookup`() = runTest {
+        var fetchCount = 0
+        val resolver = DefaultChatbotBaseUrlResolver(
+            ChatbotWellKnownFetcher {
+                fetchCount++
+                if (fetchCount == 1) throw CancellationException("screen left composition")
+                """
+                    {
+                      "org.unseal.api": {
+                        "base_url": "https://agent.example"
+                      }
+                    }
+                """.trimIndent()
+            }
+        )
+
+        runCatching { resolver.resolveUnsealApiBaseUrl("matrix.example") }
+
+        assertThat(resolver.resolveUnsealApiBaseUrl("matrix.example")).isEqualTo("https://agent.example")
+        assertThat(fetchCount).isEqualTo(2)
     }
 
     @Test
