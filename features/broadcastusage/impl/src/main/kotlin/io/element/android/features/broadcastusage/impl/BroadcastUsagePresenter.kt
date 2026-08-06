@@ -51,12 +51,12 @@ class BroadcastUsagePresenter(
         fun message(failure: Throwable): String {
             val statusCode = (failure as? BroadcastUsageHttpException)?.statusCode
             return when {
-                statusCode == 0 -> stringProvider.getString(R.string.screen_broadcast_usage_error_network)
-                statusCode == 400 -> stringProvider.getString(R.string.screen_broadcast_usage_error_bad_request)
-                statusCode == 401 -> stringProvider.getString(R.string.screen_broadcast_usage_error_unauthorized)
-                statusCode == 404 -> stringProvider.getString(R.string.screen_broadcast_usage_error_not_found)
-                statusCode != null && statusCode in 500..599 -> stringProvider.getString(R.string.screen_broadcast_usage_error_service_unavailable)
-                else -> stringProvider.getString(R.string.screen_broadcast_usage_error_generic)
+                statusCode == 0 -> stringProvider.getString(R.string.error_broadcast_usage_network)
+                statusCode == 400 -> stringProvider.getString(R.string.error_broadcast_usage_bad_request)
+                statusCode == 401 -> stringProvider.getString(R.string.error_broadcast_usage_unauthorized)
+                statusCode == 404 -> stringProvider.getString(R.string.error_broadcast_usage_not_found)
+                statusCode != null && statusCode in 500..599 -> stringProvider.getString(R.string.error_broadcast_usage_service_unavailable)
+                else -> stringProvider.getString(R.string.error_broadcast_usage_generic)
             }
         }
 

@@ -59,10 +59,10 @@
     <string name="screen_broadcast_usage_grant_state_exhausted">Used up</string>
     <string name="screen_broadcast_usage_grant_state_expired">Expired</string>
     <string name="screen_broadcast_usage_grant_state_revoked">Revoked</string>
-    <string name="screen_broadcast_usage_error_network">Unable to connect to the server. Check your network and try again.</string>
-    <string name="screen_broadcast_usage_error_unauthorized">Your session has expired. Sign in again.</string>
-    <string name="screen_broadcast_usage_error_bad_request">Unable to request live broadcast usage. Update the app and try again.</string>
-    <string name="screen_broadcast_usage_error_not_found">This live broadcast record could not be found.</string>
-    <string name="screen_broadcast_usage_error_service_unavailable">The service is temporarily unavailable. Try again later.</string>
-    <string name="screen_broadcast_usage_error_generic">Unable to load live broadcast usage. Try again.</string>
+    <string name="error_broadcast_usage_network">Unable to connect to the server. Check your network and try again.</string>
+    <string name="error_broadcast_usage_unauthorized">Your session has expired. Sign in again.</string>
+    <string name="error_broadcast_usage_bad_request">Unable to request live broadcast usage. Update the app and try again.</string>
+    <string name="error_broadcast_usage_not_found">This live broadcast record could not be found.</string>
+    <string name="error_broadcast_usage_service_unavailable">The service is temporarily unavailable. Try again later.</string>
+    <string name="error_broadcast_usage_generic">Unable to load live broadcast usage. Try again.</string>
 </resources>

@@ -167,4 +167,4 @@ class BroadcastUsageService(
 }
 
 internal class BroadcastUsageHttpException(val statusCode: Int, responseBody: String, cause: Throwable? = null) :
-    Exception(if (statusCode == 0) "网络连接失败" else "请求失败 ($statusCode): ${responseBody.take(120)}", cause)
+    Exception(if (statusCode == 0) "Network request failed" else "Request failed ($statusCode): ${responseBody.take(120)}", cause)

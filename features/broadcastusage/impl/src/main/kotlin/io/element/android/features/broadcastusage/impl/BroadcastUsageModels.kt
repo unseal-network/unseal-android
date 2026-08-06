@@ -8,12 +8,12 @@ package io.element.android.features.broadcastusage.impl
 
 import java.math.BigInteger
 
-enum class BroadcastUsageSessionState(val label: String) {
-    Open("准备中"),
-    Live("直播中"),
-    ClosedSyncing("流量统计中"),
-    Finalized("已完成"),
-    Failed("异常结束"),
+enum class BroadcastUsageSessionState {
+    Open,
+    Live,
+    ClosedSyncing,
+    Finalized,
+    Failed,
 }
 
 data class BroadcastUsageSession(
