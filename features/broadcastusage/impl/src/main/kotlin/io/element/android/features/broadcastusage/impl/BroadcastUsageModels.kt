@@ -7,6 +7,7 @@
 package io.element.android.features.broadcastusage.impl
 
 import java.math.BigInteger
+import java.math.RoundingMode
 
 enum class BroadcastUsageSessionState {
     Open,
@@ -161,8 +162,27 @@ internal fun formatTraffic(bytes: BigInteger, signed: Boolean = false): String {
     return "$readable · $sign$absolute B"
 }
 
-internal fun formatTrafficCompact(bytes: BigInteger, signed: Boolean = false): String =
-    formatTraffic(bytes, signed).substringBefore(" · ")
+internal fun formatTrafficCompact(bytes: BigInteger, signed: Boolean = false): String {
+    val units = listOf("B", "KB", "MB", "GB", "TB", "PB", "EB")
+    val thousand = BigInteger.valueOf(1_000)
+    var divisor = BigInteger.ONE
+    var unit = 0
+    while (unit < units.lastIndex && bytes.abs() >= divisor * thousand) {
+        divisor *= thousand
+        unit++
+    }
+    val sign = when {
+        bytes.signum() < 0 -> "-"
+        signed && bytes.signum() > 0 -> "+"
+        else -> ""
+    }
+    if (unit == 0) return "$sign${bytes.abs()} B"
+    val readable = bytes.abs().toBigDecimal()
+        .divide(divisor.toBigDecimal(), 2, RoundingMode.HALF_UP)
+        .stripTrailingZeros()
+        .toPlainString()
+    return "$sign$readable ${units[unit]}"
+}
 
 internal fun formatUsdMicros(micros: BigInteger): String {
     val sign = if (micros.signum() < 0) "-" else ""

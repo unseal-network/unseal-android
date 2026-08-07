@@ -157,7 +157,9 @@ class BroadcastUsagePresenterTest {
         assertThat(formatTraffic(bytes)).isEqualTo("9.2 EB · 9223372036854775808 B")
         assertThat(formatTraffic(bytes, signed = true)).isEqualTo("+9.2 EB · +9223372036854775808 B")
         assertThat(formatTraffic(bytes.negate(), signed = true)).isEqualTo("-9.2 EB · -9223372036854775808 B")
-        assertThat(formatTrafficCompact(bytes)).isEqualTo("9.2 EB")
+        assertThat(formatTrafficCompact(bytes)).isEqualTo("9.22 EB")
+        assertThat(formatTrafficCompact(BigInteger("59395196"))).isEqualTo("59.4 MB")
+        assertThat(formatTrafficCompact(BigInteger("398873259"))).isEqualTo("398.87 MB")
         assertThat(formatUsdMicros(BigInteger.ONE)).isEqualTo("\$0.000001")
         assertThat(formatUsdMicros(BigInteger("70000"))).isEqualTo("\$0.07")
     }

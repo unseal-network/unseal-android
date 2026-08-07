@@ -8,6 +8,7 @@
 
 package io.element.android.features.broadcastusage.impl
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,8 +16,10 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -190,11 +193,11 @@ private fun ColumnScope.OverviewContent(state: BroadcastUsageState) {
         MetricCard(stringResource(R.string.screen_broadcast_usage_balance), formatUsdMicros(dashboard.funding.balanceMicros), Modifier.weight(1f))
     }
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextButton(onClick = { state.eventSink(BroadcastUsageEvent.SelectTab(BroadcastUsageTab.Activity)) }, modifier = Modifier.weight(1f)) {
-            Text(stringResource(R.string.screen_broadcast_usage_activity_title))
+        OverviewLink(stringResource(R.string.screen_broadcast_usage_activity_title), Modifier.weight(1f)) {
+            state.eventSink(BroadcastUsageEvent.SelectTab(BroadcastUsageTab.Activity))
         }
-        TextButton(onClick = { state.eventSink(BroadcastUsageEvent.SelectTab(BroadcastUsageTab.Grants)) }, modifier = Modifier.weight(1f)) {
-            Text(stringResource(R.string.screen_broadcast_usage_grants_title))
+        OverviewLink(stringResource(R.string.screen_broadcast_usage_grants_title), Modifier.weight(1f)) {
+            state.eventSink(BroadcastUsageEvent.SelectTab(BroadcastUsageTab.Grants))
         }
     }
     val activeSessions = dashboard?.sessions?.filter { it.showsRuntime }.orEmpty()
@@ -224,37 +227,89 @@ private fun MetricCard(title: String, value: String, modifier: Modifier = Modifi
     Surface(modifier = modifier, color = ElementTheme.colors.bgSubtleSecondary, shape = RoundedCornerShape(12.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, style = ElementTheme.typography.fontBodySmRegular, color = ElementTheme.colors.textSecondary)
-            Text(value, style = ElementTheme.typography.fontHeadingMdBold, fontWeight = FontWeight.Bold)
+            Text(value, style = ElementTheme.typography.fontHeadingMdBold, fontWeight = FontWeight.Bold, maxLines = 1)
         }
+    }
+}
+
+@Composable
+private fun OverviewLink(title: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        color = ElementTheme.colors.bgSubtleSecondary,
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Text(
+            text = title,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp, horizontal = 12.dp),
+            style = ElementTheme.typography.fontBodyLgMedium,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
 @Composable
 private fun HistoryRow(item: BroadcastHistoryItem, onClick: () -> Unit) {
     Surface(onClick = onClick, color = Color.Transparent) {
-        Column(Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
                     Text(item.displayName ?: item.openedAt.displayTime(), maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
                     Text("${item.openedAt.displayTime()} – ${item.closedAt.displayTime()}", style = ElementTheme.typography.fontBodySmRegular, color = ElementTheme.colors.textSecondary)
                 }
                 Icon(CompoundIcons.ChevronRight(), contentDescription = null)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                HistoryMetric(stringResource(R.string.screen_broadcast_usage_traffic), formatTrafficCompact(item.traffic.confirmedBytes))
-                item.audience.viewerSessionCount?.let { HistoryMetric(stringResource(R.string.screen_broadcast_usage_viewer_sessions), it.toString()) }
-                item.billing.costMicros?.let { HistoryMetric(stringResource(R.string.screen_broadcast_usage_cost), formatUsdMicros(it)) }
+            Surface(color = ElementTheme.colors.bgCanvasDefault, shape = RoundedCornerShape(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    HistoryMetric(
+                        stringResource(R.string.screen_broadcast_usage_traffic),
+                        formatTrafficCompact(item.traffic.confirmedBytes),
+                        Modifier.weight(1f),
+                    )
+                    MetricDivider()
+                    HistoryMetric(
+                        item.audience.viewerSessionCount?.let { stringResource(R.string.screen_broadcast_usage_viewer_sessions) },
+                        item.audience.viewerSessionCount?.toString(),
+                        Modifier.weight(1f),
+                    )
+                    MetricDivider()
+                    HistoryMetric(
+                        item.billing.costMicros?.let { stringResource(R.string.screen_broadcast_usage_cost) },
+                        item.billing.costMicros?.let(::formatUsdMicros),
+                        Modifier.weight(1f),
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun HistoryMetric(label: String, value: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(label, style = ElementTheme.typography.fontBodyXsRegular, color = ElementTheme.colors.textSecondary)
-        Text(value, style = ElementTheme.typography.fontBodyMdRegular, fontWeight = FontWeight.SemiBold)
+private fun HistoryMetric(label: String?, value: String?, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        if (label != null && value != null) {
+            Text(label, style = ElementTheme.typography.fontBodyXsRegular, color = ElementTheme.colors.textSecondary, maxLines = 1)
+            Text(value, style = ElementTheme.typography.fontBodyMdRegular, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        } else {
+            Box(Modifier.height(38.dp))
+        }
     }
+}
+
+@Composable
+private fun MetricDivider() {
+    Box(
+        Modifier
+            .padding(horizontal = 10.dp)
+            .width(1.dp)
+            .height(34.dp)
+            .background(ElementTheme.colors.borderDisabled),
+    )
 }
 
 @Composable

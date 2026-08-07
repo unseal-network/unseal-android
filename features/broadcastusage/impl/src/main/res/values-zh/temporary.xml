@@ -53,12 +53,12 @@
     <string name="screen_broadcast_usage_grant_state_expired">已过期</string>
     <string name="screen_broadcast_usage_grant_state_revoked">已撤销</string>
     <string name="screen_broadcast_usage_grant_traffic">赠送流量</string>
-    <string name="screen_broadcast_usage_balance">Balance 余额</string>
+    <string name="screen_broadcast_usage_balance">余额</string>
     <string name="screen_broadcast_usage_traffic">流量</string>
     <string name="screen_broadcast_usage_viewer_sessions">观看人次</string>
     <string name="screen_broadcast_usage_cost">费用</string>
     <string name="screen_broadcast_usage_grant_covered_traffic">赠送流量覆盖</string>
-    <string name="screen_broadcast_usage_balance_covered_traffic">Balance 覆盖</string>
+    <string name="screen_broadcast_usage_balance_covered_traffic">余额覆盖</string>
     <string name="screen_broadcast_usage_pending_allocation">待分配流量</string>
     <string name="screen_broadcast_usage_audience">观看统计</string>
     <string name="screen_broadcast_usage_unique_viewers">独立观众</string>
