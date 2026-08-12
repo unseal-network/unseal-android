@@ -23,7 +23,6 @@
     <!-- Permissions for call foreground services -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
@@ -49,12 +48,6 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="microphone" />
-
-        <service
-            android:name=".services.AudiencePlaybackForegroundService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
 
         <receiver
             android:name=".receivers.DeclineCallBroadcastReceiver"

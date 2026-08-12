@@ -45,7 +45,6 @@ import io.element.android.features.call.impl.pip.PictureInPictureEvent
 import io.element.android.features.call.impl.pip.PictureInPicturePresenter
 import io.element.android.features.call.impl.pip.PictureInPictureState
 import io.element.android.features.call.impl.pip.PipView
-import io.element.android.features.call.impl.services.AudiencePlaybackForegroundService
 import io.element.android.features.call.impl.services.CallForegroundService
 import io.element.android.features.enterprise.api.EnterpriseService
 import io.element.android.libraries.androidutils.browser.ConsoleMessageLogger
@@ -179,11 +178,7 @@ class ElementCallActivity :
             if (isAudience) audiencePlaybackEnabled.value = false
             audienceFocusNeedsRestore = false
             audioFocus.releaseAudioFocus()
-            if (isAudience) {
-                AudiencePlaybackForegroundService.stop(this)
-            } else {
-                CallForegroundService.stop(this)
-            }
+            CallForegroundService.stop(this)
             return
         }
         if (isAudience) audiencePlaybackEnabled.value = true
@@ -195,9 +190,7 @@ class ElementCallActivity :
         if (shouldRequestNativeCallAudioFocus(isAudience)) {
             requestCallAudioFocus(isAudience = false)
         }
-        if (isAudience) {
-            AudiencePlaybackForegroundService.start(this)
-        } else {
+        if (shouldStartCallForegroundService(isAudience)) {
             CallForegroundService.start(this)
         }
     }
@@ -272,7 +265,6 @@ class ElementCallActivity :
         audiencePlaybackEnabled.value = false
         audioFocus.releaseAudioFocus()
         CallForegroundService.stop(this)
-        AudiencePlaybackForegroundService.stop(this)
         pictureInPicturePresenter.setPipView(null)
     }
 
@@ -377,3 +369,5 @@ internal fun mapWebkitPermissions(permissions: Array<String>): List<String> {
 }
 
 internal fun shouldRequestNativeCallAudioFocus(isAudience: Boolean): Boolean = !isAudience
+
+internal fun shouldStartCallForegroundService(isAudience: Boolean): Boolean = !isAudience

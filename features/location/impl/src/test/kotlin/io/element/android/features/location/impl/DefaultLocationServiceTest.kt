@@ -14,9 +14,9 @@ import org.junit.Test
 
 class DefaultLocationServiceTest {
     @Test
-    fun `canShareLocation should not depend on BuildConfig MAPTILER_API_KEY`() {
+    fun `canShareLocation should be disabled`() {
         val locationService = DefaultLocationService()
-        assertThat(locationService.canShareLocation()).isTrue()
+        assertThat(locationService.canShareLocation()).isFalse()
     }
 
     @Test
