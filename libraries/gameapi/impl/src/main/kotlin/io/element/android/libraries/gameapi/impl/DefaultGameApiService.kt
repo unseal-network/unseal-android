@@ -271,7 +271,7 @@ class DefaultGameApiService(
 
     private suspend fun executeRequest(request: Request): String = withContext(Dispatchers.IO) {
         val response = okHttpClient.newCall(request).execute()
-        val body = response.body?.string() ?: error("Empty response body")
+        val body = response.body.string()
         response.close()
         if (!response.isSuccessful) error("HTTP ${response.code}: $body")
         body
