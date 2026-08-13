@@ -24,8 +24,8 @@ import org.matrix.rustcomponents.sdk.LiveLocationShare as RustLiveLocationShare
 fun RoomInterface.liveLocationSharesFlow(): Flow<List<LiveLocationShare>> {
     return callbackFlow {
         val taskHandle = subscribeToLiveLocationShares(object : LiveLocationShareListener {
-            override fun call(shares: List<RustLiveLocationShare>) {
-                trySend(shares.map { it.into() })
+            override fun call(liveLocationShares: List<RustLiveLocationShare>) {
+                trySend(liveLocationShares.map { it.into() })
             }
         })
         awaitClose {
