@@ -13,6 +13,7 @@ import androidx.datastore.preferences.core.emptyPreferences
 import app.cash.turbine.test
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.location.impl.live.service.LiveLocationSharingCoordinator
+import io.element.android.features.location.test.FakeLocationService
 import io.element.android.libraries.matrix.api.room.location.BeaconInfoUpdate
 import io.element.android.libraries.matrix.test.AN_EVENT_ID
 import io.element.android.libraries.matrix.test.A_ROOM_ID
@@ -221,9 +222,10 @@ class DefaultActiveLiveLocationShareManagerTest {
     }
 
     @Test
-    fun `setup restores unexpired stored share and registers coordinator`() = runTest {
+    fun `setup stops and clears an unexpired stored share when location sharing is disabled`() = runTest {
         val startServiceRecorder = lambdaRecorder<Unit> { }
         val stopServiceRecorder = lambdaRecorder<Unit> { }
+        val stopLiveLocationShareResult = lambdaRecorder<Result<Unit>> { Result.success(Unit) }
         val liveLocationStore = createLiveLocationStore().apply {
             setLiveLocationExpiry(A_ROOM_ID, Instant.fromEpochMilliseconds(10_000L))
         }
@@ -232,7 +234,7 @@ class DefaultActiveLiveLocationShareManagerTest {
                 sessionId = A_SESSION_ID,
                 sessionCoroutineScope = backgroundScope,
             ).apply {
-                givenGetRoomResult(A_ROOM_ID, FakeJoinedRoom())
+                givenGetRoomResult(A_ROOM_ID, FakeJoinedRoom(stopLiveLocationShareResult = stopLiveLocationShareResult))
             },
             coordinator = createCoordinator(
                 startService = startServiceRecorder,
@@ -240,11 +242,29 @@ class DefaultActiveLiveLocationShareManagerTest {
             ),
             liveLocationStore = liveLocationStore,
             clock = FakeSystemClock(epochMillisResult = 1_000L),
+            locationService = FakeLocationService(),
         )
 
-        assertThat(manager.sharingRoomIds.value).containsExactly(A_ROOM_ID)
-        assert(startServiceRecorder).isCalledOnce()
+        assertThat(manager.sharingRoomIds.value).isEmpty()
+        assertThat(liveLocationStore.getLiveLocationExpiries()).isEmpty()
+        assert(stopLiveLocationShareResult).isCalledOnce()
+        assert(startServiceRecorder).isNeverCalled()
         assert(stopServiceRecorder).isNeverCalled()
+    }
+
+    @Test
+    fun `disabled location sharing rejects new shares without starting the coordinator`() = runTest {
+        val startServiceRecorder = lambdaRecorder<Unit> { }
+        val manager = createManager(
+            coordinator = createCoordinator(startService = startServiceRecorder),
+            locationService = FakeLocationService(),
+        )
+
+        val result = manager.startShare(A_ROOM_ID, 15.minutes)
+
+        assertThat(result.isFailure).isTrue()
+        assertThat(manager.sharingRoomIds.value).isEmpty()
+        assert(startServiceRecorder).isNeverCalled()
     }
 
     @Test
@@ -417,6 +437,7 @@ class DefaultActiveLiveLocationShareManagerTest {
         liveLocationStore: LiveLocationStore = createLiveLocationStore(),
         clock: SystemClock = FakeSystemClock(),
         sessionObserver: SessionObserver = FakeSessionObserver(),
+        locationService: FakeLocationService = FakeLocationService(isServiceAvailable = true),
     ): DefaultActiveLiveLocationShareManager {
         return DefaultActiveLiveLocationShareManager(
             matrixClient = client,
@@ -424,6 +445,7 @@ class DefaultActiveLiveLocationShareManagerTest {
             liveLocationStore = liveLocationStore,
             clock = clock,
             sessionObserver = sessionObserver,
+            locationService = locationService,
         ).apply {
             setup()
         }

@@ -174,11 +174,13 @@ class ElementCallActivity :
     private fun setCallIsActive(isActive: Boolean, isAudience: Boolean) {
         isCallActive = isActive
         isAudienceCall = isAudience
+        if (shouldStopCallForegroundService(isActive, isAudience)) {
+            CallForegroundService.stop(this)
+        }
         if (!isActive) {
             if (isAudience) audiencePlaybackEnabled.value = false
             audienceFocusNeedsRestore = false
             audioFocus.releaseAudioFocus()
-            CallForegroundService.stop(this)
             return
         }
         if (isAudience) audiencePlaybackEnabled.value = true
@@ -371,3 +373,5 @@ internal fun mapWebkitPermissions(permissions: Array<String>): List<String> {
 internal fun shouldRequestNativeCallAudioFocus(isAudience: Boolean): Boolean = !isAudience
 
 internal fun shouldStartCallForegroundService(isAudience: Boolean): Boolean = !isAudience
+
+internal fun shouldStopCallForegroundService(isActive: Boolean, isAudience: Boolean): Boolean = !isActive || isAudience

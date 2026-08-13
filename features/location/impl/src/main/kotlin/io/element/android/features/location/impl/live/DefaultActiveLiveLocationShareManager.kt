@@ -11,6 +11,7 @@ import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.SingleIn
 import dev.zacsweers.metro.binding
 import io.element.android.features.location.api.Location
+import io.element.android.features.location.api.LocationService
 import io.element.android.features.location.api.live.ActiveLiveLocationShareManager
 import io.element.android.features.location.impl.live.service.LiveLocationReceiver
 import io.element.android.features.location.impl.live.service.LiveLocationSharingCoordinator
@@ -60,6 +61,7 @@ class DefaultActiveLiveLocationShareManager(
     private val liveLocationStore: LiveLocationStore,
     private val clock: SystemClock,
     private val sessionObserver: SessionObserver,
+    private val locationService: LocationService,
 ) : ActiveLiveLocationShareManager, LiveLocationReceiver {
     private val isSetup = AtomicBoolean(false)
     private val cachedRooms = ConcurrentHashMap<RoomId, JoinedRoom>()
@@ -105,6 +107,10 @@ class DefaultActiveLiveLocationShareManager(
     }
 
     override suspend fun startShare(roomId: RoomId, duration: Duration): Result<Unit> = withContext(NonCancellable) {
+        if (!locationService.canShareLocation()) {
+            Timber.w("ActiveLiveLocationShareManager ignored start for disabled location sharing in room $roomId")
+            return@withContext Result.failure(IllegalStateException("Live location sharing is disabled"))
+        }
         withShareOperation(roomId) {
             Timber.d("ActiveLiveLocationShareManager starting share for room $roomId with duration ${duration.inWholeSeconds}s")
             if (roomId in localSharingRoomIds.value) {
@@ -276,6 +282,10 @@ class DefaultActiveLiveLocationShareManager(
     }
 
     private suspend fun recoverPersistedShares() {
+        if (!locationService.canShareLocation()) {
+            stopPersistedShares()
+            return
+        }
         val now = Instant.fromEpochMilliseconds(clock.epochMillis())
         liveLocationStore.getLiveLocationExpiries().forEach { (roomId, expiresAt) ->
             if (expiresAt > now) {
@@ -288,6 +298,15 @@ class DefaultActiveLiveLocationShareManager(
             } else {
                 // Explicitly stop the share on the server.
                 stopShare(roomId)
+            }
+        }
+    }
+
+    private suspend fun stopPersistedShares() {
+        liveLocationStore.getLiveLocationExpiries().keys.forEach { roomId ->
+            stopShare(roomId).onFailure {
+                Timber.w(it, "ActiveLiveLocationShareManager could not stop persisted location share for room $roomId")
+                stopLocalShare(roomId)
             }
         }
     }
