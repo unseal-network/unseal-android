@@ -9,6 +9,7 @@ package io.element.android.features.call.ui
 
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.call.impl.ui.shouldRequestNativeCallAudioFocus
+import io.element.android.features.call.impl.ui.shouldStartCallForegroundService
 import org.junit.Test
 
 class ElementCallAudioFocusPolicyTest {
@@ -20,5 +21,15 @@ class ElementCallAudioFocusPolicyTest {
     @Test
     fun `audience playback leaves media focus to Chromium`() {
         assertThat(shouldRequestNativeCallAudioFocus(isAudience = true)).isFalse()
+    }
+
+    @Test
+    fun `audience playback does not start a foreground service`() {
+        assertThat(shouldStartCallForegroundService(isAudience = true)).isFalse()
+    }
+
+    @Test
+    fun `participant call starts the microphone foreground service`() {
+        assertThat(shouldStartCallForegroundService(isAudience = false)).isTrue()
     }
 }

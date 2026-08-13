@@ -15,7 +15,7 @@ import io.element.android.features.location.api.LocationService
 
 @ContributesBinding(AppScope::class)
 class DefaultLocationService : LocationService {
-    override fun canShareLocation(): Boolean = canRenderMaps()
+    override fun canShareLocation(): Boolean = false
 
     override fun canRenderMaps(): Boolean = BuildConfig.MAPTILER_API_KEY.isNotEmpty()
 
