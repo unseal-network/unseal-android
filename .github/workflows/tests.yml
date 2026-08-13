@@ -7,9 +7,7 @@ on:
   push:
     branches: [ main, develop ]
 
-permissions:
-  contents: read
-  packages: read
+permissions: {}
 
 # Enrich gradle.properties for CI/CD
 env:
