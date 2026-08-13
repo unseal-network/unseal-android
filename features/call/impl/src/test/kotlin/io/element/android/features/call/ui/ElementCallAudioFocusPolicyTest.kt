@@ -10,6 +10,7 @@ package io.element.android.features.call.ui
 import com.google.common.truth.Truth.assertThat
 import io.element.android.features.call.impl.ui.shouldRequestNativeCallAudioFocus
 import io.element.android.features.call.impl.ui.shouldStartCallForegroundService
+import io.element.android.features.call.impl.ui.shouldStopCallForegroundService
 import org.junit.Test
 
 class ElementCallAudioFocusPolicyTest {
@@ -31,5 +32,10 @@ class ElementCallAudioFocusPolicyTest {
     @Test
     fun `participant call starts the microphone foreground service`() {
         assertThat(shouldStartCallForegroundService(isAudience = false)).isTrue()
+    }
+
+    @Test
+    fun `active audience call stops any participant foreground service`() {
+        assertThat(shouldStopCallForegroundService(isActive = true, isAudience = true)).isTrue()
     }
 }
