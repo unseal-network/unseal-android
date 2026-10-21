@@ -64,14 +64,25 @@ class WebViewWidgetMessageInterceptor(
                 // Due to https://github.com/element-hq/element-x-android/issues/4097
                 // we need to supply a logging implementation that correctly includes
                 // objects in log lines.
+                // Logging must never throw: Element Call logs objects JSON.stringify
+                // rejects (e.g. circular rxjs subscribers), and an exception here
+                // propagates into the caller and breaks the call.
                 view.evaluateJavascript(
                     """
+                        function logArg(a) {
+                            if (typeof a === "string") return a;
+                            try {
+                                return JSON.stringify(a);
+                            } catch (e) {
+                                try {
+                                    return String(a);
+                                } catch (e2) {
+                                    return Object.prototype.toString.call(a);
+                                }
+                            }
+                        };
                         function logFn(consoleLogFn, ...args) {
-                            consoleLogFn(
-                                args.map(
-                                    a => typeof a === "string" ? a : JSON.stringify(a)
-                                ).join(' ')
-                            );
+                            consoleLogFn(args.map(logArg).join(' '));
                         };
                         globalThis.console.debug = logFn.bind(null, console.debug);
                         globalThis.console.log = logFn.bind(null, console.log);
