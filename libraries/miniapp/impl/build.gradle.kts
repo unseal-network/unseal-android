@@ -5,6 +5,8 @@
  * Please see LICENSE files in the repository root for full details.
  */
 
+import extension.testCommonDependencies
+
 plugins {
     id("io.element.android-compose-library")
     alias(libs.plugins.kotlin.serialization)
@@ -23,4 +25,6 @@ dependencies {
     implementation(libs.network.okhttp)
     implementation(libs.androidx.webkit)
     implementation(libs.timber)
+
+    testCommonDependencies(libs)
 }

@@ -61,6 +61,7 @@ internal class MiniAppJsBridge(
     private val scope: CoroutineScope,
 ) {
     private val soundManager = MiniAppSoundManager(context, okHttpClient)
+    private val hapticPlayer = MiniAppHapticPlayer(context)
     private val sqliteHelper = MiniAppSqlite(context)
 
     // ── Sync bridge methods ───────────────────────────────────────────────────
@@ -378,6 +379,34 @@ internal class MiniAppJsBridge(
     }
 
     // ── Async bridge methods ──────────────────────────────────────────────────
+
+    /**
+     * Play a haptic (iOS `haptic.play` → `WebView+Haptic.swift`, JS SDK `co.haptic.play`).
+     * The spec is the message's data. Fire-and-forget calls (empty handleId) get no reply,
+     * so a game's per-frame haptics never wait on the bridge.
+     * JS: `window.webkit.hapticPlay(JSON.stringify({ handleId, data: spec }))`
+     */
+    @JavascriptInterface
+    fun hapticPlay(params: String) {
+        val from = FromJsData(params)
+        val played = hapticPlayer.play(from.data)
+        if (from.handleId.isEmpty()) return
+        val resp = ToJsData(handle = from.handleId)
+        resp.data = JSONObject().put("played", played)
+        notify(resp)
+    }
+
+    /**
+     * What this device can play (iOS `haptic.probe`, JS SDK `co.haptic.probe`).
+     * JS: `window.webkit.hapticProbe(JSON.stringify({ handleId, data: {} }))`
+     */
+    @JavascriptInterface
+    fun hapticProbe(params: String) {
+        val from = FromJsData(params)
+        val resp = ToJsData(handle = from.handleId)
+        resp.data = hapticPlayer.capabilities()
+        notify(resp)
+    }
 
     /**
      * HTTP proxy: forward a network request from the mini-app.
@@ -847,6 +876,7 @@ internal class MiniAppJsBridge(
     /** Release audio resources when the WebView session ends. */
     fun release() {
         soundManager.release()
+        hapticPlayer.release()
     }
 
     private fun notify(resp: ToJsData) {
