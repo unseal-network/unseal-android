@@ -71,6 +71,17 @@ internal class MiniAppStorage(context: Context, private val appId: Long) {
         prefs.edit().remove(prefKey(key)).apply()
     }
 
+    /**
+     * Remove every value this app stored (the `"$appId-"` namespace) — the capsule menu's
+     * "Clear Cache". The shared `__auth` entry and other apps' entries are kept.
+     */
+    fun clear() {
+        val prefix = "$appId-"
+        val keys = prefs.all.keys.filter { it.startsWith(prefix) }
+        if (keys.isEmpty()) return
+        prefs.edit().apply { keys.forEach(::remove) }.apply()
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private fun prefKey(key: String): String =

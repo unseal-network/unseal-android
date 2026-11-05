@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (c) 2026 New Vector Ltd.
+  ~
+  ~ SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
+  ~ Please see LICENSE files in the repository root for full details.
+  -->
+
+<!-- Strings that are pending import to Localazy. Do NOT edit localazy.xml. -->
+<resources>
+    <string name="a11y_miniapp_capsule_more">更多</string>
+    <string name="screen_miniapp_menu_share">分享给好友</string>
+    <string name="screen_miniapp_menu_restart">重新启动小程序</string>
+    <string name="screen_miniapp_menu_clear_cache">清除缓存</string>
+    <string name="screen_miniapp_clear_cache_dialog_title">清除缓存？</string>
+    <string name="screen_miniapp_clear_cache_dialog_content">将清除该小程序的缓存和本地数据，并重新启动。</string>
+    <string name="screen_miniapp_clear_cache_dialog_submit">清除</string>
+</resources>

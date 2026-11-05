@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (c) 2026 New Vector Ltd.
+  ~
+  ~ SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
+  ~ Please see LICENSE files in the repository root for full details.
+  -->
+
+<!-- Strings that are pending import to Localazy. Do NOT edit localazy.xml. -->
+<resources>
+    <string name="a11y_miniapp_capsule_more">More</string>
+    <string name="screen_miniapp_menu_share">Share with Friends</string>
+    <string name="screen_miniapp_menu_restart">Restart Mini Program</string>
+    <string name="screen_miniapp_menu_clear_cache">Clear Cache</string>
+    <string name="screen_miniapp_clear_cache_dialog_title">Clear cache?</string>
+    <string name="screen_miniapp_clear_cache_dialog_content">This clears the mini program\'s cache and local data, then restarts it.</string>
+    <string name="screen_miniapp_clear_cache_dialog_submit">Clear</string>
+</resources>

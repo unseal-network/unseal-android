@@ -49,6 +49,7 @@ import java.io.File
  * @param webViewRef    Weak reference supplier that returns the live WebView.
  *                      Called on the JS thread — must be thread-safe.
  * @param scope         Coroutine scope for async bridge work.
+ * @param capsule       State of the "•••" | "×" capsule, driven by the `capsule.*` sync calls.
  */
 @Suppress("TooManyFunctions")
 internal class MiniAppJsBridge(
@@ -59,6 +60,7 @@ internal class MiniAppJsBridge(
     private val okHttpClient: OkHttpClient,
     private val webViewRef: () -> WebView?,
     private val scope: CoroutineScope,
+    private val capsule: MiniAppCapsuleController,
 ) {
     private val soundManager = MiniAppSoundManager(context, okHttpClient)
     private val hapticPlayer = MiniAppHapticPlayer(context)
@@ -152,8 +154,48 @@ internal class MiniAppJsBridge(
     @JavascriptInterface
     fun statusBar(params: String): String {
         Timber.d("MiniApp: statusBar(%s) — no-op on Android", params)
+        // Remembered so `capsule.show` without a theme can follow the page's style.
+        capsule.statusBarStyle = params
         return ""
     }
+
+    // ── Capsule sync bridge methods ───────────────────────────────────────────
+
+    /**
+     * Show (or re-theme) the "•••" | "×" capsule. Returns its rect JSON.
+     * JS: `window.webkit.capsuleShow(JSON.stringify({ theme?: "light" | "dark" }))`
+     */
+    @JavascriptInterface
+    fun capsuleShow(params: String): String = capsule.show(params)
+
+    /**
+     * Hide the capsule. Returns "".
+     * JS: `window.webkit.capsuleHide()`
+     */
+    @JavascriptInterface
+    fun capsuleHide(): String = capsule.hide()
+
+    /** Overload for the SDK's `window.webkit[name](JSON.stringify(args))` calling convention. */
+    @JavascriptInterface
+    fun capsuleHide(@Suppress("UNUSED_PARAMETER") params: String): String = capsule.hide()
+
+    /**
+     * Where the capsule is (or would be when shown), in CSS px relative to the WebView.
+     * JS: `window.webkit.capsuleRect()`
+     */
+    @JavascriptInterface
+    fun capsuleRect(): String = capsule.rect()
+
+    /** Overload for the SDK's `window.webkit[name](JSON.stringify(args))` calling convention. */
+    @JavascriptInterface
+    fun capsuleRect(@Suppress("UNUSED_PARAMETER") params: String): String = capsule.rect()
+
+    /**
+     * Store the page's share info for the capsule menu's "Share with Friends". Returns "".
+     * JS: `window.webkit.capsuleShare(JSON.stringify({ title?, desc?, imageUrl?, query? }))`
+     */
+    @JavascriptInterface
+    fun capsuleShare(params: String): String = capsule.share(params)
 
     /**
      * Return display safe-area insets (dp).
@@ -819,6 +861,10 @@ internal class MiniAppJsBridge(
         "keyboard.toolbars", "keyboardToolbars" -> keyboardToolbars(argsJson)
         "loaded" -> { loaded(argsJson); "" }
         "statusBar" -> statusBar(argsJson)
+        "capsule.show", "capsuleShow" -> capsuleShow(argsJson)
+        "capsule.hide", "capsuleHide" -> capsuleHide()
+        "capsule.rect", "capsuleRect" -> capsuleRect()
+        "capsule.share", "capsuleShare" -> capsuleShare(argsJson)
         "create.success", "createSuccess" -> { createSuccess(argsJson); "" }
         "create.progress", "createProgress" -> { createProgress(argsJson); "" }
         "create.error", "createError" -> { createError(argsJson); "" }
