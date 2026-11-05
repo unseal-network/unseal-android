@@ -19,6 +19,7 @@ android {
 dependencies {
     api(projects.libraries.miniapp.api)
     implementation(projects.libraries.designsystem)
+    implementation(projects.libraries.uiStrings)
     implementation(libs.coroutines.core)
     implementation(libs.serialization.json)
     implementation(platform(libs.network.okhttp.bom))

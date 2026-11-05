@@ -11,31 +11,40 @@ import android.content.Context
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,8 +56,6 @@ import androidx.compose.ui.unit.dp
 import io.element.android.compound.theme.ElementTheme
 import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.libraries.designsystem.theme.components.HorizontalDivider
-import io.element.android.libraries.designsystem.theme.components.ModalBottomSheet
-import kotlinx.coroutines.launch
 import org.json.JSONException
 import org.json.JSONObject
 import kotlin.math.roundToInt
@@ -278,9 +285,12 @@ private fun androidx.compose.foundation.layout.RowScope.CapsuleButton(
 
 /**
  * The capsule's "•••" menu: grouped cards in a bottom sheet (iOS action-sheet style).
- * The chosen action runs once the sheet has been hidden.
+ * The chosen action runs once the sheet has slid away.
+ *
+ * Drawn in the mini app's own window (compose it inside MiniAppView's full-screen Box), not
+ * in a dialog window like Material's ModalBottomSheet: a new window brings the hidden system
+ * bars back, and MiniAppNode's full-screen layout then shifts the whole page up.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MiniAppCapsuleMenu(
     canShare: Boolean,
@@ -289,20 +299,7 @@ internal fun MiniAppCapsuleMenu(
     onClearCacheClick: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
-    fun hideThen(action: () -> Unit) {
-        scope.launch { sheetState.hide() }.invokeOnCompletion {
-            onDismiss()
-            action()
-        }
-    }
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        scrollable = false,
-        sheetState = sheetState,
-        containerColor = ElementTheme.colors.bgSubtleSecondary,
-    ) {
+    InWindowSheet(onDismiss = onDismiss) { close ->
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -314,14 +311,14 @@ internal fun MiniAppCapsuleMenu(
                     MenuRow(
                         icon = CompoundIcons.ShareAndroid(),
                         text = stringResource(R.string.screen_miniapp_menu_share),
-                        onClick = { hideThen(onShareClick) },
+                        onClick = { close(onShareClick) },
                     )
                     MenuDivider()
                 }
                 MenuRow(
                     icon = CompoundIcons.Restart(),
                     text = stringResource(R.string.screen_miniapp_menu_restart),
-                    onClick = { hideThen(onRestartClick) },
+                    onClick = { close(onRestartClick) },
                 )
             }
             MenuCard {
@@ -329,11 +326,146 @@ internal fun MiniAppCapsuleMenu(
                     icon = CompoundIcons.Delete(),
                     text = stringResource(R.string.screen_miniapp_menu_clear_cache),
                     critical = true,
-                    onClick = { hideThen(onClearCacheClick) },
+                    onClick = { close(onClearCacheClick) },
                 )
             }
         }
     }
+}
+
+/**
+ * A bottom sheet in the current window: a scrim plus a panel that slides up. Tapping the scrim
+ * or back closes it; `close(then)` slides it away, then calls [onDismiss] and `then`.
+ */
+@Composable
+private fun InWindowSheet(
+    onDismiss: () -> Unit,
+    content: @Composable (close: (then: (() -> Unit)?) -> Unit) -> Unit,
+) {
+    val state = remember { MutableTransitionState(false).apply { targetState = true } }
+    var afterClose by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val close: ((() -> Unit)?) -> Unit = { then ->
+        if (state.targetState) {
+            afterClose = then
+            state.targetState = false
+        }
+    }
+    LaunchedEffect(state.isIdle, state.currentState) {
+        if (!state.targetState && state.isIdle && !state.currentState) {
+            onDismiss()
+            afterClose?.invoke()
+        }
+    }
+    BackHandler { close(null) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        AnimatedVisibility(visibleState = state, enter = fadeIn(), exit = fadeOut()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.32f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { close(null) },
+                    ),
+            )
+        }
+        AnimatedVisibility(
+            visibleState = state,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = slideInVertically { it },
+            exit = slideOutVertically { it },
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                    .background(ElementTheme.colors.bgSubtleSecondary)
+                    // Swallow taps so they don't reach the scrim.
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {},
+                    )
+                    .navigationBarsPadding(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                // Drag handle, as on a Material sheet.
+                Box(
+                    modifier = Modifier
+                        .padding(top = 12.dp, bottom = 18.dp)
+                        .size(width = 32.dp, height = 4.dp)
+                        .clip(CircleShape)
+                        .background(ElementTheme.colors.iconQuaternary),
+                )
+                content(close)
+            }
+        }
+    }
+}
+
+/**
+ * The "Clear Cache" confirmation, in the current window for the same reason as
+ * [MiniAppCapsuleMenu] (a dialog window would bring the system bars back).
+ */
+@Composable
+internal fun MiniAppConfirmDialog(
+    title: String,
+    content: String,
+    submitText: String,
+    cancelText: String,
+    onSubmitClick: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    BackHandler(onBack = onDismiss)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.32f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onDismiss,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 40.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .background(ElementTheme.colors.bgCanvasDefault)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {},
+                )
+                .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 8.dp),
+        ) {
+            Text(text = title, style = ElementTheme.typography.fontHeadingSmMedium, color = ElementTheme.colors.textPrimary)
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(text = content, style = ElementTheme.typography.fontBodyMdRegular, color = ElementTheme.colors.textSecondary)
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(modifier = Modifier.align(Alignment.End)) {
+                DialogButton(text = cancelText, color = ElementTheme.colors.textPrimary, onClick = onDismiss)
+                DialogButton(text = submitText, color = ElementTheme.colors.textCriticalPrimary, onClick = onSubmitClick)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DialogButton(text: String, color: Color, onClick: () -> Unit) {
+    Text(
+        text = text,
+        style = ElementTheme.typography.fontBodyLgMedium,
+        color = color,
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    )
 }
 
 @Composable
