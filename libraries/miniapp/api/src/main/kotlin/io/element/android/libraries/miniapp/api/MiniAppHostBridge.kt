@@ -21,6 +21,8 @@ package io.element.android.libraries.miniapp.api
  * | [sendMessage]                      | `sendMessage(_:)`              |
  * | [closeApp]                         | `closeApp()`                   |
  * | [openWeb]                          | handled inline by WebViewController |
+ * | [canShareMiniApp]                  | `canShareMiniApp`              |
+ * | [shareMiniApp]                     | `shareMiniApp(_:)`             |
  */
 interface MiniAppHostBridge {
     /** Return the current Matrix access token for the session. */
@@ -74,4 +76,20 @@ interface MiniAppHostBridge {
      * Default: returns null — callers fall back to [MiniAppConfig.appBundleData].
      */
     suspend fun fetchAppData(appId: Int): Map<String, Any>? = null
+
+    /**
+     * Whether the capsule menu shows "Share with Friends" (iOS `canShareMiniApp`).
+     * Default: false (the host cannot share).
+     */
+    val canShareMiniApp: Boolean get() = false
+
+    /**
+     * Share the mini-app with friends from the capsule menu (iOS `shareMiniApp(_:)`).
+     *
+     * @param info `appId`, `name`, `icon`, `brief` of the app, merged with the share info the
+     *             page set through `capsule.share` (`title`, `desc`, `imageUrl`, `query`), which
+     *             override the app's own name / brief / icon.
+     * Default: no-op.
+     */
+    fun shareMiniApp(info: Map<String, Any?>) {}
 }

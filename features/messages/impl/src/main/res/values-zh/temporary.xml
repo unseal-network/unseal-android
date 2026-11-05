@@ -30,4 +30,6 @@
     <string name="a11y_room_agent_skill_picker_close">关闭技能</string>
     <string name="screen_room_agent_skill_picker_loading">正在加载技能…</string>
     <string name="screen_room_agent_skill_picker_empty">没有可用技能</string>
+    <string name="screen_miniapp_share_success">已分享</string>
+    <string name="screen_miniapp_share_failure">分享失败，请重试</string>
 </resources>

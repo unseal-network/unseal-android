@@ -10,6 +10,7 @@ package io.element.android.libraries.miniapp.impl
 import android.annotation.SuppressLint
 import android.content.Context
 import android.webkit.WebSettings
+import android.webkit.WebStorage
 import android.webkit.WebView
 import androidx.compose.foundation.background
 import androidx.webkit.WebViewCompat
@@ -19,17 +20,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.core.net.toUri
 import io.element.android.libraries.miniapp.api.MiniAppConfig
+import io.element.android.libraries.designsystem.components.dialogs.ConfirmationDialog
 import io.element.android.libraries.miniapp.api.MiniAppHostBridge
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import timber.log.Timber
 
@@ -103,6 +112,32 @@ fun MiniAppView(
     onClose: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    // Bumped by the capsule menu's "Restart" / "Clear Cache": a new key throws the whole
+    // session away (WebView, bridge, capsule, bundle state) and runs the load flow again.
+    var sessionKey by remember(config.appId) { mutableIntStateOf(0) }
+    key(sessionKey) {
+        MiniAppSession(
+            config = config,
+            hostBridge = hostBridge,
+            okHttpClient = okHttpClient,
+            onClose = onClose,
+            onRestart = { sessionKey++ },
+            modifier = modifier,
+        )
+    }
+}
+
+/** One run of the mini-app: a WebView, its bridge and its capsule. */
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+private fun MiniAppSession(
+    config: MiniAppConfig,
+    hostBridge: MiniAppHostBridge?,
+    okHttpClient: OkHttpClient,
+    onClose: () -> Unit,
+    onRestart: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -124,6 +159,10 @@ fun MiniAppView(
     // Mutable slot: filled by LaunchedEffect once the load URL is known.
     // Called by MiniAppWebViewClient.onPageFinished to switch bundleState → Ready.
     val pageFinishedAction = remember { arrayOfNulls<() -> Unit>(1) }
+    // The "•••" | "×" capsule, shown by the page through the `capsule.*` bridge calls.
+    val capsule = remember { MiniAppCapsuleController(context) { webViewHolder[0]?.width ?: 0 } }
+    var showCapsuleMenu by remember { mutableStateOf(false) }
+    var showClearCacheDialog by remember { mutableStateOf(false) }
 
     // ── Startup script ────────────────────────────────────────────────────────
     val startupScript = remember(config) { buildStartupScript(config) }
@@ -229,6 +268,7 @@ fun MiniAppView(
             hostBridge = hostBridge,
             okHttpClient = okHttpClient,
             scope = scope,
+            capsule = capsule,
             // In bundle mode don't load a URL in the factory — LaunchedEffect does it later.
             initialUrl = if (config.zipUrl.isNullOrBlank()) config.url else null,
             onWebViewCreated = { wv, bridge ->
@@ -261,8 +301,95 @@ fun MiniAppView(
             )
             is BundleState.Ready -> { /* WebView visible — no overlay */ }
         }
+
+        // Capsule — above the WebView, in the same full-screen Box (see MiniAppCapsuleController.rect).
+        MiniAppCapsule(
+            controller = capsule,
+            onMoreClick = { showCapsuleMenu = true },
+            // "×" closes the mini-app like the bridge `back` call.
+            onCloseClick = { hostBridge?.closeApp() ?: onClose() },
+            modifier = Modifier.align(Alignment.TopEnd),
+        )
+    }
+
+    if (showCapsuleMenu) {
+        MiniAppCapsuleMenu(
+            canShare = hostBridge?.canShareMiniApp == true,
+            onShareClick = { hostBridge?.shareMiniApp(buildShareInfo(config, capsule.shareInfo)) },
+            onRestartClick = onRestart,
+            onClearCacheClick = { showClearCacheDialog = true },
+            onDismiss = { showCapsuleMenu = false },
+        )
+    }
+
+    if (showClearCacheDialog) {
+        ConfirmationDialog(
+            title = stringResource(R.string.screen_miniapp_clear_cache_dialog_title),
+            content = stringResource(R.string.screen_miniapp_clear_cache_dialog_content),
+            submitText = stringResource(R.string.screen_miniapp_clear_cache_dialog_submit),
+            destructiveSubmit = true,
+            onSubmitClick = {
+                showClearCacheDialog = false
+                scope.launch {
+                    clearMiniAppData(context, config, okHttpClient, webViewHolder[0])
+                    onRestart()
+                }
+            },
+            onDismiss = { showClearCacheDialog = false },
+        )
     }
 }
+
+/**
+ * The info passed to [MiniAppHostBridge.shareMiniApp]: the app's own `appId` / `name` / `icon` /
+ * `brief` (when the config knows them) merged with the page's `capsule.share` info.
+ */
+private fun buildShareInfo(config: MiniAppConfig, pageShareInfo: Map<String, Any?>): Map<String, Any?> = buildMap {
+    put("appId", config.appId)
+    config.appBundleData?.let { data ->
+        for (key in listOf("name", "icon", "brief")) {
+            data[key]?.let { put(key, it) }
+        }
+    }
+    putAll(pageShareInfo)
+}
+
+/**
+ * The capsule menu's "Clear Cache": clears only this mini-app's data, then the caller restarts it.
+ * - its native storage entries ([MiniAppStorage.clear], the `"$appId-"` keys);
+ * - its downloaded bundle, so the restart downloads it again;
+ * - the WebView storage of its own origin, for a remote-URL mini-app. Local bundles are all
+ *   served from the same `https://appassets.androidplatform.net` origin, shared by every
+ *   mini-app, so that origin is never deleted;
+ * - the WebView HTTP cache.
+ */
+private suspend fun clearMiniAppData(
+    context: Context,
+    config: MiniAppConfig,
+    okHttpClient: OkHttpClient,
+    webView: WebView?,
+) {
+    Timber.d("MiniApp: clearing cache appId=${config.appId}")
+    // Android's WebView HTTP cache is not per-origin: this clears it for every WebView of the app.
+    webView?.clearCache(true)
+    remoteOrigin(config)?.let { origin -> WebStorage.getInstance().deleteOrigin(origin) }
+    withContext(Dispatchers.IO) {
+        MiniAppStorage(context, config.appId).clear()
+        MiniAppBundleManager(context, okHttpClient).clearCache(config.appId)
+    }
+}
+
+/** `scheme://host[:port]` of a remote-URL mini-app, or null for a local bundle. */
+private fun remoteOrigin(config: MiniAppConfig): String? {
+    if (!config.zipUrl.isNullOrBlank()) return null
+    val uri = config.url.toUri()
+    val scheme = uri.scheme?.lowercase()?.takeIf { it == "https" || it == "http" } ?: return null
+    val host = uri.host?.takeIf { it.isNotBlank() && it != LOCAL_BUNDLE_HOST } ?: return null
+    return if (uri.port == -1) "$scheme://$host" else "$scheme://$host:${uri.port}"
+}
+
+/** Host [androidx.webkit.WebViewAssetLoader] serves every local bundle from. */
+private const val LOCAL_BUNDLE_HOST = "appassets.androidplatform.net"
 
 // ── WebView container ─────────────────────────────────────────────────────────
 
@@ -275,6 +402,7 @@ private fun MiniAppWebViewContainer(
     hostBridge: MiniAppHostBridge?,
     okHttpClient: OkHttpClient,
     scope: CoroutineScope,
+    capsule: MiniAppCapsuleController,
     initialUrl: String?,
     onWebViewCreated: (WebView, MiniAppJsBridge) -> Unit,
 ) {
@@ -288,6 +416,7 @@ private fun MiniAppWebViewContainer(
                 hostBridge = hostBridge,
                 okHttpClient = okHttpClient,
                 scope = scope,
+                capsule = capsule,
             )
             onWebViewCreated(wv, bridge)
             if (!initialUrl.isNullOrBlank()) {
@@ -310,6 +439,7 @@ private fun createWebView(
     hostBridge: MiniAppHostBridge?,
     okHttpClient: OkHttpClient,
     scope: CoroutineScope,
+    capsule: MiniAppCapsuleController,
 ): Pair<WebView, MiniAppJsBridge> {
     val storage = MiniAppStorage(context, config.appId)
     lateinit var webViewInstance: WebView
@@ -322,6 +452,7 @@ private fun createWebView(
         okHttpClient = okHttpClient,
         webViewRef = { webViewInstance },
         scope = scope,
+        capsule = capsule,
     )
 
     webViewInstance = WebView(context).apply {

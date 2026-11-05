@@ -70,4 +70,6 @@
     <string name="screen_timeline_agent_stop_run_action">Stop run</string>
     <string name="screen_timeline_agent_stopping_run">Stopping…</string>
     <string name="screen_timeline_agent_retry_stop_run">Try stopping again</string>
+    <string name="screen_miniapp_share_success">Shared</string>
+    <string name="screen_miniapp_share_failure">Sharing failed, please try again</string>
 </resources>

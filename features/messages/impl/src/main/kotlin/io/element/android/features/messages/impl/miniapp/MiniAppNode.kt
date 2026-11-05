@@ -11,6 +11,8 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Parcelable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -20,20 +22,33 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.lifecycleScope
 import com.bumble.appyx.core.modality.BuildContext
 import com.bumble.appyx.core.node.Node
+import com.bumble.appyx.core.node.ParentNode
 import com.bumble.appyx.core.plugin.Plugin
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedInject
+import com.bumble.appyx.navmodel.backstack.transitionhandler.rememberBackstackFader
 import io.element.android.annotations.ContributesNode
+import io.element.android.features.messages.impl.R
+import io.element.android.features.messages.impl.messagecomposer.gamepicker.RoomGameApiServiceProvider
+import io.element.android.libraries.androidutils.system.toast
 import io.element.android.libraries.architecture.NodeInputs
+import io.element.android.libraries.architecture.appyx.SafeChildren
 import io.element.android.libraries.architecture.inputs
+import io.element.android.libraries.architecture.overlay.Overlay
+import io.element.android.libraries.architecture.overlay.operation.hide
+import io.element.android.libraries.architecture.overlay.operation.show
 import io.element.android.libraries.chatbot.api.ChatbotBaseUrlResolver
+import io.element.android.libraries.core.extensions.mapCatchingExceptions
 import io.element.android.libraries.di.RoomScope
 import io.element.android.libraries.di.annotations.ApplicationContext
 import io.element.android.libraries.gameapi.api.AppBundleInfo
+import io.element.android.libraries.gameapi.api.GameInfo
 import io.element.android.libraries.gameapi.impl.DefaultGameApiService
 import io.element.android.libraries.matrix.api.MatrixClient
+import io.element.android.libraries.matrix.api.core.RoomId
 import io.element.android.libraries.matrix.api.room.JoinedRoom
 import io.element.android.libraries.matrix.api.room.RoomMember
 import io.element.android.libraries.matrix.api.room.activeRoomMembers
@@ -51,6 +66,10 @@ import androidx.compose.ui.platform.LocalDensity
 import io.element.android.libraries.miniapp.impl.MiniAppLoadingOverlay
 import io.element.android.libraries.miniapp.impl.MiniAppLoadingState
 import io.element.android.libraries.miniapp.impl.MiniAppView
+import io.element.android.libraries.roomselect.api.RoomSelectEntryPoint
+import io.element.android.libraries.roomselect.api.RoomSelectMode
+import kotlinx.coroutines.launch
+import kotlinx.parcelize.Parcelize
 import okhttp3.OkHttpClient
 import timber.log.Timber
 
@@ -89,6 +108,8 @@ import timber.log.Timber
  * - [MiniAppHostBridge.sendMessage]     → [JoinedRoom.liveTimeline.sendMessage]
  * - [MiniAppHostBridge.closeApp]        → [navigateUp]
  * - [MiniAppHostBridge.openWeb]         → no-op (future: push nested MiniAppNode)
+ * - [MiniAppHostBridge.shareMiniApp]    → room picker ([RoomSelectEntryPoint]) shown over the
+ *                                         mini-app, then the game is started in the picked room
  */
 @ContributesNode(RoomScope::class)
 class MiniAppNode @AssistedInject constructor(
@@ -99,7 +120,21 @@ class MiniAppNode @AssistedInject constructor(
     private val room: JoinedRoom,
     private val baseUrlResolver: ChatbotBaseUrlResolver,
     private val okHttpClient: () -> OkHttpClient,
-) : Node(buildContext, plugins = plugins) {
+    private val roomSelectEntryPoint: RoomSelectEntryPoint,
+    private val gameApiServiceProvider: RoomGameApiServiceProvider,
+) : ParentNode<MiniAppNode.NavTarget>(
+    // Shown over the mini-app, which stays alive behind it.
+    navModel = Overlay(savedStateMap = buildContext.savedStateMap),
+    buildContext = buildContext,
+    plugins = plugins,
+) {
+    sealed interface NavTarget : Parcelable {
+        /** Room picker of the capsule menu's "Share with Friends". */
+        @Parcelize
+        data object SharePicker : NavTarget
+    }
+
+    private val overlay get() = navModel as Overlay<NavTarget>
 
     data class Inputs(
         val appId: Long,
@@ -116,6 +151,9 @@ class MiniAppNode @AssistedInject constructor(
     /** Cached homeserver base URL resolved in [resolveBundleConfig]; used by [getGameInfo]. */
     @Volatile
     private var cachedHomeserverUrl: String = ""
+
+    /** Info of the share in progress (see [MiniAppHostBridge.shareMiniApp]); null when none. */
+    private var pendingShareInfo: Map<String, Any?>? = null
 
     // ── Host bridge ───────────────────────────────────────────────────────────
 
@@ -208,6 +246,61 @@ class MiniAppNode @AssistedInject constructor(
                 .map { it.toBundleDataMap() }
                 .getOrNull()
         }
+
+        override val canShareMiniApp: Boolean get() = inputs.appId > 0L
+
+        override fun shareMiniApp(info: Map<String, Any?>) {
+            pendingShareInfo = info
+            overlay.show(NavTarget.SharePicker)
+        }
+    }
+
+    // ── Share with Friends ────────────────────────────────────────────────────
+
+    override fun resolve(navTarget: NavTarget, buildContext: BuildContext): Node = when (navTarget) {
+        NavTarget.SharePicker -> roomSelectEntryPoint.createNode(
+            parentNode = this,
+            buildContext = buildContext,
+            params = RoomSelectEntryPoint.Params(mode = RoomSelectMode.Share),
+            callback = object : RoomSelectEntryPoint.Callback {
+                override fun onRoomSelected(roomIds: List<RoomId>) {
+                    val info = pendingShareInfo
+                    pendingShareInfo = null
+                    overlay.hide()
+                    if (info != null) shareToRooms(info, roomIds)
+                }
+
+                override fun onCancel() {
+                    pendingShareInfo = null
+                    overlay.hide()
+                }
+            },
+        )
+    }
+
+    /**
+     * Starts this game in each picked room, like the composer's game picker
+     * (GamePickerPresenter): create its game room there, then send the `m.game.v1` card. The
+     * card's name / brief / icon come from the page's share info, falling back to the app's own.
+     */
+    private fun shareToRooms(info: Map<String, Any?>, roomIds: List<RoomId>) {
+        if (roomIds.isEmpty()) return
+        val gameId = (info["appId"] as? Number)?.toInt()?.takeIf { it > 0 } ?: inputs.appId.toInt()
+        lifecycleScope.launch {
+            val shared = gameApiServiceProvider.create().map { it.service }.mapCatchingExceptions { service ->
+                roomIds.forEach { roomId ->
+                    val result = service.createGameRoom(gameId, meetRoomId = roomId.value).getOrThrow()
+                    service.sendGameInviteMessage(
+                        roomId = roomId.value,
+                        gameInfo = result.gameInfo.withShareInfo(info),
+                        gameRoomId = result.gameRoomId,
+                        creatorUserId = result.creatorUserId,
+                    ).getOrThrow()
+                }
+            }
+            shared.onFailure { Timber.e(it, "MiniApp: sharing game %d failed", gameId) }
+            context.toast(if (shared.isSuccess) R.string.screen_miniapp_share_success else R.string.screen_miniapp_share_failure)
+        }
     }
 
     // ── View ──────────────────────────────────────────────────────────────────
@@ -256,7 +349,6 @@ class MiniAppNode @AssistedInject constructor(
                     placeable.place(0, -statusBarTop)
                 }
             }
-            .then(modifier)
 
         // Phase 1: resolve bundle info from the server.
         // null = API call in progress (show spinner).
@@ -265,24 +357,29 @@ class MiniAppNode @AssistedInject constructor(
             value = resolveBundleConfig()
         }
 
-        if (config == null) {
-            // Phase 1 — covers the full screen while pkg.app.check.update is in-flight.
-            MiniAppLoadingOverlay(
-                state = MiniAppLoadingState.Loading(),
-                onClose = { navigateUp() },
-                modifier = fullScreenModifier,
-            )
-            return
-        }
+        Box(modifier = modifier.fillMaxSize()) {
+            val resolvedConfig = config
+            if (resolvedConfig == null) {
+                // Phase 1 — covers the full screen while pkg.app.check.update is in-flight.
+                MiniAppLoadingOverlay(
+                    state = MiniAppLoadingState.Loading(),
+                    onClose = { navigateUp() },
+                    modifier = fullScreenModifier,
+                )
+            } else {
+                // Phase 2 + 3: MiniAppView handles ZIP download (if zipUrl set) and page load.
+                MiniAppView(
+                    config = resolvedConfig,
+                    hostBridge = hostBridge,
+                    okHttpClient = okHttpClient(),
+                    onClose = { navigateUp() },
+                    modifier = fullScreenModifier.fillMaxSize(),
+                )
+            }
 
-        // Phase 2 + 3: MiniAppView handles ZIP download (if zipUrl set) and page load.
-        MiniAppView(
-            config = config!!,
-            hostBridge = hostBridge,
-            okHttpClient = okHttpClient(),
-            onClose = { navigateUp() },
-            modifier = fullScreenModifier.fillMaxSize(),
-        )
+            // The share room picker, over the mini-app.
+            SafeChildren(navModel = overlay, transitionHandler = rememberBackstackFader())
+        }
     }
 
     // ── Bundle config resolution ──────────────────────────────────────────────
@@ -404,6 +501,17 @@ class MiniAppNode @AssistedInject constructor(
         powerLevel = powerLevel.toInt(),
         isAgent = isServiceMember.takeIf { isServiceMember },
         isSelf = matrixClient.isMe(userId),
+    )
+}
+
+/** [GameInfo] of the shared card: the page's share info overrides the app's own name / brief / icon. */
+private fun GameInfo.withShareInfo(info: Map<String, Any?>): GameInfo {
+    fun text(vararg keys: String): String? =
+        keys.firstNotNullOfOrNull { key -> (info[key] as? String)?.takeIf { it.isNotBlank() } }
+    return copy(
+        name = text("title", "name") ?: name,
+        brief = text("desc", "brief") ?: brief,
+        icon = text("imageUrl", "icon") ?: icon,
     )
 }
 
