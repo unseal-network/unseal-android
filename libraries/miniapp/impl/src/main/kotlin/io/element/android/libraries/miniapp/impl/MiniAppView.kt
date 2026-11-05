@@ -13,7 +13,6 @@ import android.webkit.WebSettings
 import android.webkit.WebStorage
 import android.webkit.WebView
 import androidx.compose.foundation.background
-import androidx.webkit.WebViewCompat
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -32,9 +31,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.net.toUri
+import androidx.webkit.WebViewCompat
 import io.element.android.libraries.miniapp.api.MiniAppConfig
-import io.element.android.libraries.designsystem.components.dialogs.ConfirmationDialog
 import io.element.android.libraries.miniapp.api.MiniAppHostBridge
+import io.element.android.libraries.ui.strings.CommonStrings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -310,33 +310,35 @@ private fun MiniAppSession(
             onCloseClick = { hostBridge?.closeApp() ?: onClose() },
             modifier = Modifier.align(Alignment.TopEnd),
         )
-    }
 
-    if (showCapsuleMenu) {
-        MiniAppCapsuleMenu(
-            canShare = hostBridge?.canShareMiniApp == true,
-            onShareClick = { hostBridge?.shareMiniApp(buildShareInfo(config, capsule.shareInfo)) },
-            onRestartClick = onRestart,
-            onClearCacheClick = { showClearCacheDialog = true },
-            onDismiss = { showCapsuleMenu = false },
-        )
-    }
+        // The menu and its confirmation are drawn in this window, above everything: a dialog
+        // window would bring the hidden system bars back and shift the page (MiniAppCapsuleMenu).
+        if (showCapsuleMenu) {
+            MiniAppCapsuleMenu(
+                canShare = hostBridge?.canShareMiniApp == true,
+                onShareClick = { hostBridge?.shareMiniApp(buildShareInfo(config, capsule.shareInfo)) },
+                onRestartClick = onRestart,
+                onClearCacheClick = { showClearCacheDialog = true },
+                onDismiss = { showCapsuleMenu = false },
+            )
+        }
 
-    if (showClearCacheDialog) {
-        ConfirmationDialog(
-            title = stringResource(R.string.screen_miniapp_clear_cache_dialog_title),
-            content = stringResource(R.string.screen_miniapp_clear_cache_dialog_content),
-            submitText = stringResource(R.string.screen_miniapp_clear_cache_dialog_submit),
-            destructiveSubmit = true,
-            onSubmitClick = {
-                showClearCacheDialog = false
-                scope.launch {
-                    clearMiniAppData(context, config, okHttpClient, webViewHolder[0])
-                    onRestart()
-                }
-            },
-            onDismiss = { showClearCacheDialog = false },
-        )
+        if (showClearCacheDialog) {
+            MiniAppConfirmDialog(
+                title = stringResource(R.string.screen_miniapp_clear_cache_dialog_title),
+                content = stringResource(R.string.screen_miniapp_clear_cache_dialog_content),
+                submitText = stringResource(R.string.screen_miniapp_clear_cache_dialog_submit),
+                cancelText = stringResource(CommonStrings.action_cancel),
+                onSubmitClick = {
+                    showClearCacheDialog = false
+                    scope.launch {
+                        clearMiniAppData(context, config, okHttpClient, webViewHolder[0])
+                        onRestart()
+                    }
+                },
+                onDismiss = { showClearCacheDialog = false },
+            )
+        }
     }
 }
 
