@@ -18,6 +18,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -54,6 +55,7 @@ import io.element.android.libraries.matrix.api.room.RoomMember
 import io.element.android.libraries.matrix.api.room.activeRoomMembers
 import io.element.android.libraries.miniapp.api.MiniAppConfig
 import io.element.android.libraries.miniapp.api.MiniAppHostBridge
+import io.element.android.libraries.miniapp.api.MiniAppOrientation
 import io.element.android.libraries.miniapp.api.MiniAppToken
 import io.element.android.libraries.miniapp.api.MiniAppUser
 import androidx.compose.foundation.layout.fillMaxSize
@@ -310,10 +312,14 @@ class MiniAppNode @AssistedInject constructor(
         // Hide system bars for an immersive full-screen game experience.
         // Restored when this node leaves the composition (e.g. on back navigation).
         val view = LocalView.current
+        // Read so that a rotation (the mini-app may request landscape) recomposes this node and
+        // the SideEffect below hides the bars again in the new orientation.
+        val orientation = LocalConfiguration.current.orientation
 
         // SideEffect re-hides on every recomposition so bars stay hidden even if the
         // system temporarily restores them (e.g. rotating, back-gesture hint).
         SideEffect {
+            Timber.v("MiniApp: hiding system bars (orientation=%d)", orientation)
             val activity = view.context as? Activity
             val window = activity?.window ?: return@SideEffect
             WindowCompat.getInsetsController(window, view).apply {
@@ -451,6 +457,7 @@ class MiniAppNode @AssistedInject constructor(
                         user = selfUser,
                         options = options,
                         appBundleData = info.toBundleDataMap(),
+                        screenOrientation = MiniAppOrientation.fromServerValue(info.screenOrientation),
                         homeserver = homeserverUrl,
                     )
                     AppBundleInfo.LoadMode.Local -> MiniAppConfig(
@@ -461,6 +468,7 @@ class MiniAppNode @AssistedInject constructor(
                         user = selfUser,
                         options = options,
                         appBundleData = info.toBundleDataMap(),
+                        screenOrientation = MiniAppOrientation.fromServerValue(info.screenOrientation),
                         bundleVersion = info.version,
                         homeserver = homeserverUrl,
                     )

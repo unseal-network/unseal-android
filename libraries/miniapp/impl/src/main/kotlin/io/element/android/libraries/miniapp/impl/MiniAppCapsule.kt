@@ -7,8 +7,6 @@
 
 package io.element.android.libraries.miniapp.impl
 
-import android.content.Context
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import androidx.activity.compose.BackHandler
@@ -58,6 +56,7 @@ import io.element.android.compound.tokens.generated.CompoundIcons
 import io.element.android.libraries.designsystem.theme.components.HorizontalDivider
 import org.json.JSONException
 import org.json.JSONObject
+import kotlin.math.max
 import kotlin.math.roundToInt
 
 // ── Geometry ──────────────────────────────────────────────────────────────────
@@ -66,6 +65,33 @@ private const val CAPSULE_WIDTH_DP = 87f
 private const val CAPSULE_HEIGHT_DP = 32f
 private const val CAPSULE_RIGHT_MARGIN_DP = 7f
 private const val CAPSULE_TOP_GAP_DP = 4f
+private const val CAPSULE_MIN_TOP_DP = 8f
+
+/**
+ * Where the capsule sits for a WebView [geometry], in dp relative to the WebView's top-left.
+ * Shared by [MiniAppCapsuleController.rect] and the drawn [MiniAppCapsule] so they always agree.
+ *
+ * @param top         Capsule top: top safe-area inset + 4 dp, at least 8 dp (landscape has no status bar).
+ * @param rightMargin Gap between the capsule and the WebView's right edge: 7 dp + right safe-area inset.
+ * @param webViewWidth The WebView's width in dp.
+ */
+internal data class MiniAppCapsuleFrame(
+    val top: Float,
+    val rightMargin: Float,
+    val webViewWidth: Float,
+) {
+    val right: Float get() = webViewWidth - rightMargin
+    val left: Float get() = right - CAPSULE_WIDTH_DP
+    val bottom: Float get() = top + CAPSULE_HEIGHT_DP
+
+    companion object {
+        fun of(geometry: MiniAppGeometry) = MiniAppCapsuleFrame(
+            top = max(geometry.insets.top + CAPSULE_TOP_GAP_DP, CAPSULE_MIN_TOP_DP),
+            rightMargin = CAPSULE_RIGHT_MARGIN_DP + geometry.insets.right,
+            webViewWidth = geometry.widthDp,
+        )
+    }
+}
 
 /** The capsule's colour scheme. [Dark] is for dark pages, [Light] for light pages. */
 internal enum class MiniAppCapsuleTheme { Light, Dark }
@@ -76,16 +102,15 @@ internal enum class MiniAppCapsuleTheme { Light, Dark }
  *
  * Bridge calls arrive on the WebView's JS thread: they update a volatile copy synchronously
  * (so `capsule.rect` answers at once) and hop to the main thread for the Compose state.
- * The rect is computed from the density and the status-bar inset, never from a layout pass,
- * and the composable ([MiniAppCapsule]) is placed with the same numbers.
+ * The rect is computed from the WebView geometry (size + safe-area insets, see
+ * [MiniAppOrientationController]) with [MiniAppCapsuleFrame], and the composable
+ * ([MiniAppCapsule]) is placed with the same numbers.
  *
- * @param context        Context of the WebView, for the density and the window insets.
- * @param webViewWidthPx Current WebView width in px, or 0 before it is laid out.
+ * @param geometry Current WebView geometry, readable from any thread.
  */
 @Stable
 internal class MiniAppCapsuleController(
-    private val context: Context,
-    private val webViewWidthPx: () -> Int,
+    private val geometry: () -> MiniAppGeometry,
 ) {
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -149,51 +174,21 @@ internal class MiniAppCapsuleController(
      * to the WebView's top-left: `{top,left,right,bottom,width,height,visible}`.
      */
     fun rect(): String {
-        val density = context.resources.displayMetrics.density
-        val widthPx = webViewWidthPx().takeIf { it > 0 } ?: context.resources.displayMetrics.widthPixels
-        val right = widthPx / density - CAPSULE_RIGHT_MARGIN_DP
-        val top = topDp()
+        val frame = MiniAppCapsuleFrame.of(geometry())
         return JSONObject().apply {
-            put("top", top.round2())
-            put("left", (right - CAPSULE_WIDTH_DP).round2())
-            put("right", right.round2())
-            put("bottom", (top + CAPSULE_HEIGHT_DP).round2())
+            put("top", frame.top.round2())
+            put("left", frame.left.round2())
+            put("right", frame.right.round2())
+            put("bottom", frame.bottom.round2())
             put("width", CAPSULE_WIDTH_DP.round2())
             put("height", CAPSULE_HEIGHT_DP.round2())
             put("visible", requestedVisible)
         }.toString()
     }
 
-    /** Capsule top in dp: status-bar height + [CAPSULE_TOP_GAP_DP]. */
-    fun topDp(): Float = statusBarHeightPx() / context.resources.displayMetrics.density + CAPSULE_TOP_GAP_DP
-
     /** "lightContent" (white status-bar text) means a dark page → dark capsule. */
     private fun defaultTheme(): MiniAppCapsuleTheme =
         if (statusBarStyle?.contains("darkContent") == true) MiniAppCapsuleTheme.Light else MiniAppCapsuleTheme.Dark
-
-    /**
-     * The status-bar height in px, whether or not the bar is currently shown: the mini-app hides
-     * the system bars, but the capsule must still clear the status-bar / cutout area. This is the
-     * value `safeArea` reports on API < 30 (`status_bar_height`).
-     */
-    private fun statusBarHeightPx(): Int {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val wm = context.getSystemService(Context.WINDOW_SERVICE) as? android.view.WindowManager
-            val top = try {
-                wm?.currentWindowMetrics
-                    ?.windowInsets
-                    ?.getInsetsIgnoringVisibility(android.view.WindowInsets.Type.statusBars())
-                    ?.top
-            } catch (e: IllegalStateException) {
-                // Not a visual context.
-                null
-            }
-            if (top != null && top > 0) return top
-        }
-        @Suppress("DiscouragedApi")
-        val id = context.resources.getIdentifier("status_bar_height", "dimen", "android")
-        return if (id > 0) context.resources.getDimensionPixelSize(id) else 0
-    }
 
     private fun onMain(block: () -> Unit) {
         if (Looper.myLooper() == Looper.getMainLooper()) block() else mainHandler.post(block)
@@ -212,11 +207,13 @@ private fun Float.round2(): Double = (this * 100).roundToInt() / 100.0
 
 /**
  * The capsule pill: "•••" | "×", at the top right of the mini-app. Draw it above the WebView in
- * the same full-screen Box, so its position matches [MiniAppCapsuleController.rect].
+ * the same full-screen Box, with the WebView's [geometry], so its position matches
+ * [MiniAppCapsuleController.rect] (both use [MiniAppCapsuleFrame]).
  */
 @Composable
 internal fun MiniAppCapsule(
     controller: MiniAppCapsuleController,
+    geometry: MiniAppGeometry,
     onMoreClick: () -> Unit,
     onCloseClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -228,9 +225,10 @@ internal fun MiniAppCapsule(
     val border = if (dark) Color.White.copy(alpha = 0.25f) else Color.Black.copy(alpha = 0.08f)
     val glyph = if (dark) Color.White else Color.Black
     val divider = if (dark) Color.White.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.12f)
+    val frame = MiniAppCapsuleFrame.of(geometry)
     Row(
         modifier = modifier
-            .padding(top = controller.topDp().dp, end = CAPSULE_RIGHT_MARGIN_DP.dp)
+            .padding(top = frame.top.dp, end = frame.rightMargin.dp)
             .size(width = CAPSULE_WIDTH_DP.dp, height = CAPSULE_HEIGHT_DP.dp)
             .clip(CircleShape)
             .background(background)

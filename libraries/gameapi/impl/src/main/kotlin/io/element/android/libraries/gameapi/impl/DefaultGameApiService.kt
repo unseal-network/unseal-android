@@ -17,6 +17,7 @@ import io.element.android.libraries.matrix.api.MatrixClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.int
@@ -217,13 +218,21 @@ class DefaultGameApiService(
         else
             null
 
-        Timber.d("MiniApp fetchAppBundle parsed: appId=$appId version=$version loadMode=$loadMode remoteUrl=$remoteUrl zipUrl=$zipUrl")
+        // 1 = portrait (default), 2 = landscape, 3 = auto. Accept a number or a numeric string.
+        val screenOrientation = (data["screen_orientation"] as? JsonPrimitive)?.content?.toIntOrNull()
+            ?: AppBundleInfo.SCREEN_ORIENTATION_PORTRAIT
+
+        Timber.d(
+            "MiniApp fetchAppBundle parsed: appId=$appId version=$version loadMode=$loadMode remoteUrl=$remoteUrl zipUrl=$zipUrl " +
+                "screenOrientation=$screenOrientation"
+        )
         AppBundleInfo(
             appId = appId,
             version = version,
             loadMode = loadMode,
             remoteUrl = remoteUrl,
             zipUrl = zipUrl,
+            screenOrientation = screenOrientation,
         )
     }
 

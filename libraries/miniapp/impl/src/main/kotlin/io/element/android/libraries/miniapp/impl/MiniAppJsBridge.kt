@@ -50,6 +50,7 @@ import java.io.File
  *                      Called on the JS thread — must be thread-safe.
  * @param scope         Coroutine scope for async bridge work.
  * @param capsule       State of the "•••" | "×" capsule, driven by the `capsule.*` sync calls.
+ * @param orientation   Screen orientation + WebView geometry, for `orientation.*` and `safeArea`.
  */
 @Suppress("TooManyFunctions")
 internal class MiniAppJsBridge(
@@ -61,6 +62,7 @@ internal class MiniAppJsBridge(
     private val webViewRef: () -> WebView?,
     private val scope: CoroutineScope,
     private val capsule: MiniAppCapsuleController,
+    private val orientation: MiniAppOrientationController,
 ) {
     private val soundManager = MiniAppSoundManager(context, okHttpClient)
     private val hapticPlayer = MiniAppHapticPlayer(context)
@@ -198,30 +200,66 @@ internal class MiniAppJsBridge(
     fun capsuleShare(params: String): String = capsule.share(params)
 
     /**
-     * Return display safe-area insets (dp).
+     * Return the safe-area insets (display cutout + system bars, whether or not the bars are
+     * shown) and the WebView size, in dp: `{top, bottom, left, right, width, height}`.
      * JS: `window.webkit.safeArea(params)`
      */
     @JavascriptInterface
-    fun safeArea(params: String): String {
-        val density = context.resources.displayMetrics.density
-        val statusBarPx = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val wm = context.getSystemService(Context.WINDOW_SERVICE) as? android.view.WindowManager
-            wm?.currentWindowMetrics?.windowInsets
-                ?.getInsets(android.view.WindowInsets.Type.statusBars())?.top ?: 0
+    fun safeArea(params: String): String = orientation.safeArea()
+
+    // ── Orientation bridge methods ────────────────────────────────────────────
+
+    /**
+     * The current orientation (sync):
+     * `{orientation: "portrait"|"landscape", requested: "portrait"|"landscape"|"auto", width, height}`,
+     * where `orientation` comes from the WebView's size in dp.
+     * JS: `window.webkit.orientationGet()`
+     */
+    @JavascriptInterface
+    fun orientationGet(): String = orientation.get()
+
+    /** Overload for the SDK's `window.webkit[name](JSON.stringify(args))` calling convention. */
+    @JavascriptInterface
+    fun orientationGet(@Suppress("UNUSED_PARAMETER") params: String): String = orientation.get()
+
+    /**
+     * Request an orientation (async): `{handleId, data: {orientation: "portrait"|"landscape"|"auto"}}`.
+     * Replies 400 for an invalid value; otherwise replies with the `orientation.get` JSON once the
+     * WebView is in that orientation (at once for "auto" or when it already is), or after 3 s.
+     * JS: `window.webkit.orientationSet(JSON.stringify({ handleId, data: { orientation } }))`
+     */
+    @JavascriptInterface
+    fun orientationSet(params: String) {
+        val from = FromJsData(params)
+        val value = from.data.optString("orientation")
+        val reply: ((JSONObject) -> Unit)? = if (from.handleId.isEmpty()) {
+            null
         } else {
-            @Suppress("DEPRECATION")
-            val id = context.resources.getIdentifier("status_bar_height", "dimen", "android")
-            if (id > 0) context.resources.getDimensionPixelSize(id) else 0
+            { state -> notify(ToJsData(handle = from.handleId).apply { data = state }) }
         }
-        val dm = context.resources.displayMetrics
-        return JSONObject().apply {
-            put("top", (statusBarPx / density).toInt())
-            put("bottom", 0)
-            put("left", 0)
-            put("right", 0)
-            put("height", (dm.heightPixels / density).toInt())
-            put("width", (dm.widthPixels / density).toInt())
-        }.toString()
+        if (!orientation.set(value, reply)) {
+            Timber.w("MiniApp: orientation.set invalid orientation=%s", value)
+            if (from.handleId.isEmpty()) return
+            notify(
+                ToJsData(handle = from.handleId).apply {
+                    code = 400
+                    msg = "Invalid orientation: $value"
+                }
+            )
+        }
+    }
+
+    /**
+     * Tell the page its WebView changed: `orientation_change` (`orientation.get` JSON) when its
+     * size / orientation changed, `safe_area_change` (`safeArea` JSON) when its safe area or size changed.
+     */
+    fun sendGeometryEvents(orientationChanged: Boolean, safeAreaChanged: Boolean) {
+        if (orientationChanged) {
+            notify(ToJsData(event = "orientation_change").apply { data = JSONObject(orientation.get()) })
+        }
+        if (safeAreaChanged) {
+            notify(ToJsData(event = "safe_area_change").apply { data = JSONObject(orientation.safeArea()) })
+        }
     }
 
     /**
@@ -865,6 +903,7 @@ internal class MiniAppJsBridge(
         "capsule.hide", "capsuleHide" -> capsuleHide()
         "capsule.rect", "capsuleRect" -> capsuleRect()
         "capsule.share", "capsuleShare" -> capsuleShare(argsJson)
+        "orientation.get", "orientationGet" -> orientationGet()
         "create.success", "createSuccess" -> { createSuccess(argsJson); "" }
         "create.progress", "createProgress" -> { createProgress(argsJson); "" }
         "create.error", "createError" -> { createError(argsJson); "" }
