@@ -9,9 +9,11 @@ package io.element.android.libraries.miniapp.impl
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.ActivityInfo
 import android.webkit.WebSettings
 import android.webkit.WebStorage
 import android.webkit.WebView
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.net.toUri
@@ -37,6 +40,7 @@ import io.element.android.libraries.miniapp.api.MiniAppHostBridge
 import io.element.android.libraries.ui.strings.CommonStrings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -112,6 +116,34 @@ fun MiniAppView(
     onClose: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    // Above the session key: a "Restart" keeps the orientation the page asked for.
+    val orientation = remember(config.appId) { MiniAppOrientationController(context, config.screenOrientation) }
+    MiniAppOrientationEffect(orientation)
+
+    // Hold the page back until the window is in the app's orientation, so a landscape app
+    // opens in landscape without first laying out (and loading) in portrait. The timeout covers
+    // windows that can't rotate (e.g. multi-window).
+    val configuration = LocalConfiguration.current
+    val initialOrientationReached = isOrientationReached(
+        target = config.screenOrientation,
+        widthDp = configuration.screenWidthDp.toFloat(),
+        heightDp = configuration.screenHeightDp.toFloat(),
+    )
+    var orientationReady by remember(config.appId) { mutableStateOf(initialOrientationReached) }
+    if (!orientationReady) {
+        LaunchedEffect(initialOrientationReached) {
+            if (!initialOrientationReached) delay(INITIAL_ORIENTATION_TIMEOUT_MS)
+            orientationReady = true
+        }
+        MiniAppLoadingOverlay(
+            state = MiniAppLoadingState.Loading(progress = null),
+            onClose = onClose,
+            modifier = modifier,
+        )
+        return
+    }
+
     // Bumped by the capsule menu's "Restart" / "Clear Cache": a new key throws the whole
     // session away (WebView, bridge, capsule, bundle state) and runs the load flow again.
     var sessionKey by remember(config.appId) { mutableIntStateOf(0) }
@@ -120,10 +152,31 @@ fun MiniAppView(
             config = config,
             hostBridge = hostBridge,
             okHttpClient = okHttpClient,
+            orientation = orientation,
             onClose = onClose,
             onRestart = { sessionKey++ },
             modifier = modifier,
         )
+    }
+}
+
+/** How long the first page load waits for the window to reach the app's orientation. */
+private const val INITIAL_ORIENTATION_TIMEOUT_MS = 1_500L
+
+/**
+ * Applies the [orientation] the mini-app requests to the activity, and restores
+ * [ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED] when the mini-app goes away (like ForceOrientation).
+ */
+@Composable
+private fun MiniAppOrientationEffect(orientation: MiniAppOrientationController) {
+    val activity = LocalActivity.current ?: return
+    val requested = orientation.requested
+    DisposableEffect(activity, requested) {
+        activity.requestedOrientation = requested.toActivityOrientation()
+        onDispose { }
+    }
+    DisposableEffect(activity) {
+        onDispose { activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
     }
 }
 
@@ -134,6 +187,7 @@ private fun MiniAppSession(
     config: MiniAppConfig,
     hostBridge: MiniAppHostBridge?,
     okHttpClient: OkHttpClient,
+    orientation: MiniAppOrientationController,
     onClose: () -> Unit,
     onRestart: () -> Unit,
     modifier: Modifier = Modifier,
@@ -160,7 +214,7 @@ private fun MiniAppSession(
     // Called by MiniAppWebViewClient.onPageFinished to switch bundleState → Ready.
     val pageFinishedAction = remember { arrayOfNulls<() -> Unit>(1) }
     // The "•••" | "×" capsule, shown by the page through the `capsule.*` bridge calls.
-    val capsule = remember { MiniAppCapsuleController(context) { webViewHolder[0]?.width ?: 0 } }
+    val capsule = remember { MiniAppCapsuleController(orientation::currentGeometry) }
     var showCapsuleMenu by remember { mutableStateOf(false) }
     var showClearCacheDialog by remember { mutableStateOf(false) }
 
@@ -249,6 +303,7 @@ private fun MiniAppSession(
             bridgeHolder[0]?.release()
             bridgeHolder[0] = null
             webViewHolder[0]?.let { wv ->
+                orientation.detach(wv)
                 wv.stopLoading()
                 wv.destroy()
             }
@@ -269,6 +324,7 @@ private fun MiniAppSession(
             okHttpClient = okHttpClient,
             scope = scope,
             capsule = capsule,
+            orientation = orientation,
             // In bundle mode don't load a URL in the factory — LaunchedEffect does it later.
             initialUrl = if (config.zipUrl.isNullOrBlank()) config.url else null,
             onWebViewCreated = { wv, bridge ->
@@ -305,6 +361,7 @@ private fun MiniAppSession(
         // Capsule — above the WebView, in the same full-screen Box (see MiniAppCapsuleController.rect).
         MiniAppCapsule(
             controller = capsule,
+            geometry = orientation.geometry,
             onMoreClick = { showCapsuleMenu = true },
             // "×" closes the mini-app like the bridge `back` call.
             onCloseClick = { hostBridge?.closeApp() ?: onClose() },
@@ -405,6 +462,7 @@ private fun MiniAppWebViewContainer(
     okHttpClient: OkHttpClient,
     scope: CoroutineScope,
     capsule: MiniAppCapsuleController,
+    orientation: MiniAppOrientationController,
     initialUrl: String?,
     onWebViewCreated: (WebView, MiniAppJsBridge) -> Unit,
 ) {
@@ -419,6 +477,7 @@ private fun MiniAppWebViewContainer(
                 okHttpClient = okHttpClient,
                 scope = scope,
                 capsule = capsule,
+                orientation = orientation,
             )
             onWebViewCreated(wv, bridge)
             if (!initialUrl.isNullOrBlank()) {
@@ -442,6 +501,7 @@ private fun createWebView(
     okHttpClient: OkHttpClient,
     scope: CoroutineScope,
     capsule: MiniAppCapsuleController,
+    orientation: MiniAppOrientationController,
 ): Pair<WebView, MiniAppJsBridge> {
     val storage = MiniAppStorage(context, config.appId)
     lateinit var webViewInstance: WebView
@@ -455,6 +515,7 @@ private fun createWebView(
         webViewRef = { webViewInstance },
         scope = scope,
         capsule = capsule,
+        orientation = orientation,
     )
 
     webViewInstance = WebView(context).apply {
@@ -493,6 +554,10 @@ private fun createWebView(
     // evaluateJavascript in onPageStarted races with async module execution; this API
     // wins that race unconditionally (API 26+).
     WebViewCompat.addDocumentStartJavaScript(webViewInstance, buildStartupScript(config), setOf("*"))
+
+    // Size + safe-area tracking for orientation.get / safeArea / capsule.rect, and the
+    // orientation_change / safe_area_change events.
+    orientation.attach(webViewInstance, bridge::sendGeometryEvents)
 
     return Pair(webViewInstance, bridge)
 }

@@ -20,6 +20,7 @@ import io.element.android.libraries.gameapi.impl.DefaultGameApiService
 import io.element.android.libraries.matrix.api.MatrixClient
 import io.element.android.libraries.matrix.api.media.MediaSource
 import io.element.android.libraries.miniapp.api.MiniAppConfig
+import io.element.android.libraries.miniapp.api.MiniAppOrientation
 import io.element.android.libraries.miniapp.api.MiniAppToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -179,6 +180,7 @@ class DefaultMiniAppDocumentLauncher(
                         options = enrichedOptions,
                         token = token,
                         appBundleData = info.toBundleDataMap(),
+                        screenOrientation = MiniAppOrientation.fromServerValue(info.screenOrientation),
                         homeserver = homeserverUrl,
                     )
                     AppBundleInfo.LoadMode.Local -> MiniAppConfig(
@@ -188,6 +190,7 @@ class DefaultMiniAppDocumentLauncher(
                         options = enrichedOptions,
                         token = token,
                         appBundleData = info.toBundleDataMap(),
+                        screenOrientation = MiniAppOrientation.fromServerValue(info.screenOrientation),
                         bundleVersion = info.version,
                         homeserver = homeserverUrl,
                     )

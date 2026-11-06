@@ -22,6 +22,9 @@ package io.element.android.libraries.gameapi.api
  * @param remoteUrl  Direct WebView URL when [loadMode] == [LoadMode.Remote].
  * @param zipUrl     Full HTTPS URL to the ZIP bundle when [loadMode] == [LoadMode.Local].
  *                   Null when the server does not provide a download URL.
+ * @param screenOrientation Raw `screen_orientation` from the server: 1 = portrait (default),
+ *                   2 = landscape, 3 = auto. Missing values are reported as 1; unknown values
+ *                   are passed through and treated as portrait by the mini-app host.
  */
 data class AppBundleInfo(
     val appId: Int,
@@ -29,7 +32,14 @@ data class AppBundleInfo(
     val loadMode: LoadMode,
     val remoteUrl: String?,
     val zipUrl: String?,
+    val screenOrientation: Int = SCREEN_ORIENTATION_PORTRAIT,
 ) {
+    companion object {
+        const val SCREEN_ORIENTATION_PORTRAIT = 1
+        const val SCREEN_ORIENTATION_LANDSCAPE = 2
+        const val SCREEN_ORIENTATION_AUTO = 3
+    }
+
     enum class LoadMode {
         /** Load [AppBundleInfo.remoteUrl] directly in the WebView. */
         Remote,

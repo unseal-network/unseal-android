@@ -63,4 +63,9 @@ data class MiniAppConfig(
      * `appInfo` bridge so mini-apps can resolve server-relative API paths.
      */
     val homeserver: String? = null,
+    /**
+     * Orientation the mini-app opens in (the backend's `screen_orientation`). The page can change
+     * it later through the `orientation.set` bridge call.
+     */
+    val screenOrientation: MiniAppOrientation = MiniAppOrientation.PORTRAIT,
 )
